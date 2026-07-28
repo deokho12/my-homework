@@ -16,7 +16,18 @@ export default function AdminHospitalListScreen() {
         <Text className="mb-4 text-sm text-neutral-500">
           등록된 병원 정보를 수정하거나 새 병원을 등록할 수 있어요
         </Text>
-        <PrimaryButton label="새 병원 등록" onPress={() => router.push('/admin/hospital/new')} />
+        <View className="flex-row gap-2">
+          <View className="flex-1">
+            <PrimaryButton label="새 병원 등록" onPress={() => router.push('/admin/hospital/new')} />
+          </View>
+          <View className="flex-1">
+            <PrimaryButton
+              label="전문의 인증 검수"
+              variant="outline"
+              onPress={() => router.push('/admin/specialists')}
+            />
+          </View>
+        </View>
       </View>
 
       <FlatList

@@ -7,8 +7,10 @@ import { getProcedureById } from '@/data/procedures';
 import { getPromotionByHospital } from '@/data/promotions';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { useFavoritesStore } from '@/store/useFavoritesStore';
+import { getDoctorsByHospital } from '@/store/useDoctorStore';
 import type { Hospital } from '@/types/domain';
 import { calcDiscountRate, formatPriceRange, formatWon } from '@/utils/format';
+import { getRepresentativeSpecialist } from '@/utils/specialty';
 import { isSponsorshipActive } from '@/utils/sponsorship';
 
 interface HospitalCardProps {
@@ -20,6 +22,7 @@ export function HospitalCard({ hospital }: HospitalCardProps) {
   const toggleFavorite = useFavoritesStore((state) => state.toggleFavorite);
   const requireAuth = useRequireAuth();
   const promotion = getPromotionByHospital(hospital.id);
+  const representativeSpecialist = getRepresentativeSpecialist(getDoctorsByHospital(hospital.id));
 
   return (
     <Pressable
@@ -63,6 +66,7 @@ export function HospitalCard({ hospital }: HospitalCardProps) {
           {isSponsorshipActive(hospital) ? <Badge label="광고" /> : null}
           {hospital.isRecommended ? <Badge label="🌟 추천" tone="brand" /> : null}
           {hospital.isOneDay ? <Badge label="⚡ 원데이 가능" tone="brand" /> : null}
+          {representativeSpecialist ? <Badge label={`${representativeSpecialist.specialty} 상주`} /> : null}
           {hospital.procedureIds.slice(0, 3).map((procedureId) => {
             const procedure = getProcedureById(procedureId);
             return procedure ? <Badge key={procedureId} label={procedure.name} /> : null;

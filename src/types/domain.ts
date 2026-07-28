@@ -30,6 +30,8 @@ export interface Hospital {
   name: string;
   specialty: string;
   region: string;
+  latitude: number;
+  longitude: number;
   thumbnail: string;
   images: string[];
   procedureIds: ProcedureId[];
@@ -57,18 +59,45 @@ export interface Hospital {
   events: string[];
 }
 
+export type DentalSpecialty =
+  | '치과보철전문의'
+  | '치과교정전문의'
+  | '구강악안면외과전문의'
+  | '치주과전문의'
+  | '소아치과전문의'
+  | '통합치의학과전문의'
+  | '구강악안면방사선과전문의'
+  | '일반의';
+
+export const DENTAL_SPECIALTIES: DentalSpecialty[] = [
+  '치과보철전문의',
+  '치과교정전문의',
+  '구강악안면외과전문의',
+  '치주과전문의',
+  '소아치과전문의',
+  '통합치의학과전문의',
+  '구강악안면방사선과전문의',
+  '일반의',
+];
+
+export type VerificationStatus = 'pending' | 'approved' | 'rejected';
+
 export interface Doctor {
   id: string;
   name: string;
   title: string;
-  specialty: string;
+  specialty: DentalSpecialty;
   hospitalId: string;
   photo: string;
   procedureIds: ProcedureId[];
   rating: number;
   reviewCount: number;
   consultCount: number;
-  isCertified: boolean;
+  /** Uploaded certificate/license image or PDF URL. Null until the hospital admin uploads one. */
+  certificateUrl: string | null;
+  verificationStatus: VerificationStatus;
+  /** Set by the operator when verificationStatus is 'rejected'; explains what needs fixing. */
+  rejectionReason: string | null;
   isRecommended: boolean;
 }
 

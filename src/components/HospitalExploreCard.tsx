@@ -5,16 +5,25 @@ import { Pressable, Text, View, type StyleProp, type ViewStyle } from 'react-nat
 import { Badge } from '@/components/Badge';
 import { getProcedureById } from '@/data/procedures';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
-import type { Hospital } from '@/types/domain';
+import { getDoctorsByHospital } from '@/store/useDoctorStore';
+import type { Hospital, ProcedureId } from '@/types/domain';
+import { getRepresentativeSpecialist, getSpecialtyForProcedure } from '@/utils/specialty';
 import { isSponsorshipActive } from '@/utils/sponsorship';
 
 interface HospitalExploreCardProps {
   hospital: Hospital;
+  /** Currently selected procedure category, if any — used to emphasize a matching specialist tag. */
+  activeCategory?: ProcedureId;
   style?: StyleProp<ViewStyle>;
 }
 
-export function HospitalExploreCard({ hospital, style }: HospitalExploreCardProps) {
+export function HospitalExploreCard({ hospital, activeCategory, style }: HospitalExploreCardProps) {
   const requireAuth = useRequireAuth();
+  const representativeSpecialist = getRepresentativeSpecialist(getDoctorsByHospital(hospital.id));
+  const matchesActiveCategory =
+    !!representativeSpecialist &&
+    !!activeCategory &&
+    representativeSpecialist.specialty === getSpecialtyForProcedure(activeCategory);
 
   return (
     <Pressable
@@ -49,6 +58,12 @@ export function HospitalExploreCard({ hospital, style }: HospitalExploreCardProp
         <View className="mb-3 flex-row flex-wrap gap-1.5">
           {isSponsorshipActive(hospital) ? <Badge label="광고" /> : null}
           {hospital.isRecommended ? <Badge label="🌟 추천" tone="brand" /> : null}
+          {representativeSpecialist ? (
+            <Badge
+              label={`${representativeSpecialist.specialty} 상주`}
+              tone={matchesActiveCategory ? 'brand' : 'neutral'}
+            />
+          ) : null}
           {hospital.procedureIds.slice(0, 3).map((procedureId) => {
             const procedure = getProcedureById(procedureId);
             return procedure ? <Badge key={procedureId} label={procedure.name} /> : null;

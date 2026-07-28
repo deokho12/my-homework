@@ -32,6 +32,12 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "몰라몰라가 주변 병원을 지도에 보여드리기 위해 위치 정보를 사용해요."
+        }
       ]
     ],
     "experiments": {

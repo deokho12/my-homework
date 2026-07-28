@@ -4,8 +4,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { HospitalForm } from '@/components/admin/HospitalForm';
 import { getProcedureById } from '@/data/procedures';
+import { getDoctorsByHospital, useDoctorStore } from '@/store/useDoctorStore';
 import { useHospitalStore } from '@/store/useHospitalStore';
 import type { Hospital } from '@/types/domain';
+import { getProceduresForSpecialty } from '@/utils/specialty';
 import { isSponsorshipActive } from '@/utils/sponsorship';
 
 function getSponsorshipStatusText(hospital: Hospital): string {
@@ -26,6 +28,9 @@ export default function EditHospitalScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const hospital = useHospitalStore((state) => state.hospitals.find((item) => item.id === id));
   const updateHospital = useHospitalStore((state) => state.updateHospital);
+  const addDoctor = useDoctorStore((state) => state.addDoctor);
+  const updateDoctor = useDoctorStore((state) => state.updateDoctor);
+  const removeDoctor = useDoctorStore((state) => state.removeDoctor);
 
   if (!hospital) {
     return (
@@ -51,8 +56,46 @@ export default function EditHospitalScreen() {
         <HospitalForm
           initial={hospital}
           submitLabel="저장하기"
-          onSubmit={(data) => {
+          onSubmit={(data, specialists) => {
             updateHospital(hospital.id, data);
+
+            const keptIds = new Set(specialists.filter((entry) => entry.id).map((entry) => entry.id));
+            for (const doctor of getDoctorsByHospital(hospital.id)) {
+              if (!keptIds.has(doctor.id)) removeDoctor(doctor.id);
+            }
+
+            specialists.forEach((specialist, index) => {
+              if (specialist.id) {
+                updateDoctor(specialist.id, {
+                  name: specialist.name.trim(),
+                  title: specialist.title.trim() || '원장',
+                  specialty: specialist.specialty,
+                  certificateUrl: specialist.certificateUrl.trim() || null,
+                });
+                return;
+              }
+
+              addDoctor({
+                id: `d-${Date.now()}-${index}`,
+                name: specialist.name.trim(),
+                title: specialist.title.trim() || '원장',
+                specialty: specialist.specialty,
+                hospitalId: hospital.id,
+                photo: 'https://picsum.photos/seed/molarmolar-new-doctor/300/300',
+                procedureIds:
+                  specialist.specialty === '일반의'
+                    ? data.procedureIds
+                    : getProceduresForSpecialty(specialist.specialty),
+                rating: 0,
+                reviewCount: 0,
+                consultCount: 0,
+                certificateUrl: specialist.certificateUrl.trim() || null,
+                verificationStatus: 'pending',
+                rejectionReason: null,
+                isRecommended: false,
+              });
+            });
+
             router.back();
           }}
         />

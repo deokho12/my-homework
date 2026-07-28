@@ -4,7 +4,8 @@ import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { Chip } from '@/components/Chip';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { procedures } from '@/data/procedures';
-import type { Hospital, ProcedureId } from '@/types/domain';
+import { getDoctorsByHospital } from '@/store/useDoctorStore';
+import { DENTAL_SPECIALTIES, type DentalSpecialty, type Hospital, type ProcedureId } from '@/types/domain';
 
 // Sponsorship fields are excluded on purpose — ad placement isn't self-serve yet (see admin/hospital/[id].tsx
 // for the read-only "광고 현황" display), so editing a hospital here must never touch/clear those fields.
@@ -23,10 +24,19 @@ export type HospitalFormData = Omit<
   | 'sponsoredEndDate'
 >;
 
+export interface SpecialistEntry {
+  /** Existing Doctor id, or null for a specialist being added in this session. */
+  id: string | null;
+  name: string;
+  title: string;
+  specialty: DentalSpecialty;
+  certificateUrl: string;
+}
+
 interface HospitalFormProps {
   initial?: Hospital;
   submitLabel: string;
-  onSubmit: (data: HospitalFormData) => void;
+  onSubmit: (data: HospitalFormData, specialists: SpecialistEntry[]) => void;
 }
 
 function CheckboxRow({ label, checked, onPress }: { label: string; checked: boolean; onPress: () => void }) {
@@ -38,11 +48,17 @@ function CheckboxRow({ label, checked, onPress }: { label: string; checked: bool
   );
 }
 
+// Seoul City Hall — sensible default center for a new hospital until the admin sets real coordinates.
+const DEFAULT_LATITUDE = 37.5665;
+const DEFAULT_LONGITUDE = 126.978;
+
 export function HospitalForm({ initial, submitLabel, onSubmit }: HospitalFormProps) {
   const [name, setName] = useState(initial?.name ?? '');
   const [specialty, setSpecialty] = useState(initial?.specialty ?? '');
   const [region, setRegion] = useState(initial?.region ?? '');
   const [address, setAddress] = useState(initial?.address ?? '');
+  const [latitude, setLatitude] = useState(String(initial?.latitude ?? DEFAULT_LATITUDE));
+  const [longitude, setLongitude] = useState(String(initial?.longitude ?? DEFAULT_LONGITUDE));
   const [thumbnail, setThumbnail] = useState(initial?.thumbnail ?? '');
   const [introduction, setIntroduction] = useState(initial?.introduction ?? '');
   const [priceMin, setPriceMin] = useState(initial ? String(initial.priceRange.min) : '');
@@ -52,9 +68,35 @@ export function HospitalForm({ initial, submitLabel, onSubmit }: HospitalFormPro
   const [consultAvailable, setConsultAvailable] = useState(initial?.consultAvailable ?? true);
   const [isOneDay, setIsOneDay] = useState(initial?.isOneDay ?? false);
   const [isRecommended, setIsRecommended] = useState(initial?.isRecommended ?? false);
+  const [specialists, setSpecialists] = useState<SpecialistEntry[]>(
+    initial
+      ? getDoctorsByHospital(initial.id).map((doctor) => ({
+          id: doctor.id,
+          name: doctor.name,
+          title: doctor.title,
+          specialty: doctor.specialty,
+          certificateUrl: doctor.certificateUrl ?? '',
+        }))
+      : []
+  );
 
   const toggleProcedure = (id: ProcedureId) => {
     setProcedureIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
+  };
+
+  const addSpecialist = () => {
+    setSpecialists((prev) => [
+      ...prev,
+      { id: null, name: '', title: '원장', specialty: DENTAL_SPECIALTIES[0], certificateUrl: '' },
+    ]);
+  };
+
+  const updateSpecialist = (index: number, patch: Partial<SpecialistEntry>) => {
+    setSpecialists((prev) => prev.map((entry, i) => (i === index ? { ...entry, ...patch } : entry)));
+  };
+
+  const removeSpecialist = (index: number) => {
+    setSpecialists((prev) => prev.filter((_, i) => i !== index));
   };
 
   const canSubmit =
@@ -62,26 +104,33 @@ export function HospitalForm({ initial, submitLabel, onSubmit }: HospitalFormPro
     region.trim().length > 0 &&
     procedureIds.length > 0 &&
     priceMin.length > 0 &&
-    priceMax.length > 0;
+    priceMax.length > 0 &&
+    latitude.length > 0 &&
+    longitude.length > 0;
 
   const handleSubmit = () => {
-    onSubmit({
-      name: name.trim(),
-      specialty: specialty.trim(),
-      region: region.trim(),
-      address: address.trim(),
-      thumbnail: thumbnail.trim() || 'https://picsum.photos/seed/molarmolar-new/800/500',
-      introduction: introduction.trim(),
-      priceRange: { min: Number(priceMin) || 0, max: Number(priceMax) || 0 },
-      tags: tagsText
-        .split(',')
-        .map((tag) => tag.trim())
-        .filter(Boolean),
-      procedureIds,
-      consultAvailable,
-      isOneDay,
-      isRecommended,
-    });
+    onSubmit(
+      {
+        name: name.trim(),
+        specialty: specialty.trim(),
+        region: region.trim(),
+        address: address.trim(),
+        latitude: Number(latitude) || DEFAULT_LATITUDE,
+        longitude: Number(longitude) || DEFAULT_LONGITUDE,
+        thumbnail: thumbnail.trim() || 'https://picsum.photos/seed/molarmolar-new/800/500',
+        introduction: introduction.trim(),
+        priceRange: { min: Number(priceMin) || 0, max: Number(priceMax) || 0 },
+        tags: tagsText
+          .split(',')
+          .map((tag) => tag.trim())
+          .filter(Boolean),
+        procedureIds,
+        consultAvailable,
+        isOneDay,
+        isRecommended,
+      },
+      specialists.filter((entry) => entry.name.trim().length > 0)
+    );
   };
 
   return (
@@ -117,6 +166,24 @@ export function HospitalForm({ initial, submitLabel, onSubmit }: HospitalFormPro
         placeholder="상세 주소"
         className="mb-4 rounded-xl border border-neutral-200 px-4 py-3 text-[15px]"
       />
+
+      <Text className="mb-2 text-sm font-semibold text-neutral-700">지도 좌표 (위도 / 경도)</Text>
+      <View className="mb-4 flex-row gap-2">
+        <TextInput
+          value={latitude}
+          onChangeText={setLatitude}
+          placeholder="위도"
+          keyboardType="numeric"
+          className="flex-1 rounded-xl border border-neutral-200 px-4 py-3 text-[15px]"
+        />
+        <TextInput
+          value={longitude}
+          onChangeText={setLongitude}
+          placeholder="경도"
+          keyboardType="numeric"
+          className="flex-1 rounded-xl border border-neutral-200 px-4 py-3 text-[15px]"
+        />
+      </View>
 
       <Text className="mb-2 text-sm font-semibold text-neutral-700">대표 이미지 URL (선택)</Text>
       <TextInput
@@ -194,6 +261,61 @@ export function HospitalForm({ initial, submitLabel, onSubmit }: HospitalFormPro
           onPress={() => setIsRecommended((value) => !value)}
         />
       </View>
+
+      <View className="mb-2 mt-2 flex-row items-center justify-between">
+        <Text className="text-sm font-semibold text-neutral-700">전문의</Text>
+        <Pressable onPress={addSpecialist}>
+          <Text className="text-sm font-semibold text-brand-700">+ 전문의 추가</Text>
+        </Pressable>
+      </View>
+      <Text className="mb-3 text-xs text-neutral-400">
+        새로 추가한 전문의는 "대기" 상태로 등록되며, 운영자의 자격증 검수 후 배지가 노출돼요.
+      </Text>
+
+      {specialists.map((entry, index) => (
+        <View key={index} className="mb-3 rounded-xl border border-neutral-200 p-3">
+          <View className="mb-2 flex-row items-center justify-between">
+            <Text className="text-xs font-semibold text-neutral-500">전문의 {index + 1}</Text>
+            <Pressable onPress={() => removeSpecialist(index)}>
+              <Text className="text-xs font-semibold text-rose-500">삭제</Text>
+            </Pressable>
+          </View>
+
+          <View className="mb-2 flex-row gap-2">
+            <TextInput
+              value={entry.name}
+              onChangeText={(text) => updateSpecialist(index, { name: text })}
+              placeholder="이름"
+              className="flex-1 rounded-xl border border-neutral-200 px-3 py-2.5 text-sm"
+            />
+            <TextInput
+              value={entry.title}
+              onChangeText={(text) => updateSpecialist(index, { title: text })}
+              placeholder="직함 (예: 대표원장)"
+              className="flex-1 rounded-xl border border-neutral-200 px-3 py-2.5 text-sm"
+            />
+          </View>
+
+          <View className="mb-2 flex-row flex-wrap">
+            {DENTAL_SPECIALTIES.map((option) => (
+              <Chip
+                key={option}
+                label={option}
+                selected={entry.specialty === option}
+                onPress={() => updateSpecialist(index, { specialty: option })}
+              />
+            ))}
+          </View>
+
+          <TextInput
+            value={entry.certificateUrl}
+            onChangeText={(text) => updateSpecialist(index, { certificateUrl: text })}
+            placeholder="자격증/인증서 이미지 URL"
+            autoCapitalize="none"
+            className="rounded-xl border border-neutral-200 px-3 py-2.5 text-sm"
+          />
+        </View>
+      ))}
 
       <View className="mt-2">
         <PrimaryButton label={submitLabel} onPress={handleSubmit} disabled={!canSubmit} />

@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Chip } from '@/components/Chip';
 import { DoctorCard } from '@/components/DoctorCard';
 import { HospitalExploreCard } from '@/components/HospitalExploreCard';
+import { HospitalMapView } from '@/components/HospitalMapView';
 import { PriceCompareTable } from '@/components/PriceCompareTable';
 import { doctors } from '@/data/doctors';
 import { procedures } from '@/data/procedures';
@@ -14,6 +15,7 @@ import type { Hospital, ProcedureId } from '@/types/domain';
 import { isEligibleForRecommendedSponsoredPlacement, isEligibleForSponsoredPlacement } from '@/utils/sponsorship';
 
 type Mode = 'doctor' | 'hospital';
+type HospitalView = 'list' | 'map';
 type Category = 'recommended' | 'all' | ProcedureId;
 type SortKey = 'popular' | 'reviews' | 'consults';
 
@@ -29,6 +31,7 @@ export default function ExploreScreen() {
   const [selectedCategory, setSelectedCategory] = useState<Category>(
     params.category === 'recommended' ? 'recommended' : (params.category as ProcedureId) || 'all'
   );
+  const [hospitalView, setHospitalView] = useState<HospitalView>('list');
   const [sortBy, setSortBy] = useState<SortKey>('popular');
   const [onlyConsult, setOnlyConsult] = useState(false);
   const [onlyOneDay, setOnlyOneDay] = useState(false);
@@ -109,6 +112,27 @@ export default function ExploreScreen() {
             </Text>
           </Pressable>
         </View>
+
+        {mode === 'hospital' ? (
+          <View className="mt-3 flex-row">
+            <Pressable
+              onPress={() => setHospitalView('list')}
+              className={`mr-2 rounded-full px-3.5 py-1.5 ${hospitalView === 'list' ? 'bg-neutral-900' : 'bg-neutral-100'}`}
+            >
+              <Text className={`text-sm font-medium ${hospitalView === 'list' ? 'text-white' : 'text-neutral-500'}`}>
+                리스트 보기
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setHospitalView('map')}
+              className={`rounded-full px-3.5 py-1.5 ${hospitalView === 'map' ? 'bg-neutral-900' : 'bg-neutral-100'}`}
+            >
+              <Text className={`text-sm font-medium ${hospitalView === 'map' ? 'text-white' : 'text-neutral-500'}`}>
+                지도 보기
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
       </View>
 
       <View className="flex-1">
@@ -142,44 +166,49 @@ export default function ExploreScreen() {
           </ScrollView>
         </View>
 
-        <ScrollView contentContainerClassName="px-5 pb-8 pt-4" showsVerticalScrollIndicator={false}>
-          <View className="mb-3 flex-row items-center justify-between">
-            <Text className="text-sm text-neutral-500">총 {resultCount}{mode === 'doctor' ? '명' : '곳'}</Text>
-            {mode === 'hospital' ? (
-              <Pressable onPress={() => setShowPriceTable((value) => !value)}>
-                <Text className="text-sm font-semibold text-brand-700">
-                  {showPriceTable ? '카드로 보기' : '가격 비교표 보기'}
-                </Text>
-              </Pressable>
-            ) : null}
-          </View>
+        {mode === 'hospital' && hospitalView === 'map' ? (
+          <HospitalMapView hospitals={filteredHospitals} />
+        ) : (
+          <ScrollView contentContainerClassName="px-5 pb-8 pt-4" showsVerticalScrollIndicator={false}>
+            <View className="mb-3 flex-row items-center justify-between">
+              <Text className="text-sm text-neutral-500">총 {resultCount}{mode === 'doctor' ? '명' : '곳'}</Text>
+              {mode === 'hospital' ? (
+                <Pressable onPress={() => setShowPriceTable((value) => !value)}>
+                  <Text className="text-sm font-semibold text-brand-700">
+                    {showPriceTable ? '카드로 보기' : '가격 비교표 보기'}
+                  </Text>
+                </Pressable>
+              ) : null}
+            </View>
 
-          {resultCount === 0 ? (
-            <View className="items-center py-16">
-              <Text className="text-center text-sm text-neutral-500">
-                조건에 맞는 {mode === 'doctor' ? '의사가' : '병원이'} 없어요
-              </Text>
-            </View>
-          ) : mode === 'hospital' && showPriceTable ? (
-            <PriceCompareTable hospitals={filteredHospitals} />
-          ) : mode === 'doctor' ? (
-            <View className="flex-row flex-wrap justify-between">
-              {filteredDoctors.map((doctor) => (
-                <DoctorCard key={doctor.id} doctor={doctor} style={{ width: isWide ? '48%' : '100%' }} />
-              ))}
-            </View>
-          ) : (
-            <View className="flex-row flex-wrap justify-between">
-              {filteredHospitals.map((hospital) => (
-                <HospitalExploreCard
-                  key={hospital.id}
-                  hospital={hospital}
-                  style={{ width: isWide ? '48%' : '100%' }}
-                />
-              ))}
-            </View>
-          )}
-        </ScrollView>
+            {resultCount === 0 ? (
+              <View className="items-center py-16">
+                <Text className="text-center text-sm text-neutral-500">
+                  조건에 맞는 {mode === 'doctor' ? '의사가' : '병원이'} 없어요
+                </Text>
+              </View>
+            ) : mode === 'hospital' && showPriceTable ? (
+              <PriceCompareTable hospitals={filteredHospitals} />
+            ) : mode === 'doctor' ? (
+              <View className="flex-row flex-wrap justify-between">
+                {filteredDoctors.map((doctor) => (
+                  <DoctorCard key={doctor.id} doctor={doctor} style={{ width: isWide ? '48%' : '100%' }} />
+                ))}
+              </View>
+            ) : (
+              <View className="flex-row flex-wrap justify-between">
+                {filteredHospitals.map((hospital) => (
+                  <HospitalExploreCard
+                    key={hospital.id}
+                    hospital={hospital}
+                    activeCategory={selectedCategory !== 'all' && selectedCategory !== 'recommended' ? selectedCategory : undefined}
+                    style={{ width: isWide ? '48%' : '100%' }}
+                  />
+                ))}
+              </View>
+            )}
+          </ScrollView>
+        )}
       </View>
     </SafeAreaView>
   );

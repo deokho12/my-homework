@@ -9,14 +9,17 @@ import { getProcedureById } from '@/data/procedures';
 import { getPromotionByHospital } from '@/data/promotions';
 import { getReviewsByHospital } from '@/data/reviews';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
+import { useDoctorStore } from '@/store/useDoctorStore';
 import { useFavoritesStore } from '@/store/useFavoritesStore';
 import { useHospitalStore } from '@/store/useHospitalStore';
 import { calcDiscountRate, formatPriceRange, formatWon } from '@/utils/format';
+import { getVisibleSpecialtyLabel, isVerifiedSpecialist } from '@/utils/specialty';
 import { isSponsorshipActive } from '@/utils/sponsorship';
 
 export default function HospitalDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const hospital = useHospitalStore((state) => state.hospitals.find((item) => item.id === id));
+  const doctors = useDoctorStore((state) => state.doctors.filter((doctor) => doctor.hospitalId === id));
   const reviews = getReviewsByHospital(id);
   const promotion = getPromotionByHospital(id);
   const isFavorite = useFavoritesStore((state) => state.isFavorite(id));
@@ -103,6 +106,40 @@ export default function HospitalDetailScreen() {
             {hospital.consultAvailable ? <Badge label="실시간 상담 가능" tone="brand" /> : null}
             {isSponsorshipActive(hospital) ? <Badge label="광고" /> : null}
           </View>
+
+          <Text className="mb-2 text-base font-bold text-neutral-900">전문의 소개</Text>
+          {doctors.length === 0 ? (
+            <Text className="mb-4 text-sm text-neutral-400">등록된 의료진 정보가 없어요</Text>
+          ) : (
+            <View className="mb-4">
+              {doctors.map((doctor) => {
+                const visibleSpecialty = getVisibleSpecialtyLabel(doctor);
+                return (
+                  <View
+                    key={doctor.id}
+                    className="mb-2 flex-row items-center gap-3 rounded-xl border border-neutral-100 p-3"
+                  >
+                    <Image
+                      source={{ uri: doctor.photo }}
+                      style={{ width: 56, height: 56, borderRadius: 28 }}
+                      contentFit="cover"
+                    />
+                    <View className="flex-1">
+                      <View className="flex-row items-center gap-1.5">
+                        <Text className="text-sm font-bold text-neutral-900">
+                          {doctor.name} {doctor.title}
+                        </Text>
+                        {isVerifiedSpecialist(doctor) ? <Badge label="전문의" tone="brand" /> : null}
+                      </View>
+                      {visibleSpecialty ? (
+                        <Text className="text-xs text-neutral-500">{visibleSpecialty}</Text>
+                      ) : null}
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          )}
 
           <Text className="mb-2 text-base font-bold text-neutral-900">병원 소개</Text>
           <Text className="mb-4 text-sm leading-5 text-neutral-600">{hospital.introduction}</Text>
