@@ -45,6 +45,7 @@ export default function RootLayout() {
                 <Stack.Screen name="admin/hospital/new" options={{ title: '병원 등록' }} />
                 <Stack.Screen name="admin/hospital/[id]" options={{ title: '병원 정보 수정' }} />
                 <Stack.Screen name="admin/specialists" options={{ title: '전문의 인증 검수' }} />
+                <Stack.Screen name="search" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
               </Stack>
             </View>
           </View>
