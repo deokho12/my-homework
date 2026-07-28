@@ -9,6 +9,7 @@ import { getHospitalById } from '@/data/hospitals';
 import { getProcedureById } from '@/data/procedures';
 import { getPromotionByHospital } from '@/data/promotions';
 import { getReviewsByHospital } from '@/data/reviews';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { useFavoritesStore } from '@/store/useFavoritesStore';
 import { calcDiscountRate, formatPriceRange, formatWon } from '@/utils/format';
 
@@ -19,6 +20,7 @@ export default function HospitalDetailScreen() {
   const promotion = getPromotionByHospital(id);
   const isFavorite = useFavoritesStore((state) => state.isFavorite(id));
   const toggleFavorite = useFavoritesStore((state) => state.toggleFavorite);
+  const requireAuth = useRequireAuth();
 
   if (!hospital) {
     return (
@@ -140,7 +142,7 @@ export default function HospitalDetailScreen() {
       <SafeAreaView edges={['bottom']} className="border-t border-neutral-100 bg-white px-5 pt-3">
         <View className="flex-row items-center gap-3 pb-3">
           <Pressable
-            onPress={() => toggleFavorite(hospital.id)}
+            onPress={() => requireAuth(() => toggleFavorite(hospital.id))}
             className="h-14 w-14 items-center justify-center rounded-xl border border-neutral-200"
           >
             <Text className="text-xl">{isFavorite ? '❤️' : '🤍'}</Text>
@@ -149,7 +151,9 @@ export default function HospitalDetailScreen() {
             <PrimaryButton
               label={hospital.consultAvailable ? '상담 신청하기' : '상담 마감'}
               disabled={!hospital.consultAvailable}
-              onPress={() => router.push(`/consult/${hospital.id}`)}
+              onPress={() =>
+                requireAuth(() => router.push(`/consult/${hospital.id}`), `/consult/${hospital.id}`)
+              }
             />
           </View>
         </View>

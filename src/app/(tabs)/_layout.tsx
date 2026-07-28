@@ -36,10 +36,10 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="favorites"
+        name="mypage"
         options={{
-          title: '찜',
-          tabBarIcon: ({ color }) => <TabIcon emoji="❤️" color={color} />,
+          title: '마이페이지',
+          tabBarIcon: ({ color }) => <TabIcon emoji="👤" color={color} />,
         }}
       />
     </Tabs>

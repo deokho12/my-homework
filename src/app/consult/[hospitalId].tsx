@@ -1,11 +1,12 @@
 import { Stack, router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { getHospitalById } from '@/data/hospitals';
 import { getProcedureById } from '@/data/procedures';
+import { useAuthStore } from '@/store/useAuthStore';
 import { useConsultStore } from '@/store/useConsultStore';
 import type { ProcedureId } from '@/types/domain';
 
@@ -36,6 +37,7 @@ export default function ConsultRequestScreen() {
   const { hospitalId } = useLocalSearchParams<{ hospitalId: string }>();
   const hospital = getHospitalById(hospitalId);
   const addRequest = useConsultStore((state) => state.addRequest);
+  const user = useAuthStore((state) => state.user);
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -43,10 +45,19 @@ export default function ConsultRequestScreen() {
   const [preferredTime, setPreferredTime] = useState(TIME_SLOTS[0]);
   const [message, setMessage] = useState('');
 
-  if (!hospital) {
+  useEffect(() => {
+    // Guards against direct navigation to this route on web without going through requireAuth.
+    if (!user) {
+      router.replace({ pathname: '/auth/login', params: { redirect: `/consult/${hospitalId}` } });
+    }
+  }, [user, hospitalId]);
+
+  if (!hospital || !user) {
     return (
       <SafeAreaView className="flex-1 items-center justify-center bg-white">
-        <Text className="text-sm text-neutral-500">병원 정보를 찾을 수 없어요</Text>
+        <Text className="text-sm text-neutral-500">
+          {hospital ? '로그인이 필요해요' : '병원 정보를 찾을 수 없어요'}
+        </Text>
       </SafeAreaView>
     );
   }

@@ -27,6 +27,8 @@ export default function RootLayout() {
             name="consult/[hospitalId]"
             options={{ presentation: 'modal', title: '상담 신청' }}
           />
+          <Stack.Screen name="auth/login" options={{ presentation: 'modal', title: '로그인' }} />
+          <Stack.Screen name="auth/signup" options={{ presentation: 'modal', title: '회원가입' }} />
         </Stack>
       </SafeAreaProvider>
     </GestureHandlerRootView>

@@ -85,6 +85,15 @@ export interface QAPost {
   answers: QAAnswer[];
 }
 
+export type AuthProvider = 'email' | 'google' | 'kakao';
+
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+  provider: AuthProvider;
+}
+
 export interface ConsultRequest {
   id: string;
   hospitalId: string;
