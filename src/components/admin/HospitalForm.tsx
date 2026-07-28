@@ -39,6 +39,7 @@ export function HospitalForm({ initial, submitLabel, onSubmit }: HospitalFormPro
   const [procedureIds, setProcedureIds] = useState<ProcedureId[]>(initial?.procedureIds ?? []);
   const [consultAvailable, setConsultAvailable] = useState(initial?.consultAvailable ?? true);
   const [isOneDay, setIsOneDay] = useState(initial?.isOneDay ?? false);
+  const [isRecommended, setIsRecommended] = useState(initial?.isRecommended ?? false);
 
   const toggleProcedure = (id: ProcedureId) => {
     setProcedureIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
@@ -67,6 +68,7 @@ export function HospitalForm({ initial, submitLabel, onSubmit }: HospitalFormPro
       procedureIds,
       consultAvailable,
       isOneDay,
+      isRecommended,
     });
   };
 
@@ -173,6 +175,11 @@ export function HospitalForm({ initial, submitLabel, onSubmit }: HospitalFormPro
           label="원데이 진료 가능 여부 (당일 보철 등)"
           checked={isOneDay}
           onPress={() => setIsOneDay((value) => !value)}
+        />
+        <CheckboxRow
+          label="추천 병원으로 노출 (에디터 추천)"
+          checked={isRecommended}
+          onPress={() => setIsRecommended((value) => !value)}
         />
       </View>
 

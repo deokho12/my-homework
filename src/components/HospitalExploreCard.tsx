@@ -46,6 +46,7 @@ export function HospitalExploreCard({ hospital, style }: HospitalExploreCardProp
         </Text>
 
         <View className="mb-3 flex-row flex-wrap gap-1.5">
+          {hospital.isRecommended ? <Badge label="🌟 추천" tone="brand" /> : null}
           {hospital.procedureIds.slice(0, 3).map((procedureId) => {
             const procedure = getProcedureById(procedureId);
             return procedure ? <Badge key={procedureId} label={procedure.name} /> : null;

@@ -93,6 +93,7 @@ export default function HospitalDetailScreen() {
 
           <Text className="mb-2 text-base font-bold text-neutral-900">병원 특징</Text>
           <View className="mb-4 flex-row flex-wrap gap-1.5">
+            {hospital.isRecommended ? <Badge label="🌟 추천 병원" tone="brand" /> : null}
             {hospital.isOneDay ? (
               <Badge label="⚡ 원데이 진료 가능" tone="brand" />
             ) : (

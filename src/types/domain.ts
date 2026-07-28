@@ -40,10 +40,27 @@ export interface Hospital {
   consultAvailable: boolean;
   /** Same-day prosthetics capability (implant crown/denture milled in-house) — a hospital attribute, not a procedure category. */
   isOneDay: boolean;
+  /** Editorially curated pick, surfaced under the "추천" filter. */
+  isRecommended: boolean;
   tags: string[];
   address: string;
   introduction: string;
   events: string[];
+}
+
+export interface Doctor {
+  id: string;
+  name: string;
+  title: string;
+  specialty: string;
+  hospitalId: string;
+  photo: string;
+  procedureIds: ProcedureId[];
+  rating: number;
+  reviewCount: number;
+  consultCount: number;
+  isCertified: boolean;
+  isRecommended: boolean;
 }
 
 export interface Review {

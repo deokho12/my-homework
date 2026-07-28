@@ -45,7 +45,7 @@ export default function HomeScreen() {
           <SectionHeader
             title="시술로 찾기"
             actionLabel="전체보기"
-            onPressAction={() => router.push({ pathname: '/(tabs)/explore', params: { mode: 'procedure' } })}
+            onPressAction={() => router.push('/(tabs)/explore')}
           />
           <View className="flex-row flex-wrap justify-between gap-y-3">
             {procedures.slice(0, 8).map((procedure) => (

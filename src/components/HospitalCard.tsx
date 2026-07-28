@@ -59,6 +59,7 @@ export function HospitalCard({ hospital }: HospitalCardProps) {
         <Text className="mb-2 text-[13px] text-neutral-400">{hospital.region}</Text>
 
         <View className="mb-2 flex-row flex-wrap gap-1.5">
+          {hospital.isRecommended ? <Badge label="🌟 추천" tone="brand" /> : null}
           {hospital.isOneDay ? <Badge label="⚡ 원데이 가능" tone="brand" /> : null}
           {hospital.procedureIds.slice(0, 3).map((procedureId) => {
             const procedure = getProcedureById(procedureId);

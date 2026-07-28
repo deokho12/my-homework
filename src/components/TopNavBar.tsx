@@ -39,7 +39,7 @@ export function TopNavBar() {
 
         <View className="flex-row items-center gap-4">
           <Pressable
-            onPress={() => router.push({ pathname: '/(tabs)/explore', params: { mode: 'procedure' } })}
+            onPress={() => router.push('/(tabs)/explore')}
             hitSlop={8}
           >
             <Text className="text-lg">🔍</Text>
