@@ -12,6 +12,7 @@ import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { useFavoritesStore } from '@/store/useFavoritesStore';
 import { useHospitalStore } from '@/store/useHospitalStore';
 import { calcDiscountRate, formatPriceRange, formatWon } from '@/utils/format';
+import { isSponsorshipActive } from '@/utils/sponsorship';
 
 export default function HospitalDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -100,6 +101,7 @@ export default function HospitalDetailScreen() {
               <Badge label="원데이 진료 불가" />
             )}
             {hospital.consultAvailable ? <Badge label="실시간 상담 가능" tone="brand" /> : null}
+            {isSponsorshipActive(hospital) ? <Badge label="광고" /> : null}
           </View>
 
           <Text className="mb-2 text-base font-bold text-neutral-900">병원 소개</Text>

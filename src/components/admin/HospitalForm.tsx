@@ -6,9 +6,21 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { procedures } from '@/data/procedures';
 import type { Hospital, ProcedureId } from '@/types/domain';
 
+// Sponsorship fields are excluded on purpose — ad placement isn't self-serve yet (see admin/hospital/[id].tsx
+// for the read-only "광고 현황" display), so editing a hospital here must never touch/clear those fields.
 export type HospitalFormData = Omit<
   Hospital,
-  'id' | 'rating' | 'reviewCount' | 'consultCount' | 'events' | 'images'
+  | 'id'
+  | 'rating'
+  | 'reviewCount'
+  | 'consultCount'
+  | 'events'
+  | 'images'
+  | 'isSponsored'
+  | 'sponsoredCategories'
+  | 'sponsoredRank'
+  | 'sponsoredStartDate'
+  | 'sponsoredEndDate'
 >;
 
 interface HospitalFormProps {

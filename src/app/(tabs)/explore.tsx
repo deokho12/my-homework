@@ -10,7 +10,8 @@ import { PriceCompareTable } from '@/components/PriceCompareTable';
 import { doctors } from '@/data/doctors';
 import { procedures } from '@/data/procedures';
 import { useHospitalStore } from '@/store/useHospitalStore';
-import type { ProcedureId } from '@/types/domain';
+import type { Hospital, ProcedureId } from '@/types/domain';
+import { isEligibleForRecommendedSponsoredPlacement, isEligibleForSponsoredPlacement } from '@/utils/sponsorship';
 
 type Mode = 'doctor' | 'hospital';
 type Category = 'recommended' | 'all' | ProcedureId;
@@ -52,7 +53,21 @@ export default function ExploreScreen() {
     else if (selectedCategory !== 'all') list = list.filter((hospital) => hospital.procedureIds.includes(selectedCategory));
     if (onlyConsult) list = list.filter((hospital) => hospital.consultAvailable);
     if (onlyOneDay) list = list.filter((hospital) => hospital.isOneDay);
-    return sortHospitals(list);
+
+    const sortedNormal = sortHospitals(list);
+    if (selectedCategory === 'all') return sortedNormal;
+
+    const isEligible = (hospital: Hospital) =>
+      selectedCategory === 'recommended'
+        ? isEligibleForRecommendedSponsoredPlacement(hospital)
+        : isEligibleForSponsoredPlacement(hospital, selectedCategory);
+
+    const sponsored = list
+      .filter(isEligible)
+      .sort((a, b) => (a.sponsoredRank ?? Infinity) - (b.sponsoredRank ?? Infinity));
+    const sponsoredIds = new Set(sponsored.map((hospital) => hospital.id));
+
+    return [...sponsored, ...sortedNormal.filter((hospital) => !sponsoredIds.has(hospital.id))];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allHospitals, selectedCategory, onlyConsult, onlyOneDay, sortBy]);
 

@@ -42,6 +42,15 @@ export interface Hospital {
   isOneDay: boolean;
   /** Editorially curated pick, surfaced under the "추천" filter. */
   isRecommended: boolean;
+  /** Paid placement. Category-scoped, ranked, and time-boxed — see src/utils/sponsorship.ts for the active-window/eligibility rules. */
+  isSponsored: boolean;
+  sponsoredCategories: ProcedureId[];
+  /** Lower ranks surface first among sponsored hospitals within the same category. Null when not sponsored. */
+  sponsoredRank: number | null;
+  /** ISO date ('YYYY-MM-DD'). Null when not sponsored. */
+  sponsoredStartDate: string | null;
+  /** ISO date ('YYYY-MM-DD'). Null when not sponsored. */
+  sponsoredEndDate: string | null;
   tags: string[];
   address: string;
   introduction: string;

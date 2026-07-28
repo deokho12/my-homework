@@ -20,6 +20,11 @@ export default function NewHospitalScreen() {
             consultCount: 0,
             events: [],
             images: [data.thumbnail],
+            isSponsored: false,
+            sponsoredCategories: [],
+            sponsoredRank: null,
+            sponsoredStartDate: null,
+            sponsoredEndDate: null,
           });
           router.back();
         }}

@@ -6,6 +6,7 @@ import { Badge } from '@/components/Badge';
 import { getProcedureById } from '@/data/procedures';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 import type { Hospital } from '@/types/domain';
+import { isSponsorshipActive } from '@/utils/sponsorship';
 
 interface HospitalExploreCardProps {
   hospital: Hospital;
@@ -46,6 +47,7 @@ export function HospitalExploreCard({ hospital, style }: HospitalExploreCardProp
         </Text>
 
         <View className="mb-3 flex-row flex-wrap gap-1.5">
+          {isSponsorshipActive(hospital) ? <Badge label="광고" /> : null}
           {hospital.isRecommended ? <Badge label="🌟 추천" tone="brand" /> : null}
           {hospital.procedureIds.slice(0, 3).map((procedureId) => {
             const procedure = getProcedureById(procedureId);
