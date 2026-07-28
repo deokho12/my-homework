@@ -25,13 +25,15 @@ npm run android  # 안드로이드 에뮬레이터
 src/
   app/                  화면 및 라우팅 (expo-router)
     _layout.tsx          루트 Stack
-    (tabs)/              홈 / 카테고리 / 찜 탭
-    hospitals/[procedureId].tsx   시술별 병원 리스트
+    (tabs)/              홈 / 카테고리 / 커뮤니티 / 찜 탭
+    hospitals/[procedureId].tsx   시술별 병원 리스트 (카드/가격비교 뷰)
     hospital/[id].tsx             병원 상세
     consult/[hospitalId].tsx      상담 신청 (모달)
-  components/           SearchBar, HospitalCard 등 공용 컴포넌트
-  data/                 목업 데이터 (procedures, hospitals, reviews, guides)
-  store/                zustand 스토어 (찜하기, 상담 신청)
+    community/[id].tsx            질문 상세
+    community/new.tsx             질문 작성 (모달)
+  components/           SearchBar, HospitalCard, PromotionCard, PriceCompareTable 등
+  data/                 목업 데이터 (procedures, hospitals, reviews, guides, promotions, qaPosts)
+  store/                zustand 스토어 (찜하기, 상담 신청, 커뮤니티)
   types/                도메인 타입 정의
   utils/                포맷터 등 유틸
 ```
@@ -40,9 +42,18 @@ src/
 
 홈 → 시술 카테고리 → 병원 리스트 → 병원 상세 → 상담 신청 → 찜하기
 
+강남언니·바비톡을 참고해 아래 요소를 추가로 반영했습니다.
+
+- **이벤트/할인가 표시**: 홈 상단 이벤트 캐러셀, 병원 카드·상세의 정가/할인율/최종가 표시 (`src/data/promotions.ts`)
+- **실제 후기 사진**: 후기에 사진 첨부 가능 (`Review.photos`), 병원 상세 후기 섹션에서 가로 스크롤로 노출
+- **가격 비교 테이블**: 시술별 병원 리스트 화면에서 "카드로 보기 / 가격 비교표" 토글
+- **커뮤니티 Q&A**: 질문 등록, 답변(치과의사 답변 배지 구분) 열람 (`src/store/useCommunityStore.ts`)
+
+메모:
 - `src/data/*`는 실제 API 연동 전까지 사용하는 목업 데이터입니다. 백엔드가 준비되면 `getHospitalsByProcedure`, `getHospitalById` 같은 함수들을 API 호출로 교체하면 됩니다.
-- 찜하기·상담 신청 내역은 AsyncStorage에 로컬 저장되며, 서버 연동 전까지의 임시 저장소입니다.
+- 찜하기·상담 신청·커뮤니티 글은 AsyncStorage에 로컬 저장되며, 서버 연동 전까지의 임시 저장소입니다.
 - 병원 관리자용 대시보드는 별도 웹 프로젝트로 분리하는 것을 권장합니다 (이 저장소는 사용자용 앱 전용).
+- 상담 신청은 단일 병원 신청폼 방식으로 유지했습니다 (강남언니식 여러 병원 동시 견적요청은 백엔드/데이터 구조가 커져 추후 별도 검토).
 
 ## 다음 단계 제안
 

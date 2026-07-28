@@ -18,6 +18,11 @@ export default function RootLayout() {
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="hospitals/[procedureId]" options={{ title: '병원 리스트' }} />
           <Stack.Screen name="hospital/[id]" options={{ title: '' }} />
+          <Stack.Screen name="community/[id]" options={{ title: '질문 상세' }} />
+          <Stack.Screen
+            name="community/new"
+            options={{ presentation: 'modal', title: '질문하기' }}
+          />
           <Stack.Screen
             name="consult/[hospitalId]"
             options={{ presentation: 'modal', title: '상담 신청' }}

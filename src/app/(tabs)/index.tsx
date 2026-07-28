@@ -4,10 +4,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { GuideCard } from '@/components/GuideCard';
 import { ProcedureCategoryCard } from '@/components/ProcedureCategoryCard';
+import { PromotionCard } from '@/components/PromotionCard';
 import { SearchBar } from '@/components/SearchBar';
 import { SectionHeader } from '@/components/SectionHeader';
 import { guides } from '@/data/guides';
 import { procedures } from '@/data/procedures';
+import { promotions } from '@/data/promotions';
 
 export default function HomeScreen() {
   return (
@@ -27,6 +29,17 @@ export default function HomeScreen() {
             임플란트, 교정, 라미네이트까지 한눈에 비교하고 상담까지 한번에
           </Text>
         </View>
+
+        {promotions.length > 0 ? (
+          <View className="mb-6">
+            <SectionHeader title="지금 진행중인 이벤트" />
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {promotions.map((promotion) => (
+                <PromotionCard key={promotion.id} promotion={promotion} />
+              ))}
+            </ScrollView>
+          </View>
+        ) : null}
 
         <View className="mb-6">
           <SectionHeader

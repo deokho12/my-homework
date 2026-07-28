@@ -4,9 +4,10 @@ import { Pressable, Text, View } from 'react-native';
 
 import { Badge } from '@/components/Badge';
 import { getProcedureById } from '@/data/procedures';
+import { getPromotionByHospital } from '@/data/promotions';
 import { useFavoritesStore } from '@/store/useFavoritesStore';
 import type { Hospital } from '@/types/domain';
-import { formatPriceRange } from '@/utils/format';
+import { calcDiscountRate, formatPriceRange, formatWon } from '@/utils/format';
 
 interface HospitalCardProps {
   hospital: Hospital;
@@ -15,6 +16,7 @@ interface HospitalCardProps {
 export function HospitalCard({ hospital }: HospitalCardProps) {
   const isFavorite = useFavoritesStore((state) => state.isFavorite(hospital.id));
   const toggleFavorite = useFavoritesStore((state) => state.toggleFavorite);
+  const promotion = getPromotionByHospital(hospital.id);
 
   return (
     <Pressable
@@ -27,6 +29,11 @@ export function HospitalCard({ hospital }: HospitalCardProps) {
           style={{ width: '100%', height: 160 }}
           contentFit="cover"
         />
+        {promotion ? (
+          <View className="absolute left-3 top-3 rounded-full bg-rose-500 px-2.5 py-1">
+            <Text className="text-xs font-bold text-white">🔥 {promotion.badge}</Text>
+          </View>
+        ) : null}
         <Pressable
           onPress={(e) => {
             e.stopPropagation();
@@ -55,6 +62,16 @@ export function HospitalCard({ hospital }: HospitalCardProps) {
             return procedure ? <Badge key={procedureId} label={procedure.name} /> : null;
           })}
         </View>
+
+        {promotion ? (
+          <View className="mb-2 flex-row items-center gap-2">
+            <Text className="text-sm font-extrabold text-rose-500">
+              {calcDiscountRate(promotion.originalPrice, promotion.salePrice)}%
+            </Text>
+            <Text className="text-base font-bold text-neutral-900">{formatWon(promotion.salePrice)}</Text>
+            <Text className="text-xs text-neutral-400 line-through">{formatWon(promotion.originalPrice)}</Text>
+          </View>
+        ) : null}
 
         <View className="flex-row items-center justify-between">
           <Text className="text-sm font-semibold text-neutral-800">

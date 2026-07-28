@@ -7,14 +7,16 @@ import { Badge } from '@/components/Badge';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { getHospitalById } from '@/data/hospitals';
 import { getProcedureById } from '@/data/procedures';
+import { getPromotionByHospital } from '@/data/promotions';
 import { getReviewsByHospital } from '@/data/reviews';
 import { useFavoritesStore } from '@/store/useFavoritesStore';
-import { formatPriceRange } from '@/utils/format';
+import { calcDiscountRate, formatPriceRange, formatWon } from '@/utils/format';
 
 export default function HospitalDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const hospital = getHospitalById(id);
   const reviews = getReviewsByHospital(id);
+  const promotion = getPromotionByHospital(id);
   const isFavorite = useFavoritesStore((state) => state.isFavorite(id));
   const toggleFavorite = useFavoritesStore((state) => state.toggleFavorite);
 
@@ -52,12 +54,32 @@ export default function HospitalDetailScreen() {
             ))}
           </View>
 
-          <View className="mb-4 rounded-2xl bg-neutral-50 p-4">
-            <Text className="mb-1 text-sm font-semibold text-neutral-500">가격대</Text>
-            <Text className="text-base font-bold text-neutral-900">
-              {formatPriceRange(hospital.priceRange.min, hospital.priceRange.max)}
-            </Text>
-          </View>
+          {promotion ? (
+            <View className="mb-4 rounded-2xl bg-rose-50 p-4">
+              <View className="mb-1 flex-row items-center gap-1.5">
+                <Badge label={`🔥 ${promotion.badge}`} tone="brand" />
+                <Text className="text-sm font-semibold text-neutral-600">{promotion.title}</Text>
+              </View>
+              <View className="flex-row items-center gap-2">
+                <Text className="text-lg font-extrabold text-rose-500">
+                  {calcDiscountRate(promotion.originalPrice, promotion.salePrice)}%
+                </Text>
+                <Text className="text-lg font-extrabold text-neutral-900">
+                  {formatWon(promotion.salePrice)}
+                </Text>
+                <Text className="text-sm text-neutral-400 line-through">
+                  {formatWon(promotion.originalPrice)}
+                </Text>
+              </View>
+            </View>
+          ) : (
+            <View className="mb-4 rounded-2xl bg-neutral-50 p-4">
+              <Text className="mb-1 text-sm font-semibold text-neutral-500">가격대</Text>
+              <Text className="text-base font-bold text-neutral-900">
+                {formatPriceRange(hospital.priceRange.min, hospital.priceRange.max)}
+              </Text>
+            </View>
+          )}
 
           <Text className="mb-2 text-base font-bold text-neutral-900">대표 시술</Text>
           <View className="mb-4 flex-row flex-wrap gap-1.5">
@@ -94,7 +116,19 @@ export default function HospitalDetailScreen() {
                   <Text className="text-xs text-neutral-400">{review.createdAt}</Text>
                 </View>
                 <Text className="mb-1 text-xs text-amber-500">{'★'.repeat(review.rating)}</Text>
-                <Text className="text-sm leading-5 text-neutral-600">{review.content}</Text>
+                <Text className="mb-2 text-sm leading-5 text-neutral-600">{review.content}</Text>
+                {review.photos && review.photos.length > 0 ? (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    {review.photos.map((uri) => (
+                      <Image
+                        key={uri}
+                        source={{ uri }}
+                        style={{ width: 88, height: 88, borderRadius: 12, marginRight: 8 }}
+                        contentFit="cover"
+                      />
+                    ))}
+                  </ScrollView>
+                ) : null}
               </View>
             ))
           )}

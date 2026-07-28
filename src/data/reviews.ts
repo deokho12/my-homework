@@ -9,6 +9,7 @@ export const reviews: Review[] = [
     rating: 5,
     content: '상담부터 시술까지 꼼꼼하게 설명해주셔서 불안하지 않았어요. 통증도 생각보다 적었습니다.',
     createdAt: '2026-06-02',
+    photos: ['https://picsum.photos/seed/molarmolar-r1-1/400/400', 'https://picsum.photos/seed/molarmolar-r1-2/400/400'],
   },
   {
     id: 'r2',
@@ -45,6 +46,7 @@ export const reviews: Review[] = [
     rating: 5,
     content: '연예인들이 많이 간다는 얘기 듣고 갔는데 결과물이 정말 자연스러워요.',
     createdAt: '2026-07-10',
+    photos: ['https://picsum.photos/seed/molarmolar-r5-1/400/400'],
   },
 ];
 

@@ -29,6 +29,13 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="community"
+        options={{
+          title: '커뮤니티',
+          tabBarIcon: ({ color }) => <TabIcon emoji="💬" color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="favorites"
         options={{
           title: '찜',

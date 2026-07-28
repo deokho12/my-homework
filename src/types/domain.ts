@@ -45,6 +45,17 @@ export interface Review {
   rating: number;
   content: string;
   createdAt: string;
+  photos?: string[];
+}
+
+export interface Promotion {
+  id: string;
+  hospitalId: string;
+  procedureId: ProcedureId;
+  title: string;
+  originalPrice: number;
+  salePrice: number;
+  badge: string;
 }
 
 export interface GuideContent {
@@ -53,6 +64,25 @@ export interface GuideContent {
   summary: string;
   thumbnail: string;
   procedureId: ProcedureId;
+}
+
+export interface QAAnswer {
+  id: string;
+  authorName: string;
+  isDentist: boolean;
+  content: string;
+  createdAt: string;
+}
+
+export interface QAPost {
+  id: string;
+  title: string;
+  content: string;
+  procedureId: ProcedureId;
+  authorName: string;
+  createdAt: string;
+  viewCount: number;
+  answers: QAAnswer[];
 }
 
 export interface ConsultRequest {
