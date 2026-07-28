@@ -24,22 +24,54 @@ npm run android  # 안드로이드 에뮬레이터
 ```
 src/
   app/                  화면 및 라우팅 (expo-router)
-    _layout.tsx          루트 Stack
-    (tabs)/              홈 / 카테고리 / 커뮤니티 / 마이페이지 탭
-    hospitals/[procedureId].tsx   시술별 병원 리스트 (카드/가격비교 뷰)
+    _layout.tsx          루트 Stack (+ 웹 와이드 화면에서만 보이는 TopNavBar)
+    (tabs)/              홈 / 병원(탐색) / 커뮤니티 / 마이페이지 탭 (모바일 하단 탭바)
+    (tabs)/explore.tsx    병원 탐색: [시술]/[병원] 토글, 카테고리 탭, 정렬·필터, 2열/1열 반응형 카드 그리드
     hospital/[id].tsx             병원 상세
     consult/[hospitalId].tsx      상담 신청 (모달, 로그인 필요)
     community/[id].tsx            질문 상세
     community/new.tsx             질문 작성 (모달)
     auth/login.tsx                로그인 (모달)
     auth/signup.tsx                회원가입 (모달)
-  components/           SearchBar, HospitalCard, PromotionCard, PriceCompareTable 등
+    events.tsx                     전체 이벤트 목록
+    admin/index.tsx                병원 관리자: 병원 목록
+    admin/hospital/new.tsx         병원 등록
+    admin/hospital/[id].tsx        병원 정보 수정
+  components/           SearchBar, HospitalCard, HospitalExploreCard, PromotionCard, PriceCompareTable, TopNavBar 등
   data/                 목업 데이터 (procedures, hospitals, reviews, guides, promotions, qaPosts)
-  hooks/                 useRequireAuth 등 커스텀 훅
-  store/                zustand 스토어 (인증, 찜하기, 상담 신청, 커뮤니티)
+  hooks/                 useRequireAuth, useIsWideWeb 등 커스텀 훅
+  store/                zustand 스토어 (인증, 병원 디렉터리, 찜하기, 상담 신청, 커뮤니티)
   types/                도메인 타입 정의
   utils/                포맷터 등 유틸
 ```
+
+## 반응형 네비게이션 (웹 상단 / 모바일 하단)
+
+- `src/hooks/useIsWideWeb.ts`가 `Platform.OS === 'web' && width >= 768`일 때만 `true`를 반환합니다.
+- 이 값이 `true`면 루트 레이아웃이 `TopNavBar`(로고 / 홈·이벤트·병원·커뮤니티 메뉴 / 검색·로그인·회원가입 또는 마이페이지 아이콘)를 렌더링하고, 동시에 하단 탭바는 `tabBarStyle: { display: 'none' }`로 숨깁니다.
+- 좁은 화면(모바일, 또는 네이티브 iOS/Android)에서는 반대로 하단 탭바만 보입니다.
+- 브라우저 창 너비를 줄이거나 늘려서 두 레이아웃이 전환되는지 확인해보세요.
+
+## 병원 탐색 화면 (`/explore`)
+
+- 상단 `[시술] / [병원]` 토글: "시술"은 전체 12개 시술 카테고리를 큰 타일로 보여주고, 타일을 누르면 해당 시술로 필터링된 "병원" 모드로 전환됩니다.
+- "병원" 모드는 카테고리 가로 탭(전체 + 12개 시술), 정렬·필터 칩(인기순/후기순/상담많은순/상담가능/원데이), 반응형 카드 그리드(웹 2열 · 모바일 1열)로 구성됩니다.
+- "가격 비교표 보기"를 누르면 카드 그리드 대신 기존 `PriceCompareTable`을 재사용한 표 형태로 볼 수 있습니다.
+- 홈 화면의 시술 카테고리, 검색바, 꿀팁 카드, 상단 네비게이션의 "병원" 메뉴가 모두 이 화면으로 연결됩니다 (`mode`, `category` 쿼리 파라미터로 초기 상태 지정).
+
+## 원데이보철 (병원 속성)
+
+- "원데이보철"은 시술 카테고리가 아니라 **병원 속성**으로 모델링했습니다: `Hospital.isOneDay: boolean` (`src/types/domain.ts`).
+- 병원 카드(`HospitalCard`, `HospitalExploreCard`)와 상세 화면의 "병원 특징" 섹션에 "⚡ 원데이 가능" 배지로 노출됩니다.
+- 병원 탐색 화면의 "원데이" 필터 칩을 켜면 `isOneDay === true`인 병원만 남도록 필터링합니다.
+- 목업 데이터(`src/data/hospitals.ts`)는 6곳 중 3곳을 `true`, 3곳을 `false`로 섞어 필터 동작을 바로 확인할 수 있게 했습니다.
+
+## 병원 관리자 페이지 (`/admin`, 목업)
+
+- `src/store/useHospitalStore.ts`가 병원 디렉터리의 반응형 소스입니다. 목업 시드 데이터로 시작해 AsyncStorage에 영속되며, 병원 상세·탐색 화면이 모두 이 스토어를 구독합니다.
+- `/admin`에서 등록된 병원 목록을 보고, "새 병원 등록" 또는 각 병원을 눌러 수정할 수 있습니다.
+- 등록/수정 폼(`src/components/admin/HospitalForm.tsx`)에 시술 다중 선택, 가격대, 태그와 함께 **"원데이 진료 가능 여부" 체크박스**가 있어 병원이 직접 설정할 수 있습니다.
+- 인증 없이 누구나 접근 가능한 목업 관리자 화면입니다. 실 서비스에서는 병원 담당자 전용 로그인/권한 체계가 필요합니다.
 
 ## 현재 구현된 MVP 플로우
 
@@ -60,15 +92,15 @@ src/
 - 마이페이지 탭에서 로그인 상태에 따라 프로필/로그아웃 또는 로그인·회원가입 유도 카드를 보여주고, 그 아래 찜한 병원 목록을 표시합니다.
 
 메모:
-- `src/data/*`는 실제 API 연동 전까지 사용하는 목업 데이터입니다. 백엔드가 준비되면 `getHospitalsByProcedure`, `getHospitalById` 같은 함수들을 API 호출로 교체하면 됩니다.
-- 찜하기·상담 신청·커뮤니티 글·계정 정보는 모두 AsyncStorage에 로컬 저장되며, 서버 연동 전까지의 임시 저장소입니다.
-- 병원 관리자용 대시보드는 별도 웹 프로젝트로 분리하는 것을 권장합니다 (이 저장소는 사용자용 앱 전용).
+- `src/data/hospitals.ts`는 이제 `useHospitalStore`의 시드 데이터 역할만 합니다. 병원을 조회할 땐 `getHospitalById`/`getHospitalsByProcedure`(`@/store/useHospitalStore`)나 스토어 훅을 사용하세요.
+- 찜하기·상담 신청·커뮤니티 글·계정 정보·병원 디렉터리는 모두 AsyncStorage에 로컬 저장되며, 서버 연동 전까지의 임시 저장소입니다.
 - 상담 신청은 단일 병원 신청폼 방식으로 유지했습니다 (강남언니식 여러 병원 동시 견적요청은 백엔드/데이터 구조가 커져 추후 별도 검토).
 
 ## 다음 단계 제안
 
 - 실제 백엔드 인증 연동 (Supabase/Firebase 등으로 `useAuthStore` 교체, 비밀번호 해싱)
 - 소셜 로그인 (구글/카카오) 실제 연동
+- 관리자 페이지에 병원 담당자 전용 인증/권한 추가
+- 병원 탐색 화면의 텍스트 검색(현재는 카테고리 브라우징만 지원) 구현
 - 마이페이지 확장 (상담 내역, 후기 작성)
-- 검색 기능 구현 (현재 검색바는 카테고리 화면으로 연결)
 - 앱 아이콘/스플래시 이미지를 브랜드 리소스로 교체 (`assets/images`)

@@ -2,7 +2,7 @@ import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { Pressable, Text, View } from 'react-native';
 
-import { getHospitalById } from '@/data/hospitals';
+import { getHospitalById } from '@/store/useHospitalStore';
 import type { Promotion } from '@/types/domain';
 import { calcDiscountRate, formatWon } from '@/utils/format';
 

@@ -4,6 +4,7 @@ export const hospitals: Hospital[] = [
   {
     id: 'h1',
     name: '강남 스마일 치과',
+    specialty: '임플란트 전문의원',
     region: '서울 강남구',
     thumbnail: 'https://picsum.photos/seed/molarmolar-h1/800/500',
     images: [
@@ -14,7 +15,9 @@ export const hospitals: Hospital[] = [
     priceRange: { min: 900000, max: 1800000 },
     rating: 4.8,
     reviewCount: 312,
+    consultCount: 128,
     consultAvailable: true,
+    isOneDay: true,
     tags: ['당일진료', '무료상담', '주차가능'],
     address: '서울특별시 강남구 테헤란로 123',
     introduction:
@@ -24,6 +27,7 @@ export const hospitals: Hospital[] = [
   {
     id: 'h2',
     name: '연세 바른교정치과',
+    specialty: '교정 전문치과',
     region: '서울 서초구',
     thumbnail: 'https://picsum.photos/seed/molarmolar-h2/800/500',
     images: [
@@ -34,7 +38,9 @@ export const hospitals: Hospital[] = [
     priceRange: { min: 3500000, max: 6500000 },
     rating: 4.6,
     reviewCount: 198,
+    consultCount: 95,
     consultAvailable: true,
+    isOneDay: false,
     tags: ['교정전문', '투명교정', '평일야간진료'],
     address: '서울특별시 서초구 서초대로 45',
     introduction: '성인 교정과 투명교정에 특화된 교정 전문 치과로, 3D 스캔 기반 맞춤 교정 계획을 제공합니다.',
@@ -43,15 +49,18 @@ export const hospitals: Hospital[] = [
   {
     id: 'h3',
     name: '미소가득 치과의원',
+    specialty: '가족치과 · 일반진료',
     region: '경기 성남시',
     thumbnail: 'https://picsum.photos/seed/molarmolar-h3/800/500',
     images: ['https://picsum.photos/seed/molarmolar-h3-1/800/500'],
-    procedureIds: ['scaling', 'root-canal', 'implant'],
+    procedureIds: ['cavity', 'gum-disease', 'implant'],
     priceRange: { min: 30000, max: 1200000 },
     rating: 4.5,
     reviewCount: 421,
+    consultCount: 210,
     consultAvailable: true,
-    tags: ['가족진료', '건강보험', '주말진료'],
+    isOneDay: true,
+    tags: ['가족진료', '건강보험', '주말진료', '당일진료'],
     address: '경기도 성남시 분당구 판교역로 10',
     introduction: '동네 주치의 같은 편안한 분위기에서 기본 진료부터 임플란트까지 폭넓게 진료합니다.',
     events: [],
@@ -59,6 +68,7 @@ export const hospitals: Hospital[] = [
   {
     id: 'h4',
     name: '리본 수면치과',
+    specialty: '수면치과 전문',
     region: '서울 마포구',
     thumbnail: 'https://picsum.photos/seed/molarmolar-h4/800/500',
     images: ['https://picsum.photos/seed/molarmolar-h4-1/800/500'],
@@ -66,7 +76,9 @@ export const hospitals: Hospital[] = [
     priceRange: { min: 400000, max: 900000 },
     rating: 4.7,
     reviewCount: 87,
+    consultCount: 40,
     consultAvailable: true,
+    isOneDay: false,
     tags: ['수면클리닉연계', '야간진료'],
     address: '서울특별시 마포구 양화로 88',
     introduction: '수면다원검사 연계를 통해 코골이·이갈이 원인을 정밀 분석 후 맞춤 장치를 제작합니다.',
@@ -75,14 +87,17 @@ export const hospitals: Hospital[] = [
   {
     id: 'h5',
     name: '해피덴탈의원',
+    specialty: '임플란트 · 잇몸치료',
     region: '인천 연수구',
     thumbnail: 'https://picsum.photos/seed/molarmolar-h5/800/500',
     images: ['https://picsum.photos/seed/molarmolar-h5-1/800/500'],
-    procedureIds: ['implant', 'scaling'],
+    procedureIds: ['implant', 'gum-disease'],
     priceRange: { min: 30000, max: 1500000 },
     rating: 4.3,
     reviewCount: 156,
+    consultCount: 60,
     consultAvailable: false,
+    isOneDay: false,
     tags: ['20년경력', '노인친화'],
     address: '인천광역시 연수구 송도과학로 12',
     introduction: '20년 이상 한자리를 지켜온 지역 치과로, 고령 환자 진료 경험이 풍부합니다.',
@@ -91,25 +106,20 @@ export const hospitals: Hospital[] = [
   {
     id: 'h6',
     name: '더화이트 라미네이트클리닉',
+    specialty: '라미네이트 · 심미치료 전문',
     region: '서울 송파구',
     thumbnail: 'https://picsum.photos/seed/molarmolar-h6/800/500',
     images: ['https://picsum.photos/seed/molarmolar-h6-1/800/500'],
-    procedureIds: ['laminate'],
+    procedureIds: ['laminate', 'whitening'],
     priceRange: { min: 400000, max: 800000 },
     rating: 4.9,
     reviewCount: 264,
+    consultCount: 150,
     consultAvailable: true,
+    isOneDay: true,
     tags: ['심미치료전문', '연예인단골'],
     address: '서울특별시 송파구 올림픽로 300',
     introduction: '자연스러운 색감의 라미네이트 시술로 유명한 심미치료 전문 클리닉입니다.',
     events: ['라미네이트 6개 이상 시술 시 미백 서비스 증정'],
   },
 ];
-
-export function getHospitalById(id: string) {
-  return hospitals.find((h) => h.id === id);
-}
-
-export function getHospitalsByProcedure(procedureId: string) {
-  return hospitals.filter((h) => h.procedureIds.includes(procedureId as Hospital['procedureIds'][number]));
-}

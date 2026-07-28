@@ -1,17 +1,22 @@
 import { Tabs } from 'expo-router';
 import { Text, type ColorValue } from 'react-native';
 
+import { useIsWideWeb } from '@/hooks/useIsWideWeb';
+
 function TabIcon({ emoji, color }: { emoji: string; color: ColorValue }) {
   return <Text style={{ fontSize: 20, color }}>{emoji}</Text>;
 }
 
 export default function TabsLayout() {
+  const isWideWeb = useIsWideWeb();
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: '#17847a',
         tabBarInactiveTintColor: '#a3a3a3',
+        tabBarStyle: isWideWeb ? { display: 'none' } : undefined,
       }}
     >
       <Tabs.Screen
@@ -22,9 +27,9 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="categories"
+        name="explore"
         options={{
-          title: '카테고리',
+          title: '병원',
           tabBarIcon: ({ color }) => <TabIcon emoji="🦷" color={color} />,
         }}
       />

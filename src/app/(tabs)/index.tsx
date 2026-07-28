@@ -32,7 +32,7 @@ export default function HomeScreen() {
 
         {promotions.length > 0 ? (
           <View className="mb-6">
-            <SectionHeader title="지금 진행중인 이벤트" />
+            <SectionHeader title="지금 진행중인 이벤트" actionLabel="전체보기" onPressAction={() => router.push('/events')} />
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               {promotions.map((promotion) => (
                 <PromotionCard key={promotion.id} promotion={promotion} />
@@ -45,7 +45,7 @@ export default function HomeScreen() {
           <SectionHeader
             title="시술로 찾기"
             actionLabel="전체보기"
-            onPressAction={() => router.push('/(tabs)/categories')}
+            onPressAction={() => router.push({ pathname: '/(tabs)/explore', params: { mode: 'procedure' } })}
           />
           <View className="flex-row flex-wrap justify-between gap-y-3">
             {procedures.slice(0, 8).map((procedure) => (
@@ -61,7 +61,12 @@ export default function HomeScreen() {
               <GuideCard
                 key={guide.id}
                 guide={guide}
-                onPress={() => router.push(`/hospitals/${guide.procedureId}`)}
+                onPress={() =>
+                  router.push({
+                    pathname: '/(tabs)/explore',
+                    params: { mode: 'hospital', category: guide.procedureId },
+                  })
+                }
               />
             ))}
           </ScrollView>

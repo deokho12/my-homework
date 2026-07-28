@@ -1,37 +1,17 @@
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Alert, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Chip } from '@/components/Chip';
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { getHospitalById } from '@/data/hospitals';
 import { getProcedureById } from '@/data/procedures';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useConsultStore } from '@/store/useConsultStore';
+import { getHospitalById } from '@/store/useHospitalStore';
 import type { ProcedureId } from '@/types/domain';
 
 const TIME_SLOTS = ['평일 오전', '평일 오후', '주말'];
-
-function ChipOption({
-  label,
-  selected,
-  onPress,
-}: {
-  label: string;
-  selected: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      className={`mb-2 mr-2 rounded-full border px-3.5 py-2 ${
-        selected ? 'border-brand-600 bg-brand-600' : 'border-neutral-200 bg-white'
-      }`}
-    >
-      <Text className={`text-sm font-medium ${selected ? 'text-white' : 'text-neutral-600'}`}>{label}</Text>
-    </Pressable>
-  );
-}
 
 export default function ConsultRequestScreen() {
   const { hospitalId } = useLocalSearchParams<{ hospitalId: string }>();
@@ -101,7 +81,7 @@ export default function ConsultRequestScreen() {
             const procedure = getProcedureById(id);
             if (!procedure) return null;
             return (
-              <ChipOption
+              <Chip
                 key={id}
                 label={procedure.name}
                 selected={procedureId === id}
@@ -114,7 +94,7 @@ export default function ConsultRequestScreen() {
         <Text className="mb-2 text-sm font-semibold text-neutral-700">희망 상담 시간</Text>
         <View className="mb-4 flex-row flex-wrap">
           {TIME_SLOTS.map((slot) => (
-            <ChipOption
+            <Chip
               key={slot}
               label={slot}
               selected={preferredTime === slot}

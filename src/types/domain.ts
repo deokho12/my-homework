@@ -2,10 +2,15 @@ export type ProcedureId =
   | 'implant'
   | 'orthodontics'
   | 'laminate'
+  | 'inlay'
+  | 'crown'
+  | 'whitening'
+  | 'wisdom-tooth'
+  | 'cavity'
+  | 'gum-disease'
   | 'splint'
   | 'snoring-device'
-  | 'scaling'
-  | 'root-canal';
+  | 'tmj';
 
 export interface Procedure {
   id: ProcedureId;
@@ -23,6 +28,7 @@ export interface PriceRange {
 export interface Hospital {
   id: string;
   name: string;
+  specialty: string;
   region: string;
   thumbnail: string;
   images: string[];
@@ -30,7 +36,10 @@ export interface Hospital {
   priceRange: PriceRange;
   rating: number;
   reviewCount: number;
+  consultCount: number;
   consultAvailable: boolean;
+  /** Same-day prosthetics capability (implant crown/denture milled in-house) — a hospital attribute, not a procedure category. */
+  isOneDay: boolean;
   tags: string[];
   address: string;
   introduction: string;

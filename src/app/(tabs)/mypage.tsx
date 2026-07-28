@@ -4,9 +4,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { HospitalCard } from '@/components/HospitalCard';
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { getHospitalById } from '@/data/hospitals';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useFavoritesStore } from '@/store/useFavoritesStore';
+import { getHospitalById } from '@/store/useHospitalStore';
 import type { Hospital } from '@/types/domain';
 
 function AuthCard() {
@@ -85,6 +85,11 @@ export default function MyPageScreen() {
               </Text>
             </View>
           ) : null
+        }
+        ListFooterComponent={
+          <Pressable onPress={() => router.push('/admin')} className="mt-6 items-center py-4">
+            <Text className="text-xs text-neutral-400 underline">병원 담당자이신가요? 관리자 페이지</Text>
+          </Pressable>
         }
       />
     </SafeAreaView>

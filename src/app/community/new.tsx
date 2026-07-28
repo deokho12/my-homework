@@ -1,8 +1,9 @@
 import { router, Stack } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Chip } from '@/components/Chip';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { procedures } from '@/data/procedures';
 import { useCommunityStore } from '@/store/useCommunityStore';
@@ -28,21 +29,12 @@ export default function NewCommunityPostScreen() {
         <Text className="mb-2 text-sm font-semibold text-neutral-700">관련 시술</Text>
         <View className="mb-4 flex-row flex-wrap">
           {procedures.map((procedure) => (
-            <Pressable
+            <Chip
               key={procedure.id}
+              label={`${procedure.emoji} ${procedure.name}`}
+              selected={procedureId === procedure.id}
               onPress={() => setProcedureId(procedure.id)}
-              className={`mb-2 mr-2 rounded-full border px-3.5 py-2 ${
-                procedureId === procedure.id ? 'border-brand-600 bg-brand-600' : 'border-neutral-200 bg-white'
-              }`}
-            >
-              <Text
-                className={`text-sm font-medium ${
-                  procedureId === procedure.id ? 'text-white' : 'text-neutral-600'
-                }`}
-              >
-                {procedure.emoji} {procedure.name}
-              </Text>
-            </Pressable>
+            />
           ))}
         </View>
 

@@ -5,17 +5,17 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Badge } from '@/components/Badge';
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { getHospitalById } from '@/data/hospitals';
 import { getProcedureById } from '@/data/procedures';
 import { getPromotionByHospital } from '@/data/promotions';
 import { getReviewsByHospital } from '@/data/reviews';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { useFavoritesStore } from '@/store/useFavoritesStore';
+import { useHospitalStore } from '@/store/useHospitalStore';
 import { calcDiscountRate, formatPriceRange, formatWon } from '@/utils/format';
 
 export default function HospitalDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const hospital = getHospitalById(id);
+  const hospital = useHospitalStore((state) => state.hospitals.find((item) => item.id === id));
   const reviews = getReviewsByHospital(id);
   const promotion = getPromotionByHospital(id);
   const isFavorite = useFavoritesStore((state) => state.isFavorite(id));
@@ -89,6 +89,16 @@ export default function HospitalDetailScreen() {
               const procedure = getProcedureById(procedureId);
               return procedure ? <Badge key={procedureId} label={procedure.name} tone="brand" /> : null;
             })}
+          </View>
+
+          <Text className="mb-2 text-base font-bold text-neutral-900">병원 특징</Text>
+          <View className="mb-4 flex-row flex-wrap gap-1.5">
+            {hospital.isOneDay ? (
+              <Badge label="⚡ 원데이 진료 가능" tone="brand" />
+            ) : (
+              <Badge label="원데이 진료 불가" />
+            )}
+            {hospital.consultAvailable ? <Badge label="실시간 상담 가능" tone="brand" /> : null}
           </View>
 
           <Text className="mb-2 text-base font-bold text-neutral-900">병원 소개</Text>
