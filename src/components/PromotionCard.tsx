@@ -1,7 +1,7 @@
-import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { Pressable, Text, View } from 'react-native';
 
+import { StockImage } from '@/components/StockImage';
 import { getHospitalById } from '@/store/useHospitalStore';
 import type { Promotion } from '@/types/domain';
 import { calcDiscountRate, formatWon } from '@/utils/format';
@@ -20,7 +20,12 @@ export function PromotionCard({ promotion }: PromotionCardProps) {
       className="mr-3 w-64 overflow-hidden rounded-2xl border border-neutral-100 bg-white"
     >
       <View className="relative">
-        <Image source={{ uri: hospital.thumbnail }} style={{ width: '100%', height: 120 }} contentFit="cover" />
+        <StockImage
+          uri={hospital.thumbnail}
+          alt={`${hospital.name} 병원 사진`}
+          style={{ width: '100%', height: 120 }}
+          contentFit="cover"
+        />
         <View className="absolute left-3 top-3 rounded-full bg-rose-500 px-2.5 py-1">
           <Text className="text-xs font-bold text-white">🔥 {promotion.badge}</Text>
         </View>

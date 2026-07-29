@@ -1,8 +1,8 @@
-import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { Pressable, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { Badge } from '@/components/Badge';
+import { StockImage } from '@/components/StockImage';
 import { getProcedureById } from '@/data/procedures';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { getHospitalById } from '@/store/useHospitalStore';
@@ -26,9 +26,11 @@ export function DoctorCard({ doctor, style }: DoctorCardProps) {
       className="mb-4 rounded-2xl border border-neutral-100 bg-white p-4"
     >
       <View className="mb-3 flex-row items-center gap-3">
-        <Image
-          source={{ uri: doctor.photo }}
-          style={{ width: 64, height: 64, borderRadius: 32 }}
+        <StockImage
+          uri={doctor.photo}
+          alt={`${doctor.name} ${doctor.title} 프로필 사진`}
+          style={{ width: 64, height: 64 }}
+          borderRadius={32}
           contentFit="cover"
         />
         <View className="flex-1">

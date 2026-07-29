@@ -1,8 +1,8 @@
-import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { Pressable, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { Badge } from '@/components/Badge';
+import { StockImage } from '@/components/StockImage';
 import { getProcedureById } from '@/data/procedures';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { getDoctorsByHospital } from '@/store/useDoctorStore';
@@ -32,8 +32,9 @@ export function HospitalExploreCard({ hospital, activeCategory, style }: Hospita
       className="mb-4 overflow-hidden rounded-2xl border border-neutral-100 bg-white"
     >
       <View className="relative">
-        <Image
-          source={{ uri: hospital.thumbnail }}
+        <StockImage
+          uri={hospital.thumbnail}
+          alt={`${hospital.name} 병원 사진`}
           style={{ width: '100%', height: 140 }}
           contentFit="cover"
         />

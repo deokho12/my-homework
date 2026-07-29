@@ -1,10 +1,10 @@
-import { Image } from 'expo-image';
 import { Stack } from 'expo-router';
 import { useState } from 'react';
 import { FlatList, Pressable, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Badge } from '@/components/Badge';
+import { StockImage } from '@/components/StockImage';
 import { useDoctorStore } from '@/store/useDoctorStore';
 import { getHospitalById } from '@/store/useHospitalStore';
 import type { Doctor, VerificationStatus } from '@/types/domain';
@@ -31,9 +31,11 @@ function SpecialistRow({ doctor }: { doctor: Doctor }) {
     <View className="mb-3 rounded-2xl border border-neutral-100 bg-white p-4">
       <View className="mb-3 flex-row items-center gap-3">
         {doctor.certificateUrl ? (
-          <Image
-            source={{ uri: doctor.certificateUrl }}
-            style={{ width: 64, height: 84, borderRadius: 8 }}
+          <StockImage
+            uri={doctor.certificateUrl}
+            alt={`${doctor.name} 자격증 이미지`}
+            style={{ width: 64, height: 84 }}
+            borderRadius={8}
             contentFit="cover"
           />
         ) : (

@@ -1,10 +1,10 @@
-import { Image } from 'expo-image';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Badge } from '@/components/Badge';
 import { PrimaryButton } from '@/components/PrimaryButton';
+import { StockImage } from '@/components/StockImage';
 import { getProcedureById } from '@/data/procedures';
 import { getPromotionByHospital } from '@/data/promotions';
 import { getReviewsByHospital } from '@/data/reviews';
@@ -41,7 +41,13 @@ export default function HospitalDetailScreen() {
       <ScrollView showsVerticalScrollIndicator={false}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} pagingEnabled>
           {hospital.images.map((uri) => (
-            <Image key={uri} source={{ uri }} style={{ width: 400, height: 240 }} contentFit="cover" />
+            <StockImage
+              key={uri}
+              uri={uri}
+              alt={`${hospital.name} 병원 사진`}
+              style={{ width: 400, height: 240 }}
+              contentFit="cover"
+            />
           ))}
         </ScrollView>
 
@@ -119,9 +125,11 @@ export default function HospitalDetailScreen() {
                     key={doctor.id}
                     className="mb-2 flex-row items-center gap-3 rounded-xl border border-neutral-100 p-3"
                   >
-                    <Image
-                      source={{ uri: doctor.photo }}
-                      style={{ width: 56, height: 56, borderRadius: 28 }}
+                    <StockImage
+                      uri={doctor.photo}
+                      alt={`${doctor.name} ${doctor.title} 프로필 사진`}
+                      style={{ width: 56, height: 56 }}
+                      borderRadius={28}
                       contentFit="cover"
                     />
                     <View className="flex-1">
@@ -172,10 +180,12 @@ export default function HospitalDetailScreen() {
                 {review.photos && review.photos.length > 0 ? (
                   <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                     {review.photos.map((uri) => (
-                      <Image
+                      <StockImage
                         key={uri}
-                        source={{ uri }}
-                        style={{ width: 88, height: 88, borderRadius: 12, marginRight: 8 }}
+                        uri={uri}
+                        alt="후기 사진"
+                        style={{ width: 88, height: 88, marginRight: 8 }}
+                        borderRadius={12}
                         contentFit="cover"
                       />
                     ))}
