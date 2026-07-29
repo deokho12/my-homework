@@ -1,4 +1,6 @@
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useRef } from 'react';
+import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import { FlatList, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -7,8 +9,11 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useFavoritesStore } from '@/store/useFavoritesStore';
 import { getHospitalById } from '@/store/useHospitalStore';
+import { useScrollShadowStore } from '@/store/useScrollShadowStore';
 import type { Hospital } from '@/types/domain';
 import { showAlert } from '@/utils/alert';
+
+const SCROLL_SHADOW_THRESHOLD = 8;
 
 function AuthCard() {
   const user = useAuthStore((state) => state.user);
@@ -62,6 +67,20 @@ export default function MyPageScreen() {
   const favoriteHospitals = hospitalIds
     .map((id) => getHospitalById(id))
     .filter((hospital): hospital is Hospital => Boolean(hospital));
+  const setScrolled = useScrollShadowStore((state) => state.setScrolled);
+  const scrollOffsetRef = useRef(0);
+
+  const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const offsetY = event.nativeEvent.contentOffset.y;
+    scrollOffsetRef.current = offsetY;
+    setScrolled(offsetY > SCROLL_SHADOW_THRESHOLD);
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      setScrolled(scrollOffsetRef.current > SCROLL_SHADOW_THRESHOLD);
+    }, [setScrolled])
+  );
 
   return (
     <SafeAreaView className="flex-1 bg-neutral-50" edges={['top']}>
@@ -70,6 +89,8 @@ export default function MyPageScreen() {
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => <HospitalCard hospital={item} />}
         contentContainerClassName="px-5 pb-8 pt-3"
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
         ListHeaderComponent={
           <View>
             <Text className="mb-4 text-2xl font-extrabold text-neutral-900">마이페이지</Text>

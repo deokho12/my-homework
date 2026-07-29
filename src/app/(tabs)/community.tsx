@@ -1,11 +1,16 @@
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useRef } from 'react';
+import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import { FlatList, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Badge } from '@/components/Badge';
 import { getProcedureById } from '@/data/procedures';
 import { useCommunityStore } from '@/store/useCommunityStore';
+import { useScrollShadowStore } from '@/store/useScrollShadowStore';
 import type { QAPost } from '@/types/domain';
+
+const SCROLL_SHADOW_THRESHOLD = 8;
 
 function PostRow({ post }: { post: QAPost }) {
   const procedure = getProcedureById(post.procedureId);
@@ -35,6 +40,20 @@ function PostRow({ post }: { post: QAPost }) {
 
 export default function CommunityScreen() {
   const posts = useCommunityStore((state) => state.posts);
+  const setScrolled = useScrollShadowStore((state) => state.setScrolled);
+  const scrollOffsetRef = useRef(0);
+
+  const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const offsetY = event.nativeEvent.contentOffset.y;
+    scrollOffsetRef.current = offsetY;
+    setScrolled(offsetY > SCROLL_SHADOW_THRESHOLD);
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      setScrolled(scrollOffsetRef.current > SCROLL_SHADOW_THRESHOLD);
+    }, [setScrolled])
+  );
 
   return (
     <SafeAreaView className="flex-1 bg-neutral-50" edges={['top']}>
@@ -56,6 +75,8 @@ export default function CommunityScreen() {
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => <PostRow post={item} />}
         contentContainerClassName="px-5 pb-8 pt-3"
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
       />
     </SafeAreaView>
   );

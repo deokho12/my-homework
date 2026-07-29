@@ -2,6 +2,7 @@ import { router, usePathname } from 'expo-router';
 import { Pressable, Text, View } from 'react-native';
 
 import { useAuthStore } from '@/store/useAuthStore';
+import { useScrollShadowStore } from '@/store/useScrollShadowStore';
 
 const MENU = [
   { label: '홈', href: '/(tabs)' as const, match: '/' },
@@ -13,9 +14,13 @@ const MENU = [
 export function TopNavBar() {
   const pathname = usePathname();
   const user = useAuthStore((state) => state.user);
+  const scrolled = useScrollShadowStore((state) => state.scrolled);
 
   return (
-    <View className="border-b border-neutral-100 bg-white">
+    <View
+      className={scrolled ? 'bg-white shadow-md' : 'border-b border-neutral-100 bg-white'}
+      style={{ position: 'sticky' as any, top: 0, zIndex: 50 }}
+    >
       <View
         className="mx-auto w-full flex-row items-center justify-between px-8 py-4"
         style={{ maxWidth: 1200 }}

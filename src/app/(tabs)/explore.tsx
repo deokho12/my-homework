@@ -1,5 +1,6 @@
-import { useLocalSearchParams } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import { Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -11,8 +12,11 @@ import { PriceCompareTable } from '@/components/PriceCompareTable';
 import { doctors } from '@/data/doctors';
 import { procedures } from '@/data/procedures';
 import { useHospitalStore } from '@/store/useHospitalStore';
+import { useScrollShadowStore } from '@/store/useScrollShadowStore';
 import type { Hospital, ProcedureId } from '@/types/domain';
 import { isEligibleForRecommendedSponsoredPlacement, isEligibleForSponsoredPlacement } from '@/utils/sponsorship';
+
+const SCROLL_SHADOW_THRESHOLD = 8;
 
 type Mode = 'doctor' | 'hospital';
 type HospitalView = 'list' | 'map';
@@ -39,6 +43,32 @@ export default function ExploreScreen() {
 
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
+  const setScrolled = useScrollShadowStore((state) => state.setScrolled);
+  const scrollOffsetRef = useRef(0);
+
+  const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const offsetY = event.nativeEvent.contentOffset.y;
+    scrollOffsetRef.current = offsetY;
+    setScrolled(offsetY > SCROLL_SHADOW_THRESHOLD);
+  };
+
+  useEffect(() => {
+    if (hospitalView === 'map') {
+      // The list ScrollView unmounts while the map is shown and remounts at offset 0 when we
+      // switch back — reset the remembered offset too, or the next focus recompute would use
+      // the stale pre-map scroll position and show a shadow the freshly-mounted list doesn't have.
+      scrollOffsetRef.current = 0;
+      setScrolled(false);
+    }
+  }, [hospitalView, setScrolled]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (hospitalView !== 'map') {
+        setScrolled(scrollOffsetRef.current > SCROLL_SHADOW_THRESHOLD);
+      }
+    }, [hospitalView, setScrolled])
+  );
 
   const allHospitals = useHospitalStore((state) => state.hospitals);
   const hospitalById = useMemo(() => new Map(allHospitals.map((h) => [h.id, h])), [allHospitals]);
@@ -169,7 +199,12 @@ export default function ExploreScreen() {
         {mode === 'hospital' && hospitalView === 'map' ? (
           <HospitalMapView hospitals={filteredHospitals} />
         ) : (
-          <ScrollView contentContainerClassName="px-5 pb-8 pt-4" showsVerticalScrollIndicator={false}>
+          <ScrollView
+            contentContainerClassName="px-5 pb-8 pt-4"
+            showsVerticalScrollIndicator={false}
+            onScroll={handleScroll}
+            scrollEventThrottle={16}
+          >
             <View className="mb-3 flex-row items-center justify-between">
               <Text className="text-sm text-neutral-500">총 {resultCount}{mode === 'doctor' ? '명' : '곳'}</Text>
               {mode === 'hospital' ? (
