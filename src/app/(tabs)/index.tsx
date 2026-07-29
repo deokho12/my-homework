@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Footer } from '@/components/Footer';
 import { GuideCard } from '@/components/GuideCard';
 import { ProcedureCategoryCard } from '@/components/ProcedureCategoryCard';
 import { PromotionCard } from '@/components/PromotionCard';
@@ -14,16 +15,12 @@ import { promotions } from '@/data/promotions';
 export default function HomeScreen() {
   return (
     <SafeAreaView className="flex-1 bg-neutral-50" edges={['top']}>
-      <ScrollView contentContainerClassName="px-5 pb-8" showsVerticalScrollIndicator={false}>
-        <View className="mb-4 mt-2 flex-row items-center justify-between">
-          <Text className="text-2xl font-extrabold text-brand-700">몰라몰라</Text>
-        </View>
-
-        <View className="mb-5">
+      <ScrollView contentContainerClassName="px-5 pb-8 pt-4" showsVerticalScrollIndicator={false}>
+        <View className="mb-8 rounded-2xl bg-white p-4">
           <SearchBar />
         </View>
 
-        <View className="mb-6 rounded-2xl bg-brand-600 px-5 py-6">
+        <View className="mb-8 rounded-2xl bg-brand-600 px-5 py-7">
           <Text className="mb-1 text-lg font-bold text-white">병원명 말고, 시술로 찾아보세요</Text>
           <Text className="text-sm text-brand-50">
             임플란트, 교정, 라미네이트까지 한눈에 비교하고 상담까지 한번에
@@ -31,7 +28,7 @@ export default function HomeScreen() {
         </View>
 
         {promotions.length > 0 ? (
-          <View className="mb-6">
+          <View className="mb-8 rounded-2xl bg-white p-4">
             <SectionHeader title="지금 진행중인 이벤트" actionLabel="전체보기" onPressAction={() => router.push('/events')} />
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               {promotions.map((promotion) => (
@@ -41,7 +38,7 @@ export default function HomeScreen() {
           </View>
         ) : null}
 
-        <View className="mb-6">
+        <View className="mb-8 rounded-2xl bg-white p-4">
           <SectionHeader
             title="시술로 찾기"
             actionLabel="전체보기"
@@ -54,7 +51,7 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        <View>
+        <View className="mb-8 rounded-2xl bg-white p-4">
           <SectionHeader title="이런 꿀팁 어때요?" />
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             {guides.map((guide) => (
@@ -71,6 +68,8 @@ export default function HomeScreen() {
             ))}
           </ScrollView>
         </View>
+
+        <Footer />
       </ScrollView>
     </SafeAreaView>
   );

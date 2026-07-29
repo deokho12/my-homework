@@ -5,7 +5,7 @@ export function SearchBar() {
   return (
     <Pressable
       onPress={() => router.push('/search')}
-      className="flex-row items-center rounded-xl border border-neutral-200 bg-white px-4 py-3.5"
+      className="flex-row items-center rounded-full border border-neutral-200 bg-white px-5 py-4"
     >
       <Text className="mr-2 text-base">🔍</Text>
       <View className="flex-1">
