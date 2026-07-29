@@ -1,6 +1,6 @@
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, ScrollView, Text, TextInput, View } from 'react-native';
+import { ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Chip } from '@/components/Chip';
@@ -10,6 +10,7 @@ import { useAuthStore } from '@/store/useAuthStore';
 import { useConsultStore } from '@/store/useConsultStore';
 import { getHospitalById } from '@/store/useHospitalStore';
 import type { ProcedureId } from '@/types/domain';
+import { showAlert } from '@/utils/alert';
 
 const TIME_SLOTS = ['평일 오전', '평일 오후', '주말'];
 
@@ -46,7 +47,7 @@ export default function ConsultRequestScreen() {
 
   const handleSubmit = () => {
     addRequest({ hospitalId: hospital.id, procedureId, name: name.trim(), phone: phone.trim(), preferredTime, message: message.trim() });
-    Alert.alert('상담 신청이 접수되었어요', `${hospital.name}에서 확인 후 연락드릴게요.`, [
+    showAlert('상담 신청이 접수되었어요', `${hospital.name}에서 확인 후 연락드릴게요.`, [
       { text: '확인', onPress: () => router.back() },
     ]);
   };

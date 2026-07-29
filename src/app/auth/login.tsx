@@ -1,15 +1,16 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { useAuthStore } from '@/store/useAuthStore';
 import type { AuthProvider } from '@/types/domain';
+import { showAlert } from '@/utils/alert';
 
 function comingSoon(provider: AuthProvider) {
   const label = provider === 'google' ? '구글' : '카카오';
-  Alert.alert('준비중이에요', `${label} 로그인은 다음 업데이트에서 지원할 예정이에요.`);
+  showAlert('준비중이에요', `${label} 로그인은 다음 업데이트에서 지원할 예정이에요.`);
 }
 
 export default function LoginScreen() {

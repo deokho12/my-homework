@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { Alert, FlatList, Pressable, Text, View } from 'react-native';
+import { FlatList, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { HospitalCard } from '@/components/HospitalCard';
@@ -8,6 +8,7 @@ import { useAuthStore } from '@/store/useAuthStore';
 import { useFavoritesStore } from '@/store/useFavoritesStore';
 import { getHospitalById } from '@/store/useHospitalStore';
 import type { Hospital } from '@/types/domain';
+import { showAlert } from '@/utils/alert';
 
 function AuthCard() {
   const user = useAuthStore((state) => state.user);
@@ -42,7 +43,7 @@ function AuthCard() {
       <Text className="mb-4 text-sm text-neutral-500">{user.email}</Text>
       <Pressable
         onPress={() =>
-          Alert.alert('로그아웃', '로그아웃할까요?', [
+          showAlert('로그아웃', '로그아웃할까요?', [
             { text: '취소', style: 'cancel' },
             { text: '로그아웃', style: 'destructive', onPress: logOut },
           ])
