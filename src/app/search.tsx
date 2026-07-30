@@ -1,4 +1,4 @@
-import { router, Stack } from 'expo-router';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -71,8 +71,9 @@ function formatNowLabel(): string {
 }
 
 export default function SearchScreen() {
+  const { q } = useLocalSearchParams<{ q?: string }>();
   const inputRef = useRef<TextInput>(null);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(q ?? '');
   const [tab, setTab] = useState<SearchTab>('all');
   const [notice, setNotice] = useState<string | null>(null);
   const nowLabel = useMemo(formatNowLabel, []);
@@ -82,8 +83,7 @@ export default function SearchScreen() {
     return () => clearTimeout(timeout);
   }, []);
 
-  const handleSubmit = () => {
-    const trimmed = query.trim();
+  const runSearch = (trimmed: string) => {
     if (!trimmed) return;
 
     const matchedProcedure = procedures.find((procedure) => procedure.name.includes(trimmed));
@@ -100,7 +100,13 @@ export default function SearchScreen() {
       return;
     }
 
-    const matchedDoctor = useDoctorStore.getState().doctors.find((doctor) => doctor.name.includes(trimmed));
+    // Trending terms append a title suffix (e.g. "김민준 원장") that isn't part of the stored
+    // doctor name ("김민준"), so also match when the search term starts with the doctor's name —
+    // narrower than a general bidirectional includes() so it can't false-positive against
+    // hospital names that happen to contain a procedure name (e.g. "더화이트 라미네이트클리닉").
+    const matchedDoctor = useDoctorStore
+      .getState()
+      .doctors.find((doctor) => doctor.name.includes(trimmed) || trimmed.startsWith(doctor.name));
     if (matchedDoctor) {
       setNotice(null);
       navigateToTarget({ kind: 'doctor', doctorId: matchedDoctor.id });
@@ -109,6 +115,15 @@ export default function SearchScreen() {
 
     setNotice(`"${trimmed}"에 대한 검색 결과가 없어요. 아래 인기 검색어를 살펴보세요`);
   };
+
+  const handleSubmit = () => runSearch(query.trim());
+
+  // Prefills and auto-runs the search when arriving from a trending-tag link (e.g. the home screen's
+  // popular-search pills), which navigate here with a `q` param instead of typing into the input.
+  useEffect(() => {
+    if (q) runSearch(q.trim());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q]);
 
   return (
     <SafeAreaView className="flex-1 bg-white" edges={['top', 'bottom']}>

@@ -1,7 +1,7 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useRef } from 'react';
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
-import { ScrollView, Text, useWindowDimensions, View } from 'react-native';
+import { Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Footer } from '@/components/Footer';
@@ -14,9 +14,14 @@ import { SectionHeader } from '@/components/SectionHeader';
 import { guides } from '@/data/guides';
 import { procedures } from '@/data/procedures';
 import { promotions } from '@/data/promotions';
+import { TRENDING_SEARCHES } from '@/data/trendingSearches';
 import { useScrollShadowStore } from '@/store/useScrollShadowStore';
 
 const SCROLL_SHADOW_THRESHOLD = 8;
+
+// Top row of trending search terms shown as pill badges under the home search bar.
+// Tapping a pill routes to `/search?q=...`, which prefills and auto-runs the search.
+const HOME_TRENDING_TAGS = TRENDING_SEARCHES.all.slice(0, 6).map((item) => item.term);
 
 export default function HomeScreen() {
   const { width } = useWindowDimensions();
@@ -45,8 +50,27 @@ export default function HomeScreen() {
         onScroll={handleScroll}
         scrollEventThrottle={16}
       >
-        <View className="mb-8 rounded-2xl bg-white p-4">
+        <View className="mb-6 pt-1">
           <SearchBar />
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            className="mt-3"
+            contentContainerClassName="gap-2 pr-2"
+          >
+            {HOME_TRENDING_TAGS.map((term) => (
+              <Pressable
+                key={term}
+                onPress={() => router.push({ pathname: '/search', params: { q: term } })}
+                className="rounded-full bg-neutral-100 px-3.5 py-1.5"
+                hitSlop={4}
+              >
+                <Text className="text-xs font-medium text-neutral-600" numberOfLines={1}>
+                  {term}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
         </View>
 
         <HeroBanner />
