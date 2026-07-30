@@ -1,4 +1,21 @@
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
+import {
+  Bone,
+  Braces,
+  Crown,
+  Ellipsis,
+  Frown,
+  Gem,
+  HeartPulse,
+  Moon,
+  Puzzle,
+  Shield,
+  ShieldAlert,
+  Sparkle,
+  Sparkles,
+  Syringe,
+} from 'lucide-react-native';
+import type { ComponentType } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import { Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
@@ -9,24 +26,55 @@ import { DoctorCard } from '@/components/DoctorCard';
 import { HospitalExploreCard } from '@/components/HospitalExploreCard';
 import { HospitalMapView } from '@/components/HospitalMapView';
 import { PriceCompareTable } from '@/components/PriceCompareTable';
-import { doctors } from '@/data/doctors';
 import { procedures } from '@/data/procedures';
+import { useDoctorStore } from '@/store/useDoctorStore';
 import { useHospitalStore } from '@/store/useHospitalStore';
 import { useScrollShadowStore } from '@/store/useScrollShadowStore';
-import type { Hospital, ProcedureId } from '@/types/domain';
+import type { Doctor, Hospital, ProcedureId } from '@/types/domain';
+import { isVerifiedSpecialist } from '@/utils/specialty';
 import { isEligibleForRecommendedSponsoredPlacement, isEligibleForSponsoredPlacement } from '@/utils/sponsorship';
 
 const SCROLL_SHADOW_THRESHOLD = 8;
+const MIN_EXPERIENCED_YEARS = 10;
 
 type Mode = 'doctor' | 'hospital';
 type HospitalView = 'list' | 'map';
 type Category = 'recommended' | 'all' | ProcedureId;
 type SortKey = 'popular' | 'reviews' | 'consults';
+type IconComponent = ComponentType<{ size?: number; color?: string }>;
 
 const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: 'popular', label: '인기순' },
   { key: 'reviews', label: '후기순' },
   { key: 'consults', label: '상담많은순' },
+];
+
+// lucide-react-native has no tooth-specific glyph, so 사랑니 borrows Frown (a pained expression) as the
+// closest stand-in. Every other category maps to a literal or near-literal icon.
+const CATEGORY_ICONS: Record<Category, IconComponent> = {
+  recommended: Sparkles,
+  implant: Syringe,
+  orthodontics: Braces,
+  laminate: Gem,
+  inlay: Puzzle,
+  crown: Crown,
+  whitening: Sparkle,
+  'wisdom-tooth': Frown,
+  cavity: ShieldAlert,
+  'gum-disease': HeartPulse,
+  splint: Shield,
+  'snoring-device': Moon,
+  tmj: Bone,
+  all: Ellipsis,
+};
+
+// Order matches the product spec exactly: 추천 first, then every procedure in src/data/procedures.ts
+// order (already implant→orthodontics→laminate→inlay→crown→whitening→wisdom-tooth→cavity→gum-disease→
+// splint→snoring-device→tmj), then 기타 (was "전체" — same "no filter" behavior, renamed + moved last).
+const CATEGORY_TABS: { key: Category; label: string }[] = [
+  { key: 'recommended', label: '추천' },
+  ...procedures.map((procedure) => ({ key: procedure.id as Category, label: procedure.name })),
+  { key: 'all', label: '기타' },
 ];
 
 export default function ExploreScreen() {
@@ -39,6 +87,11 @@ export default function ExploreScreen() {
   const [sortBy, setSortBy] = useState<SortKey>('popular');
   const [onlyConsult, setOnlyConsult] = useState(false);
   const [onlyOneDay, setOnlyOneDay] = useState(false);
+  // NEW filters. "치아고민" filter was intentionally NOT added here — the category tabs above already
+  // filter by procedure/treatment concern, so a duplicate "치아고민" chip would just repeat that axis.
+  const [onlySpecialist, setOnlySpecialist] = useState(false);
+  const [onlyNightConsult, setOnlyNightConsult] = useState(false);
+  const [onlyExperienced, setOnlyExperienced] = useState(false);
   const [showPriceTable, setShowPriceTable] = useState(false);
 
   const { width } = useWindowDimensions();
@@ -73,6 +126,20 @@ export default function ExploreScreen() {
   const allHospitals = useHospitalStore((state) => state.hospitals);
   const hospitalById = useMemo(() => new Map(allHospitals.map((h) => [h.id, h])), [allHospitals]);
 
+  // Doctors grouped by hospital, used for the hospital-mode "전문의"/"경력" filters below. Reads from
+  // useDoctorStore (not the static src/data/doctors.ts array) so that verification-status edits made in
+  // the admin specialist-review screen are reflected here live.
+  const doctors = useDoctorStore((state) => state.doctors);
+  const doctorsByHospitalId = useMemo(() => {
+    const map = new Map<string, Doctor[]>();
+    doctors.forEach((doctor) => {
+      const list = map.get(doctor.hospitalId) ?? [];
+      list.push(doctor);
+      map.set(doctor.hospitalId, list);
+    });
+    return map;
+  }, [doctors]);
+
   const sortHospitals = (list: typeof allHospitals) =>
     [...list].sort((a, b) => {
       if (sortBy === 'reviews') return b.reviewCount - a.reviewCount;
@@ -86,6 +153,17 @@ export default function ExploreScreen() {
     else if (selectedCategory !== 'all') list = list.filter((hospital) => hospital.procedureIds.includes(selectedCategory));
     if (onlyConsult) list = list.filter((hospital) => hospital.consultAvailable);
     if (onlyOneDay) list = list.filter((hospital) => hospital.isOneDay);
+    if (onlySpecialist) {
+      list = list.filter((hospital) => (doctorsByHospitalId.get(hospital.id) ?? []).some(isVerifiedSpecialist));
+    }
+    if (onlyNightConsult) list = list.filter((hospital) => hospital.features?.nightConsult);
+    if (onlyExperienced) {
+      list = list.filter((hospital) =>
+        (doctorsByHospitalId.get(hospital.id) ?? []).some(
+          (doctor) => doctor.yearsOfExperience >= MIN_EXPERIENCED_YEARS
+        )
+      );
+    }
 
     const sortedNormal = sortHospitals(list);
     if (selectedCategory === 'all') return sortedNormal;
@@ -102,7 +180,17 @@ export default function ExploreScreen() {
 
     return [...sponsored, ...sortedNormal.filter((hospital) => !sponsoredIds.has(hospital.id))];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allHospitals, selectedCategory, onlyConsult, onlyOneDay, sortBy]);
+  }, [
+    allHospitals,
+    selectedCategory,
+    onlyConsult,
+    onlyOneDay,
+    onlySpecialist,
+    onlyNightConsult,
+    onlyExperienced,
+    sortBy,
+    doctorsByHospitalId,
+  ]);
 
   const filteredDoctors = useMemo(() => {
     let list = doctors;
@@ -110,15 +198,19 @@ export default function ExploreScreen() {
     else if (selectedCategory !== 'all') list = list.filter((doctor) => doctor.procedureIds.includes(selectedCategory));
     if (onlyConsult) list = list.filter((doctor) => hospitalById.get(doctor.hospitalId)?.consultAvailable);
     if (onlyOneDay) list = list.filter((doctor) => hospitalById.get(doctor.hospitalId)?.isOneDay);
+    if (onlySpecialist) list = list.filter(isVerifiedSpecialist);
+    if (onlyNightConsult) list = list.filter((doctor) => hospitalById.get(doctor.hospitalId)?.features?.nightConsult);
+    if (onlyExperienced) list = list.filter((doctor) => doctor.yearsOfExperience >= MIN_EXPERIENCED_YEARS);
 
     return [...list].sort((a, b) => {
       if (sortBy === 'reviews') return b.reviewCount - a.reviewCount;
       if (sortBy === 'consults') return b.consultCount - a.consultCount;
       return b.rating - a.rating;
     });
-  }, [hospitalById, selectedCategory, onlyConsult, onlyOneDay, sortBy]);
+  }, [doctors, hospitalById, selectedCategory, onlyConsult, onlyOneDay, onlySpecialist, onlyNightConsult, onlyExperienced, sortBy]);
 
   const resultCount = mode === 'doctor' ? filteredDoctors.length : filteredHospitals.length;
+  const selectedCategoryLabel = CATEGORY_TABS.find((tab) => tab.key === selectedCategory)?.label ?? '추천';
 
   return (
     <SafeAreaView className="flex-1 bg-neutral-50" edges={['top']}>
@@ -168,14 +260,13 @@ export default function ExploreScreen() {
       <View className="flex-1">
         <View className="border-b border-neutral-100 bg-white py-3">
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="px-5">
-            <Chip label="추천" selected={selectedCategory === 'recommended'} onPress={() => setSelectedCategory('recommended')} />
-            <Chip label="전체" selected={selectedCategory === 'all'} onPress={() => setSelectedCategory('all')} />
-            {procedures.map((procedure) => (
+            {CATEGORY_TABS.map((tab) => (
               <Chip
-                key={procedure.id}
-                label={procedure.name}
-                selected={selectedCategory === procedure.id}
-                onPress={() => setSelectedCategory(procedure.id)}
+                key={tab.key}
+                label={tab.label}
+                icon={CATEGORY_ICONS[tab.key]}
+                selected={selectedCategory === tab.key}
+                onPress={() => setSelectedCategory(tab.key)}
               />
             ))}
           </ScrollView>
@@ -191,8 +282,28 @@ export default function ExploreScreen() {
                 onPress={() => setSortBy(option.key)}
               />
             ))}
+          </ScrollView>
+        </View>
+
+        <View className="border-b border-neutral-100 bg-white py-3">
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="px-5">
             <Chip label="상담가능" selected={onlyConsult} onPress={() => setOnlyConsult((value) => !value)} />
             <Chip label="원데이" selected={onlyOneDay} onPress={() => setOnlyOneDay((value) => !value)} />
+            <Chip
+              label="전문의"
+              selected={onlySpecialist}
+              onPress={() => setOnlySpecialist((value) => !value)}
+            />
+            <Chip
+              label="진료시간"
+              selected={onlyNightConsult}
+              onPress={() => setOnlyNightConsult((value) => !value)}
+            />
+            <Chip
+              label="경력"
+              selected={onlyExperienced}
+              onPress={() => setOnlyExperienced((value) => !value)}
+            />
           </ScrollView>
         </View>
 
@@ -205,6 +316,9 @@ export default function ExploreScreen() {
             onScroll={handleScroll}
             scrollEventThrottle={16}
           >
+            <Text className="mb-2 text-base font-bold text-neutral-900">
+              &ldquo;{selectedCategoryLabel}&rdquo; {mode === 'doctor' ? '의사' : '병원'}
+            </Text>
             <View className="mb-3 flex-row items-center justify-between">
               <Text className="text-sm text-neutral-500">총 {resultCount}{mode === 'doctor' ? '명' : '곳'}</Text>
               {mode === 'hospital' ? (

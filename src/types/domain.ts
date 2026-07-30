@@ -25,6 +25,27 @@ export interface PriceRange {
   max: number;
 }
 
+export interface BusinessHourEntry {
+  day: string;
+  hours: string;
+  isClosed?: boolean;
+}
+
+export interface HospitalFeatures {
+  /** 전담코디네이터 */
+  coordinator: boolean;
+  /** 무통마취 */
+  painlessAnesthesia: boolean;
+  /** 디지털진료 */
+  digitalCare: boolean;
+  /** 주차가능 */
+  parking: boolean;
+  /** 야간상담 */
+  nightConsult: boolean;
+  /** CCTV설치 */
+  cctv: boolean;
+}
+
 export interface Hospital {
   id: string;
   name: string;
@@ -40,6 +61,10 @@ export interface Hospital {
   reviewCount: number;
   consultCount: number;
   consultAvailable: boolean;
+  businessHours: BusinessHourEntry[];
+  /** "찾아오시는 길" free-text directions (nearest subway/landmark etc). */
+  directions: string;
+  features: HospitalFeatures;
   /** Same-day prosthetics capability (implant crown/denture milled in-house) — a hospital attribute, not a procedure category. */
   isOneDay: boolean;
   /** Editorially curated pick, surfaced under the "추천" filter. */
@@ -99,6 +124,9 @@ export interface Doctor {
   /** Set by the operator when verificationStatus is 'rejected'; explains what needs fixing. */
   rejectionReason: string | null;
   isRecommended: boolean;
+  yearsOfExperience: number;
+  /** "경력 및 활동" bullet list shown on the doctor detail screen. */
+  career: string[];
 }
 
 export interface Review {

@@ -8,11 +8,43 @@ import { procedures } from '@/data/procedures';
 import { getDoctorsByHospital } from '@/store/useDoctorStore';
 import {
   DENTAL_SPECIALTIES,
+  type BusinessHourEntry,
   type DentalSpecialty,
   type GeocodeResult,
   type Hospital,
+  type HospitalFeatures,
   type ProcedureId,
 } from '@/types/domain';
+
+// Sensible defaults for a hospital being registered for the first time — a typical weekday/Saturday
+// schedule with Sunday closed. All editable afterward via the per-day text inputs below.
+const DEFAULT_BUSINESS_HOURS: BusinessHourEntry[] = [
+  { day: '월', hours: '09:30 - 18:30' },
+  { day: '화', hours: '09:30 - 18:30' },
+  { day: '수', hours: '09:30 - 18:30' },
+  { day: '목', hours: '09:30 - 18:30' },
+  { day: '금', hours: '09:30 - 18:30' },
+  { day: '토', hours: '09:30 - 14:00' },
+  { day: '일', hours: '휴진', isClosed: true },
+];
+
+const EMPTY_FEATURES: HospitalFeatures = {
+  coordinator: false,
+  painlessAnesthesia: false,
+  digitalCare: false,
+  parking: false,
+  nightConsult: false,
+  cctv: false,
+};
+
+const FEATURE_OPTIONS: { key: keyof HospitalFeatures; label: string }[] = [
+  { key: 'coordinator', label: '전담코디네이터' },
+  { key: 'painlessAnesthesia', label: '무통마취' },
+  { key: 'digitalCare', label: '디지털진료' },
+  { key: 'parking', label: '주차가능' },
+  { key: 'nightConsult', label: '야간상담' },
+  { key: 'cctv', label: 'CCTV설치' },
+];
 
 // Sponsorship fields are excluded on purpose — ad placement isn't self-serve yet (see admin/hospital/[id].tsx
 // for the read-only "광고 현황" display), so editing a hospital here must never touch/clear those fields.
@@ -74,6 +106,11 @@ export function HospitalForm({ initial, submitLabel, onSubmit }: HospitalFormPro
   const [consultAvailable, setConsultAvailable] = useState(initial?.consultAvailable ?? true);
   const [isOneDay, setIsOneDay] = useState(initial?.isOneDay ?? false);
   const [isRecommended, setIsRecommended] = useState(initial?.isRecommended ?? false);
+  const [businessHours, setBusinessHours] = useState<BusinessHourEntry[]>(
+    initial?.businessHours && initial.businessHours.length > 0 ? initial.businessHours : DEFAULT_BUSINESS_HOURS
+  );
+  const [directions, setDirections] = useState(initial?.directions ?? '');
+  const [features, setFeatures] = useState<HospitalFeatures>(initial?.features ?? EMPTY_FEATURES);
   const [specialists, setSpecialists] = useState<SpecialistEntry[]>(
     initial
       ? getDoctorsByHospital(initial.id).map((doctor) => ({
@@ -103,6 +140,14 @@ export function HospitalForm({ initial, submitLabel, onSubmit }: HospitalFormPro
 
   const removeSpecialist = (index: number) => {
     setSpecialists((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const updateBusinessHour = (index: number, patch: Partial<BusinessHourEntry>) => {
+    setBusinessHours((prev) => prev.map((entry, i) => (i === index ? { ...entry, ...patch } : entry)));
+  };
+
+  const toggleFeature = (key: keyof HospitalFeatures) => {
+    setFeatures((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
   const canSubmit =
@@ -136,6 +181,9 @@ export function HospitalForm({ initial, submitLabel, onSubmit }: HospitalFormPro
         consultAvailable,
         isOneDay,
         isRecommended,
+        businessHours,
+        directions: directions.trim(),
+        features,
       },
       specialists.filter((entry) => entry.name.trim().length > 0)
     );
@@ -252,6 +300,61 @@ export function HospitalForm({ initial, submitLabel, onSubmit }: HospitalFormPro
           checked={isRecommended}
           onPress={() => setIsRecommended((value) => !value)}
         />
+      </View>
+
+      <Text className="mb-2 mt-2 text-sm font-semibold text-neutral-700">진료시간 (요일별)</Text>
+      <View className="mb-4 rounded-xl border border-neutral-200 p-3">
+        {businessHours.map((entry, index) => (
+          <View key={entry.day} className="mb-2 flex-row items-center gap-2">
+            <Text className="w-6 text-sm font-semibold text-neutral-700">{entry.day}</Text>
+            <TextInput
+              value={entry.hours}
+              onChangeText={(text) => updateBusinessHour(index, { hours: text })}
+              placeholder="예: 09:30 - 18:30"
+              editable={!entry.isClosed}
+              className={`flex-1 rounded-xl border border-neutral-200 px-3 py-2 text-sm ${
+                entry.isClosed ? 'text-neutral-300' : ''
+              }`}
+            />
+            <Pressable
+              onPress={() =>
+                updateBusinessHour(index, {
+                  isClosed: !entry.isClosed,
+                  hours: !entry.isClosed ? '휴진' : '09:30 - 18:30',
+                })
+              }
+              className={`rounded-xl px-3 py-2 ${entry.isClosed ? 'bg-neutral-900' : 'bg-neutral-100'}`}
+            >
+              <Text className={`text-xs font-semibold ${entry.isClosed ? 'text-white' : 'text-neutral-500'}`}>
+                휴진
+              </Text>
+            </Pressable>
+          </View>
+        ))}
+      </View>
+
+      <Text className="mb-2 text-sm font-semibold text-neutral-700">찾아오시는 길</Text>
+      <TextInput
+        value={directions}
+        onChangeText={setDirections}
+        placeholder="예: 강남역 11번 출구에서 도보 5분"
+        multiline
+        numberOfLines={2}
+        textAlignVertical="top"
+        className="mb-4 rounded-xl border border-neutral-200 px-4 py-3 text-[15px]"
+        style={{ minHeight: 64 }}
+      />
+
+      <Text className="mb-2 text-sm font-semibold text-neutral-700">병원 특징</Text>
+      <View className="mb-2">
+        {FEATURE_OPTIONS.map((option) => (
+          <CheckboxRow
+            key={option.key}
+            label={option.label}
+            checked={features[option.key]}
+            onPress={() => toggleFeature(option.key)}
+          />
+        ))}
       </View>
 
       <View className="mb-2 mt-2 flex-row items-center justify-between">

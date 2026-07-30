@@ -21,7 +21,7 @@ export function DoctorCard({ doctor, style }: DoctorCardProps) {
 
   return (
     <Pressable
-      onPress={() => hospital && router.push(`/hospital/${hospital.id}`)}
+      onPress={() => router.push(`/doctor/${doctor.id}`)}
       style={style}
       className="mb-4 rounded-2xl border border-neutral-100 bg-white p-4"
     >

@@ -93,6 +93,8 @@ export default function EditHospitalScreen() {
                 verificationStatus: 'pending',
                 rejectionReason: null,
                 isRecommended: false,
+                yearsOfExperience: 0,
+                career: [],
               });
             });
 

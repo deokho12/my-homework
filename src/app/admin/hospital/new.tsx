@@ -48,6 +48,8 @@ export default function NewHospitalScreen() {
               verificationStatus: 'pending',
               rejectionReason: null,
               isRecommended: false,
+              yearsOfExperience: 0,
+              career: [],
             });
           });
 
