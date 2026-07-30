@@ -158,6 +158,28 @@ export interface User {
   provider: AuthProvider;
 }
 
+export type ConsultStatus = 'new' | 'contacted' | 'booked' | 'cancelled';
+
+export const CONSULT_STATUSES: ConsultStatus[] = ['new', 'contacted', 'booked', 'cancelled'];
+
+export const CONSULT_STATUS_LABEL: Record<ConsultStatus, string> = {
+  new: '신규',
+  contacted: '연락중',
+  booked: '예약완료',
+  cancelled: '취소',
+};
+
+export interface ConsultStatusChange {
+  status: ConsultStatus;
+  changedAt: string;
+}
+
+export interface ConsultMemo {
+  id: string;
+  content: string;
+  createdAt: string;
+}
+
 export interface ConsultRequest {
   id: string;
   hospitalId: string;
@@ -167,4 +189,31 @@ export interface ConsultRequest {
   preferredTime: string;
   message: string;
   createdAt: string;
+  status: ConsultStatus;
+  statusHistory: ConsultStatusChange[];
+  memos: ConsultMemo[];
+}
+
+/** Address search result from geocoding — see src/services/geocoding.ts. */
+export interface GeocodeResult {
+  id: string;
+  addressName: string;
+  roadAddressName?: string;
+  latitude: number;
+  longitude: number;
+}
+
+export type NotificationType = 'consult-status' | 'event' | 'system';
+export type NotificationAudience = 'user' | 'admin';
+
+export interface AppNotification {
+  id: string;
+  audience: NotificationAudience;
+  type: NotificationType;
+  title: string;
+  message: string;
+  isRead: boolean;
+  createdAt: string;
+  /** Id of the related consult request, hospital, etc. Null for generic notices. */
+  relatedId: string | null;
 }

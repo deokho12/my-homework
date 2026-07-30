@@ -45,6 +45,10 @@ export default function RootLayout() {
                 <Stack.Screen name="admin/hospital/new" options={{ title: '병원 등록' }} />
                 <Stack.Screen name="admin/hospital/[id]" options={{ title: '병원 정보 수정' }} />
                 <Stack.Screen name="admin/specialists" options={{ title: '전문의 인증 검수' }} />
+                <Stack.Screen name="admin/consultations/index" options={{ title: '상담 관리' }} />
+                <Stack.Screen name="admin/consultations/[id]" options={{ title: '상담 상세' }} />
+                <Stack.Screen name="admin/notifications" options={{ title: '알림' }} />
+                <Stack.Screen name="notifications" options={{ title: '알림' }} />
                 <Stack.Screen name="search" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
                 <Stack.Screen name="legal/terms" options={{ title: '서비스 이용약관' }} />
                 <Stack.Screen name="legal/privacy" options={{ title: '개인정보 처리방침' }} />

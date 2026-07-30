@@ -1,11 +1,18 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 
+import { AddressSearchInput } from '@/components/admin/AddressSearchInput';
 import { Chip } from '@/components/Chip';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { procedures } from '@/data/procedures';
 import { getDoctorsByHospital } from '@/store/useDoctorStore';
-import { DENTAL_SPECIALTIES, type DentalSpecialty, type Hospital, type ProcedureId } from '@/types/domain';
+import {
+  DENTAL_SPECIALTIES,
+  type DentalSpecialty,
+  type GeocodeResult,
+  type Hospital,
+  type ProcedureId,
+} from '@/types/domain';
 
 // Sponsorship fields are excluded on purpose — ad placement isn't self-serve yet (see admin/hospital/[id].tsx
 // for the read-only "광고 현황" display), so editing a hospital here must never touch/clear those fields.
@@ -48,17 +55,16 @@ function CheckboxRow({ label, checked, onPress }: { label: string; checked: bool
   );
 }
 
-// Seoul City Hall — sensible default center for a new hospital until the admin sets real coordinates.
-const DEFAULT_LATITUDE = 37.5665;
-const DEFAULT_LONGITUDE = 126.978;
-
 export function HospitalForm({ initial, submitLabel, onSubmit }: HospitalFormProps) {
   const [name, setName] = useState(initial?.name ?? '');
   const [specialty, setSpecialty] = useState(initial?.specialty ?? '');
   const [region, setRegion] = useState(initial?.region ?? '');
+  // Editing an existing hospital assumes its stored coordinates are already valid (no re-search
+  // required). Registering a new hospital starts with no coordinates until AddressSearchInput
+  // resolves one — canSubmit blocks submission until then.
   const [address, setAddress] = useState(initial?.address ?? '');
-  const [latitude, setLatitude] = useState(String(initial?.latitude ?? DEFAULT_LATITUDE));
-  const [longitude, setLongitude] = useState(String(initial?.longitude ?? DEFAULT_LONGITUDE));
+  const [latitude, setLatitude] = useState<number | null>(initial?.latitude ?? null);
+  const [longitude, setLongitude] = useState<number | null>(initial?.longitude ?? null);
   const [thumbnail, setThumbnail] = useState(initial?.thumbnail ?? '');
   const [introduction, setIntroduction] = useState(initial?.introduction ?? '');
   const [priceMin, setPriceMin] = useState(initial ? String(initial.priceRange.min) : '');
@@ -105,18 +111,20 @@ export function HospitalForm({ initial, submitLabel, onSubmit }: HospitalFormPro
     procedureIds.length > 0 &&
     priceMin.length > 0 &&
     priceMax.length > 0 &&
-    latitude.length > 0 &&
-    longitude.length > 0;
+    latitude !== null &&
+    longitude !== null;
 
   const handleSubmit = () => {
+    if (latitude === null || longitude === null) return;
+
     onSubmit(
       {
         name: name.trim(),
         specialty: specialty.trim(),
         region: region.trim(),
         address: address.trim(),
-        latitude: Number(latitude) || DEFAULT_LATITUDE,
-        longitude: Number(longitude) || DEFAULT_LONGITUDE,
+        latitude,
+        longitude,
         thumbnail: thumbnail.trim() || 'https://picsum.photos/seed/molarmolar-new/800/500',
         introduction: introduction.trim(),
         priceRange: { min: Number(priceMin) || 0, max: Number(priceMax) || 0 },
@@ -160,30 +168,14 @@ export function HospitalForm({ initial, submitLabel, onSubmit }: HospitalFormPro
       />
 
       <Text className="mb-2 text-sm font-semibold text-neutral-700">주소</Text>
-      <TextInput
-        value={address}
-        onChangeText={setAddress}
-        placeholder="상세 주소"
-        className="mb-4 rounded-xl border border-neutral-200 px-4 py-3 text-[15px]"
+      <AddressSearchInput
+        initialAddress={initial?.address}
+        onSelect={(result: GeocodeResult) => {
+          setAddress(result.roadAddressName || result.addressName);
+          setLatitude(result.latitude);
+          setLongitude(result.longitude);
+        }}
       />
-
-      <Text className="mb-2 text-sm font-semibold text-neutral-700">지도 좌표 (위도 / 경도)</Text>
-      <View className="mb-4 flex-row gap-2">
-        <TextInput
-          value={latitude}
-          onChangeText={setLatitude}
-          placeholder="위도"
-          keyboardType="numeric"
-          className="flex-1 rounded-xl border border-neutral-200 px-4 py-3 text-[15px]"
-        />
-        <TextInput
-          value={longitude}
-          onChangeText={setLongitude}
-          placeholder="경도"
-          keyboardType="numeric"
-          className="flex-1 rounded-xl border border-neutral-200 px-4 py-3 text-[15px]"
-        />
-      </View>
 
       <Text className="mb-2 text-sm font-semibold text-neutral-700">대표 이미지 URL (선택)</Text>
       <TextInput

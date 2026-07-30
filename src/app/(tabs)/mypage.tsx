@@ -9,6 +9,7 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useFavoritesStore } from '@/store/useFavoritesStore';
 import { getHospitalById } from '@/store/useHospitalStore';
+import { useNotificationStore } from '@/store/useNotificationStore';
 import { useScrollShadowStore } from '@/store/useScrollShadowStore';
 import type { Hospital } from '@/types/domain';
 import { showAlert } from '@/utils/alert';
@@ -61,6 +62,32 @@ function AuthCard() {
   );
 }
 
+function NotificationLinkRow() {
+  const unreadCount = useNotificationStore(
+    (state) => state.notifications.filter((n) => n.audience === 'user' && !n.isRead).length
+  );
+
+  return (
+    <Pressable
+      onPress={() => router.push('/notifications')}
+      className="mb-6 flex-row items-center justify-between rounded-2xl border border-neutral-100 bg-white p-4"
+    >
+      <View className="flex-row items-center gap-2">
+        <Text className="text-lg">🔔</Text>
+        <Text className="text-sm font-semibold text-neutral-800">알림함</Text>
+      </View>
+      <View className="flex-row items-center gap-2">
+        {unreadCount > 0 ? (
+          <View className="min-w-[20px] items-center justify-center rounded-full bg-rose-500 px-1.5 py-0.5">
+            <Text className="text-[11px] font-bold text-white">{unreadCount}</Text>
+          </View>
+        ) : null}
+        <Text className="text-neutral-300">›</Text>
+      </View>
+    </Pressable>
+  );
+}
+
 export default function MyPageScreen() {
   const user = useAuthStore((state) => state.user);
   const hospitalIds = useFavoritesStore((state) => state.hospitalIds);
@@ -95,6 +122,7 @@ export default function MyPageScreen() {
           <View>
             <Text className="mb-4 text-2xl font-extrabold text-neutral-900">마이페이지</Text>
             <AuthCard />
+            {user ? <NotificationLinkRow /> : null}
             {user ? <Text className="mb-3 text-lg font-bold text-neutral-900">찜한 병원</Text> : null}
           </View>
         }
