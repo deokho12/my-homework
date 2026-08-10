@@ -86,6 +86,13 @@ export const procedures: Procedure[] = [
     shortDescription: '통증·소리·개구장애 개선',
     description: '턱관절의 통증, 소리, 입 벌림 제한 등을 진단하고 치료하는 턱관절 질환 관리 시술입니다.',
   },
+  {
+    id: 'botox',
+    name: '보톡스',
+    emoji: '💉',
+    shortDescription: '사각턱·이갈이 완화',
+    description: '저작근에 보톡스를 주입해 사각턱을 갸름하게 만들거나 이갈이로 인한 턱관절 긴장을 완화하는 시술입니다.',
+  },
 ];
 
 export function getProcedureById(id: string) {

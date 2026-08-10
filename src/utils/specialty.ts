@@ -13,6 +13,7 @@ export const PROCEDURE_SPECIALTY_MAP: Record<ProcedureId, DentalSpecialty> = {
   splint: '구강악안면외과전문의',
   'snoring-device': '구강악안면외과전문의',
   tmj: '구강악안면외과전문의',
+  botox: '구강악안면외과전문의',
 };
 
 export function getSpecialtyForProcedure(procedureId: ProcedureId): DentalSpecialty {

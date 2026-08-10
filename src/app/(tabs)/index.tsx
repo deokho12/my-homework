@@ -26,7 +26,12 @@ const HOME_TRENDING_TAGS = TRENDING_SEARCHES.all.slice(0, 6).map((item) => item.
 export default function HomeScreen() {
   const { width } = useWindowDimensions();
   const isWideDesktop = width >= 1024;
-  const procedureCardWidth = width >= 1024 ? '15%' : width >= 768 ? '23%' : '31%';
+  // Percentage-based grid math (not CSS `gap` + percentage widths, which overflows) so each row holds
+  // exactly `columns` cards and the last row — however many items it has left — packs from the left
+  // instead of stretching via `justify-between`.
+  const columns = width >= 1024 ? 6 : width >= 768 ? 4 : width >= 480 ? 3 : 2;
+  const GAP_PERCENT = 2;
+  const cardWidthPercent = (100 - (columns - 1) * GAP_PERCENT) / columns;
   const setScrolled = useScrollShadowStore((state) => state.setScrolled);
   const scrollOffsetRef = useRef(0);
 
@@ -100,12 +105,16 @@ export default function HomeScreen() {
             actionLabel="전체보기"
             onPressAction={() => router.push('/(tabs)/explore')}
           />
-          <View className="flex-row flex-wrap justify-between gap-y-3">
-            {procedures.slice(0, 8).map((procedure) => (
+          <View className="flex-row flex-wrap justify-start">
+            {procedures.map((procedure, index) => (
               <ProcedureCategoryCard
                 key={procedure.id}
                 procedure={procedure}
-                style={{ width: procedureCardWidth }}
+                style={{
+                  width: `${cardWidthPercent}%`,
+                  marginRight: (index + 1) % columns === 0 ? 0 : `${GAP_PERCENT}%`,
+                  marginBottom: 12,
+                }}
               />
             ))}
           </View>

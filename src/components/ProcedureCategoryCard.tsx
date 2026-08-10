@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { Pressable, Text, type StyleProp, type ViewStyle } from 'react-native';
 
 import type { Procedure } from '@/types/domain';
+import { PROCEDURE_ICONS } from '@/utils/procedureIcons';
 
 interface ProcedureCategoryCardProps {
   procedure: Procedure;
@@ -9,7 +10,13 @@ interface ProcedureCategoryCardProps {
   style?: StyleProp<ViewStyle>;
 }
 
+// Neutral-400 at rest, brand-600 (see tailwind.config.js `colors.brand[600]`) while pressed.
+const ICON_COLOR_REST = '#a3a3a3';
+const ICON_COLOR_PRESSED = '#17847a';
+
 export function ProcedureCategoryCard({ procedure, onPress, style }: ProcedureCategoryCardProps) {
+  const Icon = PROCEDURE_ICONS[procedure.id];
+
   return (
     <Pressable
       onPress={
@@ -18,10 +25,14 @@ export function ProcedureCategoryCard({ procedure, onPress, style }: ProcedureCa
           router.push({ pathname: '/(tabs)/explore', params: { mode: 'hospital', category: procedure.id } }))
       }
       style={style}
-      className="items-center rounded-2xl border border-neutral-100 bg-white py-4 active:bg-neutral-50"
+      className="items-center rounded-2xl border border-neutral-100 bg-white py-4 active:bg-neutral-50 hover:bg-neutral-50 hover:shadow-md"
     >
-      <Text className="mb-1.5 text-2xl">{procedure.emoji}</Text>
-      <Text className="text-[13px] font-semibold text-neutral-800">{procedure.name}</Text>
+      {({ pressed }) => (
+        <>
+          <Icon size={26} color={pressed ? ICON_COLOR_PRESSED : ICON_COLOR_REST} />
+          <Text className="mt-1.5 text-[13px] font-semibold text-neutral-800">{procedure.name}</Text>
+        </>
+      )}
     </Pressable>
   );
 }

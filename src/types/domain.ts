@@ -10,7 +10,8 @@ export type ProcedureId =
   | 'gum-disease'
   | 'splint'
   | 'snoring-device'
-  | 'tmj';
+  | 'tmj'
+  | 'botox';
 
 export interface Procedure {
   id: ProcedureId;

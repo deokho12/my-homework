@@ -1,21 +1,5 @@
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
-import {
-  Bone,
-  Braces,
-  Crown,
-  Ellipsis,
-  Frown,
-  Gem,
-  HeartPulse,
-  Moon,
-  Puzzle,
-  Shield,
-  ShieldAlert,
-  Sparkle,
-  Sparkles,
-  Syringe,
-} from 'lucide-react-native';
-import type { ComponentType } from 'react';
+import { Ellipsis, Sparkles } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import { Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
@@ -31,6 +15,7 @@ import { useDoctorStore } from '@/store/useDoctorStore';
 import { useHospitalStore } from '@/store/useHospitalStore';
 import { useScrollShadowStore } from '@/store/useScrollShadowStore';
 import type { Doctor, Hospital, ProcedureId } from '@/types/domain';
+import { PROCEDURE_ICONS, type IconComponent } from '@/utils/procedureIcons';
 import { isVerifiedSpecialist } from '@/utils/specialty';
 import { isEligibleForRecommendedSponsoredPlacement, isEligibleForSponsoredPlacement } from '@/utils/sponsorship';
 
@@ -41,7 +26,6 @@ type Mode = 'doctor' | 'hospital';
 type HospitalView = 'list' | 'map';
 type Category = 'recommended' | 'all' | ProcedureId;
 type SortKey = 'popular' | 'reviews' | 'consults';
-type IconComponent = ComponentType<{ size?: number; color?: string }>;
 
 const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: 'popular', label: '인기순' },
@@ -49,23 +33,12 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: 'consults', label: '상담많은순' },
 ];
 
-// lucide-react-native has no tooth-specific glyph, so 사랑니 borrows Frown (a pained expression) as the
-// closest stand-in. Every other category maps to a literal or near-literal icon.
+// All 13 procedure-category icons now live in src/utils/procedureIcons.ts (shared with the home screen's
+// "시술로 찾기" grid) — only the two non-procedure special tabs (추천/기타) are defined here.
 const CATEGORY_ICONS: Record<Category, IconComponent> = {
   recommended: Sparkles,
-  implant: Syringe,
-  orthodontics: Braces,
-  laminate: Gem,
-  inlay: Puzzle,
-  crown: Crown,
-  whitening: Sparkle,
-  'wisdom-tooth': Frown,
-  cavity: ShieldAlert,
-  'gum-disease': HeartPulse,
-  splint: Shield,
-  'snoring-device': Moon,
-  tmj: Bone,
   all: Ellipsis,
+  ...PROCEDURE_ICONS,
 };
 
 // Order matches the product spec exactly: 추천 first, then every procedure in src/data/procedures.ts
