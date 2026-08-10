@@ -1,7 +1,7 @@
 import * as Clipboard from 'expo-clipboard';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { ChevronDown, ChevronUp, Copy, MapPin, X } from 'lucide-react-native';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -36,7 +36,8 @@ const EMPTY_FEATURES: HospitalFeatures = {
 export default function HospitalDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const hospital = useHospitalStore((state) => state.hospitals.find((item) => item.id === id));
-  const doctors = useDoctorStore((state) => state.doctors.filter((doctor) => doctor.hospitalId === id));
+  const allDoctors = useDoctorStore((state) => state.doctors);
+  const doctors = useMemo(() => allDoctors.filter((doctor) => doctor.hospitalId === id), [allDoctors, id]);
   const reviews = getReviewsByHospital(id);
   const promotion = getPromotionByHospital(id);
   const isFavorite = useFavoritesStore((state) => state.isFavorite(id));
