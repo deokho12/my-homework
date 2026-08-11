@@ -30,6 +30,7 @@ export default function RootLayout() {
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                 <Stack.Screen name="hospital/[id]" options={{ title: '' }} />
                 <Stack.Screen name="doctor/[id]" options={{ title: '' }} />
+                <Stack.Screen name="tips/[id]" options={{ title: '' }} />
                 <Stack.Screen name="events" options={{ title: '이벤트' }} />
                 <Stack.Screen name="community/[id]" options={{ title: '질문 상세' }} />
                 <Stack.Screen

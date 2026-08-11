@@ -124,16 +124,7 @@ export default function HomeScreen() {
           <SectionHeader title="이런 꿀팁 어때요?" />
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             {guides.map((guide) => (
-              <GuideCard
-                key={guide.id}
-                guide={guide}
-                onPress={() =>
-                  router.push({
-                    pathname: '/(tabs)/explore',
-                    params: { mode: 'hospital', category: guide.procedureId },
-                  })
-                }
-              />
+              <GuideCard key={guide.id} guide={guide} onPress={() => router.push(`/tips/${guide.id}`)} />
             ))}
           </ScrollView>
         </View>

@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { Pressable, Text, View } from 'react-native';
 
 import { StockImage } from '@/components/StockImage';
@@ -11,7 +12,7 @@ interface GuideCardProps {
 export function GuideCard({ guide, onPress }: GuideCardProps) {
   return (
     <Pressable
-      onPress={onPress}
+      onPress={onPress ?? (() => router.push(`/tips/${guide.id}`))}
       className="mr-3 w-56 overflow-hidden rounded-2xl border border-neutral-100 bg-white"
     >
       <StockImage

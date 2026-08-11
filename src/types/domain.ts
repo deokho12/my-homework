@@ -156,7 +156,13 @@ export interface GuideContent {
   title: string;
   summary: string;
   thumbnail: string;
+  /** Related procedure category, also used to filter the "상담받기" CTA on the tip detail screen. */
   procedureId: ProcedureId;
+  /** Body text, paragraphs separated by a blank line (\n\n). */
+  content: string;
+  author: string;
+  createdAt: string;
+  relatedHospitals?: string[];
 }
 
 export interface QAAnswer {
