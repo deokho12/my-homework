@@ -7,7 +7,7 @@ import tseslint from 'typescript-eslint';
  * 필요 없으므로 그만큼만 뺐다.
  */
 export default tseslint.config(
-  { ignores: ['dist', 'node_modules', 'coverage'] },
+  { ignores: ['dist', 'node_modules', 'coverage', '.tmp-manual'] },
 
   js.configs.recommended,
   ...tseslint.configs.recommended,
@@ -44,8 +44,8 @@ export default tseslint.config(
   },
 
   {
-    // 시드와 Prisma 설정은 CLI 스크립트다. stdout 이 곧 UI 이므로 console 을 허용한다.
-    files: ['prisma/**/*.ts', 'prisma.config.ts'],
+    // 시드·부트스트랩 CLI·Prisma 설정은 CLI 스크립트다. stdout 이 곧 UI 이므로 console 을 허용한다.
+    files: ['prisma/**/*.ts', 'prisma.config.ts', 'src/scripts/**/*.ts'],
     rules: { 'no-console': 'off' },
   },
 

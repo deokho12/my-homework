@@ -785,3 +785,233 @@ Table notification_recipients {
   → (user_id, read_at) 인덱스로 커버된다.
   '''
 }
+
+
+// =============================================================================
+// 12. 세션 (리프레시 토큰)
+// =============================================================================
+
+Table refresh_tokens {
+  id varchar [pk, note: "cuid"]
+  jti varchar [unique, not null, note: "토큰 식별자 (JWT jti 클레임). ★ 토큰 문자열은 저장하지 않는다 — 이 값만 저장한다"]
+  user_id varchar [not null, ref: > users.id, note: "ON DELETE CASCADE. 계정이 물리 삭제되면 세션도 사라져야 한다 (감사 자료가 아니라 인증 상태다)"]
+  family_id varchar [not null, note: "회전 계열. 로그인 1회 = 계열 1개. 회전 때마다 같은 family_id 로 새 행이 생기고, 재사용이 감지되면 이 값으로 계열 전체를 폐기한다"]
+  expires_at timestamp [not null, note: "발급 시각 + REFRESH_TOKEN_TTL_SECONDS (기본 30일). 애플리케이션이 UTC 로 계산해 넣는다"]
+  used_at timestamp [null, note: "회전으로 소비된 시각. null 이면 아직 유효. ★ 소비된 행을 지우지 않는다 — 지우면 재사용 공격이 'unknown'(단순 만료)으로 보여 계열 폐기가 일어나지 않는다"]
+  revoked_at timestamp [null, note: "로그아웃·역할 변경·비밀번호 변경으로 폐기된 시각. 폐기도 삭제가 아니라 이 컬럼을 채운다 (무엇이 왜 끊겼는지 남는다)"]
+  created_at timestamp [not null]
+  user_agent varchar [null, note: "발급 시점 스냅샷. '내 세션 목록'·이상 징후 확인용"]
+  ip varchar [null, note: "발급 시점 스냅샷"]
+
+  Indexes {
+    jti [unique, name: 'uq_refresh_tokens_jti']
+    (user_id, expires_at) [name: 'idx_refresh_tokens_user_expires']
+    family_id [name: 'idx_refresh_tokens_family']
+    expires_at [name: 'idx_refresh_tokens_expires']
+  }
+
+  Note: '''
+  ★ 리프레시 토큰의 서버 상태. 지금은 프로세스 메모리(InMemoryRefreshTokenStore)에 있어서
+  세 가지가 깨진다:
+    1) 서버를 재시작하면 전원 로그아웃
+    2) 인스턴스가 2개면 회전이 깨진다 (다른 인스턴스로 가면 unknown)
+    3) CLI(npm run operator:grant) 같은 별도 프로세스가 세션을 폐기할 수 없다
+
+  ☆ 토큰 문자열도, 그 해시도 저장하지 않는다. 저장하는 것은 jti 하나다.
+    서명 검증은 비밀키가 하고 이 테이블은 "그 jti 가 아직 살아 있는가" 만 답하므로,
+    이 테이블이 유출돼도 토큰을 재생할 수 없다.
+
+  상태 판정:
+    활성   = used_at IS NULL AND revoked_at IS NULL AND expires_at > now()
+    소비됨 = used_at IS NOT NULL           → 다시 오면 계열 전체 폐기 (REFRESH_TOKEN_REUSED)
+    폐기됨 = revoked_at IS NOT NULL        → REFRESH_TOKEN_INVALID
+    만료   = expires_at <= now()           → REFRESH_TOKEN_INVALID
+
+  만료 행 정리 전략은 README §11.1 (누적되면 계속 자란다).
+  지원 화면: 로그인·로그아웃·자동 재발급 (그리고 아직 없는 '내 기기·세션 목록')
+  '''
+}
+
+
+// =============================================================================
+// 13. 감사 로그
+// =============================================================================
+
+Table audit_logs {
+  id varchar [pk, note: "cuid"]
+  actor_user_id varchar [not null, ref: > users.id, note: "행위자. ★ ON DELETE RESTRICT — 사용자를 지우면 삭제가 실패한다. 감사 기록이 대신 사라지는 것보다 삭제가 막히는 편이 맞다 (README §11.2)"]
+  actor_role varchar [not null, note: "★ 행위 시점의 역할 스냅샷 (user | hospital_admin | operator). users.role 을 조인하면 승격·해제로 값이 바뀌어 과거 행위의 역할을 알 수 없게 된다"]
+  action varchar [not null, note: "허용값 9개: consult_request.view | partner_inquiry.view | consult_request.status_change | consult_request.memo_create | doctor.verify | hospital_admin.assign | hospital_admin.unassign | hospital.create | partner_inquiry.review"]
+  target_type varchar [not null, note: "허용값: consult_request | partner_inquiry | doctor | hospital | user"]
+  target_id varchar [not null, note: "다형 참조이므로 FK 를 걸 수 없다 (notifications.related_id 와 같은 사정). 대상이 지워져도 '무엇을 열람했는가' 는 남아야 하므로 FK 가 없는 편이 오히려 맞다"]
+  hospital_id varchar [null, ref: > hospitals.id, note: "병원 범위 행위일 때. 병원별 감사 조회용. ON DELETE RESTRICT"]
+  pii_masked boolean [null, note: "★ 마스킹 정책 스냅샷. true=마스킹된 값을 봤다(operator) / false=마스킹하지 않은 개인정보를 봤다(담당 병원 hospital_admin) / null=그 행위의 응답에 개인정보가 없다(hospital.create, doctor.verify). API 요구사항은 not null 이었지만, 그러면 개인정보와 무관한 행위도 false 가 되어 '누가 원본을 봤는가' 질의가 오염된다"]
+  request_id varchar [not null, note: "에러 응답의 requestId 와 같은 값. 애플리케이션 로그와 상관관계를 잇는다"]
+  ip varchar [null]
+  user_agent varchar [null]
+  before_value varchar [null, note: "상태 전이형 행위의 변경 전 스냅샷 ('new', 'pending', 'reviewing'). JSON metadata 컬럼을 쓰지 않기 위한 실 컬럼이다 (§3.3 의 PriceRange → price_min/price_max 와 같은 처리). 열람 행위는 null"]
+  after_value varchar [null, note: "변경 후 스냅샷 ('contacted', 'approved', 'rejected'). 반려 사유·메모 본문 같은 자유 텍스트는 복사하지 않는다 — 원본 테이블에 있고, 감사 로그로 개인정보를 한 번 더 복제할 이유가 없다"]
+  created_at timestamp [not null]
+
+  Indexes {
+    (actor_user_id, created_at) [name: 'idx_audit_logs_actor_created']
+    (target_type, target_id, created_at) [name: 'idx_audit_logs_target_created']
+    (hospital_id, created_at) [name: 'idx_audit_logs_hospital_created']
+    (action, created_at) [name: 'idx_audit_logs_action_created']
+    created_at [name: 'idx_audit_logs_created']
+  }
+
+  Note: '''
+  ★ 관리자 행위 감사. 요구사항 출처: docs/api/README.md §4,
+  docs/decisions/0001-roles-and-pii.md 결정 3("감사 로그는 이 결정에 따라오는 항목").
+
+  지금 남는 것은 consult_status_changes.changed_by_user_id 와
+  doctor_verifications.reviewed_by_user_id 로 **변경 행위 일부**뿐이고,
+  **열람 기록은 어디에도 없다.** 마스킹으로 operator 쪽 노출면을 막았으므로 남는
+  노출면은 담당 병원 hospital_admin 쪽이고, 그것을 이 테이블이 받는다.
+
+  ☆ append-only 다. UPDATE 는 어떤 경로에서도 하지 않고, DELETE 는 보존기간 만료 배치
+    하나만 한다. Prisma/SQLite 로는 강제할 수 없어 애플리케이션이 지킨다
+    (PostgreSQL 이전 후에는 REVOKE UPDATE, DELETE 로 굳힌다 — README §11.2).
+    updated_at 컬럼을 두지 않은 것도 같은 이유다.
+
+  이 테이블이 답해야 하는 질문 = 인덱스 4개:
+    "이 담당자가 무엇을 열람했나"        (actor_user_id, created_at)
+    "이 상담을 누가 열람했나"            (target_type, target_id, created_at)  ← 정보주체 문의
+    "이 병원에서 무슨 일이 있었나"        (hospital_id, created_at)
+    "열람이 몇 건인가 / 승격이 몇 건인가" (action, created_at)
+  created_at 단독 인덱스는 보존기간 만료 삭제용이다.
+
+  목록 조회(GET /consult-requests)는 기록하지 않는다 — 관리 화면이 목록을 반복 조회해
+  로그가 의미 없이 불어난다. 엑셀 내려받기가 생기면 그때는 필수로 기록한다.
+  '''
+}
+
+
+// =============================================================================
+// 14. 입점 문의
+// =============================================================================
+
+Table partner_inquiries {
+  id varchar [pk, note: "cuid"]
+  hospital_name varchar [not null]
+  contact_name varchar [not null, note: "개인정보 — 담당자 실명"]
+  phone varchar [not null, note: "개인정보. 병원 대표번호도 오므로 휴대폰보다 완화된 패턴 (앱 검증)"]
+  email varchar [null]
+  region varchar [null]
+  message text [null]
+  status varchar [not null, default: 'received', note: "허용값: received, reviewing, approved, rejected. 흐름 received → reviewing → approved | rejected. 종결 후 되돌리기 불가 (앱 검증)"]
+  review_note text [null, note: "운영자 심사 메모. status='rejected' 면 필수 (앱 검증)"]
+  reviewed_by_user_id varchar [null, ref: > users.id, note: "심사한 operator. ON DELETE RESTRICT — 심사 기록의 행위자는 사라지면 안 된다"]
+  reviewed_at timestamp [null]
+  linked_hospital_id varchar [null, ref: > hospitals.id, note: "이 문의로 만들어진 병원. 승인이 곧 생성은 아니므로 생성 후 연결한다. ON DELETE SET NULL"]
+  received_at timestamp [not null, note: "접수 시각. 이 테이블의 created_at 이다"]
+  pii_purged_at timestamp [null, note: "개인정보 파기 실행 시각. 파기 시 contact_name/phone/email 을 '(파기)' 로 치환하고 이 컬럼을 채운다 — NOT NULL 컬럼을 치환하므로 '파기됨' 과 '원래 그 값' 을 구분할 표시가 필요하다. ☆ 보존 기간(며칠)은 컬럼이 아니라 설정값이다 (아직 미결)"]
+
+  Indexes {
+    (status, received_at) [name: 'idx_partner_inquiries_status_received']
+    received_at [name: 'idx_partner_inquiries_received']
+  }
+
+  Note: '''
+  ★ 병원 입점 문의. /partner-inquiry 화면은 지금 '문의 폼은 준비중입니다' 한 줄이지만,
+  역할 결정(docs/decisions/0001)이 **입점 문의 → 운영자 심사 → 병원 생성 → 담당자 지정**
+  을 병원 생성의 유일한 경로로 만들었기 때문에 운영자 콘솔의 전제 테이블이 되었다.
+  "접수만 받는 폼" 이 아니라 심사 상태를 가진 워크플로 테이블이다.
+
+  ☆ 개인정보 테이블이다. contact_name(담당자 실명)·phone·email 이 담긴다.
+    - 상세 열람이 감사 로그 대상이다 (audit_logs.action='partner_inquiry.view')
+    - 심사도 감사 대상이다 (action='partner_inquiry.review', before/after_value = 상태)
+    - 응답은 Cache-Control: no-store
+    - 상담 신청자 PII 와 달리 **마스킹하지 않는다** — 운영자가 심사를 위해 직접 연락해야
+      하므로 "연락하지 않아도 되는 열람자" 가 존재하지 않는다
+
+  updated_at 을 두지 않은 이유: received → reviewing 전이 시각이 필요한데, 그 이력은
+  audit_logs(action='partner_inquiry.review', created_at)가 이미 받는다. 같은 사실을
+  두 곳에 두면 어긋난다.
+
+  linked_hospital_id 를 hospitals 쪽이 아니라 여기 둔 이유: 문의 없이 만들어진 병원이 있고
+  (초기 데이터 이관), 문의:병원이 1:1 이 아니다 (반려 후 재문의).
+
+  지원 화면: 병원 입점 문의(접수), 그리고 아직 없는 운영자 심사 화면
+  '''
+}
+
+
+// =============================================================================
+// 15. 약관 · 동의
+// =============================================================================
+
+Table legal_documents {
+  id varchar [pk, note: "cuid"]
+  slug varchar [not null, note: "허용값: terms, privacy, location, about. about 은 법적 문서가 아니지만 같은 구조(버전·본문)로 다루면 화면 하나를 줄인다"]
+  version varchar [not null, note: "개정 버전 ('1.0'). 회원가입 동의 기록이 이 값을 가리킨다. 문자열이라 정렬에 쓰지 않는다 ('1.10' < '1.9' 문제) — 정렬은 effective_at 으로 한다"]
+  title varchar [not null, note: "'서비스 이용약관'"]
+  content text [not null, note: "마크다운. API 의 contentFormat 은 const 'markdown' 이라 컬럼으로 두지 않았다"]
+  requires_agreement boolean [not null, default: true, note: "☆ 이 버전이 동의 기록 대상인가. false 인 두 경우: ① slug='about' ② 오탈자·표현 정정판(재동의를 받을 실질 변경이 아니다). 재동의 판정의 기준선이 되는 컬럼이다"]
+  effective_at timestamp [not null, note: "시행일. 광고·프로모션 기간과 달리 timestamp 다 — 경계가 시작 하나뿐이고(effective_at <= now()) 종료일 포함/배타 애매성이 없으며, openapi LegalDocument.effectiveAt 가 이미 date-time 이다. KST 자정 시행이면 앱이 전날 15:00Z 로 변환해 넣는다"]
+  created_at timestamp [not null, note: "행 작성 시각. 시행일(effective_at)보다 앞선다 (사전 공고)"]
+
+  Indexes {
+    (slug, version) [unique, name: 'uq_legal_documents_slug_version']
+    (slug, effective_at) [name: 'idx_legal_documents_slug_effective']
+  }
+
+  Note: '''
+  ★ 약관 본문과 버전. /legal/terms, /legal/privacy, /legal/location 세 화면이 지금
+  '준비중입니다' 한 줄인데, 그 문구가 들어갈 자리가 이 테이블이다.
+
+  ☆ 행은 불변이다. 본문을 고치면 같은 slug 의 **새 버전 행**을 만든다.
+    user_agreements 가 legal_documents.id 를 가리키므로, 행을 고치면 "무엇에 동의했는가" 가
+    소급 변경되어 동의 기록이 증빙 능력을 잃는다.
+
+  "지금 유효한 버전" (GET /legal-documents/{slug}):
+    SELECT * FROM legal_documents
+     WHERE slug = ? AND effective_at <= now()
+     ORDER BY effective_at DESC, created_at DESC
+     LIMIT 1
+  → (slug, effective_at) 인덱스가 받는다. 아직 시행 전 버전을 미리 넣어 둘 수 있다.
+
+  지원 화면: 서비스 이용약관 / 개인정보 처리방침 / 위치기반 서비스 이용약관 /
+  몰라몰라 알아보기, 그리고 회원가입의 약관 동의 절차(아직 없음)
+  '''
+}
+
+Table user_agreements {
+  id varchar [pk, note: "cuid"]
+  user_id varchar [not null, ref: > users.id, note: "ON DELETE CASCADE — 계정을 물리 삭제(파기)하면 증빙 대상이 없어진 동의 기록도 함께 파기된다. 회원 탈퇴는 soft delete 이므로 이 경로로는 지워지지 않는다"]
+  legal_document_id varchar [not null, ref: > legal_documents.id, note: "slug 가 아니라 **버전 행**을 가리킨다. ON DELETE RESTRICT — 동의 기록이 가리키는 약관은 삭제할 수 없다"]
+  agreed_at timestamp [not null, note: "동의 시각 (UTC). 가입 요청 처리 시각과 같은 트랜잭션에서 넣는다"]
+
+  Indexes {
+    (user_id, legal_document_id) [unique, name: 'uq_user_agreements_user_document']
+    legal_document_id [name: 'idx_user_agreements_document']
+  }
+
+  Note: '''
+  ★ 누가 언제 어느 버전에 동의했는가. 지금 POST /auth/signup 이 받는 agreedTermsVersions
+  는 **넣을 곳이 없어서 경고만 로그로 남기고 버려진다.** 동의 기록은 사후 재구성이
+  불가능하므로(누가 무엇에 동의했는지 추정할 근거가 없다) 이 테이블 없이는 동의 절차를
+  도입할 수 없다.
+
+  ☆ 입도(grain)가 (사용자 × 문서 버전) 인 것이 설계의 핵심이다. 약관이 개정되면
+    legal_documents 에 새 행이 생기고 그 행에 대한 동의 행은 아무에게도 없으므로,
+    **재동의 대상이 저절로 계산된다.** 사용자마다 '재동의 필요' 플래그를 두지 않는다.
+
+  재동의가 필요한 사용자 (README §11.3):
+    SELECT u.id FROM users u
+     WHERE u.deleted_at IS NULL
+       AND NOT EXISTS (
+         SELECT 1 FROM user_agreements a
+          WHERE a.user_id = u.id AND a.legal_document_id = :현재_필수_버전_id
+       )
+
+  (user_id) 단독 인덱스를 만들지 않은 이유: 유니크 인덱스 (user_id, legal_document_id)
+  의 선두 컬럼이 user_id 라서 "내 동의 목록" 조회가 이미 커버된다.
+  (legal_document_id) 는 그 반대 방향("이 버전에 동의한 사용자 수" = 재동의 진행률)이라
+  별도로 필요하다.
+
+  agreedTermsVersions 는 {slug, version} 배열로 오므로, 서버가 (slug, version) 유니크로
+  legal_documents.id 를 찾아 이 테이블에 넣는다.
+  '''
+}

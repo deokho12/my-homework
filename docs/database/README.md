@@ -6,7 +6,7 @@
 | **이전 대상** | PostgreSQL 14+ |
 | **스키마 정의** | [`schema.dbml`](schema.dbml) — 테이블·컬럼·인덱스·주석 |
 | **ORM 스키마** | [`../../backend/prisma/schema.prisma`](../../backend/prisma/schema.prisma) |
-| **요구사항 출처** | `frontend/src/types/domain.ts`, `docs/features/*.md` (27개), `frontend/src/mocks/fixtures/*.ts` |
+| **요구사항 출처** | 1차(27개 테이블): `frontend/src/types/domain.ts`, `docs/features/*.md` (27개), `frontend/src/mocks/fixtures/*.ts`<br>2차(5개 테이블, §11): `docs/decisions/0001-roles-and-pii.md`, `docs/api/README.md` §4·§14, `backend/src/auth/refresh-token.store.ts` |
 
 이 문서는 **왜 이렇게 설계했는지**를 남깁니다. 무엇이 있는지는 `schema.dbml` 을 보세요.
 
@@ -80,7 +80,27 @@
 | notification – user | M:N (`notification_recipients`) | 사용자/관리자 알림함, 안 읽음 배지 |
 | guide – hospital | M:N (`guide_hospitals`) | 꿀팁 상세 '관련 병원 보기' |
 
-전체 **27개 테이블**입니다.
+여기까지가 1차 설계 **27개 테이블**입니다.
+
+2차로 5개 테이블이 붙어 전체 **32개**가 되었습니다. 화면이 아니라 **결정 문서와 API 계약**에서
+요구사항이 나온 테이블들이라 §11 에 따로 정리했습니다.
+
+```
+┌──────────────────┐
+│      users       │──┬── refresh_tokens    세션(리프레시 토큰) 상태. jti 만 저장
+└──────────────────┘  │                     family_id = 회전 계열
+                      ├── audit_logs        관리자 행위 감사 (append-only)
+                      │     └─ hospital_id? → hospitals   (병원 범위 행위)
+                      │        target_type/target_id      (다형 참조, FK 없음)
+                      ├── partner_inquiries.reviewed_by_user_id   입점 문의 심사자
+                      └── user_agreements ──── legal_documents
+                            (사용자 × 문서 버전)   slug × version, 본문·시행일
+
+┌────────────────────┐
+│ partner_inquiries  │ received → reviewing → approved | rejected
+│  담당자 실명·연락처   │ linked_hospital_id? → hospitals  (승인 후 생성된 병원)
+└────────────────────┘
+```
 
 ---
 
@@ -112,8 +132,15 @@
 | `qa_posts` | 커뮤니티 목록, 질문 상세, 질문 작성 |
 | `qa_answers` | 질문 상세 답변 목록·'치과의사 답변' 배지, 목록의 '답변 N', (신설 가능) 답변 작성 |
 | `notifications`, `notification_recipients` | `/notifications`, `/admin/notifications`, 마이페이지 알림함 줄, 상단 🔔 배지, `/admin` 🔔 배지 |
+| `refresh_tokens` | 화면 없음 — 로그인·로그아웃·자동 재발급의 서버 상태. (신설 가능) '내 기기·세션 목록' |
+| `audit_logs` | 화면 없음 — `/admin/consultations/:id` 열람·상태 변경·메모, `/admin/specialists` 검수, 담당자 지정/해제, 병원 생성, 입점 문의 심사가 **쓰는** 테이블. 조회 화면은 아직 없습니다 |
+| `partner_inquiries` | 병원 입점 문의(접수), 아직 없는 운영자 심사 화면 |
+| `legal_documents` | `/legal/terms`, `/legal/privacy`, `/legal/location`, `/about` |
+| `user_agreements` | 회원가입 약관 동의 (절차 자체가 아직 없음), 마이페이지 '동의 내역' (신설 가능) |
 
-**테이블이 필요 없는 화면**: `/about`, `/partner-inquiry`, `/legal/terms`, `/legal/privacy`, `/legal/location` — 다섯 화면 모두 `준비중입니다` 한 줄뿐이고 저장할 데이터가 없습니다. 홈의 회사 정보·배너 3장, 검색 화면의 인기 검색어/추천 검색어도 코드 상수이며 관리 화면이 없어 테이블로 만들지 않았습니다 (§8 제안 참고).
+**테이블이 필요 없는 화면** (1차 설계 시점의 판단): `/about`, `/partner-inquiry`, `/legal/terms`, `/legal/privacy`, `/legal/location` — 다섯 화면 모두 `준비중입니다` 한 줄뿐이고 저장할 데이터가 없었습니다. 홈의 회사 정보·배너 3장, 검색 화면의 인기 검색어/추천 검색어도 코드 상수이며 관리 화면이 없어 테이블로 만들지 않았습니다 (§9 제안 참고).
+
+> **이 판단은 다섯 화면 중 네 개에서 뒤집혔습니다.** 화면이 비어 있어도 **결정 문서와 API 계약**이 데이터를 요구하면 테이블이 필요하다는 것이 2차 설계의 교훈입니다 — `/partner-inquiry` 는 운영자 주도 입점 흐름(`docs/decisions/0001`)의 시작점이 되었고, 약관 3종은 `POST /auth/signup` 이 이미 받고 있는 `agreedTermsVersions` 의 저장소가 필요했습니다(§11.3). `/about` 은 `legal_documents` 에 `slug='about'` 로 함께 들어갑니다. 홈 배너와 인기 검색어만 여전히 코드 상수입니다.
 
 ---
 
@@ -564,6 +591,35 @@ PostgreSQL **18.4** (npm `embedded-postgres` 로 띄운 로컬 인스턴스, 포
 
 즉 §3 의 이식성 규칙은 실제로 지켜졌고, 이전은 provider 한 줄 + 마이그레이션 재생성으로 끝납니다. 애플리케이션 코드는 한 줄도 바꾸지 않았습니다.
 
+> **위 표는 27개 테이블 기준입니다.** §11 의 5개 테이블을 포함한 재검증은 아래 7.2.2 에 있습니다.
+
+#### 7.2.2 재검증 결과 — 32개 테이블 (2026-08-12, 2차)
+
+`refresh_tokens`·`audit_logs`·`partner_inquiries`·`legal_documents`·`user_agreements` 5개 테이블과 `doctor_verifications.reviewed_by_user_id` 의 FK 정책 변경(`SET NULL` → `RESTRICT`)까지 반영한 뒤 **같은 절차를 처음부터 다시 돌렸습니다** (PostgreSQL 18.4, `embedded-postgres`, 포트 55432). 7.2.1 의 예상 증분과 실제 수치가 모두 일치했습니다.
+
+| 확인 항목 | SQLite (32개) | PostgreSQL 18.4 (32개) | 27개 기준 대비 |
+|---|---|---|---|
+| `migrate dev` | 2개 마이그레이션 (init + 추가분) | **1개 생성·적용** (provider 별 재생성, 수동 수정 0) | — |
+| `CREATE TABLE` | 32 | **32** | +5 (예상 +5) |
+| `CREATE UNIQUE INDEX` | 12 | **12** | +3 (예상 +3) |
+| `CREATE INDEX` | 69 | **69** | +12 (예상 +12) |
+| `TEXT` 컬럼 | 175 | **175** | +37 |
+| `INTEGER` | 19 | **19** | 0 (새 테이블에 금액·수량 컬럼이 없다) |
+| 실수형 | `REAL` 4 | `DOUBLE PRECISION` 4 | 0 |
+| boolean | `BOOLEAN` 16 | **`BOOLEAN` 16** | +2 (`pii_masked` nullable, `requires_agreement`) |
+| 타임스탬프 | `DATETIME` 40 | **`TIMESTAMP(3)` 40** | +11 |
+| `CREATE TYPE`(enum) / `SERIAL` / `JSON` / `DEFAULT CURRENT_TIMESTAMP` | 0 | **0** | 계속 0 |
+| `ON DELETE RESTRICT` FK | 14 | 14 | +3 (`audit_logs` 2개, `partner_inquiries.reviewed_by_user_id`) + 1 (`doctor_verifications` 정책 변경) |
+| 시드 후 전체 행 수 | 410 | **410** (테이블별 32개 모두 동일) | +3 (`legal_documents` 3행) |
+| `npm run test:run` | 126개 통과 | **126개 통과** (코드 수정 0) | +40 |
+
+즉 새 5개 테이블도 §3 의 이식성 규칙을 그대로 지켰습니다. 특히 확인한 것 두 가지:
+
+- **`pii_masked` 의 3값(`true`/`false`/`null`)이 두 DB 에서 같게 동작합니다.** SQLite 는 boolean 을 0/1 로 저장하므로 nullable boolean 이 실제로 세 상태를 구분하는지 확인이 필요했는데, `WHERE pii_masked = false` 와 `IS NULL` 질의가 양쪽에서 같은 결과를 냈습니다 (`test/audit-log.spec.ts`).
+- **`used_at`/`revoked_at` 기반 상태 판정과 `deleteMany` 정리 배치**가 양쪽에서 같게 동작합니다. 시각 비교(`expires_at < now()`)를 `DATETIME`(숫자)과 `TIMESTAMP(3)` 어느 쪽에서도 Prisma Client 가 같게 처리했습니다.
+
+SQLite 쪽 마이그레이션이 2개인 것은 추가분을 증분 마이그레이션으로 만들었기 때문이고, PostgreSQL 로 옮길 때는 §7.2 절차대로 **처음부터 1개로 재생성**됩니다(마이그레이션 파일은 provider 간 재사용할 수 없습니다). 이때 SQLite 의 `RedefineTables`(FK 변경을 테이블 재작성으로 처리하는 `PRAGMA foreign_keys=OFF` 블록)는 PostgreSQL 에서 `ALTER TABLE … ADD CONSTRAINT` 로 바뀌므로, **증분 마이그레이션의 raw 카운트(`CREATE TABLE` 6, `CREATE INDEX` 14)에는 재작성 임시 테이블이 섞여 있습니다.** 위 표는 최종 스키마 기준 수치입니다.
+
 문자열 날짜(`start_date`/`end_date`)를 `TEXT` 로 두고 사전순 비교하는 §3.7 의 결정도 양쪽에서 같은 결과를 냈습니다(광고 활성 판정 테스트가 두 DB 에서 동일하게 통과).
 
 남은 미검증 항목 두 개는 **쿼리 코드가 아직 없어서** 확인할 수 없었습니다. API 모듈이 생기면 §7.5 체크리스트로 다시 확인해야 합니다.
@@ -769,12 +825,12 @@ fixture 날짜를 그대로 넣는 선택지도 있습니다(원본 충실). 그
 
 1. **`search_trends` / `sponsored_search_suggestions`** — 인기 검색어와 추천 검색어(광고 알약)는 편집·광고 인벤토리 성격이라 언젠가 DB 로 와야 합니다. 지금은 코드 상수이고 관리 화면이 없습니다.
 2. **`home_banners`** — 홈 배너 3장. 링크가 없어(`눌러도 아무 일도 일어나지 않습니다`) 저장할 필드가 사실상 없습니다. 링크·기간·노출 순서가 요구사항이 되면 테이블이 필요합니다.
-3. **`partner_inquiries`** — `/partner-inquiry` 는 `문의 폼은 준비중입니다` 한 줄입니다. 폼 항목이 정해지지 않아 컬럼을 추측할 수 없습니다.
-4. **`legal_documents`** — 약관 3종의 전문이 어디에도 없습니다. 버전·동의 이력이 필요해지면 `legal_documents` + `user_agreements` 가 필요합니다(회원가입에 약관 동의 절차가 없다는 것도 별도 문제입니다).
+3. ~~**`partner_inquiries`**~~ → **승격됨 (§11.4).** 폼 항목이 `PartnerInquiryCreateRequest` 로 확정되고, 역할 결정이 입점 심사를 병원 생성의 전제로 만들면서 상태 컬럼까지 필요해졌습니다.
+4. ~~**`legal_documents`**~~ → **승격됨 (§11.3).** `POST /auth/signup` 이 이미 `agreedTermsVersions` 를 받고 있어서(지금은 버리고 있습니다) `legal_documents` + `user_agreements` 를 함께 만들었습니다.
 5. **`reviews.user_id`** — 후기 작성 기능이 없어 계정 연결을 두지 않았습니다. 작성 기능이 생기면 `user_id` 추가 + `author_name` 은 마스킹 표시값으로 유지.
 6. **`hospital_event_notes` 의 기간** — 병원 상세 '진행중인 이벤트' 자유 문구에 기간 개념이 문서에 없습니다. `promotions` 처럼 기간이 필요해지면 추가합니다.
 7. **`qa_post_views`** — 조회수가 방문마다 올라가는 문제(같은 사람이 다시 봐도 증가)를 제대로 고치려면 `(post_id, user_id 또는 세션, viewed_at)` 이 필요합니다. 지금은 `view_count` 한 컬럼입니다.
-8. **`audit_logs`** — 관리자 행위 감사. 지금은 상태 변경(`changed_by_user_id`)과 검수(`reviewed_by_user_id`)에만 부분적으로 있습니다. 개인정보(고객 실명·전화번호) 조회 로그가 필요해지면 전용 테이블이 맞습니다.
+8. ~~**`audit_logs`**~~ → **승격됨 (§11.2).** `docs/decisions/0001-roles-and-pii.md` 결정 3 이 "감사 로그는 이 결정에 따라오는 항목" 이라고 명시했고, `docs/api/README.md` §4 가 컬럼·인덱스·기록 대상 9개를 확정했습니다.
 9. **병원 연락처** — 전화번호·이메일·홈페이지가 관리자 폼에 없습니다(문서에 "없는 항목" 으로 명시). 상담이 전부 앱 안에서 처리되는 현재 구조와 맞물린 결정이라 임의로 추가하지 않았습니다.
 10. **시술별 가격표** — 지금은 병원 전체 가격대 min/max 두 값뿐이라, 가격 비교표의 `최저가` 가 선택한 시술과 무관합니다(문서에 명시된 한계). `hospital_procedure_prices(hospital_id, procedure_id, min, max)` 가 그 한계를 없앱니다.
 
@@ -799,3 +855,431 @@ fixture 날짜를 그대로 넣는 선택지도 있습니다(원본 충실). 그
 7. **알림 화면의 로그인 요구가 애매합니다.** 알림함 입구는 로그인해야 보이는데 `/notifications` 직접 진입은 막지 않습니다(문서에 `(확인 필요)` 로 표기). → 스키마는 알림을 계정에 묶었으므로(`notification_recipients`) 로그인 없이는 **보여줄 행 자체가 없습니다.** 구조적으로 결론이 났습니다.
 
 8. **`/admin/specialists` 는 "운영자용" 인데 `/admin` (병원 관리자 홈)에서 들어갑니다.** 두 역할이 한 경로 아래 섞여 있습니다. → `users.role` 로 분리 가능하게 했고, 경로 재편은 §9 결정 1의 일부입니다.
+
+---
+
+## 11. 2차 추가 테이블 — 세션 · 감사 · 입점 문의 · 약관
+
+| | |
+|---|---|
+| **추가된 테이블** | `refresh_tokens`, `audit_logs`, `partner_inquiries`, `legal_documents`, `user_agreements` (5개 → 전체 32개) |
+| **요구사항 출처** | `docs/decisions/0001-roles-and-pii.md`, `docs/api/README.md` §4·§14, `backend/src/auth/refresh-token.store.ts` |
+| **기존 27개 테이블** | **컬럼·인덱스 변화 0.** Prisma 역방향 관계 필드 6개만 추가됐고 DDL 은 바뀌지 않습니다 (§11.7) |
+
+1차 27개 테이블은 **화면 문서**에서 요구사항을 얻었습니다. 이 5개는 다릅니다 — 대응 화면이 아직 없거나 `준비중입니다` 한 줄이고, 요구사항은 **역할·개인정보 결정과 API 계약**에서 나왔습니다. "화면에 근거 없는 테이블은 만들지 않는다" 는 1차 원칙의 예외이며, 그 예외를 정당화하는 것은 다음 세 가지입니다.
+
+- `refresh_tokens` — **이미 구현된 코드가 메모리에서 돌고 있습니다.** 화면이 아니라 동작 결함이 근거입니다.
+- `audit_logs` — 결정 3(개인정보 열람 범위)이 "감사 로그는 이 결정에 따라오는 항목" 이라고 명시했습니다. 로그 없이 마스킹만 하면 남는 노출면(담당자 쪽)이 무기록입니다.
+- `partner_inquiries`, `legal_documents` + `user_agreements` — **API 가 이미 데이터를 받고 있습니다.** `POST /auth/signup` 은 `agreedTermsVersions` 를 받아 넣을 곳이 없어 버리고 있고, 입점 문의는 병원 생성의 유일한 진입 경로로 확정됐습니다.
+
+### 11.1 `refresh_tokens` — 토큰을 저장하지 않는 세션 상태
+
+#### 왜 DB 로 옮기는가
+
+지금 `InMemoryRefreshTokenStore` 는 세 가지가 깨집니다 (그 파일의 주석이 스스로 적어 둔 한계입니다).
+
+| 깨지는 것 | 결과 |
+|---|---|
+| 프로세스 재시작 | 모든 리프레시 토큰 무효 = **전원 재로그인** |
+| 인스턴스 2개 이상 | 재발급이 다른 인스턴스로 가면 `unknown` → 회전이 랜덤하게 실패 |
+| 별도 프로세스 | `npm run operator:grant` 가 **세션을 폐기할 수 없다** → 역할 승격이 재로그인까지 반영되지 않는다 |
+
+세 번째가 특히 중요합니다. 결정 4 는 운영자 승격을 CLI 로만 하도록 정했는데, 승격 직후 그 계정의 **낡은 역할이 박힌 액세스 토큰**을 무효화할 방법이 없으면 "역할 변경 시 그 계정의 리프레시 토큰 전부 폐기" 라는 계약(`docs/api/README.md` §3)을 CLI 가 지킬 수 없습니다.
+
+#### 토큰 문자열도, 그 해시도 저장하지 않습니다
+
+저장하는 것은 `jti` 하나입니다. 서명 검증은 비밀키가 하고, 이 테이블은 **"그 jti 가 아직 살아 있는가"** 만 답합니다.
+
+| 방식 | DB 가 유출되면 |
+|---|---|
+| 토큰 원문 저장 | 즉시 계정 탈취 |
+| 토큰 해시 저장 | 원문은 못 얻지만, 유출본과 대조해 **어떤 토큰이 유효한지 판정**할 수 있습니다 |
+| **jti 만 저장** (선택) | 토큰을 만들 수도, 검증할 수도 없습니다. 서명 키가 없으면 `jti` 는 그냥 임의 문자열입니다 |
+
+세션 목록·폐기·재사용 감지에 필요한 것은 **식별자와 상태**뿐이고 토큰 자체는 필요하지 않습니다. 그래서 해시 컬럼조차 두지 않았습니다.
+
+#### 상태를 컬럼 3개로 표현합니다
+
+```
+활성   = used_at IS NULL AND revoked_at IS NULL AND expires_at > now()
+소비됨 = used_at IS NOT NULL      → 다시 오면 계열 전체 폐기 (REFRESH_TOKEN_REUSED)
+폐기됨 = revoked_at IS NOT NULL   → REFRESH_TOKEN_INVALID
+만료   = expires_at <= now()      → REFRESH_TOKEN_INVALID
+```
+
+**소비·폐기를 `DELETE` 로 처리하지 않는 것이 이 설계의 핵심입니다.** 현재 메모리 구현은 `revoke()` 와 `revokeFamily()` 가 `Map.delete()` 를 씁니다. 그대로 DB 로 옮기면 재사용 공격이 `unknown`(단순 만료·미지 토큰)으로 보여 **계열 폐기가 일어나지 않습니다.** 행이 남아 있어야 `used_at`/`revoked_at` 을 근거로 `reused` 와 `unknown` 을 구분할 수 있습니다.
+
+> 즉 DB 이관은 저장소만 바꾸는 작업이 아닙니다. `revoke`/`revokeAllForUser` 의 구현이 **삭제 → `revoked_at` 세팅**으로 바뀌어야 하고, `consume` 은 `revoked_at IS NOT NULL` 을 새 분기로 다뤄야 합니다. `RefreshConsumeResult` 의 세 갈래(`rotated`/`unknown`/`reused`)는 그대로 쓸 수 있습니다 — 폐기된 토큰은 `unknown` 으로 매핑하면 됩니다(에러 코드가 같습니다).
+
+#### 인덱스 3개
+
+| 인덱스 | 쿼리 |
+|---|---|
+| `jti` UNIQUE | `consume`/`isActive` 의 단건 조회. 조회 키이므로 유니크가 곧 인덱스입니다 |
+| `(user_id, expires_at)` | `revokeAllForUser` (역할 승격·비밀번호 변경), "이 계정의 살아있는 세션" 목록. `expires_at` 이 뒤에 붙어 만료 행을 건너뛴 스캔이 됩니다 |
+| `(family_id)` | 재사용 감지 시 계열 전체 폐기 |
+| `(expires_at)` | 만료 행 정리 배치 |
+
+`(user_id, expires_at)` 대신 `(user_id)` 만 걸지 않은 이유: 계정 단위 폐기는 **활성 행만** 대상이고, 세션 목록도 만료 행을 걸러 보여줘야 합니다. 정리 배치가 늦게 돌면 만료 행이 활성 행보다 많아질 수 있으므로 두 번째 컬럼이 의미 있습니다.
+
+#### 만료 행 정리 전략
+
+**행이 계속 누적됩니다.** 회전마다 새 행이 생기고, 소비된 행도 만료 전에는 지우지 않기 때문입니다.
+
+규모 (액세스 토큰 15분 / 리프레시 30일, `backend/src/config/env.schema.ts` 기본값):
+
+| 시나리오 | 세션 1개당 30일 누적 행 | 활성 사용자 1만 명 |
+|---|---|---|
+| 하루 20분 사용 (회전 2회/일) | 약 60행 | 약 60만 행 |
+| 앱을 계속 열어 둠 (회전 96회/일) | 약 2,880행 | 약 2,880만 행 |
+
+**정리 규칙**
+
+```ts
+// 1차: 만료된 행은 어떤 상태든 지운다. 만료 후에는 재사용 감지 대상도 아니다.
+await prisma.refreshToken.deleteMany({ where: { expiresAt: { lt: new Date() } } });
+
+// 2차(선택): 소비된 지 오래된 행. 탈취 토큰은 즉시 쓰이므로 감지 가치가 급감한다.
+//   REUSE_DETECTION_WINDOW = 7일 정도. 위 표의 2,880행을 약 670행으로 줄인다.
+await prisma.refreshToken.deleteMany({
+  where: { usedAt: { lt: subDays(new Date(), 7) } },
+});
+```
+
+**실행 방법 (권장 순서)**
+
+1. **일 1회 스케줄 배치** — `@nestjs/schedule` 로 04:00 KST. 주 수단입니다. `(expires_at)` 인덱스가 받습니다.
+2. **기회적 sweep** — 지금 메모리 구현이 `register()` 마다 전체를 훑는데, DB 에서는 로그인 경로에 `deleteMany` 를 넣는 셈이라 **그대로 옮기면 안 됩니다.** 옮긴다면 프로세스당 N분에 한 번으로 스로틀하고, 실패해도 로그인을 실패시키지 않아야 합니다.
+3. **CLI** — `npm run tokens:prune`. 배치가 멈춘 것을 발견했을 때의 수동 수단.
+
+**DB 쪽 스케줄러(`pg_cron`, 이벤트, 트리거)는 쓰지 않습니다.** SQLite 에 대응물이 없어 §3.8(raw SQL 없음)과 이식성 검증이 깨집니다. 삭제는 `deleteMany` 한 줄로 두 DB 에서 동일하게 동작합니다.
+
+> 규모가 위 표의 큰 쪽으로 가면 **계열 단위 압축**(계열당 활성 1행 + `refresh_token_families` 테이블)이 다음 단계입니다. 그러면 행 수가 세션 수와 같아집니다. 지금 만들지 않은 이유는 재사용 감지 로직이 "계열의 마지막 jti 가 아니면 재사용" 이라는 다른 규칙으로 바뀌어야 하고, 그건 저장소 이관과 함께 할 변경이 아니기 때문입니다.
+
+### 11.2 `audit_logs` — 스냅샷과 불변성
+
+`docs/api/README.md` §4 의 컬럼·인덱스·기록 대상을 그대로 따랐습니다. 판단이 필요했던 네 곳만 적습니다.
+
+#### (1) `actor_user_id` 에 FK 를 거는가 — **건다. `ON DELETE RESTRICT`**
+
+요구사항은 "사용자가 삭제되면 감사 기록이 사라지면 안 된다" 입니다. 세 선택지를 비교했습니다.
+
+| 선택 | 사용자 물리 삭제 시 | 문제 |
+|---|---|---|
+| `ON DELETE CASCADE` | 감사 행이 **함께 사라진다** | 감사의 목적을 정면으로 위반. 후보에서 즉시 제외 |
+| `ON DELETE SET NULL` | 감사 행은 남고 **행위자가 지워진다** | "누가 봤는지 모르는 열람 기록" 이 남습니다. `actor_user_id` 를 nullable 로 만들어야 하는 것도 대가입니다 |
+| **FK 없음** | 감사 행이 온전히 남는다 | Prisma 로 관계를 선언할 수 없어 조인(`include: { actor: true }`)이 불가능하고, 존재하지 않는 id 가 들어가도 DB 가 막지 못합니다. 감사 로그에서 그건 치명적입니다 — "이 열람자가 누구인지 확인할 수 없다" 가 데이터 오류로 발생합니다 |
+| **`ON DELETE RESTRICT`** (선택) | **삭제가 실패한다** | 사용자 물리 삭제가 막힙니다 |
+
+**Restrict 를 고른 근거:**
+
+1. **이 스키마에는 사용자 물리 삭제 경로가 없습니다.** `users.deleted_at` 이 회원 탈퇴이고, 그 이유("상담 신청·커뮤니티 글의 FK 를 깨지 않기 위해 물리 삭제하지 않는다")가 스키마 주석에 이미 적혀 있습니다. 따라서 Restrict 는 **정상 동작을 한 번도 막지 않습니다.**
+2. 막는 순간이 온다면 그것은 실수이거나 정책 변경입니다. 그때 **삭제가 실패하는 것**이 **감사가 조용히 사라지는 것**보다 낫습니다. Restrict 는 "감사 기록이 사라지면 안 된다" 를 DB 수준의 불가능으로 바꿉니다.
+3. 개인정보 파기 요구(계정 완전 삭제)가 오면 **행을 지우지 말고 익명화**합니다 — `users` 행은 남기고 `email`/`name` 을 치환값으로 바꿉니다. 그러면 감사 행은 계속 같은 행위자를 가리켜 "같은 사람이 한 여러 행위" 라는 정보를 유지하면서 개인정보는 사라집니다. 감사 행을 지우는 것보다 이쪽이 두 요구를 모두 만족합니다.
+4. `actor_role` 스냅샷이 있어서, 행위자 계정이 익명화돼도 **어떤 권한으로 한 행위였는지는 남습니다.**
+
+`hospital_id` 도 같은 이유로 Restrict 입니다 (다른 테이블의 `hospital_id` 는 대부분 Cascade 이지만, 감사는 병원이 사라져도 남아야 합니다).
+
+`target_id` 에는 FK 가 없습니다. `consult_request | partner_inquiry | doctor | hospital | user` 다섯을 가리키는 다형 참조라 걸 수 없고(`notifications.related_id` 와 같은 사정), **대상이 지워져도 "무엇을 열람했는가" 는 남아야 하므로** 여기서는 FK 없음이 오히려 맞습니다.
+
+#### (2) 스냅샷 두 개
+
+| 컬럼 | 조인하면 안 되는 이유 |
+|---|---|
+| `actor_role` | `users.role` 은 승격·해제로 바뀝니다. 조인하면 "operator 로 승격된 사람의 1년 전 담당자 시절 열람" 이 operator 행위로 보입니다 |
+| `pii_masked` | 마스킹 정책이 바뀔 수 있습니다(결정 3: "운영자에게 전체를 보이려면 마스킹 투영을 끄면 된다"). 정책이 바뀌면 **과거 행위가 무엇을 봤는지가 소급 변조**됩니다 |
+
+`pii_masked` 는 **API 요구사항의 `not null` 을 nullable 로 바꿨습니다.** 근거: 감사의 핵심 질의는 `WHERE pii_masked = false`("누가 마스킹되지 않은 개인정보를 봤나")인데, NOT NULL 이면 개인정보와 무관한 행위(`hospital.create`, `doctor.verify`)도 `false` 로 들어와 이 질의를 오염시킵니다. 세 값의 의미를 이렇게 고정했습니다.
+
+```
+true  = 마스킹된 값을 봤다 (operator)
+false = 마스킹하지 않은 개인정보를 봤다 (담당 병원 hospital_admin)  ← 핵심 질의
+null  = 그 행위의 응답에 개인정보가 없다 (hospital.create, doctor.verify)
+```
+
+nullable 은 not-null 의 상위집합이라 애플리케이션이 항상 `false` 를 넣어도 깨지지 않습니다. **인터페이스 설계와의 정합 확인이 필요한 항목입니다.**
+
+#### (3) `metadata json` → 실 컬럼 2개
+
+이식성 규칙(§3.3)이 JSON 컬럼을 금지합니다. 요구사항의 `metadata`(예시가 "변경 전/후 상태")를 `before_value` / `after_value` **varchar 2개**로 펼쳤습니다. `PriceRange { min, max }` → `price_min`/`price_max` 와 같은 처리입니다.
+
+기록 대상 9개를 실제로 매핑해 보면 두 컬럼으로 충분합니다.
+
+| action | target_type | hospital_id | pii_masked | before → after |
+|---|---|---|---|---|
+| `consult_request.view` | `consult_request` | 상담 대상 병원 | `false`(담당자) / `true`(운영자) | — |
+| `partner_inquiry.view` | `partner_inquiry` | null | `false` (마스킹하지 않는 자원) | — |
+| `consult_request.status_change` | `consult_request` | 상담 대상 병원 | 응답 마스킹 여부 | `'new'` → `'contacted'` |
+| `consult_request.memo_create` | `consult_request` | 상담 대상 병원 | 응답 마스킹 여부 | — (본문은 복사하지 않음) |
+| `doctor.verify` | `doctor` | 전문의 소속 병원 | `null` | `'pending'` → `'approved'` |
+| `hospital_admin.assign` | `user` (승격 대상) | 대상 병원 | `false` (이메일·이름 노출) | — |
+| `hospital_admin.unassign` | `user` | 대상 병원 | `false` | — |
+| `hospital.create` | `hospital` | 생성된 병원 | `null` | — |
+| `partner_inquiry.review` | `partner_inquiry` | `linked_hospital_id` 또는 null | `false` | `'reviewing'` → `'rejected'` |
+
+**자유 텍스트(반려 사유, 메모 본문)는 감사 로그에 복사하지 않습니다.** 원본 테이블에 있고, 감사 로그가 개인정보 사본을 하나 더 만드는 것은 보존기간 관리 대상을 늘리기만 합니다. 감사 로그는 "누가·언제·무엇에 대해" 를 기록하고 "무엇이라고 썼는가" 는 원본을 봅니다.
+
+> 나중에 `metadata` 성격의 값이 2개를 넘으면 `audit_log_details(audit_log_id, key, value)` 자식 테이블을 추가합니다(§3.2 의 배열→테이블과 같은 방법). 지금 만들지 않은 이유는 기록 대상 9개 중 그것을 요구하는 것이 하나도 없기 때문입니다.
+
+#### (4) 불변성 — 스키마로 할 수 있는 것과 앱이 지킬 것
+
+**결론: 지금은 애플리케이션이 강제합니다.** Prisma 스키마에는 "이 테이블은 append-only" 를 선언하는 문법이 없고, SQLite 트리거는 §3.8(raw SQL 금지)에 걸립니다.
+
+스키마 수준에서 표현한 것:
+
+- **`updated_at` 컬럼을 두지 않았습니다.** 다른 모든 변경 가능한 테이블(`hospitals`, `consult_requests`, `qa_posts` …)에는 있습니다. 없다는 것이 "이 행은 갱신되지 않는다" 는 신호이고, 갱신을 시도해도 그 사실을 기록할 칸이 없습니다.
+- **자유 텍스트를 넣지 않았습니다** — 정정할 이유가 있는 컬럼을 아예 만들지 않았습니다(위 (3)).
+- `actor_user_id`/`hospital_id` 의 `RESTRICT` — 부모 삭제를 통한 **간접 삭제**를 DB 가 막습니다. 실제로 스키마가 막아 주는 유일한 삭제 경로입니다.
+
+애플리케이션이 지킬 것 (backend-engineer 전달):
+
+1. 감사 로그 접근을 **리포지토리 하나로 좁히고 `create` / `findMany` / `count` 만 노출**합니다. `update`/`delete`/`upsert` 메서드를 만들지 않습니다.
+2. 보존기간 만료 삭제는 **전용 배치 하나만** 수행합니다 (`created_at < cutoff`). 이것이 유일하게 허용되는 삭제 경로입니다.
+3. **PostgreSQL 이전 후에는 DB 권한으로 굳힙니다.** 여기서 처음으로 진짜 강제가 가능해집니다.
+
+```sql
+-- 이전 후 수동 마이그레이션 (§7.6 항목에 추가)
+REVOKE UPDATE, DELETE ON audit_logs FROM app_role;   -- 앱은 INSERT/SELECT 만
+GRANT  DELETE ON audit_logs TO retention_role;       -- 보존기간 배치 전용 역할
+```
+
+`REVOKE DELETE` 를 앱 역할에서 뺄 수 있는 이유는 삭제 주체를 배치로 분리했기 때문입니다. 배치가 앱과 같은 커넥션을 쓰면 이 분리가 무너지므로, 보존 배치는 별도 자격증명으로 접속해야 합니다.
+
+#### 인덱스 5개와 보존 기간
+
+| 인덱스 | 답하는 질문 |
+|---|---|
+| `(actor_user_id, created_at)` | "이 담당자가 무엇을 열람했나" — 내부 감사, 이상 접근 조사 |
+| `(target_type, target_id, created_at)` | **"이 상담을 누가 열람했나"** — 정보주체(고객) 문의에 답하는 질의 |
+| `(hospital_id, created_at)` | 병원별 감사. 특정 병원의 담당자 행위 전체 |
+| `(action, created_at)` | 행위 종류별 집계 ("이번 달 열람 N건", "권한 부여 N건") |
+| `(created_at)` | 보존기간 만료 삭제 배치 |
+
+`request_id` 에는 인덱스를 만들지 않았습니다. 애플리케이션 로그에서 `requestId` 를 들고 감사 행을 찾는 방향은 장애 조사 시의 저빈도 질의이고, 그때는 `created_at` 으로 범위를 좁힐 수 있습니다.
+
+**보존 기간**: 개인정보 열람 기록은 통상 1년 이상 보존합니다. 값은 미결이며(§11.8), 결정 0001 의 미결 5 가 지적한 정합 문제 — **감사 보존기간이 상담 보존기간보다 짧으면 안 됩니다.** 짧으면 "이미 지운 상담을 누가 봤다" 는 기록만 남거나, 반대로 상담은 있는데 열람 기록이 없어집니다.
+
+**쓰기 실패 시 정책**은 제품 결정(`docs/api/README.md` §4)이지만, 스키마는 **두 선택지를 다 열어 두었습니다** — `audit_logs` 를 같은 DB 에 두었으므로 `prisma.$transaction([...])` 으로 열람과 로그 쓰기를 한 트랜잭션에 묶을 수 있습니다. 외부 로그 저장소로 뺐다면 "실패 시 열람도 실패" 를 구현할 방법이 없어집니다.
+
+### 11.3 `legal_documents` + `user_agreements` — 버전과 재동의
+
+#### 왜 두 테이블인가
+
+`POST /auth/signup` 은 이미 `agreedTermsVersions: [{ slug, version }]` 를 받고 있고, **넣을 곳이 없어서 경고만 로그로 남기고 버립니다.** 동의 기록은 사후 재구성이 불가능합니다 — 나중에 테이블을 만들어도 "누가 언제 무엇에 동의했는지" 를 복원할 근거가 없습니다. 그래서 문구를 담을 곳(`legal_documents`)과 동의 사실(`user_agreements`)을 함께 만듭니다.
+
+#### 버전 관리: (문서 종류 × 버전) 이 행이다
+
+```
+legal_documents
+  (slug, version) UNIQUE      terms/1.0, terms/1.1, privacy/1.0, location/1.0, about/1.0 …
+  effective_at                시행일. 미래 날짜를 미리 넣어 둘 수 있다
+  requires_agreement          이 버전이 동의 기록 대상인가
+```
+
+**행은 불변입니다.** 본문을 고치려면 같은 `slug` 의 새 버전 행을 만듭니다. `user_agreements` 가 `legal_documents.id` 를 가리키기 때문에, 행을 고치면 **과거 동의의 대상이 소급 변경**되어 동의 기록이 증빙 능력을 잃습니다. 이것이 `user_agreements` 가 `(slug, version)` 문자열이 아니라 **`legal_document_id` 를 가리키는 이유**이기도 합니다 — 가리키는 대상이 불변인 행이어야 의미가 있습니다.
+
+"지금 유효한 버전" (`GET /legal-documents/{slug}`):
+
+```ts
+prisma.legalDocument.findFirst({
+  where:   { slug, effectiveAt: { lte: new Date() } },
+  orderBy: [{ effectiveAt: 'desc' }, { createdAt: 'desc' }],
+});
+```
+
+`version` 문자열로 정렬하지 않습니다 — `'1.10' < '1.9'` 가 되기 때문입니다. 순서는 항상 `effective_at` 이 정하고, `version` 은 **표시·참조용 라벨**입니다. 같은 날 두 번 시행하는 경우의 타이브레이커로 `created_at` 을 붙였습니다(§7.5 의 "정렬에 타이브레이커" 규칙).
+
+#### 재동의 흐름 — 저장하지 않고 계산합니다
+
+`user_agreements` 의 입도가 **(사용자 × 문서 버전)** 인 것이 전부입니다. 약관이 개정되면 새 `legal_documents` 행이 생기고, 그 행에 대한 동의 행은 아무에게도 없으므로 **재동의 대상이 저절로 계산됩니다.**
+
+```ts
+// 1. 지금 동의가 필요한 버전들 (slug 당 1개)
+const required = await prisma.legalDocument.findMany({
+  where: { requiresAgreement: true, effectiveAt: { lte: now } },
+  // slug 별 최신 1건만 골라낸다 (앱에서 그룹핑)
+});
+
+// 2. 내가 아직 동의하지 않은 것
+const agreed = await prisma.userAgreement.findMany({
+  where:  { userId, legalDocumentId: { in: required.map((d) => d.id) } },
+  select: { legalDocumentId: true },
+});
+const pending = required.filter((d) => !agreed.some((a) => a.legalDocumentId === d.id));
+// pending 이 비어 있지 않으면 → 재동의 화면
+```
+
+**사용자마다 '재동의 필요' 플래그를 두지 않습니다.** 플래그 방식은 약관을 개정할 때 전 사용자 행을 UPDATE 해야 하고(수십만 행), 개정을 되돌리면 그 UPDATE 를 되돌릴 방법이 없습니다. 파생값을 저장하지 않으면 개정은 **행 1개 INSERT** 로 끝납니다.
+
+`requires_agreement` 가 이 계산의 기준선을 조정합니다.
+
+| 값 | 언제 |
+|---|---|
+| `true` | 실질 개정. 새 버전에 대한 동의를 받아야 합니다 |
+| `false` | ① `slug='about'` — 동의할 성격의 문서가 아닙니다 ② 오탈자·표현 정정판 — 문구는 최신 버전을 보여주되 **재동의는 받지 않습니다**(이전 버전의 동의가 유효한 동의로 남습니다) |
+
+이 컬럼이 없으면 오탈자 하나를 고칠 때마다 전 사용자에게 재동의 팝업이 뜨거나, 아니면 문구를 못 고칩니다.
+
+#### 왜 `users` 에 컬럼을 붙이지 않았나
+
+`users.agreed_terms_version` 같은 컬럼 방식은 세 가지가 안 됩니다: ① 문서가 3종(+about)이고 각각 버전이 다릅니다 ② 동의 **시각**이 문서별로 다릅니다(가입 시 2종 + 위치 약관은 지도 첫 사용 시) ③ 컬럼을 덮어쓰면 **과거 동의 기록이 사라집니다** — 그것이 정확히 증빙해야 하는 대상입니다. 기존 27개 모델을 건드리지 않는다는 제약과도 맞아떨어졌습니다.
+
+#### 가입 시 처리
+
+`agreedTermsVersions` 의 `{slug, version}` 을 `(slug, version)` 유니크로 `legal_documents.id` 로 바꿔 `user_agreements` 에 넣습니다. 없는 버전이면 `422` 로 거절해야 합니다 — 클라이언트가 캐시된 낡은 버전에 동의하고 보낼 수 있고, 그것을 통과시키면 "동의하지 않은 버전으로 가입" 이 됩니다. `(user_id, legal_document_id)` 유니크가 재요청 멱등성을 줍니다.
+
+가입과 동의는 **같은 트랜잭션**이어야 합니다. 계정만 만들어지고 동의 행이 없으면 그 계정은 동의 없이 가입된 계정이 됩니다.
+
+#### 시드 (§8 보완)
+
+새 테이블 5개 중 **시드가 필요한 것은 `legal_documents` 뿐입니다.** 나머지 4개는 런타임에 쌓이는 데이터입니다(`refresh_tokens`=로그인, `audit_logs`=관리자 행위, `partner_inquiries`=접수, `user_agreements`=가입).
+
+`legal_documents` 는 행이 없으면 `/legal/*` 세 화면과 `/about` 이 여전히 빈 화면이 됩니다. 시드 4행(`terms/1.0`, `privacy/1.0`, `location/1.0`, `about/1.0`)을 넣되:
+
+- `effective_at` 은 **`SEED_TODAY - 1일`** 같은 과거 시각으로 (미래면 "지금 유효한 버전" 조회가 0건이 되어 화면이 다시 비어 보입니다)
+- `content` 는 실제 문구가 확정되기 전이므로 **플레이스홀더임이 화면에서 드러나는 문구**를 넣습니다. 그럴듯한 가짜 약관을 넣으면 법무 검토 없이 배포될 위험이 있습니다
+- `requires_agreement` 는 `about` 만 `false`
+- 시드는 §8.1 원칙대로 id 고정(`legal-terms-1.0` 등) upsert 로 두어 재실행이 안전해야 합니다
+
+가입 동의 절차가 도입되기 전이라면 기존 시드 사용자에 대한 `user_agreements` 행은 만들지 않습니다 — **동의하지 않은 동의 기록을 만드는 것이 이 테이블에서 가장 하지 말아야 할 일입니다.** 그 결과 시드 사용자 전원이 "재동의 대상" 으로 계산되는데, 그것이 사실에 맞는 상태입니다.
+
+### 11.4 `partner_inquiries` — 심사 워크플로 + 개인정보
+
+`docs/api/README.md` §14 의 요구사항을 그대로 따랐고, 컬럼 2개에 대한 판단만 다릅니다.
+
+#### 상태 흐름은 애플리케이션이 강제합니다
+
+```
+received → reviewing → approved
+                    └→ rejected      (종결 후 되돌리기 불가, rejected 면 review_note 필수)
+```
+
+DB `CHECK` 제약을 쓰지 않는 것은 §3.1 과 같은 이유입니다(Prisma 스키마로 선언할 수 없음). 이 규칙은 상태 **전이**라서 CHECK 로도 표현할 수 없습니다 — 전이 검증은 이전 값을 알아야 하므로 트리거가 필요하고, 그건 이식성 규칙에 걸립니다. §7.6 의 "PostgreSQL 이전 후 CHECK 검토" 목록에 `status IN (...)` 만 추가하면 됩니다(전이 규칙은 앱에 남습니다).
+
+#### `updated_at` 을 두지 않은 이유
+
+상태가 바뀌는 테이블인데 `updated_at` 이 없습니다. 필요한 정보 — "언제 `reviewing` 으로 옮겼는가", "누가 옮겼는가" — 는 **`audit_logs`(`action='partner_inquiry.review'`)가 이미 받습니다.** 같은 사실을 두 곳에 두면 어긋나고, 어느 쪽이 진실인지 판단할 근거가 없어집니다. `reviewed_at`/`reviewed_by_user_id` 는 **종결 판정**의 스냅샷으로 응답 스키마가 요구하는 값이라 남겼습니다.
+
+같은 이유로 `consult_status_changes` 같은 별도 이력 테이블도 만들지 않았습니다. 상담은 이력이 **화면에 노출**되지만(상담 상세의 '상태 변경 이력'), 입점 문의 심사 이력을 보여주는 화면 요구는 없습니다.
+
+#### 개인정보 파기 — `pii_purged_at` 하나만 뒀습니다
+
+미결이었던 것은 **보존 기간(며칠)** 이고, "반려 문의의 개인정보를 언젠가 파기한다" 는 사실 자체는 미결이 아닙니다. 그래서 기간은 스키마에 넣지 않고(설정값), 파기가 **일어났다는 사실**만 컬럼으로 뒀습니다.
+
+`contact_name`/`phone` 이 NOT NULL 이라 파기는 삭제가 아니라 치환입니다. 치환만 하면 `'(파기)'` 가 원래 입력값인지 파기 결과인지 구분할 수 없습니다.
+
+```ts
+// 파기 대상 — (status, received_at) 인덱스가 받는다
+where: { status: 'rejected', receivedAt: { lt: cutoff }, piiPurgedAt: null }
+// 파기 실행
+data: { contactName: '(파기)', phone: '(파기)', email: null, message: null,
+        piiPurgedAt: new Date() }
+```
+
+**행 자체는 지우지 않습니다** — `linked_hospital_id` 로 "이 병원이 어느 문의에서 왔는가" 가 이어져 있고, `audit_logs` 가 `target_id` 로 이 문의를 가리키고 있습니다. 행을 지우면 그 감사 기록이 대상 없는 기록이 됩니다.
+
+> `approved` 문의는 파기 대상이 아닙니다 — 입점한 병원과의 계약 근거이므로 병원이 살아 있는 동안 보관합니다. 이것도 확정 정책이 아니라 지금의 기본값입니다(§11.8).
+
+#### 인덱스
+
+| 인덱스 | 쿼리 |
+|---|---|
+| `(status, received_at)` | 운영자 심사 대기 목록 (`status='received'` 접수순), 반려 문의 파기 배치 |
+| `(received_at)` | 전체 목록 최신순 (`status` 필터 없음) |
+
+`reviewed_by_user_id`, `linked_hospital_id` 에는 인덱스를 만들지 않았습니다. "이 운영자가 심사한 문의" 는 조회 축이 아니고(그 질의는 `audit_logs(actor_user_id, created_at)` 가 답합니다), "이 병원의 원 문의" 는 병원 상세에서 한 건씩 찾는 저빈도 역방향 조회입니다. §6.7 과 같은 기준입니다.
+
+### 11.5 새 테이블 인덱스 12개 + 유니크 3개 — 한눈에
+
+| 테이블 | 인덱스 | 근거 |
+|---|---|---|
+| `refresh_tokens` | `jti` U | `consume` 단건 조회 |
+| | `(user_id, expires_at)` | 계정 단위 폐기, 세션 목록 |
+| | `(family_id)` | 재사용 감지 시 계열 폐기 |
+| | `(expires_at)` | 만료 정리 배치 |
+| `audit_logs` | `(actor_user_id, created_at)` | "이 담당자가 무엇을 봤나" |
+| | `(target_type, target_id, created_at)` | "이 상담을 누가 봤나" |
+| | `(hospital_id, created_at)` | 병원별 감사 |
+| | `(action, created_at)` | 행위별 집계 |
+| | `(created_at)` | 보존기간 삭제 |
+| `partner_inquiries` | `(status, received_at)` | 심사 대기 목록, 파기 배치 |
+| | `(received_at)` | 전체 목록 |
+| `legal_documents` | `(slug, version)` U | 같은 버전 중복 방지, 가입 시 id 조회 |
+| | `(slug, effective_at)` | "지금 유효한 버전" |
+| `user_agreements` | `(user_id, legal_document_id)` U | 중복 동의 방지 + **"내 동의 목록" 을 선두 컬럼으로 커버** |
+| | `(legal_document_id)` | "이 버전에 동의한 사용자" (재동의 진행률) |
+
+API 요구사항에 있던 `user_agreements(user_id)` 단독 인덱스는 **만들지 않았습니다.** 유니크 인덱스 `(user_id, legal_document_id)` 의 선두 컬럼이 `user_id` 라서 완전히 중복입니다. 쓰기 비용만 늘고 얻는 것이 없습니다.
+
+### 11.6 이식성 규칙 — 새 테이블에서 어떻게 지켰는가
+
+§3 의 규칙 전부를 그대로 적용했습니다. **1차와 같은 기준으로 PostgreSQL 재검증을 통과해야 합니다** (§7.2.1 의 단서 참고).
+
+| 규칙 | 새 테이블에서의 표현 |
+|---|---|
+| DB enum 금지 | `refresh_tokens` 에 상태 컬럼 없음(타임스탬프 3개로 상태 표현). `audit_logs.action`(9종)·`target_type`(5종)·`actor_role`(3종), `partner_inquiries.status`(4종), `legal_documents.slug`(4종) 전부 `String` + 허용값 주석 + 앱 검증 |
+| 스칼라 배열 금지 | `agreedTermsVersions` 배열 → `user_agreements` 행 (요청 배열이 그대로 테이블이 된 사례) |
+| JSON 컬럼 금지 | `audit_logs.metadata` → `before_value` / `after_value` 실 컬럼 2개 (§11.2-(3)) |
+| TEXT PK + 앱 cuid | 5개 테이블 모두 `String @id`, 기본값 없음. `@default(cuid())` 도 쓰지 않음 |
+| 금액은 Int | 해당 금액 컬럼 없음 |
+| DB 기본값 타임스탬프 금지 | `created_at`, `received_at`, `agreed_at`, `expires_at` 전부 애플리케이션이 UTC 로 세팅. `@default(now())`·`@updatedAt` 없음 |
+| 달력 날짜 vs 시각 | 새 테이블의 날짜 컬럼은 **전부 시각(`DateTime` UTC)** 입니다. `legal_documents.effective_at` 만 판단이 필요했는데(아래) 시각으로 두었습니다 |
+| raw SQL 금지 | 만료 정리·파기 배치·보존기간 삭제 모두 `deleteMany`/`updateMany`. DB 트리거·`pg_cron` 을 쓰지 않는 이유가 여기 있습니다 |
+| boolean | `pii_masked`(nullable), `requires_agreement`(`@default(true)`). Prisma Client 를 통과하면 두 DB 모두 `true`/`false` (§3.10) |
+
+**`legal_documents.effective_at` 을 `'YYYY-MM-DD'` 문자열로 두지 않은 이유** (광고·프로모션 기간과 다른 선택입니다):
+
+1. **경계가 시작 하나뿐입니다.** `effective_at <= now()` 로 끝나고, §3.7 이 피하려던 "종료일 포함/배타" 애매성이 없습니다.
+2. **API 계약이 이미 시각입니다** — `openapi.yaml` 의 `LegalDocument.effectiveAt: format: date-time`. 문자열 날짜로 두면 응답 변환 시 시간대를 매번 붙여야 합니다.
+3. 사전 공고·시행 예약을 시각으로 두면 "오늘 18시부터 시행" 같은 요구도 그대로 표현됩니다.
+
+대신 **KST 자정 시행을 애플리케이션이 변환해야 합니다** — `2026-09-01` 시행이면 `2026-08-31T15:00:00.000Z` 를 넣습니다. 이 변환을 빠뜨리면 시행이 9시간 앞당겨집니다. 주석에 명시했고, `docs/api` 쪽 구현 시 검증 대상입니다.
+
+### 11.7 기존 27개 모델 — 무엇이 바뀌었고 무엇을 바꾸지 않았는가
+
+#### 실제로 추가한 것: Prisma 역방향 관계 필드 6개 (DDL 변화 0)
+
+Prisma 는 관계의 **양쪽에 필드**를 요구합니다. 한쪽만 선언하면 `prisma validate` 가 실패합니다. 새 테이블이 `users`·`hospitals` 를 FK 로 참조하므로, 참조되는 쪽에 배열 필드를 넣는 것을 피할 수 없습니다.
+
+```prisma
+model User {      // 컬럼 추가 아님 — 관계의 반대편 표현
+  refreshTokens     RefreshToken[]
+  auditLogs         AuditLog[]
+  reviewedInquiries PartnerInquiry[]
+  agreements        UserAgreement[]
+}
+model Hospital {
+  auditLogs        AuditLog[]
+  partnerInquiries PartnerInquiry[]
+}
+```
+
+이 필드들은 **가상(virtual)** 입니다. `users`/`hospitals` 테이블의 컬럼·인덱스·제약은 하나도 바뀌지 않고, 마이그레이션 diff 에도 두 테이블에 대한 `ALTER TABLE` 이 나오지 않습니다(FK 는 새 테이블 쪽에 생깁니다). Prisma Client 에 `include: { auditLogs: true }` 옵션이 추가되는 것이 전부입니다.
+
+> FK 를 포기하면 이 편집도 피할 수 있었지만, 그러면 `refresh_tokens.user_id` 가 존재하지 않는 사용자를 가리킬 수 있고 감사 로그의 행위자 무결성이 사라집니다. FK 를 지키는 대가로 가상 필드 6개를 받는 것이 맞다고 판단했습니다.
+
+#### 바꾸지 않았지만 바꾸는 것을 권고하는 것
+
+| 대상 | 지금 | 권고 | 근거 |
+|---|---|---|---|
+| `doctor_verifications.reviewed_by_user_id` | `ON DELETE SET NULL` | **`RESTRICT`** | 검수 결정의 행위자입니다. 사용자를 물리 삭제하면 "누가 승인했는지 모르는 승인" 이 남습니다. `audit_logs.actor_user_id` 를 Restrict 로 둔 것과 같은 논리이고, 지금 두 테이블의 정책이 서로 다릅니다 |
+| `consult_status_changes.changed_by_user_id`, `consult_memos.author_user_id` | `ON DELETE SET NULL` | **`RESTRICT`** 검토 | 위와 같습니다. 다만 이 두 컬럼은 시드·시스템 생성 행이 `null` 인 것이 정상이므로 nullable 은 유지해야 합니다(Restrict 와 nullable 은 양립합니다) |
+| `notifications.audience` 값 `admin` | `user` \| `admin` | `user` \| `hospital` | 결정 0001 미결 2. `audit_logs.actor_role` 이 `hospital_admin`/`operator` 를 쓰기 시작하면서 `audience='admin'` 이 어느 역할을 뜻하는지 더 헷갈리게 됐습니다 |
+| `users` 물리 삭제 | 경로 없음 | 그대로 유지 + **익명화 절차 문서화** | `audit_logs`·`user_agreements` 가 붙으면서 물리 삭제의 대가가 더 커졌습니다. 파기 요구는 삭제가 아니라 익명화로 처리해야 합니다(§11.2-(1)) |
+
+네 항목 모두 **이 작업에서 수정하지 않았습니다.** 앞의 두 개는 마이그레이션이 필요한 FK 변경이고, 세 번째는 스키마·API·fixture 를 함께 고쳐야 합니다.
+
+### 11.8 남은 미결
+
+새로 생긴 것만 적습니다. 1차 미결은 §9 에 있습니다.
+
+1. **감사 로그 보존 기간** (결정 0001 미결 5) — 1년 이상이 통상값입니다. **상담 데이터 보존기간보다 짧으면 안 됩니다.** 두 값을 함께 정해야 합니다. 정해지면 삭제 배치의 설정값이 되고 스키마는 바뀌지 않습니다.
+2. **반려된 입점 문의의 개인정보 보존 기간** — 파기 실행 기록(`pii_purged_at`)은 만들었고 기간만 미결입니다. 함께 정할 것: `approved` 문의를 영구 보관할 것인가(지금 기본값은 "병원이 살아 있는 동안 보관").
+3. **감사 로그 쓰기 실패 시 열람 허용 여부** (결정 0001 미결 4, §API 4) — 스키마는 두 선택지를 다 열어 두었습니다(같은 DB 이므로 트랜잭션 가능). 제품 결정입니다.
+4. **`pii_masked` 를 nullable 로 둔 것** — API 요구사항은 `not null` 이었습니다. 근거는 §11.2-(2) 에 적었지만 **인터페이스 설계와의 정합 확인이 필요합니다.**
+5. **리프레시 토큰 회전 행의 누적** — 정리 전략(§11.1)으로 상한을 두었지만, 활성 사용자가 만 명 규모가 되면 계열 단위 압축을 검토해야 합니다. 그 시점에 `refresh_token_families` 를 추가합니다.
+6. **동의 증빙의 범위** — `user_agreements` 에 `ip`/`user_agent` 를 두지 않았습니다(요구사항에 없음). 분쟁 시 "이 동의가 그 사람의 행위였는가" 를 다투게 되면 필요해집니다. 반대로 그 자체가 개인정보라 보존기간 관리 대상이 늡니다.
+7. **선택 동의와 동의 철회** — 지금 약관 3종은 모두 필수 동의 성격이라 `is_required` 컬럼도, 철회(`withdrawn_at`)도 만들지 않았습니다. 마케팅 수신 동의처럼 **선택 동의 항목이 생기면** 두 컬럼(또는 `user_agreement_events` 이력 테이블)이 필요합니다.
+8. **재동의 유예** — 약관 개정 시 즉시 차단인가, N일 유예인가. 유예를 준다면 `legal_documents` 에 `grace_until` 이 필요합니다. 지금은 즉시(로그인 후 동의 화면) 전제입니다.
+9. **`legal_documents` 를 누가 편집하는가** — 관리 화면이 없습니다. 초기에는 시드·마이그레이션으로 넣게 되며, 그러면 약관 개정에 배포가 필요합니다. 운영자 콘솔에 편집 화면이 생기면 `audit_logs` 의 기록 대상에 `legal_document.publish` 를 추가해야 합니다(현재 9개에 없습니다).
+10. **`audit_logs` 조회 화면** — 쓰기만 정의됐고 읽는 화면이 없습니다. 인덱스는 4개 질문을 전제로 만들었지만, 실제 화면이 정해지면 정렬·필터 축을 다시 확인해야 합니다.

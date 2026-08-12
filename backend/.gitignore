@@ -4,6 +4,10 @@ node_modules/
 # build output
 dist/
 
+# 인가 수동 확인 서버(`npm run verify:guards`)가 만드는 임시 컴파일 산출물.
+# test/ 를 포함해 컴파일하므로 dist/ 와 섞이지 않게 따로 둔다.
+.tmp-manual/
+
 # 로컬 환경변수 (DATABASE_URL, SEED_PASSWORD 등) — 절대 커밋하지 않는다.
 # 무엇을 채워야 하는지는 .env.example 을 보세요.
 .env

@@ -62,6 +62,7 @@ import {
   qaPosts,
   reviews,
 } from './seed/fixtures';
+import { legalDocuments } from './seed/legal';
 
 const prisma = new PrismaClient();
 
@@ -716,7 +717,34 @@ async function main(): Promise<void> {
   console.log(`  notification_recipients   ${recipientCount}`);
 
   // ===========================================================================
-  // 12. 결과 확인 — 실제 DB 행 수를 다시 세서 출력한다
+  // 12. 약관 3종 (docs §11.3)
+  //     - effective_at 은 SEED_TODAY - 1일 (미래면 "지금 유효한 버전" 이 0건이 된다)
+  //     - 본문은 자리표시자임이 화면에서 드러나는 문구다 (prisma/seed/legal.ts)
+  //     - user_agreements 는 만들지 않는다: 동의하지 않은 동의 기록을 만들면 안 된다
+  // ===========================================================================
+  const legalEffectiveAt = addDays(seedToday, -1);
+
+  for (const document of legalDocuments) {
+    const data = {
+      slug: document.slug,
+      version: document.version,
+      title: document.title,
+      content: document.content,
+      requiresAgreement: document.requiresAgreement,
+      effectiveAt: legalEffectiveAt,
+    };
+
+    await prisma.legalDocument.upsert({
+      where: { id: document.id },
+      // createdAt 은 최초 1회만. 재실행이 게시 시각을 바꾸지 않게 한다
+      create: { id: document.id, ...data, createdAt: now },
+      update: data,
+    });
+  }
+  console.log(`  legal_documents           ${legalDocuments.length}`);
+
+  // ===========================================================================
+  // 13. 결과 확인 — 실제 DB 행 수를 다시 세서 출력한다
   //     (위 숫자는 "쓰기 시도 횟수", 아래는 "실제 남은 행")
   // ===========================================================================
   const counts = {
@@ -747,10 +775,18 @@ async function main(): Promise<void> {
     qa_answers: await prisma.qaAnswer.count(),
     notifications: await prisma.notification.count(),
     notification_recipients: await prisma.notificationRecipient.count(),
+    // §11 의 5개 테이블. 시드가 넣는 것은 legal_documents 뿐이고 나머지 4개는
+    // 런타임에 쌓인다 (refresh_tokens=로그인, audit_logs=관리자 행위,
+    // partner_inquiries=접수, user_agreements=가입). 0 이 정상이다 (docs §11.3)
+    refresh_tokens: await prisma.refreshToken.count(),
+    audit_logs: await prisma.auditLog.count(),
+    partner_inquiries: await prisma.partnerInquiry.count(),
+    legal_documents: await prisma.legalDocument.count(),
+    user_agreements: await prisma.userAgreement.count(),
   };
 
   console.log('─'.repeat(78));
-  console.log('DB 행 수 (27개 테이블)');
+  console.log('DB 행 수 (32개 테이블)');
 
   for (const [table, count] of Object.entries(counts)) {
     console.log(`  ${table.padEnd(26)}${count}`);

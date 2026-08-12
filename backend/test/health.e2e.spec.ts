@@ -3,6 +3,7 @@ import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+import { configureApp } from '../src/app-setup';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 
@@ -20,8 +21,8 @@ describe('GET /health (e2e)', () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
 
     app = moduleRef.createNestApplication();
-    // main.ts 와 같은 라우팅 규칙: /api 접두어, 단 health 는 제외
-    app.setGlobalPrefix('api', { exclude: ['health'] });
+    // main.ts 와 **같은 설정**을 쓴다 (/api 접두어 + health 제외, 요청 id, 예외 필터)
+    configureApp(app);
     await app.init();
   });
 
