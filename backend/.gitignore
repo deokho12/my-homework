@@ -1,0 +1,26 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+
+# 로컬 환경변수 (DATABASE_URL, SEED_PASSWORD 등) — 절대 커밋하지 않는다.
+# 무엇을 채워야 하는지는 .env.example 을 보세요.
+.env
+.env.*
+!.env.example
+
+# SQLite 개발 DB — 마이그레이션 + 시드로 언제든 재생성된다. 커밋하지 않는다.
+prisma/*.db
+prisma/*.db-journal
+prisma/*.db-shm
+prisma/*.db-wal
+
+# 테스트 DB
+prisma/test.db*
+
+# typescript
+*.tsbuildinfo
+
+# 로그
+*.log

@@ -2665,7 +2665,11 @@ git commit -m "feat(frontend): add notification feature and drop useNotification
 작은 슬라이스 4개를 한 Task로 묶는다. 각자 파일 2~3개 규모이고 서로 의존하지 않아 리뷰어가 함께 판단할 수 있다.
 
 **Files:**
-- Move: `src/store/useFavoritesStore.ts` → `src/features/favorites/stores/useFavoritesStore.ts` (**Zustand 유지** — 서버 상태가 아니다)
+- Move: `src/store/useFavoritesStore.ts` → `src/features/favorites/stores/useFavoritesStore.ts`
+
+> **전제 변경 (2026-08-12).** 이 Task 초안은 "찜은 서버 상태가 아니므로 Zustand 에 그대로 둔다"고 썼다. **틀렸다.** 찜이 계정과 무관해서 A 계정으로 찜한 것이 B 계정에 보이는 것이 확인된 결함이고(`docs/features/known-issues.md`), 이를 고치려면 찜은 `(userId, hospitalId)` 로 서버에 저장되어야 한다 — 즉 **서버 상태가 되고 TanStack Query 가 관리해야 한다.** `docs/api/openapi.yaml` 의 `GET/PUT/DELETE /me/favorites` 가 그 자리다.
+>
+> 따라서 이 Task 는 Zustand 스토어를 유지하는 것이 아니라 **제거**하는 방향이며, 백엔드 favorites 엔드포인트가 준비된 뒤에 실행한다. 낙관적 업데이트(하트를 눌렀을 때 즉시 반응)는 Query 의 `onMutate` 로 처리한다.
 - Create: `src/features/favorites/hooks/useFavorites.ts` + `.test.ts`
 - Create: `src/features/search/hooks/useSearch.ts` + `.test.ts`
 - Move: `src/components/SearchBar.tsx` → `src/features/search/components/SearchBar.tsx`

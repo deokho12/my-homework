@@ -1,0 +1,33 @@
+{
+  // 시드 스크립트 전용 tsconfig.
+  //
+  // 시드는 `frontend/src/mocks/fixtures/*.ts` 를 **직접 import** 한다
+  // (docs/database/README.md §8.1 원칙 3 — "fixture 를 손으로 옮겨 적지 않는다").
+  // fixture 들이 `@/config/stockImages`, `@/types/domain` 을 참조하므로
+  // 그 별칭을 프론트엔드 소스로 매핑해 준다.
+  //
+  // 이 매핑을 backend/tsconfig.json 에 넣지 않은 이유: 서버 코드가 프론트엔드
+  // 소스를 import 할 수 있게 되면 안 된다. 시드만 예외다.
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "types": ["node"],
+
+    "noEmit": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["../../frontend/src/*"]
+    }
+  },
+  "include": ["seed.ts", "seed/**/*.ts", "../../frontend/src/mocks/fixtures/**/*.ts"]
+}
