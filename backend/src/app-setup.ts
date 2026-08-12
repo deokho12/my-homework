@@ -19,9 +19,14 @@ export function configureApp(app: INestApplication): void {
   // 요청 id 는 예외 필터보다 먼저 붙어야 한다 (에러 본문이 이 값을 쓴다)
   app.use(requestIdMiddleware);
 
-  // 모든 라우트에 /api 접두어. 프론트엔드는 VITE_API_BASE_URL 로 이 경로를 가리킨다.
-  // 헬스체크는 예외로 둔다 — 모니터링/컨테이너 프로브가 접두어를 알 필요가 없다.
-  app.setGlobalPrefix('api', { exclude: ['health'] });
+  // 모든 라우트에 `/api/v1` 접두어. `docs/api/openapi.yaml` 의 `servers` 와 같은 값이고,
+  // 프론트엔드는 `VITE_API_BASE_URL` 로, Flutter 앱은 같은 base URL 로 이 경로를 가리킨다.
+  // 버전을 경로에 둔 이유: 클라이언트가 웹 하나가 아니라(모바일 앱이 붙는다) 구버전 앱을
+  // 살려 두면서 응답 형태를 바꿀 방법이 필요하다.
+  //
+  // 헬스체크는 예외로 둔다 — 로드밸런서·컨테이너 프로브가 접두어도 **버전도** 알 필요가
+  // 없어야 한다. `/api/v2` 를 붙이는 날 프로브 설정을 함께 고치는 상황을 만들지 않는다.
+  app.setGlobalPrefix('api/v1', { exclude: ['health'] });
 
   app.useGlobalFilters(new AllExceptionsFilter());
 }

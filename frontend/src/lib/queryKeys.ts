@@ -27,4 +27,8 @@ export const queryKeys = {
     all: ['notifications'] as const,
     byAudience: (audience: NotificationAudience) => ['notifications', audience] as const,
   },
+  legalDocuments: {
+    /** 회원가입 동의에 실을 현재 약관 버전 3개. */
+    agreementVersions: ['legalDocuments', 'agreementVersions'] as const,
+  },
 } as const;

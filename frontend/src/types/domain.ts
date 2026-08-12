@@ -186,11 +186,31 @@ export interface QAPost {
 
 export type AuthProvider = 'email' | 'google' | 'kakao';
 
+/**
+ * 역할 3개. `docs/decisions/0001-roles-and-pii.md` 결정 1 이며 백엔드
+ * `auth.types.ts` 의 `USER_ROLES` 와 같다. 누적형이다 — `hospital_admin` 은
+ * 일반 사용자가 할 수 있는 것을 모두 할 수 있다.
+ */
+export type UserRole = 'user' | 'hospital_admin' | 'operator';
+
+export const USER_ROLES: UserRole[] = ['user', 'hospital_admin', 'operator'];
+
+export function isUserRole(value: unknown): value is UserRole {
+  return typeof value === 'string' && (USER_ROLES as string[]).includes(value);
+}
+
 export interface User {
   id: string;
   email: string;
   name: string;
   provider: AuthProvider;
+  /** 화면 가드의 근거. 클라이언트 추측이 아니라 `GET /auth/me` 응답에서 온다. */
+  role: UserRole;
+  /**
+   * `hospital_admin` 의 담당 병원. 다른 역할은 빈 배열이다.
+   * JWT 클레임이 아니라 매 `GET /auth/me` 응답에서 온다 (담당 해제가 즉시 반영되도록).
+   */
+  managedHospitalIds: string[];
 }
 
 export type ConsultStatus = 'new' | 'contacted' | 'booked' | 'cancelled';

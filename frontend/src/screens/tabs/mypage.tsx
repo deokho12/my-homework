@@ -6,6 +6,7 @@ import { SafeAreaView } from '@/primitives';
 
 import { HospitalCard } from '@/features/hospital/components/HospitalCard';
 import { PrimaryButton } from '@/components/PrimaryButton';
+import { useSession } from '@/features/auth/hooks/useSession';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useFavoritesStore } from '@/store/useFavoritesStore';
 import { getHospitalById } from '@/store/useHospitalStore';
@@ -51,7 +52,15 @@ function AuthCard() {
         onPress={() =>
           showAlert('로그아웃', '로그아웃할까요?', [
             { text: '취소', style: 'cancel' },
-            { text: '로그아웃', style: 'destructive', onPress: logOut },
+            {
+              text: '로그아웃',
+              style: 'destructive',
+              // 서버 세션 폐기(`POST /auth/logout`)를 기다리지 않고 화면은 즉시 반응한다 —
+              // 로컬 상태는 스토어가 성공·실패와 무관하게 비운다.
+              onPress: () => {
+                void logOut();
+              },
+            },
           ])
         }
         className="items-center rounded-xl border border-neutral-200 py-3"
@@ -89,7 +98,7 @@ function NotificationLinkRow() {
 }
 
 export default function MyPageScreen() {
-  const user = useAuthStore((state) => state.user);
+  const { user, isHospitalAdmin } = useSession();
   const hospitalIds = useFavoritesStore((state) => state.hospitalIds);
   const favoriteHospitals = hospitalIds
     .map((id) => getHospitalById(id))
@@ -137,9 +146,13 @@ export default function MyPageScreen() {
           ) : null
         }
         ListFooterComponent={
-          <Pressable onPress={() => router.push('/admin')} className="mt-6 items-center py-4">
-            <Text className="text-xs text-neutral-400 underline">병원 담당자이신가요? 관리자 페이지</Text>
-          </Pressable>
+          // 권한이 있는 계정에만 보여준다. 예전에는 로그인 여부와 무관하게 노출되어
+          // 우연히 관리자 화면에 들어가는 경로가 됐다 (`docs/features/known-issues.md` 🔴).
+          isHospitalAdmin ? (
+            <Pressable onPress={() => router.push('/admin')} className="mt-6 items-center py-4">
+              <Text className="text-xs text-neutral-400 underline">관리자 페이지</Text>
+            </Pressable>
+          ) : null
         }
       />
     </SafeAreaView>

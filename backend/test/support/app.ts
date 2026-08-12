@@ -72,7 +72,7 @@ export interface Session {
 /** 시드 계정으로 로그인해 세션을 얻는다. 실패하면 원인이 보이게 응답을 그대로 던진다. */
 export async function logIn(app: INestApplication, email: string): Promise<Session> {
   const response = await request(app.getHttpServer())
-    .post('/api/auth/login')
+    .post('/api/v1/auth/login')
     .send({ email, password: seedPassword() });
 
   if (response.status !== 200) {

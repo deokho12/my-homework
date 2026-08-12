@@ -36,7 +36,7 @@ describe('가입 시 약관 동의 (e2e)', () => {
 
   /** supertest 의 Test 를 그대로 돌려준다 (`.expect(...)` 를 이어 쓰기 위해 async 가 아니다) */
   function signUp(body: Record<string, unknown>): request.Test {
-    return request(app.getHttpServer()).post('/api/auth/signup').send(body);
+    return request(app.getHttpServer()).post('/api/v1/auth/signup').send(body);
   }
 
   beforeAll(async () => {

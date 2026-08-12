@@ -21,7 +21,7 @@ describe('GET /health (e2e)', () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
 
     app = moduleRef.createNestApplication();
-    // main.ts 와 **같은 설정**을 쓴다 (/api 접두어 + health 제외, 요청 id, 예외 필터)
+    // main.ts 와 **같은 설정**을 쓴다 (/api/v1 접두어 + health 제외, 요청 id, 예외 필터)
     configureApp(app);
     await app.init();
   });
@@ -50,6 +50,14 @@ describe('GET /health (e2e)', () => {
 
     expect(actual).toBeGreaterThan(0);
     expect(response.body.database.procedureCount).toBe(actual);
+  });
+
+  it('★ 버전 접두어 밖에 있다 — /health 만 응답하고 /api/v1/health 는 404 다', async () => {
+    // 로드밸런서·컨테이너 프로브가 버전 경로를 몰라야 한다. 접두어를 `api` → `api/v1` 로
+    // 올릴 때 이 예외가 함께 딸려 올라가면 프로브가 조용히 죽는다.
+    await request(app.getHttpServer()).get('/health').expect(200);
+    await request(app.getHttpServer()).get('/api/v1/health').expect(404);
+    await request(app.getHttpServer()).get('/api/health').expect(404);
   });
 
   it('DB 를 읽을 수 없으면 503 과 status:error 를 준다', async () => {

@@ -4,7 +4,10 @@ import { BrowserRouter, Outlet, Route, Routes, useLocation } from 'react-router-
 import { AppHeader } from '@/components/AppHeader';
 import { BottomTabBar } from '@/components/BottomTabBar';
 import { TopNavBar } from '@/components/TopNavBar';
+import { RequireAuth } from '@/features/auth/components/RequireAuth';
+import { SessionWatcher } from '@/features/auth/components/SessionWatcher';
 import { useIsWideWeb } from '@/hooks/useIsWideWeb';
+import type { UserRole } from '@/types/domain';
 import {
   RouterBridge,
   ScreenOptionsProvider,
@@ -41,11 +44,32 @@ import HomeScreen from '@/screens/tabs/index';
 import MyPageScreen from '@/screens/tabs/mypage';
 import TipDetailScreen from '@/screens/tips/[id]';
 
+/**
+ * 라우트 진입 자격.
+ *
+ * - `auth` — 로그인만 필요 (역할 무관)
+ * - `admin` — `hospital_admin` 또는 `operator`
+ * - `operator` — 운영자 전용. 병원 생성과 전문의 인증 검수는 병원 담당자가 할 수 없다
+ *   (`docs/decisions/0001-roles-and-pii.md` 결정 1·2)
+ */
+type RouteGuard = 'auth' | 'admin' | 'operator';
+
+const GUARD_ROLES: Record<RouteGuard, readonly UserRole[] | undefined> = {
+  auth: undefined,
+  admin: ['hospital_admin', 'operator'],
+  operator: ['operator'],
+};
+
 interface AppRoute {
   path: string;
   element: ReactNode;
   options: ScreenOptions;
   isTab?: boolean;
+  /**
+   * 없으면 공개 라우트다. **`/admin` 으로 시작하는 라우트에는 반드시 있어야 한다** —
+   * 없으면 주소만 아는 누구나 고객 실명·전화번호를 본다 (`docs/features/known-issues.md` 🔴).
+   */
+  guard?: RouteGuard;
 }
 
 /**
@@ -67,23 +91,57 @@ const ROUTES: AppRoute[] = [
   { path: '/community/new', element: <CommunityNewScreen />, options: { title: '질문하기' } },
   { path: '/community/:id', element: <CommunityPostScreen />, options: { title: '질문 상세' } },
 
-  { path: '/consult/:hospitalId', element: <ConsultRequestScreen />, options: { title: '상담 신청' } },
+  {
+    path: '/consult/:hospitalId',
+    element: <ConsultRequestScreen />,
+    options: { title: '상담 신청' },
+    guard: 'auth',
+  },
   { path: '/auth/login', element: <LoginScreen />, options: { title: '로그인' } },
   { path: '/auth/signup', element: <SignupScreen />, options: { title: '회원가입' } },
 
-  { path: '/admin', element: <AdminHomeScreen />, options: { title: '병원 관리자' } },
-  { path: '/admin/hospital/new', element: <AdminHospitalNewScreen />, options: { title: '병원 등록' } },
-  { path: '/admin/hospital/:id', element: <AdminHospitalEditScreen />, options: { title: '병원 정보 수정' } },
-  { path: '/admin/specialists', element: <AdminSpecialistsScreen />, options: { title: '전문의 인증 검수' } },
-  { path: '/admin/consultations', element: <AdminConsultationsScreen />, options: { title: '상담 관리' } },
+  { path: '/admin', element: <AdminHomeScreen />, options: { title: '병원 관리자' }, guard: 'admin' },
+  {
+    path: '/admin/hospital/new',
+    element: <AdminHospitalNewScreen />,
+    options: { title: '병원 등록' },
+    // 병원 생성은 운영자만 한다. 입점 심사가 선행되며, 아무나 병원을 만들 수 없다.
+    guard: 'operator',
+  },
+  {
+    path: '/admin/hospital/:id',
+    element: <AdminHospitalEditScreen />,
+    options: { title: '병원 정보 수정' },
+    guard: 'admin',
+  },
+  {
+    path: '/admin/specialists',
+    element: <AdminSpecialistsScreen />,
+    options: { title: '전문의 인증 검수' },
+    // 전문의 인증 검수는 플랫폼의 판정이다. 병원 담당자에게 열면 자기 병원 전문의를
+    // 스스로 승인할 수 있게 된다.
+    guard: 'operator',
+  },
+  {
+    path: '/admin/consultations',
+    element: <AdminConsultationsScreen />,
+    options: { title: '상담 관리' },
+    guard: 'admin',
+  },
   {
     path: '/admin/consultations/:id',
     element: <AdminConsultationDetailScreen />,
     options: { title: '상담 상세' },
+    guard: 'admin',
   },
-  { path: '/admin/notifications', element: <AdminNotificationsScreen />, options: { title: '알림' } },
+  {
+    path: '/admin/notifications',
+    element: <AdminNotificationsScreen />,
+    options: { title: '알림' },
+    guard: 'admin',
+  },
 
-  { path: '/notifications', element: <NotificationsScreen />, options: { title: '알림' } },
+  { path: '/notifications', element: <NotificationsScreen />, options: { title: '알림' }, guard: 'auth' },
   { path: '/search', element: <SearchScreen />, options: { headerShown: false } },
 
   { path: '/legal/terms', element: <TermsScreen />, options: { title: '서비스 이용약관' } },
@@ -143,14 +201,22 @@ function ScreenShell({ options }: { options: ScreenOptions }) {
   );
 }
 
+/** 가드가 붙은 라우트는 자격을 통과할 때만 화면을 렌더한다. */
+function withGuard(element: ReactNode, guard: RouteGuard | undefined) {
+  if (!guard) return element;
+
+  return <RequireAuth roles={GUARD_ROLES[guard]}>{element}</RequireAuth>;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
       <RouterBridge />
+      <SessionWatcher />
       <Routes>
         {ROUTES.map((route) => (
           <Route key={route.path} element={<ScreenShell options={route.options} />}>
-            <Route path={route.path} element={route.element} />
+            <Route path={route.path} element={withGuard(route.element, route.guard)} />
           </Route>
         ))}
         <Route element={<ScreenShell options={{ title: '' }} />}>

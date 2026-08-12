@@ -43,11 +43,11 @@ async function bootstrap(): Promise<void> {
 
   const logger = new Logger('GuardTestServer');
   logger.warn(`인가 수동 확인용 서버 — http://localhost:${port} (테스트 전용 라우트 포함)`);
-  logger.log(`  GET   /api/test-guards/authenticated`);
-  logger.log(`  GET   /api/test-guards/doctor-verification-queue        (operator)`);
-  logger.log(`  PATCH /api/test-guards/hospitals/:hospitalId            (hospital_admin, operator)`);
-  logger.log(`  GET   /api/test-guards/consult-requests/:id             (hospital_admin, operator)`);
-  logger.log(`  PATCH /api/test-guards/consult-requests/:id/status      (hospital_admin)`);
+  logger.log(`  GET   /api/v1/test-guards/authenticated`);
+  logger.log(`  GET   /api/v1/test-guards/doctor-verification-queue        (operator)`);
+  logger.log(`  PATCH /api/v1/test-guards/hospitals/:hospitalId            (hospital_admin, operator)`);
+  logger.log(`  GET   /api/v1/test-guards/consult-requests/:id             (hospital_admin, operator)`);
+  logger.log(`  PATCH /api/v1/test-guards/consult-requests/:id/status      (hospital_admin)`);
 }
 
 void bootstrap();

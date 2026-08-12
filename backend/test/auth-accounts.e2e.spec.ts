@@ -40,10 +40,10 @@ describe('가입·로그인 (e2e)', () => {
   // ===========================================================================
   // 회원가입
   // ===========================================================================
-  describe('POST /api/auth/signup', () => {
+  describe('POST /api/v1/auth/signup', () => {
     it('201 + AuthSession. 역할은 항상 user 다', async () => {
       const response = await request(app.getHttpServer())
-        .post('/api/auth/signup')
+        .post('/api/v1/auth/signup')
         .send({ name: '  가입 테스트  ', email: `  ${email('Signup-Ok').toUpperCase()}  `, password: 'molamola1' })
         .expect(201);
 
@@ -62,12 +62,12 @@ describe('가입·로그인 (e2e)', () => {
 
     it('가입 응답의 토큰으로 곧바로 /auth/me 가 된다 (가입 즉시 로그인 상태)', async () => {
       const signUp = await request(app.getHttpServer())
-        .post('/api/auth/signup')
+        .post('/api/v1/auth/signup')
         .send({ name: '즉시로그인', email: email('signup-session'), password: 'molamola1' })
         .expect(201);
 
       const me = await request(app.getHttpServer())
-        .get('/api/auth/me')
+        .get('/api/v1/auth/me')
         .set('Authorization', bearer(signUp.body.tokens.accessToken))
         .expect(200);
 
@@ -76,7 +76,7 @@ describe('가입·로그인 (e2e)', () => {
 
     it('비밀번호는 bcrypt(cost 12) 해시로만 저장된다 — 평문 컬럼이 없다', async () => {
       await request(app.getHttpServer())
-        .post('/api/auth/signup')
+        .post('/api/v1/auth/signup')
         .send({ name: '해시확인', email: email('signup-hash'), password: 'molamola1' })
         .expect(201);
 
@@ -90,12 +90,12 @@ describe('가입·로그인 (e2e)', () => {
 
     it('중복 이메일은 409 EMAIL_ALREADY_REGISTERED (대소문자·공백을 무시하고 같은 계정으로 본다)', async () => {
       await request(app.getHttpServer())
-        .post('/api/auth/signup')
+        .post('/api/v1/auth/signup')
         .send({ name: '중복', email: email('signup-dup'), password: 'molamola1' })
         .expect(201);
 
       const response = await request(app.getHttpServer())
-        .post('/api/auth/signup')
+        .post('/api/v1/auth/signup')
         .send({ name: '중복2', email: ` ${email('Signup-Dup').toUpperCase()} `, password: 'molamola1' })
         .expect(409);
 
@@ -105,7 +105,7 @@ describe('가입·로그인 (e2e)', () => {
 
     it('형식 위반은 422 VALIDATION_FAILED + 필드별 details', async () => {
       const response = await request(app.getHttpServer())
-        .post('/api/auth/signup')
+        .post('/api/v1/auth/signup')
         .send({ name: '   ', email: 'at-기호가-없다', password: '12345' })
         .expect(422);
 
@@ -126,7 +126,7 @@ describe('가입·로그인 (e2e)', () => {
       // strict 스키마라 알 수 없는 키는 422 로 거절된다. "조용히 무시" 보다 낫다 —
       // 클라이언트가 보낸 값이 반영됐다고 착각하지 않는다.
       const response = await request(app.getHttpServer())
-        .post('/api/auth/signup')
+        .post('/api/v1/auth/signup')
         .send({
           name: '승격시도',
           email: email('signup-escalate'),
@@ -141,7 +141,7 @@ describe('가입·로그인 (e2e)', () => {
 
     it('본문이 JSON 이 아니면 400 MALFORMED_REQUEST (422 가 아니다)', async () => {
       const response = await request(app.getHttpServer())
-        .post('/api/auth/signup')
+        .post('/api/v1/auth/signup')
         .set('Content-Type', 'application/json')
         .send('{"name": "깨진 JSON"')
         .expect(400);
@@ -153,7 +153,7 @@ describe('가입·로그인 (e2e)', () => {
     });
 
     it('없는 경로는 404 + 한국어 문구다 (Nest 기본 영어 문구가 새지 않는다)', async () => {
-      const response = await request(app.getHttpServer()).post('/api/auth/nope').send({}).expect(404);
+      const response = await request(app.getHttpServer()).post('/api/v1/auth/nope').send({}).expect(404);
 
       expect(response.body.error.code).toBe('NOT_FOUND');
       expect(response.body.error.message).toBe('요청한 경로를 찾을 수 없어요');
@@ -164,10 +164,10 @@ describe('가입·로그인 (e2e)', () => {
   // ===========================================================================
   // 로그인 — 계정 열거 방지가 핵심이다
   // ===========================================================================
-  describe('POST /api/auth/login', () => {
+  describe('POST /api/v1/auth/login', () => {
     it('시드 계정으로 200 + 역할·담당 병원이 실린다', async () => {
       const response = await request(app.getHttpServer())
-        .post('/api/auth/login')
+        .post('/api/v1/auth/login')
         .send({ email: SEED_ACCOUNTS.adminH1, password: seedPassword() })
         .expect(200);
 
@@ -181,18 +181,18 @@ describe('가입·로그인 (e2e)', () => {
 
     it('이메일 대소문자·앞뒤 공백은 무시한다', async () => {
       await request(app.getHttpServer())
-        .post('/api/auth/login')
+        .post('/api/v1/auth/login')
         .send({ email: `  ${SEED_ACCOUNTS.user.toUpperCase()} `, password: seedPassword() })
         .expect(200);
     });
 
     it('★ 계정 없음과 비밀번호 틀림이 구분되지 않는다 (코드·문구·본문이 모두 같다)', async () => {
       const unknownAccount = await request(app.getHttpServer())
-        .post('/api/auth/login')
+        .post('/api/v1/auth/login')
         .send({ email: email('never-registered'), password: seedPassword() });
 
       const wrongPassword = await request(app.getHttpServer())
-        .post('/api/auth/login')
+        .post('/api/v1/auth/login')
         .send({ email: SEED_ACCOUNTS.user, password: '틀린비밀번호' });
 
       expect(unknownAccount.status).toBe(401);
@@ -209,11 +209,11 @@ describe('가입·로그인 (e2e)', () => {
 
     it('비밀번호는 대소문자·공백을 구분한다', async () => {
       await request(app.getHttpServer())
-        .post('/api/auth/login')
+        .post('/api/v1/auth/login')
         .send({ email: SEED_ACCOUNTS.user, password: ` ${seedPassword()}` })
         .expect(401);
       await request(app.getHttpServer())
-        .post('/api/auth/login')
+        .post('/api/v1/auth/login')
         .send({ email: SEED_ACCOUNTS.user, password: seedPassword().toUpperCase() })
         .expect(401);
     });
@@ -222,7 +222,7 @@ describe('가입·로그인 (e2e)', () => {
       // 422 로 갈라지면 "짧은 비밀번호를 쓰는 계정" 여부가 새고,
       // 규칙이 바뀌기 전 계정이 로그인 자체를 못 하게 된다.
       const response = await request(app.getHttpServer())
-        .post('/api/auth/login')
+        .post('/api/v1/auth/login')
         .send({ email: SEED_ACCOUNTS.user, password: '1' })
         .expect(401);
 
@@ -231,7 +231,7 @@ describe('가입·로그인 (e2e)', () => {
 
     it('탈퇴(soft delete) 계정은 계정 없음과 같은 401 이다', async () => {
       await request(app.getHttpServer())
-        .post('/api/auth/signup')
+        .post('/api/v1/auth/signup')
         .send({ name: '탈퇴예정', email: email('deleted'), password: 'molamola1' })
         .expect(201);
 
@@ -241,7 +241,7 @@ describe('가입·로그인 (e2e)', () => {
       });
 
       const response = await request(app.getHttpServer())
-        .post('/api/auth/login')
+        .post('/api/v1/auth/login')
         .send({ email: email('deleted'), password: 'molamola1' })
         .expect(401);
 
@@ -264,7 +264,7 @@ describe('가입·로그인 (e2e)', () => {
 
       for (const password of ['', ' ', 'molamola1', 'null', 'undefined']) {
         const response = await request(app.getHttpServer())
-          .post('/api/auth/login')
+          .post('/api/v1/auth/login')
           .send({ email: email('social'), password });
 
         expect(response.status).toBe(password === '' ? 422 : 401);
@@ -279,17 +279,17 @@ describe('가입·로그인 (e2e)', () => {
     it('signup / login / me 본문에 password·passwordHash 문자열이 없다', async () => {
       const password = 'molamola1';
       const signUp = await request(app.getHttpServer())
-        .post('/api/auth/signup')
+        .post('/api/v1/auth/signup')
         .send({ name: '노출확인', email: email('no-leak'), password })
         .expect(201);
 
       const logInResponse = await request(app.getHttpServer())
-        .post('/api/auth/login')
+        .post('/api/v1/auth/login')
         .send({ email: email('no-leak'), password })
         .expect(200);
 
       const me = await request(app.getHttpServer())
-        .get('/api/auth/me')
+        .get('/api/v1/auth/me')
         .set('Authorization', bearer(logInResponse.body.tokens.accessToken))
         .expect(200);
 
@@ -312,7 +312,7 @@ describe('가입·로그인 (e2e)', () => {
 
     it('로그인 실패 응답에도 해시가 실리지 않는다', async () => {
       const response = await request(app.getHttpServer())
-        .post('/api/auth/login')
+        .post('/api/v1/auth/login')
         .send({ email: SEED_ACCOUNTS.user, password: '틀린비밀번호' })
         .expect(401);
 
@@ -321,12 +321,12 @@ describe('가입·로그인 (e2e)', () => {
     });
   });
 
-  describe('GET /api/auth/me', () => {
+  describe('GET /api/v1/auth/me', () => {
     it('가입한 계정의 정보를 그대로 돌려준다', async () => {
       const session = await logIn(app, SEED_ACCOUNTS.operator);
 
       const response = await request(app.getHttpServer())
-        .get('/api/auth/me')
+        .get('/api/v1/auth/me')
         .set('Authorization', bearer(session.accessToken))
         .expect(200);
 

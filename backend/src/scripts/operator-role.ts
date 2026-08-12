@@ -4,11 +4,20 @@
  * =============================================================================
  *
  * ```bash
- * npm run operator:grant  -- ops@molarmolar.example
- * npm run operator:revoke -- ops@molarmolar.example
- * npm run operator:revoke -- ops@molarmolar.example --force   # 마지막 운영자까지 회수
- * npm run operator:grant  -- new@x.example --actor=ops@molarmolar.example  # 감사 로그 기록
+ * npm run operator:grant  -- new@x.example    --actor=me@molarmolar.example
+ * npm run operator:revoke -- ops@x.example    --actor=me@molarmolar.example
+ * npm run operator:revoke -- ops@x.example    --actor=me@molarmolar.example --force  # 마지막 운영자까지
  * ```
+ *
+ * **`--actor` 는 필수다.** 운영자 승격은 이 시스템의 최고 권한 행위이므로, 기록 없이
+ * 성공할 수 있으면 감사가 막으려던 상태 그 자체가 된다. `audit_logs.actor_user_id` 가
+ * NOT NULL + FK 라서 OS 사용자를 행위자로 넣을 수 없고, 그래서 실행하는 직원이 자기
+ * 계정 이메일을 넘겨야 한다. **운영자일 필요는 없다** — 아무 `users` 행이면 되므로
+ * 부트스트랩(운영자가 아직 0명)에서도 실행할 수 있다. `.env` 기본값으로 우회할 수
+ * 있게 두지 않은 것도 같은 이유다(기본값이 있으면 필수의 의미가 없다).
+ *
+ * OS 사용자·호스트는 `audit_logs.user_agent` 에 `cli:operator-role os=user@host` 로 함께
+ * 남는다. 둘이 있으면 "누구 계정으로, 어느 머신에서" 가 남는다.
  *
  * **`refresh_tokens` 가 DB 로 옮겨져서 이 CLI 가 세션을 끊을 수 있게 됐다.** 역할을 바꾸면
  * 그 계정의 활성 리프레시 토큰을 같은 트랜잭션에서 폐기한다 (docs/api/README.md §3 의
@@ -50,14 +59,15 @@ const prisma = new PrismaClient();
 function usage(): string {
   return [
     '사용법:',
-    '  npm run operator:grant  -- <email> [--actor=<email>]',
-    '  npm run operator:revoke -- <email> [--force] [--actor=<email>]',
+    '  npm run operator:grant  -- <email> --actor=<email>',
+    '  npm run operator:revoke -- <email> --actor=<email> [--force]',
     '',
     '  <email>          이미 가입된 계정의 이메일 (대소문자·공백 무시)',
+    '  --actor=<email>  ★ 필수. 이 작업을 실행하는 사람의 계정 이메일입니다.',
+    '                   audit_logs 의 행위자로 남습니다 (actor_user_id 가 NOT NULL + FK 라서',
+    '                   OS 사용자로는 기록할 수 없습니다). operator 일 필요는 없고 가입된',
+    '                   계정이면 됩니다 — 운영자가 0명인 부트스트랩에서도 실행됩니다.',
     '  --force          revoke 전용. 마지막 운영자를 회수할 때 필요합니다',
-    '  --actor=<email>  이 작업을 지시한 계정. 주면 audit_logs 에 기록됩니다',
-    '                   (audit_logs.actor_user_id 가 NOT NULL + FK 라서 OS 사용자로는',
-    '                    기록할 수 없습니다 — 보고서 참고)',
   ].join('\n');
 }
 
@@ -66,11 +76,20 @@ function osActor(): string {
   return `${os.userInfo().username}@${os.hostname()}`;
 }
 
-/** 감사 기록 한 줄 (stdout). DB 기록과 **함께** 남긴다 — 아래 주석 참고. */
-function auditLine(action: string, target: { id: string; email: string }, extra?: string): string {
+/**
+ * 감사 기록 한 줄 (stdout). DB 기록과 **함께** 남긴다 — `audit_logs` 는 DB 를 읽을 수 있는
+ * 사람만 보고, 이 줄은 CI/셸 로그·터미널 기록에 남아서 두 경로가 서로를 검증한다.
+ */
+function auditLine(
+  action: string,
+  target: { id: string; email: string },
+  actor: { email: string },
+  extra?: string,
+): string {
   return (
     `[AUDIT] ${new Date().toISOString()} action=${action} ` +
-    `actor_os_user=${osActor()} target_user_id=${target.id} target_email=${target.email}` +
+    `actor=${actor.email} actor_os_user=${osActor()} ` +
+    `target_user_id=${target.id} target_email=${target.email}` +
     (extra ? ` ${extra}` : '')
   );
 }
@@ -83,18 +102,22 @@ function toRole(value: string): UserRole {
   return isUserRole(value) ? value : 'user';
 }
 
-/** `--actor=<email>` 로 지정된 행위자. 없으면 null (그러면 DB 감사 기록을 남기지 않는다). */
+/**
+ * `--actor=<email>` 로 지정된 행위자 — `audit_logs.actor_user_id` 에 들어갈 실제 계정이다.
+ * 필수 인자이므로 `null` 인 상태는 존재하지 않는다.
+ */
 interface AuditActor {
   id: string;
   email: string;
   role: UserRole;
 }
 
-async function resolveActor(email: string | undefined): Promise<AuditActor | null | 'not-found'> {
-  if (!email) {
-    return null;
-  }
-
+/**
+ * 행위자를 찾는다. **역할을 검사하지 않는다** — 운영자가 0명인 부트스트랩에서도 실행되어야
+ * 하고, 어차피 이 CLI 를 돌릴 수 있는 사람은 이미 DB 자격증명을 가진 사람이다. 여기서
+ * 얻는 것은 권한 판정이 아니라 "누가 지시했는가" 의 식별자다.
+ */
+async function resolveActor(email: string): Promise<AuditActor | 'not-found'> {
   const row = await prisma.user.findUnique({
     where: { email: normalizeEmail(email) },
     select: { id: true, email: true, role: true, deletedAt: true },
@@ -109,19 +132,19 @@ async function resolveActor(email: string | undefined): Promise<AuditActor | nul
 
 /**
  * 역할 변경을 **한 트랜잭션**으로 처리한다: `users.role` UPDATE + 활성 리프레시 토큰 폐기
- * + (행위자가 주어졌으면) `audit_logs` INSERT.
+ * + `audit_logs` INSERT.
  *
  * 감사 쓰기를 같은 트랜잭션에 넣은 이유는 `AuditLogService` 의 정책과 같다 — 이 행위의
  * `pii_masked` 는 `false`(대상 계정의 이메일·이름을 봤다)이고, 기록되지 않은 권한 변경은
- * 허용하지 않는다. 실패하면 역할 변경도 함께 롤백된다.
+ * 허용하지 않는다. 실패하면 역할 변경도 함께 롤백된다(부분 적용이 없다).
  */
 async function applyRoleChange(input: {
   target: { id: string; email: string };
   fromRole: UserRole;
   toRole: UserRole;
   action: AuditAction;
-  actor: AuditActor | null;
-}): Promise<{ revokedSessions: number; auditLogId: string | null }> {
+  actor: AuditActor;
+}): Promise<{ revokedSessions: number; auditLogId: string }> {
   const now = new Date();
 
   return prisma.$transaction(async (tx) => {
@@ -131,44 +154,37 @@ async function applyRoleChange(input: {
     // 액세스 토큰은 무상태 검증이라 만료(최대 15분)까지 옛 역할로 남는다.
     const revokedSessions = await revokeActiveRefreshTokens(tx, input.target.id, now);
 
-    const auditLogId = input.actor
-      ? await insertAuditLog(
-          tx,
-          {
-            actorUserId: input.actor.id,
-            // 행위 시점의 역할 스냅샷 (users.role 을 나중에 조인하지 않는다)
-            actorRole: input.actor.role,
-            action: input.action,
-            targetType: 'user',
-            targetId: input.target.id,
-            hospitalId: null,
-            // 대상 계정의 이메일·이름을 마스킹 없이 보고 실행한다 (§11.2 의 hospital_admin.assign 과 같은 판단)
-            piiMasked: false,
-            // HTTP 요청이 아니므로 requestId 를 만들어 넣는다. 접두어로 출처를 구분한다
-            requestId: `cli-${createId()}`,
-            ip: null,
-            // OS 사용자·호스트를 여기 남긴다. actor_user_id 만으로는 "어느 머신에서
-            // DB 자격증명으로 실행했는가" 가 남지 않는다
-            userAgent: `cli:operator-role os=${osActor()}`,
-            beforeValue: input.fromRole,
-            afterValue: input.toRole,
-          },
-          now,
-        )
-      : null;
+    const auditLogId = await insertAuditLog(
+      tx,
+      {
+        actorUserId: input.actor.id,
+        // 행위 시점의 역할 스냅샷 (users.role 을 나중에 조인하지 않는다)
+        actorRole: input.actor.role,
+        action: input.action,
+        targetType: 'user',
+        targetId: input.target.id,
+        hospitalId: null,
+        // 대상 계정의 이메일·이름을 마스킹 없이 보고 실행한다 (§11.2 의 hospital_admin.assign 과 같은 판단)
+        piiMasked: false,
+        // HTTP 요청이 아니므로 requestId 를 만들어 넣는다. 접두어로 출처를 구분한다
+        requestId: `cli-${createId()}`,
+        ip: null,
+        // OS 사용자·호스트를 여기 남긴다. actor_user_id 만으로는 "어느 머신에서
+        // DB 자격증명으로 실행했는가" 가 남지 않는다
+        userAgent: `cli:operator-role os=${osActor()}`,
+        beforeValue: input.fromRole,
+        afterValue: input.toRole,
+      },
+      now,
+    );
 
     return { revokedSessions, auditLogId };
   });
 }
 
 /** 감사·세션 처리 결과를 stdout 으로 알린다. */
-function reportSideEffects(result: { revokedSessions: number; auditLogId: string | null }): void {
-  if (result.auditLogId) {
-    console.log(`  audit_logs 에 기록했습니다 (id=${result.auditLogId}).`);
-  } else {
-    console.log('  ⚠ audit_logs 에는 기록하지 않았습니다 — --actor=<email> 을 주면 기록됩니다.');
-    console.log('    (actor_user_id 가 NOT NULL + FK 라서 OS 사용자를 행위자로 넣을 수 없습니다.)');
-  }
+function reportSideEffects(result: { revokedSessions: number; auditLogId: string }, actor: AuditActor): void {
+  console.log(`  audit_logs 에 기록했습니다 (id=${result.auditLogId}, actor=${actor.email}).`);
 
   console.log('');
 
@@ -181,7 +197,7 @@ function reportSideEffects(result: { revokedSessions: number; auditLogId: string
   }
 }
 
-async function grant(email: string, actor: AuditActor | null): Promise<number> {
+async function grant(email: string, actor: AuditActor): Promise<number> {
   const user = await prisma.user.findUnique({
     where: { email },
     select: { id: true, email: true, name: true, role: true, deletedAt: true },
@@ -217,7 +233,7 @@ async function grant(email: string, actor: AuditActor | null): Promise<number> {
   if (managed.length > 0) {
     console.error(`✗ '${email}' 는 병원 담당자입니다 (${managed.map((m) => m.hospitalId).join(', ')}).`);
     console.error('  운영자는 병원 담당자를 겸할 수 없습니다 — 자기 병원 전문의를 스스로 검수할 수 있게 됩니다.');
-    console.error('  먼저 담당을 해제하세요 (DELETE /api/hospitals/{id}/admins/{userId}).');
+    console.error('  먼저 담당을 해제하세요 (DELETE /api/v1/hospitals/{id}/admins/{userId}).');
 
     return 1;
   }
@@ -231,15 +247,15 @@ async function grant(email: string, actor: AuditActor | null): Promise<number> {
   });
 
   console.log(`✓ '${email}' (${user.name}) 의 역할을 ${user.role} → operator 로 올렸습니다.`);
-  // stdout 줄을 그대로 남긴다: DB 기록은 --actor 가 있어야 하고, 무엇보다 **어느 OS 사용자가
-  // 실행했는가** 는 audit_logs 의 어떤 컬럼도 1급으로 담지 않는다.
-  console.log(auditLine('user.role_grant_operator', user, `from_role=${user.role}`));
-  reportSideEffects(result);
+  // stdout 줄을 그대로 남긴다: **어느 OS 사용자가 실행했는가** 는 audit_logs 의 어떤 컬럼도
+  // 1급으로 담지 않고(user_agent 안의 문자열이다), 셸 로그는 DB 와 별개로 보존된다.
+  console.log(auditLine('user.role_grant_operator', user, actor, `from_role=${user.role}`));
+  reportSideEffects(result, actor);
 
   return 0;
 }
 
-async function revoke(email: string, force: boolean, actor: AuditActor | null): Promise<number> {
+async function revoke(email: string, force: boolean, actor: AuditActor): Promise<number> {
   const user = await prisma.user.findUnique({
     where: { email },
     select: { id: true, email: true, name: true, role: true },
@@ -278,14 +294,14 @@ async function revoke(email: string, force: boolean, actor: AuditActor | null): 
   });
 
   console.log(`✓ '${email}' (${user.name}) 의 역할을 operator → user 로 되돌렸습니다.`);
-  console.log(auditLine('user.role_revoke_operator', user, `remaining_operators=${operatorCount - 1}`));
+  console.log(auditLine('user.role_revoke_operator', user, actor, `remaining_operators=${operatorCount - 1}`));
 
   if (operatorCount - 1 === 0) {
     console.log('');
     console.log('  ⚠ 남은 운영자가 0명입니다. 운영자 전용 기능이 모두 멈춥니다.');
   }
 
-  reportSideEffects(result);
+  reportSideEffects(result, actor);
 
   return 0;
 }
@@ -311,12 +327,26 @@ async function main(): Promise<number> {
 
   const email = normalizeEmail(rawEmail);
   const force = rest.includes('--force');
-  const actorEmail = rest.find((arg) => arg.startsWith('--actor='))?.split('=')[1];
+  const actorEmail = rest.find((arg) => arg.startsWith('--actor='))?.slice('--actor='.length).trim();
+
+  // ★ --actor 는 필수다. 없으면 **DB 를 건드리기 전에** 멈춘다 — 운영자 승격이 기록 없이
+  //   성공하는 경로를 남기지 않는다. 환경변수 기본값으로 채우지 않는 것도 의도다.
+  if (!actorEmail) {
+    console.error('✗ --actor=<email> 은 필수입니다. 이 작업을 실행하는 사람의 계정 이메일을 주세요.\n');
+    console.error('  운영자 승격·회수는 이 시스템의 최고 권한 행위라서, 감사 기록 없이 성공할 수');
+    console.error('  없게 두었습니다 (audit_logs.actor_user_id 가 NOT NULL + FK 이고 OS 사용자로는');
+    console.error('  기록할 수 없습니다). 아무것도 바꾸지 않았습니다.\n');
+    console.error(usage());
+
+    return 2;
+  }
+
   const actor = await resolveActor(actorEmail);
 
   if (actor === 'not-found') {
-    console.error(`✗ --actor 로 준 '${actorEmail ?? ''}' 계정을 찾을 수 없습니다 (탈퇴 계정도 안 됩니다).`);
+    console.error(`✗ --actor 로 준 '${actorEmail}' 계정을 찾을 수 없습니다 (탈퇴 계정도 안 됩니다).`);
     console.error('  감사 기록의 행위자는 실제 계정이어야 합니다 (audit_logs.actor_user_id FK).');
+    console.error('  operator 일 필요는 없습니다 — 가입된 계정이면 됩니다. 아무것도 바꾸지 않았습니다.');
 
     return 1;
   }

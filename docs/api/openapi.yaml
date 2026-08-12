@@ -61,12 +61,12 @@ info:
     name: UNLICENSED
 
 servers:
-  - url: https://api.molamola.kr/v1
+  - url: https://api.molamola.kr/api/v1
     description: 운영
-  - url: https://api-staging.molamola.kr/v1
+  - url: https://api-staging.molamola.kr/api/v1
     description: 스테이징
-  - url: http://localhost:3000/v1
-    description: 로컬 (NestJS)
+  - url: http://localhost:3000/api/v1
+    description: 로컬 (NestJS). `GET /health` 는 이 base URL **밖**이다 (컨테이너 프로브용)
 
 tags:
   - name: auth

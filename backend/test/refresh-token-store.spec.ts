@@ -61,7 +61,7 @@ describe('리프레시 토큰 저장소 (DB)', () => {
       const oldJti = jtiOf(session.refreshToken);
 
       const rotated = await request(app.getHttpServer())
-        .post('/api/auth/refresh')
+        .post('/api/v1/auth/refresh')
         .send({ refreshToken: session.refreshToken })
         .expect(200);
 
@@ -87,13 +87,13 @@ describe('리프레시 토큰 저장소 (DB)', () => {
       const stolenJti = jtiOf(session.refreshToken);
 
       const rotated = await request(app.getHttpServer())
-        .post('/api/auth/refresh')
+        .post('/api/v1/auth/refresh')
         .send({ refreshToken: session.refreshToken })
         .expect(200);
 
       // 공격자가 이미 소비된 토큰을 다시 쓴다
       const reuse = await request(app.getHttpServer())
-        .post('/api/auth/refresh')
+        .post('/api/v1/auth/refresh')
         .send({ refreshToken: session.refreshToken })
         .expect(401);
 
@@ -111,13 +111,13 @@ describe('리프레시 토큰 저장소 (DB)', () => {
 
       // 그 계열의 활성 토큰은 하나도 없다
       await request(app.getHttpServer())
-        .post('/api/auth/refresh')
+        .post('/api/v1/auth/refresh')
         .send({ refreshToken: rotated.body.refreshToken })
         .expect(401);
 
       // ☆ 같은 훔친 토큰이 또 오면 여전히 REUSED 다 (행을 지웠다면 INVALID 로 보인다)
       const again = await request(app.getHttpServer())
-        .post('/api/auth/refresh')
+        .post('/api/v1/auth/refresh')
         .send({ refreshToken: session.refreshToken })
         .expect(401);
 
@@ -129,7 +129,7 @@ describe('리프레시 토큰 저장소 (DB)', () => {
       const jti = jtiOf(session.refreshToken);
 
       await request(app.getHttpServer())
-        .post('/api/auth/logout')
+        .post('/api/v1/auth/logout')
         .set('Authorization', `Bearer ${session.accessToken}`)
         .send({ refreshToken: session.refreshToken })
         .expect(204);
@@ -156,13 +156,13 @@ describe('리프레시 토큰 저장소 (DB)', () => {
         expect(other.get(RefreshTokenStore)).not.toBe(store);
 
         const rotated = await request(other.getHttpServer())
-          .post('/api/auth/refresh')
+          .post('/api/v1/auth/refresh')
           .send({ refreshToken: session.refreshToken })
           .expect(200);
 
         // 그리고 A 에서 옛 토큰을 쓰면 B 의 회전이 보인다 → 재사용으로 잡힌다
         const reuse = await request(app.getHttpServer())
-          .post('/api/auth/refresh')
+          .post('/api/v1/auth/refresh')
           .send({ refreshToken: session.refreshToken })
           .expect(401);
 
@@ -170,7 +170,7 @@ describe('리프레시 토큰 저장소 (DB)', () => {
 
         // B 가 준 토큰도 A 에서 (계열 폐기 때문에) 무효다 — 두 인스턴스가 같은 상태를 본다
         const afterFamilyRevoke = await request(app.getHttpServer())
-          .post('/api/auth/refresh')
+          .post('/api/v1/auth/refresh')
           .send({ refreshToken: rotated.body.refreshToken })
           .expect(401);
 
@@ -197,7 +197,7 @@ describe('리프레시 토큰 저장소 (DB)', () => {
       expect(await store.isActive(refresh.jti)).toBe(false);
 
       const response = await request(app.getHttpServer())
-        .post('/api/auth/refresh')
+        .post('/api/v1/auth/refresh')
         .send({ refreshToken: refresh.token })
         .expect(401);
 
@@ -220,7 +220,7 @@ describe('리프레시 토큰 저장소 (DB)', () => {
 
       // first 를 한 번 회전시켜 '소비됨' 행을 하나 만든다
       const rotated = await request(app.getHttpServer())
-        .post('/api/auth/refresh')
+        .post('/api/v1/auth/refresh')
         .send({ refreshToken: first.refreshToken })
         .expect(200);
       const consumedJti = jtiOf(first.refreshToken);
@@ -236,7 +236,7 @@ describe('리프레시 토큰 저장소 (DB)', () => {
 
       for (const token of [rotated.body.refreshToken, second.refreshToken]) {
         const response = await request(app.getHttpServer())
-          .post('/api/auth/refresh')
+          .post('/api/v1/auth/refresh')
           .send({ refreshToken: token })
           .expect(401);
 
@@ -269,7 +269,7 @@ describe('리프레시 토큰 저장소 (DB)', () => {
 
         // ★ 실행 중인 서버가 발급한 세션이 죽었다
         const response = await request(app.getHttpServer())
-          .post('/api/auth/refresh')
+          .post('/api/v1/auth/refresh')
           .send({ refreshToken: session.refreshToken })
           .expect(401);
 
@@ -294,10 +294,14 @@ describe('리프레시 토큰 저장소 (DB)', () => {
         expect(log.requestId.startsWith('cli-')).toBe(true);
         expect(log.userAgent).toContain('cli:operator-role');
       } finally {
-        // 역할을 되돌린다 (seed-data.spec 이 역할 분포를 검사한다)
-        await execFileAsync(process.execPath, [tsxCli, script, 'revoke', SEED_ACCOUNTS.user], {
-          cwd: BACKEND_DIR,
-        });
+        // 역할을 되돌린다 (seed-data.spec 이 역할 분포를 검사한다).
+        // `--actor` 는 회수에서도 **필수**다 — 빼면 exit 2 로 막혀서 이 정리가 조용히
+        // 실패하고 시드 계정이 operator 로 남는다 (그 상태를 실제로 한 번 봤다).
+        await execFileAsync(
+          process.execPath,
+          [tsxCli, script, 'revoke', SEED_ACCOUNTS.user, `--actor=${SEED_ACCOUNTS.operator}`],
+          { cwd: BACKEND_DIR },
+        );
         // 감사 로그 삭제는 **보존기간 배치 경로 하나만** 허용된다 (docs §11.2-(4)).
         // 테스트도 그 경로를 쓴다 — 개발 DB 의 audit_logs 에는 테스트 행만 있다.
         await purgeAuditLogsBefore(prisma, new Date(Date.now() + 60_000));

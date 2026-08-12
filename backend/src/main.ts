@@ -14,7 +14,7 @@ async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
   const config = app.get(ConfigService<Env, true>);
 
-  // 전역 접두어(/api), 요청 id 미들웨어, 예외 필터. 테스트도 같은 함수를 쓴다.
+  // 전역 접두어(/api/v1), 요청 id 미들웨어, 예외 필터. 테스트도 같은 함수를 쓴다.
   configureApp(app);
 
   // 전역 ValidationPipe 를 두지 않는다. Nest 의 ValidationPipe 는 생성자에서

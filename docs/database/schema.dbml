@@ -395,7 +395,7 @@ Table doctor_verifications {
   submitted_certificate_url varchar [null, note: "제출 시점의 자격증 URL 스냅샷. null 이면 '미제출' 상태로 올라온 건"]
   status varchar [not null, note: "허용값: pending, approved, rejected"]
   rejection_reason text [null, note: "status='rejected' 일 때만 채운다"]
-  reviewed_by_user_id varchar [null, ref: > users.id, note: "승인·반려를 누른 운영자. status='pending' 이면 null"]
+  reviewed_by_user_id varchar [null, ref: > users.id, note: "승인·반려를 누른 운영자. status='pending' 이면 null. ON DELETE RESTRICT — 검수 결정의 행위자는 사라지면 안 된다 (audit_logs.actor_user_id 와 같은 정책. README §11.7)"]
   reviewed_at timestamp [null, note: "처리 시각. pending 이면 null"]
   created_at timestamp [not null, note: "검수 요청(제출) 시각"]
 

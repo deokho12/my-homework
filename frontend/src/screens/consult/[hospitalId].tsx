@@ -1,12 +1,11 @@
 import { Stack, router, useLocalSearchParams } from '@/navigation';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ScrollView, Text, TextInput, View } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
 
 import { Chip } from '@/components/Chip';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { getProcedureById } from '@/mocks/fixtures/procedures';
-import { useAuthStore } from '@/store/useAuthStore';
 import { useConsultStore } from '@/store/useConsultStore';
 import { getHospitalById } from '@/store/useHospitalStore';
 import type { ProcedureId } from '@/types/domain';
@@ -18,7 +17,6 @@ export default function ConsultRequestScreen() {
   const { hospitalId } = useLocalSearchParams<{ hospitalId: string }>();
   const hospital = getHospitalById(hospitalId);
   const addRequest = useConsultStore((state) => state.addRequest);
-  const user = useAuthStore((state) => state.user);
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -26,19 +24,12 @@ export default function ConsultRequestScreen() {
   const [preferredTime, setPreferredTime] = useState(TIME_SLOTS[0]);
   const [message, setMessage] = useState('');
 
-  useEffect(() => {
-    // Guards against direct navigation to this route on web without going through requireAuth.
-    if (!user) {
-      router.replace({ pathname: '/auth/login', params: { redirect: `/consult/${hospitalId}` } });
-    }
-  }, [user, hospitalId]);
-
-  if (!hospital || !user) {
+  // 로그인 검사는 라우트 가드가 한다 (`src/App.tsx` 의 `guard: 'auth'`). 화면 안에서
+  // 다시 검사하면 규칙이 두 곳으로 갈린다.
+  if (!hospital) {
     return (
       <SafeAreaView className="flex-1 items-center justify-center bg-white">
-        <Text className="text-sm text-neutral-500">
-          {hospital ? '로그인이 필요해요' : '병원 정보를 찾을 수 없어요'}
-        </Text>
+        <Text className="text-sm text-neutral-500">병원 정보를 찾을 수 없어요</Text>
       </SafeAreaView>
     );
   }

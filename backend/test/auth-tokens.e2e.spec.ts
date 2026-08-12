@@ -26,12 +26,12 @@ describe('토큰 수명주기 (e2e)', () => {
     await app?.close();
   });
 
-  describe('POST /api/auth/refresh — 회전', () => {
+  describe('POST /api/v1/auth/refresh — 회전', () => {
     it('새 액세스·리프레시 토큰을 주고 새 액세스 토큰이 실제로 동작한다', async () => {
       const session = await logIn(app, SEED_ACCOUNTS.user);
 
       const refreshed = await request(app.getHttpServer())
-        .post('/api/auth/refresh')
+        .post('/api/v1/auth/refresh')
         .send({ refreshToken: session.refreshToken })
         .expect(200);
 
@@ -39,7 +39,7 @@ describe('토큰 수명주기 (e2e)', () => {
       expect(refreshed.body.refreshToken).not.toBe(session.refreshToken);
 
       await request(app.getHttpServer())
-        .get('/api/auth/me')
+        .get('/api/v1/auth/me')
         .set('Authorization', bearer(refreshed.body.accessToken))
         .expect(200);
     });
@@ -48,12 +48,12 @@ describe('토큰 수명주기 (e2e)', () => {
       const session = await logIn(app, SEED_ACCOUNTS.user);
 
       await request(app.getHttpServer())
-        .post('/api/auth/refresh')
+        .post('/api/v1/auth/refresh')
         .send({ refreshToken: session.refreshToken })
         .expect(200);
 
       const reuse = await request(app.getHttpServer())
-        .post('/api/auth/refresh')
+        .post('/api/v1/auth/refresh')
         .send({ refreshToken: session.refreshToken })
         .expect(401);
 
@@ -65,20 +65,20 @@ describe('토큰 수명주기 (e2e)', () => {
       const session = await logIn(app, SEED_ACCOUNTS.user);
 
       const rotated = await request(app.getHttpServer())
-        .post('/api/auth/refresh')
+        .post('/api/v1/auth/refresh')
         .send({ refreshToken: session.refreshToken })
         .expect(200);
 
       // 공격자가 훔친 옛 토큰을 쓴다 → 계열 폐기
       await request(app.getHttpServer())
-        .post('/api/auth/refresh')
+        .post('/api/v1/auth/refresh')
         .send({ refreshToken: session.refreshToken })
         .expect(401);
 
       // 정상 사용자의 최신 토큰도 함께 죽는다. 어느 쪽이 공격자인지 알 수 없으므로
       // 양쪽에 재로그인을 요구하는 것이 맞다.
       const afterFamilyRevoke = await request(app.getHttpServer())
-        .post('/api/auth/refresh')
+        .post('/api/v1/auth/refresh')
         .send({ refreshToken: rotated.body.refreshToken })
         .expect(401);
 
@@ -91,14 +91,14 @@ describe('토큰 수명주기 (e2e)', () => {
 
       for (let i = 0; i < 3; i += 1) {
         const response = await request(app.getHttpServer())
-          .post('/api/auth/refresh')
+          .post('/api/v1/auth/refresh')
           .send({ refreshToken: current })
           .expect(200);
 
         current = response.body.refreshToken;
       }
 
-      await request(app.getHttpServer()).post('/api/auth/refresh').send({ refreshToken: current }).expect(200);
+      await request(app.getHttpServer()).post('/api/v1/auth/refresh').send({ refreshToken: current }).expect(200);
     });
 
     it('위조·형식 오류·액세스 토큰을 보내면 401 REFRESH_TOKEN_INVALID', async () => {
@@ -113,7 +113,7 @@ describe('토큰 수명주기 (e2e)', () => {
 
       for (const refreshToken of cases) {
         const response = await request(app.getHttpServer())
-          .post('/api/auth/refresh')
+          .post('/api/v1/auth/refresh')
           .send({ refreshToken })
           .expect(401);
 
@@ -122,7 +122,7 @@ describe('토큰 수명주기 (e2e)', () => {
     });
 
     it('본문에 refreshToken 이 없으면 422 VALIDATION_FAILED', async () => {
-      const response = await request(app.getHttpServer()).post('/api/auth/refresh').send({}).expect(422);
+      const response = await request(app.getHttpServer()).post('/api/v1/auth/refresh').send({}).expect(422);
 
       expect(response.body.error.code).toBe('VALIDATION_FAILED');
       expect(response.body.error.details[0].field).toBe('refreshToken');
@@ -132,12 +132,12 @@ describe('토큰 수명주기 (e2e)', () => {
       const session = await logIn(app, SEED_ACCOUNTS.adminH1);
 
       const refreshed = await request(app.getHttpServer())
-        .post('/api/auth/refresh')
+        .post('/api/v1/auth/refresh')
         .send({ refreshToken: session.refreshToken })
         .expect(200);
 
       const me = await request(app.getHttpServer())
-        .get('/api/auth/me')
+        .get('/api/v1/auth/me')
         .set('Authorization', bearer(refreshed.body.accessToken))
         .expect(200);
 
@@ -145,18 +145,18 @@ describe('토큰 수명주기 (e2e)', () => {
     });
   });
 
-  describe('POST /api/auth/logout — 폐기', () => {
+  describe('POST /api/v1/auth/logout — 폐기', () => {
     it('204 를 주고 그 리프레시 토큰은 더 이상 재발급에 쓸 수 없다', async () => {
       const session = await logIn(app, SEED_ACCOUNTS.user);
 
       await request(app.getHttpServer())
-        .post('/api/auth/logout')
+        .post('/api/v1/auth/logout')
         .set('Authorization', bearer(session.accessToken))
         .send({ refreshToken: session.refreshToken })
         .expect(204);
 
       const afterLogout = await request(app.getHttpServer())
-        .post('/api/auth/refresh')
+        .post('/api/v1/auth/refresh')
         .send({ refreshToken: session.refreshToken })
         .expect(401);
 
@@ -167,12 +167,12 @@ describe('토큰 수명주기 (e2e)', () => {
       const session = await logIn(app, SEED_ACCOUNTS.user);
 
       await request(app.getHttpServer())
-        .post('/api/auth/logout')
+        .post('/api/v1/auth/logout')
         .set('Authorization', bearer(session.accessToken))
         .send({ refreshToken: session.refreshToken })
         .expect(204);
       await request(app.getHttpServer())
-        .post('/api/auth/logout')
+        .post('/api/v1/auth/logout')
         .set('Authorization', bearer(session.accessToken))
         .send({ refreshToken: session.refreshToken })
         .expect(204);
@@ -182,13 +182,13 @@ describe('토큰 수명주기 (e2e)', () => {
       const session = await logIn(app, SEED_ACCOUNTS.user);
 
       await request(app.getHttpServer())
-        .post('/api/auth/logout')
+        .post('/api/v1/auth/logout')
         .send({ refreshToken: session.refreshToken })
         .expect(401);
 
       // 세션이 그대로 살아 있다
       await request(app.getHttpServer())
-        .post('/api/auth/refresh')
+        .post('/api/v1/auth/refresh')
         .send({ refreshToken: session.refreshToken })
         .expect(200);
     });
@@ -199,13 +199,13 @@ describe('토큰 수명주기 (e2e)', () => {
       const attacker = await logIn(app, SEED_ACCOUNTS.adminH2);
 
       await request(app.getHttpServer())
-        .post('/api/auth/logout')
+        .post('/api/v1/auth/logout')
         .set('Authorization', bearer(attacker.accessToken))
         .send({ refreshToken: victim.refreshToken })
         .expect(204);
 
       await request(app.getHttpServer())
-        .post('/api/auth/refresh')
+        .post('/api/v1/auth/refresh')
         .send({ refreshToken: victim.refreshToken })
         .expect(200);
     });
@@ -217,13 +217,13 @@ describe('토큰 수명주기 (e2e)', () => {
       const session = await logIn(app, SEED_ACCOUNTS.user);
 
       await request(app.getHttpServer())
-        .post('/api/auth/logout')
+        .post('/api/v1/auth/logout')
         .set('Authorization', bearer(session.accessToken))
         .send({ refreshToken: session.refreshToken })
         .expect(204);
 
       await request(app.getHttpServer())
-        .get('/api/auth/me')
+        .get('/api/v1/auth/me')
         .set('Authorization', bearer(session.accessToken))
         .expect(200);
     });
@@ -244,7 +244,7 @@ describe('토큰 수명주기 (e2e)', () => {
 
       for (const session of [first, second]) {
         const response = await request(app.getHttpServer())
-          .post('/api/auth/refresh')
+          .post('/api/v1/auth/refresh')
           .send({ refreshToken: session.refreshToken })
           .expect(401);
 
@@ -296,7 +296,7 @@ describe('토큰 수명주기 (e2e)', () => {
       const forgedPayload = Buffer.from(JSON.stringify(claims)).toString('base64url');
 
       const response = await request(app.getHttpServer())
-        .get('/api/auth/me')
+        .get('/api/v1/auth/me')
         .set('Authorization', bearer(`${header}.${forgedPayload}.${signature}`))
         .expect(401);
 

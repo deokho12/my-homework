@@ -25,10 +25,10 @@ function clientInfo(request: Request): RefreshTokenClientInfo {
 }
 
 /**
- * `POST /api/auth/*`, `GET /api/auth/me` — openapi 의 auth 오퍼레이션.
+ * `POST /api/v1/auth/*`, `GET /api/v1/auth/me` — openapi 의 auth 오퍼레이션.
  *
- * 경로 접두어가 `/api` 인 것은 이 저장소의 규칙이다 (main.ts). openapi 의 `servers`
- * 는 `/v1` 을 쓰는데 프론트엔드가 이미 `VITE_API_BASE_URL=/api` 를 전제한다 — 보고서에 적었다.
+ * 접두어 `/api/v1` 은 `app-setup.ts` 의 `setGlobalPrefix` 가 붙인다. openapi 의 `servers`
+ * 도 같은 값이다 (`/v1` 과 `/api` 로 갈라져 있던 것을 `/api/v1` 로 확정했다).
  */
 @Controller('auth')
 export class AuthController {
