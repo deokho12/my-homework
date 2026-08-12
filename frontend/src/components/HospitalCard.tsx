@@ -3,8 +3,8 @@ import { Pressable, Text, View } from '@/primitives';
 
 import { Badge } from '@/components/Badge';
 import { StockImage } from '@/components/StockImage';
-import { getProcedureById } from '@/data/procedures';
-import { getPromotionByHospital } from '@/data/promotions';
+import { getProcedureById } from '@/mocks/fixtures/procedures';
+import { getPromotionByHospital } from '@/mocks/fixtures/promotions';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { useFavoritesStore } from '@/store/useFavoritesStore';
 import { getDoctorsByHospital } from '@/store/useDoctorStore';

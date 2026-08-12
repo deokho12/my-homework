@@ -11,10 +11,10 @@ import { ProcedureCategoryCard } from '@/components/ProcedureCategoryCard';
 import { PromotionCard } from '@/components/PromotionCard';
 import { SearchBar } from '@/components/SearchBar';
 import { SectionHeader } from '@/components/SectionHeader';
-import { guides } from '@/data/guides';
-import { procedures } from '@/data/procedures';
-import { promotions } from '@/data/promotions';
-import { TRENDING_SEARCHES } from '@/data/trendingSearches';
+import { guides } from '@/mocks/fixtures/guides';
+import { procedures } from '@/mocks/fixtures/procedures';
+import { promotions } from '@/mocks/fixtures/promotions';
+import { TRENDING_SEARCHES } from '@/mocks/fixtures/trendingSearches';
 import { useScrollShadowStore } from '@/store/useScrollShadowStore';
 
 const SCROLL_SHADOW_THRESHOLD = 8;

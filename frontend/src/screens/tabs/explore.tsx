@@ -10,7 +10,7 @@ import { DoctorCard } from '@/components/DoctorCard';
 import { HospitalExploreCard } from '@/components/HospitalExploreCard';
 import { HospitalMapView } from '@/components/HospitalMapView';
 import { PriceCompareTable } from '@/components/PriceCompareTable';
-import { procedures } from '@/data/procedures';
+import { procedures } from '@/mocks/fixtures/procedures';
 import { useDoctorStore } from '@/store/useDoctorStore';
 import { useHospitalStore } from '@/store/useHospitalStore';
 import { useScrollShadowStore } from '@/store/useScrollShadowStore';

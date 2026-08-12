@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
 
-import { procedures } from '@/data/procedures';
+import { procedures } from '@/mocks/fixtures/procedures';
 import {
   SPONSORED_SEARCH_SUGGESTIONS,
   TRENDING_SEARCHES,
@@ -11,7 +11,7 @@ import {
   type SearchTarget,
   type SearchTrend,
   type TrendingSearchTerm,
-} from '@/data/trendingSearches';
+} from '@/mocks/fixtures/trendingSearches';
 import { useDoctorStore } from '@/store/useDoctorStore';
 import { useHospitalStore } from '@/store/useHospitalStore';
 

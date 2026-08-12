@@ -4,7 +4,7 @@ import { ScrollView, Text, View } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
 
 import { Badge } from '@/components/Badge';
-import { getProcedureById } from '@/data/procedures';
+import { getProcedureById } from '@/mocks/fixtures/procedures';
 import { useCommunityStore } from '@/store/useCommunityStore';
 
 export default function CommunityPostScreen() {

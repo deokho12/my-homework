@@ -3,7 +3,7 @@ import { ScrollView, Text, View } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
 
 import { PromotionCard } from '@/components/PromotionCard';
-import { promotions } from '@/data/promotions';
+import { promotions } from '@/mocks/fixtures/promotions';
 
 export default function EventsScreen() {
   return (

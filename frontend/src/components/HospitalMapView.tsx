@@ -4,7 +4,7 @@ import { Pressable, Text, View } from '@/primitives';
 
 import { Chip } from '@/components/Chip';
 import { KakaoMap } from '@/components/map/KakaoMap';
-import { getProcedureById } from '@/data/procedures';
+import { getProcedureById } from '@/mocks/fixtures/procedures';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { useUserLocation } from '@/hooks/useUserLocation';
 import type { Hospital } from '@/types/domain';

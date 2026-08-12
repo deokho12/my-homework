@@ -7,8 +7,8 @@ import { Badge } from '@/components/Badge';
 import { HospitalCard } from '@/components/HospitalCard';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { StockImage } from '@/components/StockImage';
-import { getProcedureById } from '@/data/procedures';
-import { guides } from '@/data/guides';
+import { getProcedureById } from '@/mocks/fixtures/procedures';
+import { guides } from '@/mocks/fixtures/guides';
 import { getHospitalById } from '@/store/useHospitalStore';
 
 export default function TipDetailScreen() {

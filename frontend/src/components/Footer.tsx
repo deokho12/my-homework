@@ -11,7 +11,7 @@ import {
   email,
   mailOrderBusinessNumber,
   privacyOfficerName,
-} from '@/data/placeholder-company-info';
+} from '@/mocks/fixtures/placeholder-company-info';
 
 const LEGAL_LINKS = [
   { label: '서비스 이용약관', href: '/legal/terms' as const },

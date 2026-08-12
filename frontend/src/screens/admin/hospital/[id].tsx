@@ -3,7 +3,7 @@ import { Text, View } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
 
 import { HospitalForm } from '@/components/admin/HospitalForm';
-import { getProcedureById } from '@/data/procedures';
+import { getProcedureById } from '@/mocks/fixtures/procedures';
 import { getDoctorsByHospital, useDoctorStore } from '@/store/useDoctorStore';
 import { useHospitalStore } from '@/store/useHospitalStore';
 import type { Hospital } from '@/types/domain';

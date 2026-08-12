@@ -2,7 +2,7 @@ import AsyncStorage from '@/lib/storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
-import { hospitals as seedHospitals } from '@/data/hospitals';
+import { hospitals as seedHospitals } from '@/mocks/fixtures/hospitals';
 import type { Hospital } from '@/types/domain';
 
 interface HospitalState {

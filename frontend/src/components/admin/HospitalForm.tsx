@@ -4,7 +4,7 @@ import { Pressable, ScrollView, Text, TextInput, View } from '@/primitives';
 import { AddressSearchInput } from '@/components/admin/AddressSearchInput';
 import { Chip } from '@/components/Chip';
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { procedures } from '@/data/procedures';
+import { procedures } from '@/mocks/fixtures/procedures';
 import { getDoctorsByHospital } from '@/store/useDoctorStore';
 import {
   DENTAL_SPECIALTIES,

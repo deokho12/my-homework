@@ -5,7 +5,7 @@ import { SafeAreaView } from '@/primitives';
 
 import { Chip } from '@/components/Chip';
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { procedures } from '@/data/procedures';
+import { procedures } from '@/mocks/fixtures/procedures';
 import { useCommunityStore } from '@/store/useCommunityStore';
 import type { ProcedureId } from '@/types/domain';
 

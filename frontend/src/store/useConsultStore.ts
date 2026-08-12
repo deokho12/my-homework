@@ -2,7 +2,7 @@ import AsyncStorage from '@/lib/storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
-import { consultRequests as seedConsultRequests } from '@/data/consultRequests';
+import { consultRequests as seedConsultRequests } from '@/mocks/fixtures/consultRequests';
 import { notifyAdmin, notifyUser } from '@/services/notifications';
 import { CONSULT_STATUS_LABEL, type ConsultRequest, type ConsultStatus } from '@/types/domain';
 

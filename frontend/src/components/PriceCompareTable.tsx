@@ -1,7 +1,7 @@
 import { router } from '@/navigation';
 import { Pressable, Text, View } from '@/primitives';
 
-import { getPromotionByHospital } from '@/data/promotions';
+import { getPromotionByHospital } from '@/mocks/fixtures/promotions';
 import type { Hospital } from '@/types/domain';
 import { formatWon } from '@/utils/format';
 

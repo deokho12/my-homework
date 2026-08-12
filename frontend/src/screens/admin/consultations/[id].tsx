@@ -5,7 +5,7 @@ import { SafeAreaView } from '@/primitives';
 
 import { Chip } from '@/components/Chip';
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { getProcedureById } from '@/data/procedures';
+import { getProcedureById } from '@/mocks/fixtures/procedures';
 import { useConsultStore } from '@/store/useConsultStore';
 import { getHospitalById } from '@/store/useHospitalStore';
 import { CONSULT_STATUS_LABEL, CONSULT_STATUSES } from '@/types/domain';

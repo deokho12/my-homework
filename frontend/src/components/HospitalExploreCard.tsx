@@ -3,7 +3,7 @@ import { Pressable, Text, View, type StyleProp, type ViewStyle } from '@/primiti
 
 import { Badge } from '@/components/Badge';
 import { StockImage } from '@/components/StockImage';
-import { getProcedureById } from '@/data/procedures';
+import { getProcedureById } from '@/mocks/fixtures/procedures';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { getDoctorsByHospital } from '@/store/useDoctorStore';
 import type { Hospital, ProcedureId } from '@/types/domain';

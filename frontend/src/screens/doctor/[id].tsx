@@ -6,7 +6,7 @@ import { SafeAreaView } from '@/primitives';
 import { Badge } from '@/components/Badge';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { StockImage } from '@/components/StockImage';
-import { getProcedureById } from '@/data/procedures';
+import { getProcedureById } from '@/mocks/fixtures/procedures';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useDoctorStore } from '@/store/useDoctorStore';
