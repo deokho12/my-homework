@@ -40,7 +40,7 @@ export function TopNavBar() {
   return (
     <View
       className={scrolled ? 'bg-white shadow-md' : 'border-b border-neutral-100 bg-white'}
-      style={{ position: 'sticky' as any, top: 0, zIndex: 50 }}
+      style={{ position: 'sticky', top: 0, zIndex: 50 }}
     >
       <View className={`mx-auto w-full flex-row items-center ${containerPadding}`} style={{ maxWidth: 1200 }}>
         {/* Left group: logo + text menu, always left-aligned and glued together */}

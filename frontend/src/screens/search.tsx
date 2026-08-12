@@ -76,7 +76,7 @@ export default function SearchScreen() {
   const [query, setQuery] = useState(q ?? '');
   const [tab, setTab] = useState<SearchTab>('all');
   const [notice, setNotice] = useState<string | null>(null);
-  const nowLabel = useMemo(formatNowLabel, []);
+  const nowLabel = useMemo(() => formatNowLabel(), []);
 
   useEffect(() => {
     const timeout = setTimeout(() => inputRef.current?.focus(), 200);
@@ -122,7 +122,6 @@ export default function SearchScreen() {
   // popular-search pills), which navigate here with a `q` param instead of typing into the input.
   useEffect(() => {
     if (q) runSearch(q.trim());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q]);
 
   return (
