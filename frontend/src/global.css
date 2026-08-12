@@ -131,10 +131,20 @@
     cursor: default;
   }
 
-  /* --- ScrollView --- */
+  /*
+   * --- ScrollView ---
+   * `flex-grow/shrink: 1` are part of react-native-web's ScrollView base style and are what
+   * make it bounded by its parent instead of growing to fit its content. Without them the
+   * `.rnw-view` default of `flex-shrink: 0` wins, the scroll box becomes as tall as its
+   * content, and there is nothing left to scroll — the page just gets clipped by
+   * `body { overflow: hidden }`. `min-height: 0` (inherited from `.rnw-view`) is the other
+   * half of that: a flex child won't shrink below its content without it.
+   */
   .rnw-scroll-view {
     -webkit-overflow-scrolling: touch;
     overflow-anchor: none;
+    flex-grow: 1;
+    flex-shrink: 1;
   }
 
   .rnw-scroll-vertical {
