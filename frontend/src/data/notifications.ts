@@ -1,0 +1,77 @@
+import type { AppNotification } from '@/types/domain';
+
+// Seed notifications, mixed audience/type/isRead so both the user and admin notification screens
+// (and their bell-icon unread badges) have something meaningful to show out of the box.
+// consult-status entries' relatedId point at seed requests in src/data/consultRequests.ts.
+export const notifications: AppNotification[] = [
+  {
+    id: 'notif1',
+    audience: 'user',
+    type: 'consult-status',
+    title: '상담 상태 변경',
+    message: "상담 상태가 '예약완료'(으)로 변경되었어요",
+    isRead: false,
+    createdAt: '2026-07-18T11:45:00.000Z',
+    relatedId: 'cr3',
+  },
+  {
+    id: 'notif2',
+    audience: 'user',
+    type: 'event',
+    title: '여름 이벤트 오픈',
+    message: '임플란트 무료상담 이벤트가 진행중이에요',
+    isRead: true,
+    createdAt: '2026-07-10T02:00:00.000Z',
+    relatedId: null,
+  },
+  {
+    id: 'notif3',
+    audience: 'user',
+    type: 'system',
+    title: '앱 업데이트 안내',
+    message: '새로운 기능이 추가되었어요',
+    isRead: true,
+    createdAt: '2026-06-30T01:00:00.000Z',
+    relatedId: null,
+  },
+  {
+    id: 'notif4',
+    audience: 'admin',
+    type: 'consult-status',
+    title: '새로운 상담 신청',
+    message: '김민준님이 상담을 신청했어요',
+    isRead: false,
+    createdAt: '2026-07-28T09:15:00.000Z',
+    relatedId: 'cr1',
+  },
+  {
+    id: 'notif5',
+    audience: 'admin',
+    type: 'consult-status',
+    title: '새로운 상담 신청',
+    message: '이서연님이 상담을 신청했어요',
+    isRead: false,
+    createdAt: '2026-07-29T13:40:00.000Z',
+    relatedId: 'cr6',
+  },
+  {
+    id: 'notif6',
+    audience: 'admin',
+    type: 'system',
+    title: '정기 점검 안내',
+    message: '7/31 새벽 서버 점검이 예정되어 있어요',
+    isRead: true,
+    createdAt: '2026-07-25T15:00:00.000Z',
+    relatedId: null,
+  },
+  {
+    id: 'notif7',
+    audience: 'user',
+    type: 'consult-status',
+    title: '상담 상태 변경',
+    message: "상담 상태가 '연락중'(으)로 변경되었어요",
+    isRead: true,
+    createdAt: '2026-07-22T10:30:00.000Z',
+    relatedId: 'cr2',
+  },
+];

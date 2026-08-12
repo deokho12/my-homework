@@ -1,0 +1,180 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-display:
+    Spline Sans, Inter, ui-sans-serif, system-ui, sans-serif, Apple Color Emoji, Segoe UI Emoji,
+    Segoe UI Symbol, Noto Color Emoji;
+  --font-mono:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
+  /* react-native-web resolves the `System` font family to this stack. Keeping it identical
+     is what makes ported text metrics match the previous Expo web build. */
+  --rnw-system-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial,
+    sans-serif;
+}
+
+/*
+ * Base styles below reproduce react-native-web's default box model exactly, so that the
+ * ported JSX (which still uses RN-style Tailwind classes like `flex-row`, and relies on
+ * RN's column-by-default flex layout) renders identically to the previous Expo web output.
+ *
+ * They live in @layer base on purpose: Tailwind utilities sit in a later layer, so any
+ * utility class on a component still overrides these defaults, matching how NativeWind
+ * classes overrode RNW's defaults before.
+ *
+ * Source of truth: node_modules/react-native-web/dist/exports/{View,Text}/index.js
+ */
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    /* RNW mounts the app root as a flex column filling the viewport. */
+    overflow: hidden;
+  }
+
+  /* --- View (react-native-web View: `view$raw`) --- */
+  .rnw-view {
+    align-content: flex-start;
+    align-items: stretch;
+    background-color: transparent;
+    border: 0 solid black;
+    box-sizing: border-box;
+    display: flex;
+    flex-basis: auto;
+    flex-direction: column;
+    flex-shrink: 0;
+    list-style: none;
+    margin: 0;
+    min-height: 0;
+    min-width: 0;
+    padding: 0;
+    position: relative;
+    text-decoration: none;
+    z-index: 0;
+  }
+
+  /* --- Text, no Text ancestor (react-native-web `text$raw`) --- */
+  .rnw-text {
+    background-color: transparent;
+    border: 0 solid black;
+    box-sizing: border-box;
+    color: black;
+    display: inline;
+    font: 14px var(--rnw-system-font);
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    position: relative;
+    text-align: start;
+    text-decoration: none;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+
+  /* --- Text nested inside another Text (`textHasAncestor$raw`) --- */
+  .rnw-text-nested {
+    background-color: transparent;
+    border: 0 solid black;
+    box-sizing: border-box;
+    color: inherit;
+    display: inline;
+    font: inherit;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    position: relative;
+    text-align: inherit;
+    text-decoration: none;
+    white-space: inherit;
+    word-wrap: break-word;
+  }
+
+  /* numberOfLines={1} (`textOneLine`) */
+  .rnw-text-one-line {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    word-wrap: normal;
+  }
+
+  /* numberOfLines={n>1} (`textMultiLine`) */
+  .rnw-text-multi-line {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    max-width: 100%;
+    overflow: clip;
+    text-overflow: ellipsis;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+
+  /* --- Pressable / touchable: a View that also behaves like a button --- */
+  .rnw-pressable {
+    -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+    appearance: none;
+    background-color: transparent;
+    color: inherit;
+    cursor: pointer;
+    font: inherit;
+    text-align: inherit;
+    touch-action: manipulation;
+  }
+
+  .rnw-pressable:disabled {
+    cursor: default;
+  }
+
+  /* --- ScrollView --- */
+  .rnw-scroll-view {
+    -webkit-overflow-scrolling: touch;
+    overflow-anchor: none;
+  }
+
+  .rnw-scroll-vertical {
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .rnw-scroll-horizontal {
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .rnw-scroll-hide-indicator {
+    scrollbar-width: none;
+  }
+
+  .rnw-scroll-hide-indicator::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* --- TextInput --- */
+  .rnw-text-input {
+    appearance: none;
+    background-color: transparent;
+    border: 0 solid black;
+    box-sizing: border-box;
+    font: 14px var(--rnw-system-font);
+    margin: 0;
+    padding: 0;
+    resize: none;
+  }
+
+  .rnw-text-input:focus {
+    outline: none;
+  }
+
+  /* Mirrors RN's `placeholderTextColor` prop, forwarded by TextInput as a CSS variable. */
+  .rnw-text-input::placeholder {
+    color: var(--placeholder-color, #a3a3a3);
+    opacity: 1;
+  }
+}
