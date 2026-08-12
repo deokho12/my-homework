@@ -3,23 +3,9 @@
 # dependencies
 node_modules/
 
-# Expo
-.expo/
+# build output
 dist/
-web-build/
-expo-env.d.ts
-
-# Native
-.kotlin/
-*.orig.*
-*.jks
-*.p8
-*.p12
-*.key
-*.mobileprovision
-
-# Metro
-.metro-health-check*
+.vite/
 
 # debug
 npm-debug.*
@@ -36,9 +22,3 @@ yarn-error.*
 
 # typescript
 *.tsbuildinfo
-
-example
-
-# generated native folders
-/ios
-/android

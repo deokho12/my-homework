@@ -6,3 +6,6 @@ dist-ssr
 
 # scratch verification scripts
 smoke-tmp.mjs
+
+# local env
+.env
