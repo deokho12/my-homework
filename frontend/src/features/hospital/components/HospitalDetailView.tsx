@@ -1,5 +1,5 @@
 import * as Clipboard from '@/lib/clipboard';
-import { router, Stack, useLocalSearchParams } from '@/navigation';
+import { router, Stack } from '@/navigation';
 import { ChevronDown, ChevronUp, Copy, MapPin, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, Text, View } from '@/primitives';
@@ -9,14 +9,14 @@ import { Badge } from '@/components/Badge';
 import { KakaoMap } from '@/components/map/KakaoMap';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { StockImage } from '@/components/StockImage';
+// 정적 마스터 데이터. features/procedure(또는 content) 가 생기면 그쪽으로 옮긴다 (Task 11).
 import { getProcedureById } from '@/mocks/fixtures/procedures';
 import { getPromotionByHospital } from '@/mocks/fixtures/promotions';
 import { getReviewsByHospital } from '@/mocks/fixtures/reviews';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { useDoctorStore } from '@/store/useDoctorStore';
 import { useFavoritesStore } from '@/store/useFavoritesStore';
-import { useHospitalStore } from '@/store/useHospitalStore';
-import type { HospitalFeatures } from '@/types/domain';
+import type { Hospital, HospitalFeatures } from '@/types/domain';
 import { showAlert } from '@/utils/alert';
 import { calcDiscountRate, formatPriceRange, formatWon } from '@/utils/format';
 import { getRepresentativeSpecialist, getVisibleSpecialtyLabel, isVerifiedSpecialist } from '@/utils/specialty';
@@ -33,27 +33,29 @@ const EMPTY_FEATURES: HospitalFeatures = {
   cctv: false,
 };
 
-export default function HospitalDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const hospital = useHospitalStore((state) => state.hospitals.find((item) => item.id === id));
+/**
+ * 이미 로드된 병원 하나를 렌더한다. 조회(로딩/에러/없음)는 `HospitalDetailPage` 가 맡는다.
+ *
+ * 페이지에서 분리한 이유: `QueryState` 의 `children` 은 콜백이라 컴포넌트 본문이 아니고
+ * 그 안에서는 훅을 호출할 수 없다. 로드된 병원에 의존하는 훅
+ * (`useDoctorsByHospital`, `useReviews`, `useForm({ defaultValues: data })`) 이
+ * 필요해지는 화면들이 여기서 막히므로, 성공 상태를 별도 컴포넌트 본문으로 내린다.
+ */
+export function HospitalDetailView({ hospital }: { hospital: Hospital }) {
+  // TODO(Task 5): doctor feature 의 useDoctorsByHospital 로 교체한다.
   const allDoctors = useDoctorStore((state) => state.doctors);
-  const doctors = useMemo(() => allDoctors.filter((doctor) => doctor.hospitalId === id), [allDoctors, id]);
-  const reviews = getReviewsByHospital(id);
-  const promotion = getPromotionByHospital(id);
-  const isFavorite = useFavoritesStore((state) => state.isFavorite(id));
+  const doctors = useMemo(
+    () => allDoctors.filter((doctor) => doctor.hospitalId === hospital.id),
+    [allDoctors, hospital.id]
+  );
+  const reviews = getReviewsByHospital(hospital.id);
+  const promotion = getPromotionByHospital(hospital.id);
+  const isFavorite = useFavoritesStore((state) => state.isFavorite(hospital.id));
   const toggleFavorite = useFavoritesStore((state) => state.toggleFavorite);
   const requireAuth = useRequireAuth();
 
   const [hoursExpanded, setHoursExpanded] = useState(false);
   const [mapVisible, setMapVisible] = useState(false);
-
-  if (!hospital) {
-    return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-white">
-        <Text className="text-sm text-neutral-500">병원 정보를 찾을 수 없어요</Text>
-      </SafeAreaView>
-    );
-  }
 
   // Fall back gracefully while businessHours/features/directions are still being backfilled onto the
   // mock data (see developer note) — these are required fields on the Hospital type, but not every

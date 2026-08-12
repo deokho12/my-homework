@@ -4,7 +4,7 @@ import { Pressable, ScrollView, Text, View } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
 
 import { Badge } from '@/components/Badge';
-import { HospitalCard } from '@/components/HospitalCard';
+import { HospitalCard } from '@/features/hospital/components/HospitalCard';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { StockImage } from '@/components/StockImage';
 import { getProcedureById } from '@/mocks/fixtures/procedures';

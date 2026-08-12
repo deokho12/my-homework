@@ -7,9 +7,9 @@ import { SafeAreaView } from '@/primitives';
 
 import { Chip } from '@/components/Chip';
 import { DoctorCard } from '@/components/DoctorCard';
-import { HospitalExploreCard } from '@/components/HospitalExploreCard';
-import { HospitalMapView } from '@/components/HospitalMapView';
-import { PriceCompareTable } from '@/components/PriceCompareTable';
+import { HospitalExploreCard } from '@/features/hospital/components/HospitalExploreCard';
+import { HospitalMapView } from '@/features/hospital/components/HospitalMapView';
+import { PriceCompareTable } from '@/features/hospital/components/PriceCompareTable';
 import { procedures } from '@/mocks/fixtures/procedures';
 import { useDoctorStore } from '@/store/useDoctorStore';
 import { useHospitalStore } from '@/store/useHospitalStore';

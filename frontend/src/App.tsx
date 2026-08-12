@@ -13,6 +13,7 @@ import {
 } from '@/navigation';
 import { Text, View } from '@/primitives';
 
+import HospitalDetailPage from '@/pages/HospitalDetailPage';
 import AboutScreen from '@/screens/about';
 import AdminConsultationDetailScreen from '@/screens/admin/consultations/[id]';
 import AdminConsultationsScreen from '@/screens/admin/consultations/index';
@@ -28,7 +29,6 @@ import CommunityNewScreen from '@/screens/community/new';
 import ConsultRequestScreen from '@/screens/consult/[hospitalId]';
 import DoctorDetailScreen from '@/screens/doctor/[id]';
 import EventsScreen from '@/screens/events';
-import HospitalDetailScreen from '@/screens/hospital/[id]';
 import LocationTermsScreen from '@/screens/legal/location';
 import PrivacyScreen from '@/screens/legal/privacy';
 import TermsScreen from '@/screens/legal/terms';
@@ -59,7 +59,7 @@ const ROUTES: AppRoute[] = [
   { path: '/community', element: <CommunityTabScreen />, options: { headerShown: false }, isTab: true },
   { path: '/mypage', element: <MyPageScreen />, options: { headerShown: false }, isTab: true },
 
-  { path: '/hospital/:id', element: <HospitalDetailScreen />, options: { title: '' } },
+  { path: '/hospital/:id', element: <HospitalDetailPage />, options: { title: '' } },
   { path: '/doctor/:id', element: <DoctorDetailScreen />, options: { title: '' } },
   { path: '/tips/:id', element: <TipDetailScreen />, options: { title: '' } },
   { path: '/events', element: <EventsScreen />, options: { title: '이벤트' } },

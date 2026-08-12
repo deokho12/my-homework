@@ -1,6 +1,7 @@
 import { router } from '@/navigation';
 import { Pressable, Text, View } from '@/primitives';
 
+// 정적 마스터 데이터. features/procedure(또는 content) 가 생기면 그쪽으로 옮긴다 (Task 11).
 import { getPromotionByHospital } from '@/mocks/fixtures/promotions';
 import type { Hospital } from '@/types/domain';
 import { formatWon } from '@/utils/format';

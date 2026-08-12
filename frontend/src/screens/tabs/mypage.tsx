@@ -4,7 +4,7 @@ import type { NativeScrollEvent, NativeSyntheticEvent } from '@/primitives';
 import { FlatList, Pressable, Text, View } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
 
-import { HospitalCard } from '@/components/HospitalCard';
+import { HospitalCard } from '@/features/hospital/components/HospitalCard';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useFavoritesStore } from '@/store/useFavoritesStore';

@@ -4,6 +4,7 @@ import { Pressable, Text, View } from '@/primitives';
 
 import { Chip } from '@/components/Chip';
 import { KakaoMap } from '@/components/map/KakaoMap';
+// 정적 마스터 데이터. features/procedure(또는 content) 가 생기면 그쪽으로 옮긴다 (Task 11).
 import { getProcedureById } from '@/mocks/fixtures/procedures';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { useUserLocation } from '@/hooks/useUserLocation';

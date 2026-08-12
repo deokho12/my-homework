@@ -3,6 +3,7 @@ import { Pressable, Text, View } from '@/primitives';
 
 import { Badge } from '@/components/Badge';
 import { StockImage } from '@/components/StockImage';
+// 정적 마스터 데이터. features/procedure(또는 content) 가 생기면 그쪽으로 옮긴다 (Task 11).
 import { getProcedureById } from '@/mocks/fixtures/procedures';
 import { getPromotionByHospital } from '@/mocks/fixtures/promotions';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
