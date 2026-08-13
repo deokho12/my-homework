@@ -16,6 +16,12 @@ export interface Coordinate {
 }
 
 const EARTH_RADIUS_KM = 6371;
+/** 자오선 1도의 최단 길이(km, 적도). 분모를 최솟값으로 두면 latDelta 가 항상 필요분 이상이 된다. */
+const MIN_KM_PER_DEGREE_LATITUDE = 110.574;
+/** 적도에서 경도 1도의 길이(km). 실제 길이는 cos(위도)를 곱한 값이다. */
+const KM_PER_DEGREE_LONGITUDE_AT_EQUATOR = 111.32;
+/** 부동소수 오차와 근사식 오차를 흡수하는 여유. 상자는 크게 틀려도 안전하고 작게 틀리면 결과가 사라진다. */
+const BOUNDING_BOX_SAFETY = 1.01;
 
 function toRadians(degrees: number): number {
   return (degrees * Math.PI) / 180;
@@ -44,14 +50,19 @@ export interface BoundingBox {
  * 반경을 감싸는 위경도 사각형. **반드시 상위집합이어야 한다** — 상자가 반경보다 작으면
  * 실제로 반경 안에 있는 병원이 SQL 단계에서 탈락해 영원히 보이지 않는다.
  *
- * 경도 1도의 거리는 위도에 따라 줄어들므로 `cos(latitude)` 로 나눈다. 극지방에서
- * `cos` 가 0에 가까워지는 것은 하한을 두어 막는다 (한국 위도에서는 발생하지 않지만,
- * 0으로 나누면 상자가 무한대가 되어 필터가 사라진다).
+ * 위도: 자오선 거리는 모든 위도에서 일정하므로 (111 km/도), 최솟값 분모(110.574)와
+ * 안전계수를 쓰면 latDelta 가 항상 필요분 이상이 된다.
+ *
+ * 경도: 1도의 거리는 cos(latitude)에 비례해 줄어든다. 상자 안에서 극쪽 가장자리
+ * (위도가 가장 높은 점)일 때가 가장 짧으므로, 그 위도를 기준으로 lonDelta 를 계산한다.
+ * 극지방의 하한(0.01)은 0으로 나누기를 방지하지만, 그 한도에 도달하는 위도는
+ * 한국 데이터셋에서 발생하지 않는다.
  */
 export function boundingBox(center: Coordinate, radiusKm: number): BoundingBox {
-  const latDelta = radiusKm / 111.32;
-  const cosLat = Math.max(0.01, Math.cos(toRadians(center.latitude)));
-  const lonDelta = radiusKm / (111.32 * cosLat);
+  const latDelta = (BOUNDING_BOX_SAFETY * radiusKm) / MIN_KM_PER_DEGREE_LATITUDE;
+  const worstCaseLat = Math.abs(center.latitude) + latDelta;
+  const cosLat = Math.max(0.01, Math.cos(toRadians(worstCaseLat)));
+  const lonDelta = (BOUNDING_BOX_SAFETY * radiusKm) / (KM_PER_DEGREE_LONGITUDE_AT_EQUATOR * cosLat);
 
   return {
     minLat: center.latitude - latDelta,
