@@ -73,7 +73,7 @@ export class VerificationService {
       // approved 면 지금 specialty 를 새긴다 — 나중에 specialty 가 바뀌어 이 값과 갈리면
       // 배지 자격을 잃는 근거가 된다 (Task 7, `doctor.projection.ts` 의 `isVerifiedSpecialist`).
       verifiedSpecialty: dto.status === 'approved' ? doctor.specialty : null,
-      rejectionReason: dto.status === 'rejected' ? dto.rejectionReason ?? null : null,
+      rejectionReason: dto.status === 'rejected' ? dto.rejectionReason : null,
       submittedSpecialty: doctor.specialty,
       submittedCertificateUrl: doctor.certificateUrl,
       reviewedByUserId,
@@ -103,20 +103,25 @@ function buildQueueWhere(query: VerificationQueueQuery): Prisma.DoctorWhereInput
   return where;
 }
 
-/** 알림 문구. 병원 담당자 화면에 그대로 보이는 사용자 문구다. */
+/**
+ * 알림 문구. 병원 담당자 화면에 그대로 보이는 사용자 문구다. `title` 은 짧은 명사구,
+ * `message` 는 구체적 사실을 담은 문장이다 (관례: `frontend/src/mocks/fixtures/notifications.ts`
+ * — `title: '상담 상태 변경'` / `message: "상담 상태가 '예약완료'(으)로 변경되었어요"`).
+ * 마침표는 붙이지 않는다 — 시드 문구가 전부 마침표 없이 끝난다.
+ */
 function buildNotificationText(
   dto: DecideVerificationDto,
   doctorName: string
 ): { title: string; message: string } {
   if (dto.status === 'approved') {
     return {
-      title: '전문의 인증이 승인되었어요',
-      message: `${doctorName} 전문의의 인증이 승인되었어요.`,
+      title: '전문의 인증 승인',
+      message: `${doctorName} 전문의의 인증이 승인되었어요`,
     };
   }
 
   return {
-    title: '전문의 인증이 반려되었어요',
-    message: `${doctorName} 전문의의 인증이 반려되었어요. 사유: ${dto.rejectionReason ?? ''}`,
+    title: '전문의 인증 반려',
+    message: `${doctorName} 전문의의 인증이 반려되었어요. 사유: ${dto.rejectionReason}`,
   };
 }

@@ -282,6 +282,10 @@ describe('전문의 인증 검수', () => {
       });
       expect(notification?.audience).toBe('admin');
       expect(notification?.hospitalId).toBe(hospitalWithAdminId);
+      // 알림 문구 관례(frontend/src/mocks/fixtures/notifications.ts): title 은 짧은 명사구,
+      // message 는 구체적 사실을 담은 문장이고 마침표를 붙이지 않는다.
+      expect(notification?.title).toBe('전문의 인증 승인');
+      expect(notification?.message).toBe('검수대상 원장 전문의의 인증이 승인되었어요');
 
       const recipients = await prisma.notificationRecipient.findMany({
         where: { notificationId: notification?.id },
@@ -309,6 +313,13 @@ describe('전문의 인증 검수', () => {
       expect(record?.reviewedByUserId).toBe('u-operator');
       expect(record?.reviewedAt).not.toBeNull();
       expect(record?.rejectionReason).toBe('자격증 이미지가 흐려요');
+
+      const notification = await prisma.notification.findFirst({
+        where: { relatedType: 'doctor', relatedId: doctorWithAdminId },
+        orderBy: { createdAt: 'desc' },
+      });
+      expect(notification?.title).toBe('전문의 인증 반려');
+      expect(notification?.message).toBe('검수대상 원장 전문의의 인증이 반려되었어요. 사유: 자격증 이미지가 흐려요');
     });
 
     it('없는 전문의는 404 다', async () => {

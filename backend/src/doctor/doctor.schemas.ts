@@ -104,17 +104,16 @@ export type VerificationQueueQuery = z.infer<typeof verificationQueueQuerySchema
 /**
  * `PUT /doctors/:doctorId/verification` 요청 본문 (openapi `VerificationDecisionRequest`).
  *
- * **`pending` 으로 되돌릴 수 없다** — 화면에도 그 버튼이 없다(계약). 그래서 enum 이
- * `approved`/`rejected` 둘뿐이다. `rejected` 면 `rejectionReason` 이 1자 이상 필수다.
+ * **`pending` 으로 되돌릴 수 없다** — 화면에도 그 버튼이 없다(계약). 그래서 `status` 는
+ * `approved`/`rejected` 둘뿐이다. `discriminatedUnion` 을 쓰는 이유: `rejected` 면
+ * `rejectionReason` 이 1자 이상 필수라는 규칙을 `.refine()` 이 아니라 **타입** 으로 표현한다 —
+ * 추론된 `DecideVerificationDto` 가 `{ status: 'rejected'; rejectionReason: string }` 로
+ * 좁혀져서, 알림 문구를 만드는 쪽(`verification.service.ts`)이 `dto.rejectionReason` 을
+ * `string | undefined` 로 다루며 `??`/캐스트로 임시 값을 채울 필요가 없다.
  */
-export const decideVerificationSchema = z
-  .object({
-    status: z.enum(['approved', 'rejected']),
-    rejectionReason: z.string().trim().min(1).max(500).optional(),
-  })
-  .refine((value) => value.status !== 'rejected' || value.rejectionReason !== undefined, {
-    message: '반려 사유를 입력해주세요',
-    path: ['rejectionReason'],
-  });
+export const decideVerificationSchema = z.discriminatedUnion('status', [
+  z.object({ status: z.literal('approved') }),
+  z.object({ status: z.literal('rejected'), rejectionReason: z.string().trim().min(1).max(500) }),
+]);
 
 export type DecideVerificationDto = z.infer<typeof decideVerificationSchema>;
