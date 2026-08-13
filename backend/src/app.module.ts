@@ -7,11 +7,11 @@ import { AuthModule } from './auth/auth.module';
 import { validateEnv } from './config/env.schema';
 import { HealthModule } from './health/health.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { ProcedureModule } from './procedure/procedure.module';
 
 /**
- * 루트 모듈. 도메인 모듈(병원·전문의·상담 …)은 아직 없다 — 인증·인가까지 올라온 상태다.
- * 도메인 모듈이 생기면 `imports` 에 하나씩 추가하고, 보호가 필요한 라우트에는
- * `AuthModule` 이 내보내는 가드를 붙인다.
+ * 루트 모듈. 도메인 모듈은 `ProcedureModule` 이 첫 사례이고, 이후 병원·전문의·상담 …이
+ * 같은 패턴으로 여기 추가된다. 보호가 필요한 라우트에는 `AuthModule` 이 내보내는 가드를 붙인다.
  *
  * HTTP 레벨 설정(전역 접두어, 예외 필터, 요청 id 미들웨어, CORS)은 `configureApp()` 에 있다
  * (src/app-setup.ts). 테스트도 같은 함수를 쓰기 때문에 "운영에서만 켜진 설정" 이 생기지 않는다.
@@ -33,6 +33,7 @@ import { PrismaModule } from './prisma/prisma.module';
     // 감사 로그. 지금은 CLI 만 기록하지만, 도메인 모듈이 생기면 여기서 주입받는다
     AuditModule,
     HealthModule,
+    ProcedureModule,
   ],
 })
 export class AppModule {}
