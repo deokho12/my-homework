@@ -47,6 +47,17 @@ export interface HospitalFeatures {
   cctv: boolean;
 }
 
+/**
+ * 광고 노출 판정. 서버가 `Asia/Seoul` 기준으로 계산해 내려준다
+ * (`backend/src/hospital/sponsorship.ts` 와 같은 규칙).
+ */
+export interface SponsorshipState {
+  /** 광고 기간 중인가. `광고` 배지의 조건. */
+  isActive: boolean;
+  /** 상단 노출 자격이 있는가. 기간 + 평점 3.5 + (지정 시) 카테고리. 정렬은 서버가 이미 끝냈다. */
+  isPlacementEligible: boolean;
+}
+
 export interface Hospital {
   id: string;
   name: string;
@@ -83,6 +94,12 @@ export interface Hospital {
   address: string;
   introduction: string;
   events: string[];
+  /** 서버가 계산한다 (`backend/src/hospital/sponsorship.ts`). 탐색 화면은 아직 client 계산(`src/utils/sponsorship.ts`)을 쓴다. */
+  sponsorship: SponsorshipState;
+  /** 병원 카드의 `OO전문의 상주` 배지. 서버가 계산한다. 없으면 null. */
+  representativeSpecialty: DentalSpecialty | null;
+  /** 지도 반경 조회에서만 온다. */
+  distanceKm?: number;
 }
 
 export type DentalSpecialty =
@@ -112,11 +129,13 @@ export interface Doctor {
   id: string;
   name: string;
   title: string;
-  specialty: DentalSpecialty;
+  /** 승인 전에는 응답에 없다 (미승인 전공 주장은 공개되지 않는다). 표시용은 `visibleSpecialty`. */
+  specialty?: DentalSpecialty;
   hospitalId: string;
   photo: string;
   procedureIds: ProcedureId[];
-  rating: number;
+  /** 비로그인이면 null. 전문의 상세의 평점 잠금이 서버 응답이 됐다 — `?? 0` 으로 덮지 않는다. */
+  rating: number | null;
   reviewCount: number;
   consultCount: number;
   /** Uploaded certificate/license image or PDF URL. Null until the hospital admin uploads one. */
@@ -128,6 +147,10 @@ export interface Doctor {
   yearsOfExperience: number;
   /** "경력 및 활동" bullet list shown on the doctor detail screen. */
   career: string[];
+  /** 표시해도 되는 전공. `일반의` → 항상 노출, 그 밖은 `approved` 일 때만. 서버 계산 필드. */
+  visibleSpecialty: DentalSpecialty | null;
+  /** `전문의` 배지 조건 (`approved` && `specialty !== 일반의`). 서버 계산 필드. */
+  isVerifiedSpecialist: boolean;
 }
 
 export interface Review {
@@ -271,4 +294,15 @@ export interface AppNotification {
   createdAt: string;
   /** Id of the related consult request, hospital, etc. Null for generic notices. */
   relatedId: string | null;
+}
+
+/** 목록 조회 계약의 공통 페이지네이션 모양. `GET /hospitals` 등이 이 모양으로 응답한다. */
+export interface Paged<T> {
+  items: T[];
+  meta: {
+    page: number;
+    pageSize: number;
+    totalItems: number;
+    totalPages: number;
+  };
 }

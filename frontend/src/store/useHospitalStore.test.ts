@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { queryClient } from '@/app/providers';
-import { fetchHospitalById } from '@/features/hospital/api/hospitalApi';
 import { queryKeys } from '@/lib/queryKeys';
 import { mockDb } from '@/mocks/db';
 import type { Hospital } from '@/types/domain';
@@ -44,6 +43,8 @@ function makeHospital(id: string, name: string): Hospital {
     address: '서울시 강남구',
     introduction: '',
     events: [],
+    sponsorship: { isActive: false, isPlacementEligible: false },
+    representativeSpecialty: null,
   };
 }
 
@@ -68,19 +69,13 @@ describe('useHospitalStore', () => {
     expect(row?.name).toBe('이름바꾼치과');
   });
 
-  it('updateHospital 뒤 fetchHospitalById 가 새 값을 돌려준다', async () => {
-    const target = mockDb.read('hospitals')[0];
-
-    useHospitalStore.getState().updateHospital(target.id, { name: '수정된치과' });
-
-    await expect(fetchHospitalById(target.id)).resolves.toMatchObject({ name: '수정된치과' });
-  });
-
-  it('addHospital 뒤 fetchHospitalById 가 새 병원을 찾는다', async () => {
-    useHospitalStore.getState().addHospital(makeHospital('h-new-1', '새로등록한치과'));
-
-    await expect(fetchHospitalById('h-new-1')).resolves.toMatchObject({ name: '새로등록한치과' });
-  });
+  // `updateHospital 뒤 fetchHospitalById 가 새 값을 돌려준다` / `addHospital 뒤 fetchHospitalById 가
+  // 새 병원을 찾는다` 를 여기서 지웠다. 두 테스트는 이 스토어(mockDb 쓰기)와
+  // `hospitalApi.fetchHospitalById`(mockDb 읽기)가 같은 저장소를 공유한다는 결합을 검증했는데,
+  // `fetchHospitalById` 가 HTTP 호출로 바뀌면서 그 결합 자체가 사라졌다 — mockDb 에 쓴 값을
+  // 실제 백엔드가 알 방법이 없다. 이 스토어는 관리자 화면이 이관되면(나중 Task) 통째로
+  // 지워질 임시 코드라 결합을 다른 방식으로 재검증하지 않는다. 아래 `updateHospital 이 mockDb 에
+  // 반영된다` 처럼 mockDb 영속화 자체를 보는 테스트는 남긴다.
 
   it('addHospital 이 스토어의 hospitals 에도 반영된다', () => {
     const before = useHospitalStore.getState().hospitals.length;

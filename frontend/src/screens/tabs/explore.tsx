@@ -178,6 +178,9 @@ export default function ExploreScreen() {
     return [...list].sort((a, b) => {
       if (sortBy === 'reviews') return b.reviewCount - a.reviewCount;
       if (sortBy === 'consults') return b.consultCount - a.consultCount;
+      // 평점이 잠긴(null) 전문의는 0점이 아니라 "모른다"다 — 정렬에서는 뒤로 보낸다.
+      if (a.rating === null) return b.rating === null ? 0 : 1;
+      if (b.rating === null) return -1;
       return b.rating - a.rating;
     });
   }, [doctors, hospitalById, selectedCategory, onlyConsult, onlyOneDay, onlySpecialist, onlyNightConsult, onlyExperienced, sortBy]);

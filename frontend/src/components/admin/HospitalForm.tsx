@@ -49,6 +49,8 @@ const FEATURE_OPTIONS: { key: keyof HospitalFeatures; label: string }[] = [
 
 // Sponsorship fields are excluded on purpose — ad placement isn't self-serve yet (see admin/hospital/[id].tsx
 // for the read-only "광고 현황" display), so editing a hospital here must never touch/clear those fields.
+// `sponsorship`/`representativeSpecialty` are excluded for the same reason — both are server-computed
+// (see backend/src/hospital/hospital.projection.ts), not admin-editable form fields.
 export type HospitalFormData = Omit<
   Hospital,
   | 'id'
@@ -62,6 +64,8 @@ export type HospitalFormData = Omit<
   | 'sponsoredRank'
   | 'sponsoredStartDate'
   | 'sponsoredEndDate'
+  | 'sponsorship'
+  | 'representativeSpecialty'
 >;
 
 export interface SpecialistEntry {
@@ -118,7 +122,10 @@ export function HospitalForm({ initial, submitLabel, onSubmit }: HospitalFormPro
           id: doctor.id,
           name: doctor.name,
           title: doctor.title,
-          specialty: doctor.specialty,
+          // `Doctor.specialty` 는 미승인 전공 주장을 감추는 공개 API 계약 때문에 optional 이다.
+          // 이 관리자 폼은 목 store 에서 직접 읽으므로 항상 값이 있다 — 여기의 폴백은
+          // (있을 수 없는) 결측을 대비한 방어이지 정상 동작 경로가 아니다.
+          specialty: doctor.specialty ?? '일반의',
           certificateUrl: doctor.certificateUrl ?? '',
         }))
       : []

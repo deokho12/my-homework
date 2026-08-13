@@ -1,18 +1,40 @@
+import { apiRequest } from '@/lib/apiClient';
+import { toSearchParams } from '@/lib/searchParams';
 import { mockDb } from '@/mocks/db';
 import { delay } from '@/mocks/latency';
-import type { Hospital } from '@/types/domain';
+import type { Hospital, Paged } from '@/types/domain';
 
-// 실제 백엔드가 생기면 이 파일 내부만 HTTP 호출로 바꾼다.
-// 시그니처는 유지되므로 훅과 페이지는 손대지 않는다.
+/**
+ * 병원 조회는 실제 백엔드(`GET /hospitals`, `GET /hospitals/:id`)를 부른다.
+ * 등록·수정은 아직 `mockDb` 를 쓴다 — 관리자 화면이 이관되는 나중 Task 에서 함께 바뀐다.
+ */
+export type HospitalFilters = {
+  page?: number;
+  pageSize?: number;
+  procedureId?: string;
+  recommended?: boolean;
+  consultAvailable?: boolean;
+  oneDay?: boolean;
+  hasVerifiedSpecialist?: boolean;
+  nightConsult?: boolean;
+  minDoctorYearsOfExperience?: number;
+  sort?: 'rating' | 'reviewCount' | 'consultCount';
+  latitude?: number;
+  longitude?: number;
+  radiusKm?: number;
+  q?: string;
+};
 
-export async function fetchHospitals(): Promise<Hospital[]> {
-  await delay();
-  return mockDb.read('hospitals');
+export function fetchHospitals(filters: HospitalFilters = {}): Promise<Paged<Hospital>> {
+  return apiRequest<Paged<Hospital>>(`/hospitals${toSearchParams(filters)}`);
 }
 
-export async function fetchHospitalById(id: string): Promise<Hospital | null> {
-  await delay();
-  return mockDb.read('hospitals').find((hospital) => hospital.id === id) ?? null;
+/**
+ * 없는 병원은 `null` 이 아니라 `404 HOSPITAL_NOT_FOUND`(`ApiError`)를 던진다.
+ * 소비자는 `isApiError(error) && error.code === 'HOSPITAL_NOT_FOUND'` 로 "없음"을 분기한다.
+ */
+export function fetchHospitalById(id: string): Promise<Hospital> {
+  return apiRequest<Hospital>(`/hospitals/${encodeURIComponent(id)}`);
 }
 
 export async function createHospital(hospital: Hospital): Promise<Hospital> {

@@ -84,7 +84,9 @@ export default function DoctorDetailScreen() {
               blur library is installed. Swap for expo-blur's BlurView if the design wants a true blur. */}
           <View className="relative mb-5 overflow-hidden rounded-2xl bg-neutral-50 p-5">
             <View className="flex-row items-end gap-2">
-              <Text className="text-3xl font-extrabold text-neutral-900">{doctor.rating.toFixed(1)}</Text>
+              <Text className="text-3xl font-extrabold text-neutral-900">
+                {doctor.rating === null ? '🔒' : doctor.rating.toFixed(1)}
+              </Text>
               <Text className="mb-1 text-sm text-neutral-500">후기 {doctor.reviewCount}개 평균 평점</Text>
             </View>
 

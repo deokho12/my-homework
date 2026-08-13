@@ -8,6 +8,8 @@ import type { NotificationAudience } from '@/types/domain';
 export const queryKeys = {
   hospitals: {
     all: ['hospitals'] as const,
+    /** 필터별로 캐시를 가른다. `all` 은 무효화 접두사로 남긴다 — mutation 이 목록·상세를 한 번에 깬다. */
+    list: (filters: object = {}) => ['hospitals', 'list', filters] as const,
     detail: (id: string) => ['hospitals', id] as const,
   },
   doctors: {

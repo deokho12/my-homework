@@ -1,7 +1,8 @@
 import { DOCTOR_FEMALE_1, DOCTOR_FEMALE_2, DOCTOR_FEMALE_3, DOCTOR_FEMALE_4, DOCTOR_MALE_1, DOCTOR_MALE_2, DOCTOR_MALE_3, sized } from '@/config/stockImages';
 import type { Doctor } from '@/types/domain';
+import { getVisibleSpecialtyLabel, isVerifiedSpecialist } from '@/utils/specialty';
 
-export const doctors: Doctor[] = [
+const rawDoctors: Omit<Doctor, 'visibleSpecialty' | 'isVerifiedSpecialist'>[] = [
   {
     id: 'd1',
     name: '김민준',
@@ -282,3 +283,14 @@ export const doctors: Doctor[] = [
     career: ['전 충남대학교병원 구강악안면외과 전공의'],
   },
 ];
+
+/**
+ * 서버가 계산해 내려주는 필드(`visibleSpecialty`/`isVerifiedSpecialist`). 목 백엔드가
+ * 서버 대역이므로 여기서 기존 클라이언트 규칙(`src/utils/specialty.ts`)으로 채운다 —
+ * 판정 규칙이 두 곳에 있으면 갈릴 수 있으므로 그 함수들을 그대로 재사용한다.
+ */
+export const doctors: Doctor[] = rawDoctors.map((doctor) => ({
+  ...doctor,
+  visibleSpecialty: getVisibleSpecialtyLabel(doctor),
+  isVerifiedSpecialist: isVerifiedSpecialist(doctor),
+}));

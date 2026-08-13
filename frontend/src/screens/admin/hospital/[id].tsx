@@ -95,6 +95,10 @@ export default function EditHospitalScreen() {
                 isRecommended: false,
                 yearsOfExperience: 0,
                 career: [],
+                // 서버 계산 필드. 등록 직후는 항상 검수 대기라 아직 공개할 전공이 없다
+                // (일반의는 예외 — 검수 없이 항상 노출된다. src/utils/specialty.ts 규칙과 같다).
+                visibleSpecialty: specialist.specialty === '일반의' ? '일반의' : null,
+                isVerifiedSpecialist: false,
               });
             });
 

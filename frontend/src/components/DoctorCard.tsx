@@ -62,7 +62,9 @@ export function DoctorCard({ doctor, style }: DoctorCardProps) {
       <View className="mb-3 flex-row items-center gap-3">
         <Text className="text-xs text-neutral-500">후기 {doctor.reviewCount}</Text>
         <Text className="text-xs text-neutral-500">상담 {doctor.consultCount}</Text>
-        <Text className="text-xs text-neutral-500">★ {doctor.rating.toFixed(1)}</Text>
+        <Text className="text-xs text-neutral-500">
+          ★ {doctor.rating === null ? '비공개' : doctor.rating.toFixed(1)}
+        </Text>
       </View>
 
       <Pressable

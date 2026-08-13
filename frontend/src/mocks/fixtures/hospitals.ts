@@ -1,7 +1,7 @@
 import { CLINIC_INTERIOR_1, CLINIC_INTERIOR_2, PROCEDURE_IN_PROGRESS, sized } from '@/config/stockImages';
 import type { Hospital } from '@/types/domain';
 
-export const hospitals: Hospital[] = [
+const rawHospitals: Omit<Hospital, 'sponsorship' | 'representativeSpecialty'>[] = [
   {
     id: 'h1',
     name: '강남 스마일 치과',
@@ -506,3 +506,15 @@ export const hospitals: Hospital[] = [
     events: ['신학기 교정상담 구강스캔 무료'],
   },
 ];
+
+/**
+ * 서버가 계산해 내려주는 필드. 목 백엔드가 서버 대역이므로 여기서 기본값을 채운다.
+ * `isActive: false` 로 두어도 화면 표시는 바뀌지 않는다 — 탐색 화면은 아직
+ * `src/utils/sponsorship.ts`(클라이언트 계산)를 쓴다. 관리자 화면이 목을 벗어나면
+ * (나중 Task) 이 어댑터와 `rawHospitals` 는 함께 사라진다.
+ */
+export const hospitals: Hospital[] = rawHospitals.map((hospital) => ({
+  ...hospital,
+  sponsorship: { isActive: false, isPlacementEligible: false },
+  representativeSpecialty: null,
+}));
