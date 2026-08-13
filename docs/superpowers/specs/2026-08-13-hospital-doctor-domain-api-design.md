@@ -263,24 +263,52 @@ pages/                                 ExplorePage · DoctorDetailPage ·
 `queryKeys.hospitals.all` 은 필터를 캐시 단위에 포함해야 하므로 `list(filters)` 를 더한다.
 `all` 은 무효화용 접두사로 남긴다.
 
-### 5.3 삭제 대상
+### 5.3 `getProcedureById()` — 동기 조회를 어떻게 바꾸는가
+
+`mocks/fixtures/procedures.ts` 의 `getProcedureById()` 는 **렌더 중 동기 호출**로 10곳 이상에서
+쓰인다 (`HospitalCard`, `HospitalDetailView`, `HospitalExploreCard`, `HospitalMapView`,
+`DoctorCard`, `HospitalForm`, 관리자 화면들). 서버 쿼리로 바꾸면 이 호출부가 전부 비동기가 된다.
+
+시술은 13종 고정 마스터 데이터이므로 **앱 부팅 시 한 번 받아 맵으로 들고 있는다:**
 
 ```
-src/store/useHospitalStore.ts          (getHospitalById · getHospitalsByProcedure 포함)
-src/store/useDoctorStore.ts
-src/utils/sponsorship.ts               → 서버로 이동
-src/mocks/fixtures/{hospitals,doctors,procedures,reviews}.ts
-src/mocks/db.ts 의 해당 컬렉션
+features/procedure/hooks/useProcedures.ts    GET /procedures (staleTime: Infinity)
+features/procedure/hooks/useProcedureMap.ts  Map<ProcedureId, Procedure>
 ```
+
+호출부는 `getProcedureById(id)` → `useProcedureMap().get(id)` 로 바뀐다. 기계적인 치환이고
+렌더 중 동기 조회라는 성질은 유지된다. 계약이 `Cache-Control: max-age=3600` + ETag 를 지정한
+것도 같은 의도다.
+
+`ProcedureId` 유니온 타입 자체는 `types/domain.ts` 에 그대로 둔다 — 컴파일 타임 상수이고
+서버 응답으로 대체할 수 있는 것이 아니다.
+
+### 5.4 삭제·이동 대상
+
+| 파일 | 처분 |
+|---|---|
+| `store/useHospitalStore.ts` | 삭제 (`getHospitalById` · `getHospitalsByProcedure` 포함) |
+| `store/useDoctorStore.ts` | 삭제 |
+| `utils/sponsorship.ts` | **백엔드로 이동** (`hospital/sponsorship.ts`) |
+| `utils/specialty.ts` 의 `isVerifiedSpecialist` · `getVisibleSpecialtyLabel` · `getRepresentativeSpecialist` | 삭제 — 서버 계산 필드(`isVerifiedSpecialist` · `visibleSpecialty` · `representativeSpecialty`)로 대체 |
+| `utils/specialty.ts` 의 `PROCEDURE_SPECIALTY_MAP` · `getProceduresForSpecialty` | **백엔드로 이동** — 신규 전문의의 `procedureIds` 를 전공에서 유도하는 것은 이제 서버 책임이다 (§4.6) |
+| `mocks/fixtures/{hospitals,doctors,procedures,reviews}.ts` | 백엔드로 이동 (§6) |
+| `mocks/db.ts` 의 `hospitals` · `doctors` 테이블 | 삭제 |
+
+`mockDb` 에는 `consultRequests` · `communityPosts` · `notifications` 세 테이블이 **남는다.**
+조각 2~4 가 각자 걷어낸다. `LEGACY_SOURCES` 의 `hospitals` · `doctors` 항목도 함께 지운다.
 
 `getHospitalById()` 는 `getState()` 스냅샷을 읽는 비반응형 호출로 `PromotionCard`,
 `tips/[id].tsx`, `doctor/[id].tsx` 3곳에서 쓰인다(known-issues 개발자 메모의 지적).
 스토어가 사라지면서 이 3곳이 `useHospital(id)` 로 바뀌어 함께 해소된다.
 
-`mocks/fixtures/hospitals.ts` 등은 **백엔드 시드가 import 하고 있다**(`backend/prisma/seed/fixtures.ts`).
-삭제하면 시드가 깨진다 → §6 참고.
+**주의 — `isVerifiedSpecialist` 의 판정이 서버에서 더 엄격해진다.** 현재 프론트 구현은
+`verificationStatus === 'approved' && specialty !== '일반의'` 뿐이고 `verifiedSpecialty` 를 보지 않는다.
+서버는 §4.7 대로 `verifiedSpecialty === specialty` 를 함께 본다. 승인 후 전공이 바뀐 전문의는
+배지를 잃는다 — 의도된 변화이며 🟡 결함의 해결이다. 시드 데이터에서 이 조건에 걸리는 행이
+있는지 확인하고, 있으면 QA 가 오해하지 않도록 기록한다.
 
-### 5.4 계획 문서와의 관계
+### 5.5 계획 문서와의 관계
 
 이 조각이 `docs/superpowers/plans/2026-08-12-frontend-stack-alignment.md` 의
 **Task 4(explore 필터 훅 분리)와 Task 5(doctor feature)를 함께 소화한다.**
