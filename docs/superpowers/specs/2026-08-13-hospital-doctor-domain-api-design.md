@@ -4,6 +4,8 @@
 **상태**: 승인됨
 **범위**: `openapi.yaml` 오퍼레이션 15개 + 프론트엔드 데이터 계층 교체
 **선행**: `8d5d7f0` (인증·인가·감사 기반), `98a47f2` (실제 API 인증 + 라우트 인가)
+**DB**: SQLite 로 구현·검증한다. PostgreSQL 전환은 이후이며, 이 조각은 §4.9 의 이식성 규칙을
+지켜 `docs/database/README.md` §7.2 이전 절차를 유효하게 유지한다.
 
 ---
 
@@ -227,6 +229,55 @@ DB 는 `specialty`(병원이 신고한 값)와 `verifiedSpecialty`(실제 승인
 사용자 화면 표시를 바꾸지도 않는다. `includeGeneralPractitioners=true` 일 때만 포함한다.
 정렬은 항상 `대기 → 반려 → 승인`, 같은 상태 안에서는 등록 순이다.
 
+### 4.9 SQLite 로 검증한다 — 조각 1이 밟는 이식성 지점
+
+**DB 는 SQLite 로 두고 PostgreSQL 전환은 나중이다.** 이 조각은 SQLite 에서 구현·검증한다.
+스키마·문서에 이미 확립된 규정(`prisma/schema.prisma` 머리말 10개 규칙,
+`docs/database/README.md` §3)을 그대로 따르며, **조각 1이 실제로 밟는 지점만** 아래에 못 박는다.
+PostgreSQL 전용 문법이나 `$queryRaw` 를 쓰면 §7.2 이전 절차가 무효가 된다.
+
+| 지점 | 규칙 | 근거 |
+|---|---|---|
+| `q` 검색 (`/hospitals`, `/doctors`, `/admin/hospitals`) | `nameNormalized: { contains: lower(trim(q)) }`. **`mode: 'insensitive'` 금지** — Prisma 에서 PostgreSQL 전용이고 SQLite 는 미지원 | §3.9 |
+| 쓰기 시 정규화 컬럼 | `POST /hospitals` · `PATCH /hospitals/{id}` · `PUT /hospitals/{id}/doctors` · `PATCH /doctors/{id}` 가 `nameNormalized` 를 반드시 채운다. 빠뜨리면 검색에서 조용히 사라진다 | §3.9 |
+| 반경 필터 (`radiusKm`) | **앱에서 계산한다.** 공간 인덱스도 PostGIS 도 쓰지 않는다 | §3.8 이 명시적으로 "그 시점까지는 앱 계산 유지" |
+| 조인 필터 (`hasVerifiedSpecialist`, `minDoctorYearsOfExperience`) | Prisma 관계 필터(`doctors: { some: {...} }`). raw SQL 금지 | §3.8 |
+| `updatedAt` | `@updatedAt` 이 없다. **모든 쓰기 경로가 UTC 로 직접 세팅한다** | 스키마 머리말 |
+| 정렬 동점 | `orderBy` 에 `id` tiebreaker 를 항상 더한다 | 아래 |
+| boolean | Prisma Client 로만 접근하면 차이가 드러나지 않는다. 특별 처리 없음 | §3.10 |
+
+**정렬 동점 tiebreaker 는 이식성 문제이자 페이지네이션 정확성 문제다.** `rating` 이 같은 병원이
+여럿일 때 SQLite 와 PostgreSQL 의 반환 순서가 다를 수 있고, 순서가 불안정하면 1페이지와 2페이지
+사이에서 같은 행이 중복되거나 누락된다. 모든 목록 쿼리의 `orderBy` 를
+`[{ <sort>: 'desc' }, { id: 'asc' }]` 로 고정한다.
+
+**반경 필터와 페이지네이션의 상호작용** — 거리 계산이 앱에서 일어나므로 SQL 의 `LIMIT`/`OFFSET`
+을 그대로 쓰면 `meta.totalItems` 가 필터 전 개수가 되어 화면의 `총 N곳` 이 틀린다.
+`latitude`·`longitude`·`radiusKm` 가 온 요청은 **bounding box 로 후보를 좁혀 전부 읽고, 앱에서
+하버사인 거리로 필터·정렬한 뒤 페이징한다.** 현재 병원이 11곳이라 비용이 없고, 수천 곳이 되는
+시점은 이미 PostgreSQL + PostGIS 로 옮겨간 뒤다(§3.8·§7.6). 이 제약을 코드 주석에 남긴다.
+
+### 4.10 전문의 삭제는 soft delete 다
+
+계약의 `DELETE /doctors/{id}` 설명("되돌릴 수 없다")은 **사용자 관점의 문구**이며 물리 삭제를
+지시하는 것이 아니다. 물리 삭제하면 안 되는 이유가 스키마에 있다:
+
+`ConsultRequest.doctor` 의 FK 가 `onDelete: SetNull` 이다. 전문의를 물리 삭제하면 그 전문의를
+지목한 상담들의 `doctorId` 가 전부 `null` 이 되어 **"어느 전문의에게 신청했는지"가 사라진다.**
+그 값을 남기는 것이 바로 이 계약이 고치려는 🟠 결함("전문의 상담신청인데 어느 전문의인지
+저장되지 않습니다")이다. 물리 삭제는 방금 고친 것을 다시 부순다.
+
+`Doctor.deletedAt` 컬럼과 `@@index([deletedAt])` 가 이미 있다 — 스키마가 soft delete 를 전제하고 있다.
+
+**규칙:**
+
+- `DELETE /doctors/{id}` 와 `PUT /hospitals/{id}/doctors` 의 목록 이탈 삭제는 `deletedAt` 을 세팅한다
+- **모든 조회 쿼리에 `deletedAt: null` 을 넣는다** — 목록·상세·검수 큐·조인 필터 전부.
+  하나라도 빠뜨리면 삭제된 전문의가 화면에 다시 나타난다. 리포지토리 계층에서 기본 조건으로
+  두고, 테스트가 "삭제 후 각 엔드포인트에서 사라지는지"를 엔드포인트별로 확인한다
+- 병원도 동일하다 (`Hospital.deletedAt`). 조각 1에 병원 삭제 엔드포인트는 없지만
+  조회 쪽 필터는 지금 넣는다
+
 ## 5. 프론트엔드 설계
 
 ### 5.1 도메인 타입 변경
@@ -343,6 +394,14 @@ features/procedure/hooks/useProcedureMap.ts  Map<ProcedureId, Procedure>
 | 라우트 순서 | e2e. `GET /doctors/verification-queue` 가 큐를 준다 |
 | 재검수 규칙 | e2e. 전공 변경 → `pending` 복귀 + 검수 행 생성 |
 | 검수 부수효과 | e2e. 알림 행 + 수신자 행, 담당자 0명 병원도 성공 |
+| soft delete | e2e. 삭제 후 목록·상세·검수 큐·조인 필터에서 각각 사라지는지 |
+| 정렬 안정성 | e2e. 동점 병원이 있는 상태에서 1·2페이지에 중복·누락이 없는지 |
+| 이식성 | 정적 검사. `$queryRaw`/`$executeRaw` 와 `mode: 'insensitive'` 사용 0건 |
+
+**DB 는 SQLite 하나로 검증한다.** PostgreSQL 실행 검증은 `docs/database/README.md` §7.2 절차로
+이전 시점에 하는 것이고, 지금은 그 절차가 무효화되지 않도록 §4.9 규칙을 지키는 데 집중한다.
+`$queryRaw` / `mode: 'insensitive'` 금지는 사람이 리뷰로 잡을 것이 아니라 **테스트로 고정한다** —
+소스를 읽어 해당 토큰이 없음을 확인하는 단순 검사이며, 나중에 누가 편의로 넣는 것을 막는다.
 
 인가 e2e 는 **응답 본문이 동일한지까지 본다.** 남의 병원과 없는 병원의 응답이 갈리면
 id 를 순차 대입해 존재를 셀 수 있다 — `8d5d7f0` 이 세운 기준이며 이 조각도 따른다.
@@ -376,8 +435,12 @@ id 를 순차 대입해 존재를 셀 수 있다 — `8d5d7f0` 이 세운 기준
 5. 승인된 전문의의 전공을 바꾸면 `pending` 으로 돌아간다
 6. 전문의 이름을 비우고 저장하면 거절된다 (조용한 삭제 없음)
 7. 미승인 전공이 API 응답에 실리지 않는다
-8. 백엔드·프론트 게이트 전부 통과 (`lint` · `typecheck` · `test` · `build`)
-9. `qa-master` QA 통과
+8. 삭제한 전문의가 어느 엔드포인트에서도 다시 나타나지 않고, 그 전문의를 지목한 상담의
+   `doctorId` 가 보존된다
+9. **PostgreSQL 전용 문법·raw SQL 이 0건이다** — `docs/database/README.md` §7.2 이전 절차가
+   그대로 유효하게 남는다
+10. 백엔드·프론트 게이트 전부 통과 (`lint` · `typecheck` · `test` · `build`)
+11. `qa-master` QA 통과
 
 ## 9. 이 조각이 없애는 known-issues 항목
 
