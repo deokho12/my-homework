@@ -39,7 +39,7 @@ export interface HospitalRow {
   deletedAt: Date | null;
   procedures: { procedureId: string }[];
   images: { url: string; sortOrder: number }[];
-  tags: { tag: string; sortOrder: number }[];
+  tags: { tag: string }[];
   eventNotes: { content: string; sortOrder: number }[];
   /** `day` 라벨 컬럼은 **없다.** DB 는 `dayOfWeek`(1=월 … 7=일)만 저장하고 라벨은 앱이 만든다. */
   businessHours: { dayOfWeek: number; hours: string; isClosed: boolean }[];
@@ -107,14 +107,23 @@ export interface HospitalResponse {
 /** 리포지토리가 쓰는 Prisma include. 투영이 요구하는 관계를 한 곳에 모은다. */
 export const HOSPITAL_INCLUDE = {
   procedures: { select: { procedureId: true } },
-  images: { select: { url: true, sortOrder: true }, orderBy: { sortOrder: 'asc' } },
-  tags: { select: { tag: true, sortOrder: true }, orderBy: { sortOrder: 'asc' } },
-  eventNotes: { select: { content: true, sortOrder: true }, orderBy: { sortOrder: 'asc' } },
+  images: { select: { url: true, sortOrder: true }, orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] },
+  // `HospitalTag` 에는 `sortOrder` 컬럼이 없다 — 계약(`Hospital.tags`)도 순서를 요구하지 않는다.
+  tags: { select: { tag: true }, orderBy: { id: 'asc' } },
+  eventNotes: {
+    select: { content: true, sortOrder: true },
+    orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+  },
   businessHours: {
     select: { dayOfWeek: true, hours: true, isClosed: true },
     orderBy: { dayOfWeek: 'asc' },
   },
-  sponsorships: { select: { procedureId: true, rank: true, startDate: true, endDate: true } },
+  // `sponsorships[0]` 을 대표 행으로 쓴다 (아래 `projectHospital` 주석) — 낮은 rank 가 먼저
+  // 노출되는 게 이 필드의 의미이므로 대표 행도 최저 rank 여야 한다.
+  sponsorships: {
+    select: { procedureId: true, rank: true, startDate: true, endDate: true },
+    orderBy: [{ rank: 'asc' }, { id: 'asc' }],
+  },
   // `representativeSpecialty` 계산용. 삭제된 전문의는 대표가 될 수 없다.
   doctors: {
     where: { deletedAt: null },

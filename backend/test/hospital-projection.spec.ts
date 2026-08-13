@@ -36,7 +36,7 @@ function row(overrides: Partial<HospitalRow> = {}): HospitalRow {
     deletedAt: null,
     procedures: [{ procedureId: 'implant' }, { procedureId: 'crown' }],
     images: [{ url: 'https://example.test/1.jpg', sortOrder: 0 }],
-    tags: [{ tag: '야간진료', sortOrder: 0 }],
+    tags: [{ tag: '야간진료' }],
     eventNotes: [{ content: '첫 상담 무료', sortOrder: 0 }],
     businessHours: [{ dayOfWeek: 1, hours: '10:00 - 19:00', isClosed: false }],
     sponsorships: [],
