@@ -1,9 +1,11 @@
 import { router, useFocusEffect } from '@/navigation';
 import { useCallback, useRef } from 'react';
 import type { NativeScrollEvent, NativeSyntheticEvent } from '@/primitives';
-import { Pressable, ScrollView, Text, useWindowDimensions, View } from '@/primitives';
+import { Pressable, ScrollView, Text, View, cx } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
 
+import { CardGrid } from '@/components/layout/CardGrid';
+import { CONTAINER_CLASS } from '@/components/layout/Container';
 import { Footer } from '@/components/Footer';
 import { GuideCard } from '@/components/GuideCard';
 import { HeroBanner } from '@/components/HeroBanner';
@@ -24,14 +26,6 @@ const SCROLL_SHADOW_THRESHOLD = 8;
 const HOME_TRENDING_TAGS = TRENDING_SEARCHES.all.slice(0, 6).map((item) => item.term);
 
 export default function HomeScreen() {
-  const { width } = useWindowDimensions();
-  const isWideDesktop = width >= 1024;
-  // Percentage-based grid math (not CSS `gap` + percentage widths, which overflows) so each row holds
-  // exactly `columns` cards and the last row — however many items it has left — packs from the left
-  // instead of stretching via `justify-between`.
-  const columns = width >= 1024 ? 6 : width >= 768 ? 4 : width >= 480 ? 3 : 2;
-  const GAP_PERCENT = 2;
-  const cardWidthPercent = (100 - (columns - 1) * GAP_PERCENT) / columns;
   const setScrolled = useScrollShadowStore((state) => state.setScrolled);
   const scrollOffsetRef = useRef(0);
 
@@ -50,7 +44,7 @@ export default function HomeScreen() {
   return (
     <SafeAreaView className="flex-1 bg-neutral-50" edges={['top']}>
       <ScrollView
-        contentContainerClassName="px-5 pb-8 pt-4"
+        contentContainerClassName={cx(CONTAINER_CLASS, 'pb-8 pt-4')}
         showsVerticalScrollIndicator={false}
         onScroll={handleScroll}
         scrollEventThrottle={16}
@@ -83,19 +77,22 @@ export default function HomeScreen() {
         {promotions.length > 0 ? (
           <View className="mb-8 rounded-2xl bg-white p-4">
             <SectionHeader title="지금 진행중인 이벤트" actionLabel="전체보기" onPressAction={() => router.push('/events')} />
-            {isWideDesktop ? (
-              <View className="flex-row flex-wrap gap-y-3">
-                {promotions.map((promotion) => (
-                  <PromotionCard key={promotion.id} promotion={promotion} />
-                ))}
-              </View>
-            ) : (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {promotions.map((promotion) => (
-                  <PromotionCard key={promotion.id} promotion={promotion} />
-                ))}
-              </ScrollView>
-            )}
+            {/*
+              좁은 화면은 가로 스크롤, lg 부터는 줄바꿈. 예전에는 두 갈래를 각각 렌더했지만
+              구조가 같아서 CSS 로 합쳤다. `overflow-visible` 이 필요한 이유는
+              `.rnw-scroll-horizontal` 이 overflow-y 를 hidden 으로 두기 때문이다 —
+              줄바꿈으로 세로가 길어지면 두 번째 줄부터 잘린다.
+            */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              className="lg:overflow-visible"
+              contentContainerClassName="gap-3 lg:flex-wrap"
+            >
+              {promotions.map((promotion) => (
+                <PromotionCard key={promotion.id} promotion={promotion} />
+              ))}
+            </ScrollView>
           </View>
         ) : null}
 
@@ -105,19 +102,11 @@ export default function HomeScreen() {
             actionLabel="전체보기"
             onPressAction={() => router.push('/(tabs)/explore')}
           />
-          <View className="flex-row flex-wrap justify-start">
-            {procedures.map((procedure, index) => (
-              <ProcedureCategoryCard
-                key={procedure.id}
-                procedure={procedure}
-                style={{
-                  width: `${cardWidthPercent}%`,
-                  marginRight: (index + 1) % columns === 0 ? 0 : `${GAP_PERCENT}%`,
-                  marginBottom: 12,
-                }}
-              />
+          <CardGrid columns="compact">
+            {procedures.map((procedure) => (
+              <ProcedureCategoryCard key={procedure.id} procedure={procedure} />
             ))}
-          </View>
+          </CardGrid>
         </View>
 
         <View className="mb-8 rounded-2xl bg-white p-4">

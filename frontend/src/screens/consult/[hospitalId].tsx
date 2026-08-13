@@ -1,8 +1,9 @@
 import { Stack, router, useLocalSearchParams } from '@/navigation';
 import { useState } from 'react';
-import { ScrollView, Text, TextInput, View } from '@/primitives';
+import { ScrollView, Text, TextInput, View, cx } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
 
+import { CONTAINER_PADDING } from '@/components/layout/Container';
 import { Chip } from '@/components/Chip';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { getProcedureById } from '@/mocks/fixtures/procedures';
@@ -46,7 +47,12 @@ export default function ConsultRequestScreen() {
   return (
     <SafeAreaView className="flex-1 bg-white" edges={['bottom']}>
       <Stack.Screen options={{ title: '상담 신청' }} />
-      <ScrollView contentContainerClassName="px-5 pb-8 pt-4" keyboardShouldPersistTaps="handled">
+      <ScrollView
+        /* 폼은 본문 최대폭(1200)까지 늘리지 않는다. 입력 칸이 화면 끝까지 벌어지면
+           라벨과 값이 멀어져 읽기 나빠진다. 한 줄 길이만 지키고 가운데 정렬한다. */
+        contentContainerClassName={cx(CONTAINER_PADDING, 'mx-auto w-full max-w-xl pb-8 pt-4')}
+        keyboardShouldPersistTaps="handled"
+      >
         <Text className="mb-1 text-lg font-bold text-neutral-900">{hospital.name}</Text>
         <Text className="mb-6 text-sm text-neutral-500">상담 정보를 남겨주시면 병원에서 연락드려요</Text>
 

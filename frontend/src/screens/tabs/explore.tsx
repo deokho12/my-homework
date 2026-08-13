@@ -2,9 +2,11 @@ import { useFocusEffect, useLocalSearchParams } from '@/navigation';
 import { Ellipsis, Sparkles } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { NativeScrollEvent, NativeSyntheticEvent } from '@/primitives';
-import { Pressable, ScrollView, Text, useWindowDimensions, View } from '@/primitives';
+import { Pressable, ScrollView, Text, View, cx } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
 
+import { CardGrid } from '@/components/layout/CardGrid';
+import { CONTAINER_CLASS, CONTAINER_PADDING } from '@/components/layout/Container';
 import { Chip } from '@/components/Chip';
 import { DoctorCard } from '@/components/DoctorCard';
 import { HospitalExploreCard } from '@/features/hospital/components/HospitalExploreCard';
@@ -67,8 +69,6 @@ export default function ExploreScreen() {
   const [onlyExperienced, setOnlyExperienced] = useState(false);
   const [showPriceTable, setShowPriceTable] = useState(false);
 
-  const { width } = useWindowDimensions();
-  const isWide = width >= 768;
   const setScrolled = useScrollShadowStore((state) => state.setScrolled);
   const scrollOffsetRef = useRef(0);
 
@@ -187,7 +187,7 @@ export default function ExploreScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-neutral-50" edges={['top']}>
-      <View className="border-b border-neutral-100 bg-white px-5 pb-3 pt-4">
+      <View className={cx(CONTAINER_PADDING, 'border-b border-neutral-100 bg-white pb-3 pt-4')}>
         <Text className="mb-3 text-2xl font-extrabold text-neutral-900">병원 탐색</Text>
         <View className="flex-row rounded-full bg-neutral-100 p-1">
           <Pressable
@@ -232,7 +232,7 @@ export default function ExploreScreen() {
 
       <View className="flex-1">
         <View className="border-b border-neutral-100 bg-white py-3">
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="px-5">
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName={CONTAINER_PADDING}>
             {CATEGORY_TABS.map((tab) => (
               <Chip
                 key={tab.key}
@@ -246,7 +246,7 @@ export default function ExploreScreen() {
         </View>
 
         <View className="border-b border-neutral-100 bg-white py-3">
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="px-5">
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName={CONTAINER_PADDING}>
             {SORT_OPTIONS.map((option) => (
               <Chip
                 key={option.key}
@@ -259,7 +259,7 @@ export default function ExploreScreen() {
         </View>
 
         <View className="border-b border-neutral-100 bg-white py-3">
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="px-5">
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName={CONTAINER_PADDING}>
             <Chip label="상담가능" selected={onlyConsult} onPress={() => setOnlyConsult((value) => !value)} />
             <Chip label="원데이" selected={onlyOneDay} onPress={() => setOnlyOneDay((value) => !value)} />
             <Chip
@@ -284,7 +284,7 @@ export default function ExploreScreen() {
           <HospitalMapView hospitals={filteredHospitals} />
         ) : (
           <ScrollView
-            contentContainerClassName="px-5 pb-8 pt-4"
+            contentContainerClassName={cx(CONTAINER_CLASS, 'pb-8 pt-4')}
             showsVerticalScrollIndicator={false}
             onScroll={handleScroll}
             scrollEventThrottle={16}
@@ -312,22 +312,21 @@ export default function ExploreScreen() {
             ) : mode === 'hospital' && showPriceTable ? (
               <PriceCompareTable hospitals={filteredHospitals} />
             ) : mode === 'doctor' ? (
-              <View className="flex-row flex-wrap justify-between">
+              <CardGrid columns="wide">
                 {filteredDoctors.map((doctor) => (
-                  <DoctorCard key={doctor.id} doctor={doctor} style={{ width: isWide ? '48%' : '100%' }} />
+                  <DoctorCard key={doctor.id} doctor={doctor} />
                 ))}
-              </View>
+              </CardGrid>
             ) : (
-              <View className="flex-row flex-wrap justify-between">
+              <CardGrid columns="wide">
                 {filteredHospitals.map((hospital) => (
                   <HospitalExploreCard
                     key={hospital.id}
                     hospital={hospital}
                     activeCategory={selectedCategory !== 'all' && selectedCategory !== 'recommended' ? selectedCategory : undefined}
-                    style={{ width: isWide ? '48%' : '100%' }}
                   />
                 ))}
-              </View>
+              </CardGrid>
             )}
           </ScrollView>
         )}

@@ -6,7 +6,6 @@ import { BottomTabBar } from '@/components/BottomTabBar';
 import { TopNavBar } from '@/components/TopNavBar';
 import { RequireAuth } from '@/features/auth/components/RequireAuth';
 import { SessionWatcher } from '@/features/auth/components/SessionWatcher';
-import { useIsWideWeb } from '@/hooks/useIsWideWeb';
 import type { UserRole } from '@/types/domain';
 import {
   RouterBridge,
@@ -167,25 +166,36 @@ function NotFoundScreen() {
 
 /** Renders the header/tab chrome around the active screen, matching the old root layout. */
 function Shell() {
-  const isWideWeb = useIsWideWeb();
   const { pathname } = useLocation();
   const options = useScreenOptions();
 
   const headerShown = options.headerShown !== false;
-  const showTabBar = TAB_PATHS.has(pathname) && !isWideWeb;
+  const isTabRoute = TAB_PATHS.has(pathname);
 
+  /*
+   * 넓은 화면은 상단바, 좁은 화면은 하단탭이다. 예전에는 `useIsWideWeb()` 으로 둘 중
+   * 하나만 렌더했지만, 지금은 둘 다 렌더하고 CSS 로 감춘다. 리사이즈마다 셸 전체가
+   * 리렌더되지 않고, 폭 판정이 첫 페인트 전에 끝나 새로고침 때 탭바가 깜빡이지 않는다.
+   *
+   * `flex: 1` 사슬은 건드리지 않는다 — #root 부터 ScrollView 까지 한 칸이라도 끊기면
+   * 스크롤이 통째로 죽는다 (src/test/appShellLayout.test.tsx).
+   */
   return (
     <View style={{ flex: 1 }}>
-      {isWideWeb ? <TopNavBar /> : null}
-      <View
-        style={{ flex: 1, alignItems: isWideWeb ? 'center' : undefined, backgroundColor: '#ffffff' }}
-      >
-        <View style={{ flex: 1, width: '100%', maxWidth: isWideWeb ? 1200 : undefined }}>
+      <View className="hidden md:flex">
+        <TopNavBar />
+      </View>
+      <View className="flex-1 items-center bg-white">
+        <View className="w-full max-w-content flex-1">
           {headerShown ? <AppHeader title={options.title} /> : null}
           <View style={{ flex: 1 }}>
             <Outlet />
           </View>
-          {showTabBar ? <BottomTabBar /> : null}
+          {isTabRoute ? (
+            <View className="md:hidden">
+              <BottomTabBar />
+            </View>
+          ) : null}
         </View>
       </View>
     </View>
