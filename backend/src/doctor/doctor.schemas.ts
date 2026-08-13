@@ -84,3 +84,37 @@ export type ReplaceDoctorsDto = z.infer<typeof replaceDoctorsSchema>;
 export const updateDoctorSchema = doctorUpsertSchema.omit({ id: true }).partial();
 
 export type UpdateDoctorDto = z.infer<typeof updateDoctorSchema>;
+
+/** `DoctorVerification.status`/`Doctor.verificationStatus` 허용값 (openapi `VerificationStatus`). */
+export const VERIFICATION_STATUSES = ['pending', 'approved', 'rejected'] as const;
+
+/** 쿼리스트링의 `?status=` (값을 안 주면 빈 문자열로 온다) → `undefined` 로 취급한다. */
+const emptyStringToUndefined = (value: unknown): unknown => (value === '' ? undefined : value);
+
+/** `GET /doctors/verification-queue` 쿼리. */
+export const verificationQueueQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
+  status: z.preprocess(emptyStringToUndefined, z.enum(VERIFICATION_STATUSES).optional()),
+  includeGeneralPractitioners: booleanParam,
+});
+
+export type VerificationQueueQuery = z.infer<typeof verificationQueueQuerySchema>;
+
+/**
+ * `PUT /doctors/:doctorId/verification` 요청 본문 (openapi `VerificationDecisionRequest`).
+ *
+ * **`pending` 으로 되돌릴 수 없다** — 화면에도 그 버튼이 없다(계약). 그래서 enum 이
+ * `approved`/`rejected` 둘뿐이다. `rejected` 면 `rejectionReason` 이 1자 이상 필수다.
+ */
+export const decideVerificationSchema = z
+  .object({
+    status: z.enum(['approved', 'rejected']),
+    rejectionReason: z.string().trim().min(1).max(500).optional(),
+  })
+  .refine((value) => value.status !== 'rejected' || value.rejectionReason !== undefined, {
+    message: '반려 사유를 입력해주세요',
+    path: ['rejectionReason'],
+  });
+
+export type DecideVerificationDto = z.infer<typeof decideVerificationSchema>;

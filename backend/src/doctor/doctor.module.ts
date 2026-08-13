@@ -5,6 +5,7 @@ import { ProcedureModule } from '../procedure/procedure.module';
 import { DoctorController } from './doctor.controller';
 import { DoctorRepository } from './doctor.repository';
 import { DoctorService } from './doctor.service';
+import { VerificationService } from './verification.service';
 
 /**
  * 전문의는 병원 서비스를 필요로 하지 않는다 — `HospitalModule` 을 import 하지 않는다.
@@ -20,7 +21,7 @@ import { DoctorService } from './doctor.service';
 @Module({
   imports: [AuthModule, ProcedureModule],
   controllers: [DoctorController],
-  providers: [DoctorService, DoctorRepository],
+  providers: [DoctorService, DoctorRepository, VerificationService],
   exports: [DoctorService, DoctorRepository],
 })
 export class DoctorModule {}

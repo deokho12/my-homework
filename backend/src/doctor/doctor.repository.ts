@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { createId } from '@paralleldrive/cuid2';
 import type { Prisma } from '@prisma/client';
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
@@ -29,6 +30,30 @@ export interface ReplaceRosterContext {
   existingById: Map<string, DoctorSnapshot>;
   /** `일반의` 신규 항목이 `procedureIds` 를 안 보냈을 때만 쓰는, 병원이 취급하는 시술 전체. */
   hospitalProcedureIds: string[];
+}
+
+/** `findVerificationQueue` 한 행. `DoctorRow` + 검수 화면이 필요로 하는 소속 병원명. */
+export interface DoctorVerificationQueueRow extends DoctorRow {
+  hospital: { name: string };
+}
+
+/** `decide()` 한 트랜잭션에 필요한 입력 전부. 파생값 계산은 `VerificationService` 가 한다. */
+export interface VerificationDecisionParams {
+  doctorId: string;
+  status: 'approved' | 'rejected';
+  /** `approved` → 현재 `specialty` 스냅샷. `rejected` → null. */
+  verifiedSpecialty: string | null;
+  /** `rejected` → 사유. `approved` → null(지운다). */
+  rejectionReason: string | null;
+  /** 이 건에서 심사 대상이 된 전공 스냅샷 (`DoctorVerification.submittedSpecialty`). */
+  submittedSpecialty: string;
+  submittedCertificateUrl: string | null;
+  /** 검수를 결정한 `operator` 의 id. */
+  reviewedByUserId: string;
+  /** 알림 수신자(`hospital_admins`)를 찾는 기준이자 `Notification.hospitalId`. */
+  hospitalId: string;
+  notificationTitle: string;
+  notificationMessage: string;
 }
 
 @Injectable()
@@ -106,6 +131,79 @@ export class DoctorRepository {
     return this.prisma.doctor.findFirst({
       where: { id: doctorId, deletedAt: null },
       select: { specialty: true, certificateUrl: true },
+    });
+  }
+
+  /**
+   * `GET /doctors/verification-queue`. 정렬 규칙(`대기→반려→승인`, 같은 상태 안에서는 등록순)이
+   * 컬럼 간 우선순위 비교라 Prisma `orderBy` 로 표현할 수 없다 — `findAllSorted` 와 같은 이유로
+   * 페이징 없이 전부 읽고, 등록순(`createdAt asc`, `id` tiebreaker)으로만 여기서 정렬해 둔다.
+   * 최종 상태 우선순위 정렬은 호출부(`VerificationService`)가 안정 정렬로 한 번 더 얹는다.
+   */
+  async findVerificationQueue(where: Prisma.DoctorWhereInput): Promise<DoctorVerificationQueueRow[]> {
+    return this.prisma.doctor.findMany({
+      where,
+      include: { ...DOCTOR_INCLUDE, hospital: { select: { name: true } } },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    });
+  }
+
+  /**
+   * `PUT /doctors/:doctorId/verification` 한 트랜잭션.
+   * 1. `Doctor` 스칼라 갱신(`verificationStatus`/`verifiedSpecialty`/`rejectionReason`).
+   * 2. `DoctorVerification` 결정 행 추가(전문의당 이력이 쌓이는 테이블이라 갱신이 아니라 추가).
+   * 3. 소속 병원 담당자 전원에게 `audience='admin'` 알림 + 수신자. 담당자가 0명이면
+   *    알림만 남고 수신자는 없다 — 승인 자체는 여전히 성공한다(계약).
+   */
+  async decide(params: VerificationDecisionParams): Promise<void> {
+    const now = new Date();
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.doctor.update({
+        where: { id: params.doctorId },
+        data: {
+          verificationStatus: params.status,
+          verifiedSpecialty: params.verifiedSpecialty,
+          rejectionReason: params.rejectionReason,
+          updatedAt: now,
+        },
+      });
+
+      await tx.doctorVerification.create({
+        data: {
+          id: createId(),
+          doctorId: params.doctorId,
+          submittedSpecialty: params.submittedSpecialty,
+          submittedCertificateUrl: params.submittedCertificateUrl,
+          status: params.status,
+          rejectionReason: params.rejectionReason,
+          reviewedByUserId: params.reviewedByUserId,
+          reviewedAt: now,
+          createdAt: now,
+        },
+      });
+
+      const admins = await tx.hospitalAdmin.findMany({ where: { hospitalId: params.hospitalId } });
+
+      const notification = await tx.notification.create({
+        data: {
+          id: createId(),
+          audience: 'admin',
+          type: 'system',
+          title: params.notificationTitle,
+          message: params.notificationMessage,
+          relatedType: 'doctor',
+          relatedId: params.doctorId,
+          hospitalId: params.hospitalId,
+          createdAt: now,
+        },
+      });
+
+      if (admins.length > 0) {
+        await tx.notificationRecipient.createMany({
+          data: admins.map((admin) => ({ id: createId(), notificationId: notification.id, userId: admin.userId })),
+        });
+      }
     });
   }
 
