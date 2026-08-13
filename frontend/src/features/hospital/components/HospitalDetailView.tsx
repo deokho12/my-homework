@@ -20,7 +20,6 @@ import { useFavoritesStore } from '@/store/useFavoritesStore';
 import type { Hospital, HospitalFeatures } from '@/types/domain';
 import { showAlert } from '@/utils/alert';
 import { calcDiscountRate, formatPriceRange, formatWon } from '@/utils/format';
-import { isSponsorshipActive } from '@/utils/sponsorship';
 
 const WEEKDAY_LABELS = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
 
@@ -108,7 +107,7 @@ export function HospitalDetailView({ hospital }: { hospital: Hospital }) {
           </View>
           <View className="mb-4 flex-row flex-wrap gap-1.5">
             {hospital.isRecommended ? <Badge label="🌟 추천 병원" tone="brand" /> : null}
-            {isSponsorshipActive(hospital) ? <Badge label="광고" /> : null}
+            {hospital.sponsorship.isActive ? <Badge label="광고" /> : null}
           </View>
 
           {promotion ? (

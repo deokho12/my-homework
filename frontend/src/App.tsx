@@ -15,6 +15,7 @@ import {
 } from '@/navigation';
 import { Text, View } from '@/primitives';
 
+import ExplorePage from '@/pages/ExplorePage';
 import HospitalDetailPage from '@/pages/HospitalDetailPage';
 import AboutScreen from '@/screens/about';
 import AdminConsultationDetailScreen from '@/screens/admin/consultations/[id]';
@@ -38,7 +39,6 @@ import NotificationsScreen from '@/screens/notifications';
 import PartnerInquiryScreen from '@/screens/partner-inquiry';
 import SearchScreen from '@/screens/search';
 import CommunityTabScreen from '@/screens/tabs/community';
-import ExploreScreen from '@/screens/tabs/explore';
 import HomeScreen from '@/screens/tabs/index';
 import MyPageScreen from '@/screens/tabs/mypage';
 import TipDetailScreen from '@/screens/tips/[id]';
@@ -78,7 +78,7 @@ interface AppRoute {
  */
 const ROUTES: AppRoute[] = [
   { path: '/', element: <HomeScreen />, options: { headerShown: false }, isTab: true },
-  { path: '/explore', element: <ExploreScreen />, options: { headerShown: false }, isTab: true },
+  { path: '/explore', element: <ExplorePage />, options: { headerShown: false }, isTab: true },
   { path: '/community', element: <CommunityTabScreen />, options: { headerShown: false }, isTab: true },
   { path: '/mypage', element: <MyPageScreen />, options: { headerShown: false }, isTab: true },
 

@@ -5,36 +5,28 @@ import { SafeAreaView } from '@/primitives';
 
 import { Chip } from '@/components/Chip';
 import { PrimaryButton } from '@/components/PrimaryButton';
+import { QueryState } from '@/components/QueryState';
 import { containerClass } from '@/components/layout/Container';
+import { useHospital } from '@/features/hospital';
 import { useProcedureMap } from '@/features/procedure';
+import { isApiError } from '@/lib/apiClient';
 import { useConsultStore } from '@/store/useConsultStore';
-import { getHospitalById } from '@/store/useHospitalStore';
-import type { ProcedureId } from '@/types/domain';
+import type { Hospital, ProcedureId } from '@/types/domain';
 import { showAlert } from '@/utils/alert';
 
 const TIME_SLOTS = ['평일 오전', '평일 오후', '주말'];
 
-export default function ConsultRequestScreen() {
-  const { hospitalId } = useLocalSearchParams<{ hospitalId: string }>();
+/** 조회가 끝난 병원을 받아 폼 상태(이름·전화번호·시술 등)를 갖는다 — `QueryState` 의 children 은
+ * 콜백이라 그 안에서 훅을 호출할 수 없어 별도 컴포넌트로 뺐다 (`HospitalDetailPage` 와 같은 이유). */
+function ConsultRequestForm({ hospital }: { hospital: Hospital }) {
   const procedureMap = useProcedureMap();
-  const hospital = getHospitalById(hospitalId);
   const addRequest = useConsultStore((state) => state.addRequest);
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
-  const [procedureId, setProcedureId] = useState<ProcedureId | null>(hospital?.procedureIds[0] ?? null);
+  const [procedureId, setProcedureId] = useState<ProcedureId | null>(hospital.procedureIds[0] ?? null);
   const [preferredTime, setPreferredTime] = useState(TIME_SLOTS[0]);
   const [message, setMessage] = useState('');
-
-  // 로그인 검사는 라우트 가드가 한다 (`src/App.tsx` 의 `guard: 'auth'`). 화면 안에서
-  // 다시 검사하면 규칙이 두 곳으로 갈린다.
-  if (!hospital) {
-    return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-white">
-        <Text className="text-sm text-neutral-500">병원 정보를 찾을 수 없어요</Text>
-      </SafeAreaView>
-    );
-  }
 
   const canSubmit = name.trim().length > 0 && phone.trim().length > 0;
 
@@ -115,5 +107,32 @@ export default function ConsultRequestScreen() {
         <PrimaryButton label="상담 신청하기" onPress={handleSubmit} disabled={!canSubmit} />
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+export default function ConsultRequestScreen() {
+  const { hospitalId } = useLocalSearchParams<{ hospitalId: string }>();
+  // 로그인 검사는 라우트 가드가 한다 (`src/App.tsx` 의 `guard: 'auth'`). 화면 안에서
+  // 다시 검사하면 규칙이 두 곳으로 갈린다.
+  const { data: hospital, error, isLoading, isError, isFetching, refetch } = useHospital(hospitalId);
+
+  // 없는 병원은 서버가 404 HOSPITAL_NOT_FOUND 를 준다 — "다시 시도" 를 권할 에러가 아니라
+  // 빈 상태다. 그 외 에러(네트워크 오류 등)는 재시도 가능한 에러로 둔다.
+  const notFound = isError && isApiError(error) && error.code === 'HOSPITAL_NOT_FOUND';
+
+  return (
+    <QueryState
+      isLoading={isLoading}
+      isError={notFound ? false : isError}
+      data={notFound ? null : hospital}
+      onRetry={() => {
+        void refetch();
+      }}
+      isRetrying={isError && isFetching}
+      emptyState={{ title: '병원 정보를 찾을 수 없어요' }}
+      className="flex-1 bg-white"
+    >
+      {(hospital) => <ConsultRequestForm hospital={hospital} />}
+    </QueryState>
   );
 }

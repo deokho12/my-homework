@@ -7,7 +7,6 @@ import { useProcedureMap } from '@/features/procedure';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 import type { Hospital, ProcedureId } from '@/types/domain';
 import { getSpecialtyForProcedure } from '@/utils/specialty';
-import { isSponsorshipActive } from '@/utils/sponsorship';
 
 interface HospitalExploreCardProps {
   hospital: Hospital;
@@ -56,7 +55,7 @@ export function HospitalExploreCard({ hospital, activeCategory, style }: Hospita
         </Text>
 
         <View className="mb-3 flex-row flex-wrap gap-1.5">
-          {isSponsorshipActive(hospital) ? <Badge label="광고" /> : null}
+          {hospital.sponsorship.isActive ? <Badge label="광고" /> : null}
           {hospital.isRecommended ? <Badge label="🌟 추천" tone="brand" /> : null}
           {hospital.representativeSpecialty ? (
             <Badge

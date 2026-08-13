@@ -509,9 +509,9 @@ const rawHospitals: Omit<Hospital, 'sponsorship' | 'representativeSpecialty'>[] 
 
 /**
  * 서버가 계산해 내려주는 필드. 목 백엔드가 서버 대역이므로 여기서 기본값을 채운다.
- * `isActive: false` 로 두어도 화면 표시는 바뀌지 않는다 — 탐색 화면은 아직
- * `src/utils/sponsorship.ts`(클라이언트 계산)를 쓴다. 관리자 화면이 목을 벗어나면
- * (나중 Task) 이 어댑터와 `rawHospitals` 는 함께 사라진다.
+ * 사용자 화면(탐색 등)은 이제 실제 백엔드를 호출하므로 이 값을 안 본다 — 이 어댑터는
+ * 아직 목을 쓰는 관리자 화면의 CRUD 와 `mockDb.read('hospitals')` 를 쓰는 테스트 픽스처용이다.
+ * 관리자 화면이 목을 벗어나면(나중 Task) 이 어댑터와 `rawHospitals` 는 함께 사라진다.
  */
 export const hospitals: Hospital[] = rawHospitals.map((hospital) => ({
   ...hospital,

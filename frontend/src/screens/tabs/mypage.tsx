@@ -5,18 +5,40 @@ import { FlatList, Pressable, Text, View, cx } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
 
 import { CONTAINER_PADDING } from '@/components/layout/Container';
+import { useHospital } from '@/features/hospital';
 import { HospitalCard } from '@/features/hospital/components/HospitalCard';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { useSession } from '@/features/auth/hooks/useSession';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useFavoritesStore } from '@/store/useFavoritesStore';
-import { getHospitalById } from '@/store/useHospitalStore';
 import { useNotificationStore } from '@/store/useNotificationStore';
 import { useScrollShadowStore } from '@/store/useScrollShadowStore';
-import type { Hospital } from '@/types/domain';
 import { showAlert } from '@/utils/alert';
 
 const SCROLL_SHADOW_THRESHOLD = 8;
+
+/**
+ * 찜한 병원 하나를 조회해 렌더한다 — 공개 목록 API 는 id 배열로 한 번에 묻는 필터가 없어
+ * 항목마다 `useHospital` 을 부른다. 로딩 중에는 자리만 비우고(스켈레톤), 조회가 끝났는데도
+ * 없으면(삭제된 병원 등) 조용히 걷어낸다 — 예전 `getHospitalById()` 필터링과 같은 동작이다.
+ */
+function FavoriteHospitalCard({ hospitalId }: { hospitalId: string }) {
+  const { data: hospital, isLoading } = useHospital(hospitalId);
+
+  if (isLoading) {
+    return (
+      <View
+        className="mb-4 h-40 w-full animate-pulse rounded-2xl bg-neutral-100"
+        role="status"
+        accessibilityLabel="찜한 병원 정보를 불러오는 중이에요"
+      />
+    );
+  }
+
+  if (!hospital) return null;
+
+  return <HospitalCard hospital={hospital} />;
+}
 
 function AuthCard() {
   const user = useAuthStore((state) => state.user);
@@ -101,9 +123,6 @@ function NotificationLinkRow() {
 export default function MyPageScreen() {
   const { user, isHospitalAdmin } = useSession();
   const hospitalIds = useFavoritesStore((state) => state.hospitalIds);
-  const favoriteHospitals = hospitalIds
-    .map((id) => getHospitalById(id))
-    .filter((hospital): hospital is Hospital => Boolean(hospital));
   const setScrolled = useScrollShadowStore((state) => state.setScrolled);
   const scrollOffsetRef = useRef(0);
 
@@ -122,9 +141,9 @@ export default function MyPageScreen() {
   return (
     <SafeAreaView className="flex-1 bg-neutral-50" edges={['top']}>
       <FlatList
-        data={user ? favoriteHospitals : []}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => <HospitalCard hospital={item} />}
+        data={user ? hospitalIds : []}
+        keyExtractor={(id) => id}
+        renderItem={({ item }) => <FavoriteHospitalCard hospitalId={item} />}
         contentContainerClassName={cx(CONTAINER_PADDING, 'pb-8 pt-3')}
         onScroll={handleScroll}
         scrollEventThrottle={16}

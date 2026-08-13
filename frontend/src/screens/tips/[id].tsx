@@ -5,12 +5,19 @@ import { SafeAreaView } from '@/primitives';
 
 import { Badge } from '@/components/Badge';
 import { CONTAINER_PADDING } from '@/components/layout/Container';
+import { useHospital } from '@/features/hospital';
 import { HospitalCard } from '@/features/hospital/components/HospitalCard';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { StockImage } from '@/components/StockImage';
 import { useProcedureMap } from '@/features/procedure';
 import { guides } from '@/mocks/fixtures/guides';
-import { getHospitalById } from '@/store/useHospitalStore';
+
+/** 관련 병원 하나를 조회해 렌더한다. 아직 안 왔거나 없는 병원이면 아무것도 그리지 않는다. */
+function RelatedHospitalCard({ hospitalId }: { hospitalId: string }) {
+  const { data: hospital } = useHospital(hospitalId);
+  if (!hospital) return null;
+  return <HospitalCard hospital={hospital} />;
+}
 
 export default function TipDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -28,9 +35,7 @@ export default function TipDetailScreen() {
 
   const procedure = procedureMap.get(guide.procedureId);
   const paragraphs = guide.content.split('\n\n');
-  const relatedHospitals = (guide.relatedHospitals ?? [])
-    .map((hospitalId) => getHospitalById(hospitalId))
-    .filter((hospital): hospital is NonNullable<typeof hospital> => Boolean(hospital));
+  const relatedHospitalIds = guide.relatedHospitals ?? [];
 
   return (
     <View className="flex-1 bg-white">
@@ -78,11 +83,11 @@ export default function TipDetailScreen() {
             ))}
           </View>
 
-          {relatedHospitals.length > 0 ? (
+          {relatedHospitalIds.length > 0 ? (
             <View className="mb-4">
               <Text className="mb-3 text-base font-bold text-neutral-900">관련 병원 보기</Text>
-              {relatedHospitals.map((hospital) => (
-                <HospitalCard key={hospital.id} hospital={hospital} />
+              {relatedHospitalIds.map((hospitalId) => (
+                <RelatedHospitalCard key={hospitalId} hospitalId={hospitalId} />
               ))}
             </View>
           ) : null}

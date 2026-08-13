@@ -6,6 +6,7 @@ import { SafeAreaView } from '@/primitives';
 import { queryClient } from '@/app/providers';
 import { CONTAINER_PADDING } from '@/components/layout/Container';
 import { fetchDoctorById, fetchDoctors } from '@/features/doctor';
+import { fetchHospitals } from '@/features/hospital';
 import { useProcedures } from '@/features/procedure';
 import { queryKeys } from '@/lib/queryKeys';
 import {
@@ -16,7 +17,6 @@ import {
   type SearchTrend,
   type TrendingSearchTerm,
 } from '@/mocks/fixtures/trendingSearches';
-import { useHospitalStore } from '@/store/useHospitalStore';
 import type { Doctor } from '@/types/domain';
 
 const TABS: { key: SearchTab; label: string }[] = [
@@ -25,6 +25,21 @@ const TABS: { key: SearchTab; label: string }[] = [
   { key: 'hospital', label: '병원' },
   { key: 'doctor', label: '의사' },
 ];
+
+/**
+ * 이름으로 병원을 찾는다. 서버의 `q` 필터(`nameNormalized.contains`, 부분일치)에 검색을
+ * 맡긴다 — 예전에는 `useHospitalStore.getState().hospitals` 를 클라이언트에서 훑었는데,
+ * 그 방식은 전문의 이름 검색과 같은 결함(로스터가 페이지 크기를 넘으면 조용히 깨진다)을
+ * 그대로 갖고 있었다.
+ */
+async function findMatchingHospital(trimmed: string) {
+  const result = await queryClient.fetchQuery({
+    queryKey: queryKeys.hospitals.list({ q: trimmed }),
+    queryFn: () => fetchHospitals({ q: trimmed }),
+    staleTime: 0,
+  });
+  return result.items[0];
+}
 
 /**
  * 이름으로 전문의를 찾는다. 서버의 `q` 필터(`nameNormalized.contains`, 부분일치)에 검색을
@@ -129,6 +144,11 @@ export default function SearchScreen() {
   const [tab, setTab] = useState<SearchTab>('all');
   const [notice, setNotice] = useState<string | null>(null);
   const nowLabel = useMemo(() => formatNowLabel(), []);
+  // 제출 순서 보장용 시퀀스 번호. 병원명·전문의 이름 매칭이 둘 다 비동기(서버 `q` 필터)라,
+  // 사용자가 응답을 받기 전에 다른 검색어를 다시 제출하면 늦게 도착한 응답이 엉뚱한
+  // 병원으로 이동시키거나 방금 도착한 올바른 안내 문구를 덮어쓸 수 있다 — 매 제출마다
+  // 번호를 하나 증가시키고, 응답이 왔을 때 자신이 여전히 "가장 마지막 제출"인지 확인한다.
+  const searchSeqRef = useRef(0);
 
   useEffect(() => {
     const timeout = setTimeout(() => inputRef.current?.focus(), 200);
@@ -141,6 +161,9 @@ export default function SearchScreen() {
     async (trimmed: string) => {
       if (!trimmed) return;
 
+      const seq = ++searchSeqRef.current;
+      const isStale = () => seq !== searchSeqRef.current;
+
       const matchedProcedure = procedures.find((procedure) => procedure.name.includes(trimmed));
       if (matchedProcedure) {
         setNotice(null);
@@ -148,9 +171,8 @@ export default function SearchScreen() {
         return;
       }
 
-      const matchedHospital = useHospitalStore
-        .getState()
-        .hospitals.find((hospital) => hospital.name.includes(trimmed));
+      const matchedHospital = await findMatchingHospital(trimmed);
+      if (isStale()) return;
       if (matchedHospital) {
         setNotice(null);
         await navigateToTarget({ kind: 'hospital', hospitalId: matchedHospital.id });
@@ -158,6 +180,7 @@ export default function SearchScreen() {
       }
 
       const matchedDoctor = await findMatchingDoctor(trimmed);
+      if (isStale()) return;
       if (matchedDoctor) {
         setNotice(null);
         router.push(`/hospital/${matchedDoctor.hospitalId}`);
