@@ -7,8 +7,8 @@ import { SafeAreaView } from '@/primitives';
 
 import { CardGrid } from '@/components/layout/CardGrid';
 import { Chip } from '@/components/Chip';
-import { DoctorCard } from '@/components/DoctorCard';
 import { CONTAINER_CLASS, CONTAINER_PADDING } from '@/components/layout/Container';
+import { DoctorCard } from '@/features/doctor';
 import { HospitalExploreCard } from '@/features/hospital/components/HospitalExploreCard';
 import { HospitalMapView } from '@/features/hospital/components/HospitalMapView';
 import { PriceCompareTable } from '@/features/hospital/components/PriceCompareTable';
@@ -355,7 +355,7 @@ export default function ExploreScreen() {
             ) : mode === 'doctor' ? (
               <CardGrid columns="wide">
                 {filteredDoctors.map((doctor) => (
-                  <DoctorCard key={doctor.id} doctor={doctor} />
+                  <DoctorCard key={doctor.id} doctor={doctor} hospital={hospitalById.get(doctor.hospitalId)} />
                 ))}
               </CardGrid>
             ) : (

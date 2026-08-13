@@ -5,9 +5,8 @@ import { Badge } from '@/components/Badge';
 import { StockImage } from '@/components/StockImage';
 import { useProcedureMap } from '@/features/procedure';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
-import { getDoctorsByHospital } from '@/store/useDoctorStore';
 import type { Hospital, ProcedureId } from '@/types/domain';
-import { getRepresentativeSpecialist, getSpecialtyForProcedure } from '@/utils/specialty';
+import { getSpecialtyForProcedure } from '@/utils/specialty';
 import { isSponsorshipActive } from '@/utils/sponsorship';
 
 interface HospitalExploreCardProps {
@@ -20,11 +19,10 @@ interface HospitalExploreCardProps {
 export function HospitalExploreCard({ hospital, activeCategory, style }: HospitalExploreCardProps) {
   const requireAuth = useRequireAuth();
   const procedureMap = useProcedureMap();
-  const representativeSpecialist = getRepresentativeSpecialist(getDoctorsByHospital(hospital.id));
   const matchesActiveCategory =
-    !!representativeSpecialist &&
+    !!hospital.representativeSpecialty &&
     !!activeCategory &&
-    representativeSpecialist.specialty === getSpecialtyForProcedure(activeCategory);
+    hospital.representativeSpecialty === getSpecialtyForProcedure(activeCategory);
 
   return (
     <Pressable
@@ -60,9 +58,9 @@ export function HospitalExploreCard({ hospital, activeCategory, style }: Hospita
         <View className="mb-3 flex-row flex-wrap gap-1.5">
           {isSponsorshipActive(hospital) ? <Badge label="광고" /> : null}
           {hospital.isRecommended ? <Badge label="🌟 추천" tone="brand" /> : null}
-          {representativeSpecialist ? (
+          {hospital.representativeSpecialty ? (
             <Badge
-              label={`${representativeSpecialist.specialty} 상주`}
+              label={`${hospital.representativeSpecialty} 상주`}
               tone={matchesActiveCategory ? 'brand' : 'neutral'}
             />
           ) : null}

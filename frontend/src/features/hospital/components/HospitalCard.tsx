@@ -7,10 +7,8 @@ import { useProcedureMap } from '@/features/procedure';
 import { getPromotionByHospital } from '@/mocks/fixtures/promotions';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { useFavoritesStore } from '@/store/useFavoritesStore';
-import { getDoctorsByHospital } from '@/store/useDoctorStore';
 import type { Hospital } from '@/types/domain';
 import { calcDiscountRate, formatPriceRange, formatWon } from '@/utils/format';
-import { getRepresentativeSpecialist } from '@/utils/specialty';
 import { isSponsorshipActive } from '@/utils/sponsorship';
 
 interface HospitalCardProps {
@@ -23,7 +21,6 @@ export function HospitalCard({ hospital }: HospitalCardProps) {
   const requireAuth = useRequireAuth();
   const procedureMap = useProcedureMap();
   const promotion = getPromotionByHospital(hospital.id);
-  const representativeSpecialist = getRepresentativeSpecialist(getDoctorsByHospital(hospital.id));
 
   return (
     <Pressable
@@ -68,7 +65,7 @@ export function HospitalCard({ hospital }: HospitalCardProps) {
           {isSponsorshipActive(hospital) ? <Badge label="광고" /> : null}
           {hospital.isRecommended ? <Badge label="🌟 추천" tone="brand" /> : null}
           {hospital.isOneDay ? <Badge label="⚡ 원데이 가능" tone="brand" /> : null}
-          {representativeSpecialist ? <Badge label={`${representativeSpecialist.specialty} 상주`} /> : null}
+          {hospital.representativeSpecialty ? <Badge label={`${hospital.representativeSpecialty} 상주`} /> : null}
           {hospital.procedureIds.slice(0, 3).map((procedureId) => {
             const procedure = procedureMap.get(procedureId);
             return procedure ? <Badge key={procedureId} label={procedure.name} /> : null;

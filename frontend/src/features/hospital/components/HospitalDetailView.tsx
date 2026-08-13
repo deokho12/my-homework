@@ -2,24 +2,24 @@ import { CONTAINER_PADDING } from '@/components/layout/Container';
 import * as Clipboard from '@/lib/clipboard';
 import { router, Stack } from '@/navigation';
 import { ChevronDown, ChevronUp, Copy, MapPin, X } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Modal, Pressable, ScrollView, Text, View, cx } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
 
 import { Badge } from '@/components/Badge';
 import { KakaoMap } from '@/components/map/KakaoMap';
 import { PrimaryButton } from '@/components/PrimaryButton';
+import { QueryState } from '@/components/QueryState';
 import { StockImage } from '@/components/StockImage';
+import { useHospitalDoctors } from '@/features/doctor';
 import { useProcedureMap } from '@/features/procedure';
+import { useHospitalReviews } from '@/features/review';
 import { getPromotionByHospital } from '@/mocks/fixtures/promotions';
-import { getReviewsByHospital } from '@/mocks/fixtures/reviews';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
-import { useDoctorStore } from '@/store/useDoctorStore';
 import { useFavoritesStore } from '@/store/useFavoritesStore';
 import type { Hospital, HospitalFeatures } from '@/types/domain';
 import { showAlert } from '@/utils/alert';
 import { calcDiscountRate, formatPriceRange, formatWon } from '@/utils/format';
-import { getRepresentativeSpecialist, getVisibleSpecialtyLabel, isVerifiedSpecialist } from '@/utils/specialty';
 import { isSponsorshipActive } from '@/utils/sponsorship';
 
 const WEEKDAY_LABELS = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
@@ -34,22 +34,18 @@ const EMPTY_FEATURES: HospitalFeatures = {
 };
 
 /**
- * 이미 로드된 병원 하나를 렌더한다. 조회(로딩/에러/없음)는 `HospitalDetailPage` 가 맡는다.
+ * 이미 로드된 병원 하나를 렌더한다. 병원 자체의 조회(로딩/에러/없음)는 `HospitalDetailPage`
+ * 가 맡는다 — 페이지에서 분리한 이유는 `QueryState` 의 `children` 이 콜백이라 그 안에서는
+ * 훅을 호출할 수 없기 때문이다(`useHospitalDoctors`/`useHospitalReviews` 처럼 로드된 병원의
+ * id 에 의존하는 훅이 여기서 필요해진다).
  *
- * 페이지에서 분리한 이유: `QueryState` 의 `children` 은 콜백이라 컴포넌트 본문이 아니고
- * 그 안에서는 훅을 호출할 수 없다. 로드된 병원에 의존하는 훅
- * (`useDoctorsByHospital`, `useReviews`, `useForm({ defaultValues: data })`) 이
- * 필요해지는 화면들이 여기서 막히므로, 성공 상태를 별도 컴포넌트 본문으로 내린다.
+ * 전문의·후기는 각자 자기 섹션 안에서 독립적으로 로딩/에러/빈 상태를 갖는다 — 하나가
+ * 실패해도 병원 본문과 다른 섹션은 그대로 보인다.
  */
 export function HospitalDetailView({ hospital }: { hospital: Hospital }) {
-  // TODO(Task 5): doctor feature 의 useDoctorsByHospital 로 교체한다.
-  const allDoctors = useDoctorStore((state) => state.doctors);
-  const doctors = useMemo(
-    () => allDoctors.filter((doctor) => doctor.hospitalId === hospital.id),
-    [allDoctors, hospital.id]
-  );
+  const doctorsQuery = useHospitalDoctors(hospital.id);
+  const reviewsQuery = useHospitalReviews(hospital.id);
   const procedureMap = useProcedureMap();
-  const reviews = getReviewsByHospital(hospital.id);
   const promotion = getPromotionByHospital(hospital.id);
   const isFavorite = useFavoritesStore((state) => state.isFavorite(hospital.id));
   const toggleFavorite = useFavoritesStore((state) => state.toggleFavorite);
@@ -70,7 +66,9 @@ export function HospitalDetailView({ hospital }: { hospital: Hospital }) {
   // Assumes each businessHours entry's `day` starts with the weekday, e.g. "월" or "월요일".
   const todayEntry = businessHours.find((entry) => entry.day.startsWith(todayShort)) ?? businessHours[0];
 
-  const representativeDoctor = getRepresentativeSpecialist(doctors) ?? doctors[0] ?? null;
+  // 로딩 중에는 "전문의가 없다"고 단정하지 않는다 — 버튼은 목록이 실제로 도착해 1명
+  // 이상일 때만 나타난다(늦게 나타나는 것과 없다고 주장하는 것은 다른 사실이다).
+  const hasAnyDoctor = (doctorsQuery.data?.length ?? 0) > 0;
 
   const handleCopyAddress = async () => {
     await Clipboard.setStringAsync(hospital.address);
@@ -236,13 +234,21 @@ export function HospitalDetailView({ hospital }: { hospital: Hospital }) {
           </View>
 
           <Text className="mb-2 text-base font-bold text-neutral-900">전문의 소개</Text>
-          {doctors.length === 0 ? (
-            <Text className="mb-4 text-sm text-neutral-400">등록된 의료진 정보가 없어요</Text>
-          ) : (
-            <View className="mb-4">
-              {doctors.map((doctor) => {
-                const visibleSpecialty = getVisibleSpecialtyLabel(doctor);
-                return (
+          <QueryState
+            isLoading={doctorsQuery.isLoading}
+            isError={doctorsQuery.isError}
+            data={doctorsQuery.data}
+            onRetry={() => {
+              void doctorsQuery.refetch();
+            }}
+            isRetrying={doctorsQuery.isError && doctorsQuery.isFetching}
+            emptyState={{ title: '등록된 의료진 정보가 없어요', variant: 'inline' }}
+            errorState={{ variant: 'inline' }}
+            className="mb-4"
+          >
+            {(doctors) => (
+              <View className="mb-4">
+                {doctors.map((doctor) => (
                   <Pressable
                     key={doctor.id}
                     onPress={() => router.push(`/doctor/${doctor.id}`)}
@@ -260,17 +266,17 @@ export function HospitalDetailView({ hospital }: { hospital: Hospital }) {
                         <Text className="text-sm font-bold text-neutral-900">
                           {doctor.name} {doctor.title}
                         </Text>
-                        {isVerifiedSpecialist(doctor) ? <Badge label="전문의" tone="brand" /> : null}
+                        {doctor.isVerifiedSpecialist ? <Badge label="전문의" tone="brand" /> : null}
                       </View>
-                      {visibleSpecialty ? (
-                        <Text className="text-xs text-neutral-500">{visibleSpecialty}</Text>
+                      {doctor.visibleSpecialty ? (
+                        <Text className="text-xs text-neutral-500">{doctor.visibleSpecialty}</Text>
                       ) : null}
                     </View>
                   </Pressable>
-                );
-              })}
-            </View>
-          )}
+                ))}
+              </View>
+            )}
+          </QueryState>
 
           {hospital.events.length > 0 ? (
             <View className="mb-4">
@@ -284,36 +290,49 @@ export function HospitalDetailView({ hospital }: { hospital: Hospital }) {
           ) : null}
 
           <Text className="mb-2 text-base font-bold text-neutral-900">
-            방문자 후기 {reviews.length > 0 ? `(${reviews.length})` : ''}
+            방문자 후기 {reviewsQuery.data && reviewsQuery.data.meta.totalItems > 0 ? `(${reviewsQuery.data.meta.totalItems})` : ''}
           </Text>
-          {reviews.length === 0 ? (
-            <Text className="mb-4 text-sm text-neutral-400">아직 등록된 후기가 없어요</Text>
-          ) : (
-            reviews.map((review) => (
-              <View key={review.id} className="mb-3 rounded-xl border border-neutral-100 p-3">
-                <View className="mb-1 flex-row items-center justify-between">
-                  <Text className="text-sm font-semibold text-neutral-800">{review.authorName}</Text>
-                  <Text className="text-xs text-neutral-400">{review.createdAt}</Text>
-                </View>
-                <Text className="mb-1 text-xs text-amber-500">{'★'.repeat(review.rating)}</Text>
-                <Text className="mb-2 text-sm leading-5 text-neutral-600">{review.content}</Text>
-                {review.photos && review.photos.length > 0 ? (
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                    {review.photos.map((uri) => (
-                      <StockImage
-                        key={uri}
-                        uri={uri}
-                        alt="후기 사진"
-                        style={{ width: 88, height: 88, marginRight: 8 }}
-                        borderRadius={12}
-                        contentFit="cover"
-                      />
-                    ))}
-                  </ScrollView>
-                ) : null}
-              </View>
-            ))
-          )}
+          <QueryState
+            isLoading={reviewsQuery.isLoading}
+            isError={reviewsQuery.isError}
+            data={reviewsQuery.data?.items}
+            onRetry={() => {
+              void reviewsQuery.refetch();
+            }}
+            isRetrying={reviewsQuery.isError && reviewsQuery.isFetching}
+            emptyState={{ title: '아직 등록된 후기가 없어요', variant: 'inline' }}
+            errorState={{ variant: 'inline' }}
+            className="mb-4"
+          >
+            {(reviews) => (
+              <>
+                {reviews.map((review) => (
+                  <View key={review.id} className="mb-3 rounded-xl border border-neutral-100 p-3">
+                    <View className="mb-1 flex-row items-center justify-between">
+                      <Text className="text-sm font-semibold text-neutral-800">{review.authorName}</Text>
+                      <Text className="text-xs text-neutral-400">{review.createdAt}</Text>
+                    </View>
+                    <Text className="mb-1 text-xs text-amber-500">{'★'.repeat(review.rating)}</Text>
+                    <Text className="mb-2 text-sm leading-5 text-neutral-600">{review.content}</Text>
+                    {review.photos && review.photos.length > 0 ? (
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                        {review.photos.map((uri) => (
+                          <StockImage
+                            key={uri}
+                            uri={uri}
+                            alt="후기 사진"
+                            style={{ width: 88, height: 88, marginRight: 8 }}
+                            borderRadius={12}
+                            contentFit="cover"
+                          />
+                        ))}
+                      </ScrollView>
+                    ) : null}
+                  </View>
+                ))}
+              </>
+            )}
+          </QueryState>
 
           <View className="h-24" />
         </View>
@@ -336,7 +355,7 @@ export function HospitalDetailView({ hospital }: { hospital: Hospital }) {
               }
             />
           </View>
-          {representativeDoctor ? (
+          {hasAnyDoctor ? (
             <View className="flex-1">
               <PrimaryButton
                 variant="outline"
@@ -344,7 +363,7 @@ export function HospitalDetailView({ hospital }: { hospital: Hospital }) {
                 disabled={!hospital.consultAvailable}
                 onPress={() =>
                   // Consult form is hospital-scoped — routes to the same request flow as the hospital
-                  // CTA. TODO(developer): prefill the message with representativeDoctor's name if the
+                  // CTA. TODO(developer): prefill the message with the selected doctor's name if the
                   // consult form gains a doctor field.
                   requireAuth(() => router.push(`/consult/${hospital.id}`), `/consult/${hospital.id}`)
                 }

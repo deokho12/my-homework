@@ -5,20 +5,21 @@ import { Badge } from '@/components/Badge';
 import { StockImage } from '@/components/StockImage';
 import { useProcedureMap } from '@/features/procedure';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
-import { getHospitalById } from '@/store/useHospitalStore';
-import type { Doctor } from '@/types/domain';
-import { getVisibleSpecialtyLabel, isVerifiedSpecialist } from '@/utils/specialty';
+import type { Doctor, Hospital } from '@/types/domain';
 
 interface DoctorCardProps {
   doctor: Doctor;
+  /**
+   * 소속 병원. 상담 가능 여부·병원명 표시에 쓴다. 호출부가 이미 들고 있는 데이터를
+   * 넘겨받는다(이 컴포넌트는 스스로 조회하지 않는다) — 없으면 그 부분만 비워 보여준다.
+   */
+  hospital?: Hospital | null;
   style?: StyleProp<ViewStyle>;
 }
 
-export function DoctorCard({ doctor, style }: DoctorCardProps) {
+export function DoctorCard({ doctor, hospital, style }: DoctorCardProps) {
   const requireAuth = useRequireAuth();
   const procedureMap = useProcedureMap();
-  const hospital = getHospitalById(doctor.hospitalId);
-  const visibleSpecialty = getVisibleSpecialtyLabel(doctor);
 
   return (
     <Pressable
@@ -38,9 +39,9 @@ export function DoctorCard({ doctor, style }: DoctorCardProps) {
           <Text className="text-base font-bold text-neutral-900" numberOfLines={1}>
             {doctor.name} {doctor.title}
           </Text>
-          {visibleSpecialty ? (
+          {doctor.visibleSpecialty ? (
             <Text className="text-[13px] text-neutral-500" numberOfLines={1}>
-              {visibleSpecialty}
+              {doctor.visibleSpecialty}
             </Text>
           ) : null}
           {hospital ? (
@@ -53,7 +54,7 @@ export function DoctorCard({ doctor, style }: DoctorCardProps) {
 
       <View className="mb-3 flex-row flex-wrap gap-1.5">
         {doctor.isRecommended ? <Badge label="🌟 추천" tone="brand" /> : null}
-        {isVerifiedSpecialist(doctor) ? <Badge label="전문의" tone="brand" /> : null}
+        {doctor.isVerifiedSpecialist ? <Badge label="전문의" tone="brand" /> : null}
         {doctor.procedureIds.slice(0, 3).map((procedureId) => {
           const procedure = procedureMap.get(procedureId);
           return procedure ? <Badge key={procedureId} label={procedure.name} /> : null;

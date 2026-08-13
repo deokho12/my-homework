@@ -14,8 +14,14 @@ export const queryKeys = {
   },
   doctors: {
     all: ['doctors'] as const,
+    /** 필터별로 캐시를 가른다. `all` 은 무효화 접두사로 남긴다 — mutation 이 목록·상세를 한 번에 깬다. */
+    list: (filters: object = {}) => ['doctors', 'list', filters] as const,
     detail: (id: string) => ['doctors', id] as const,
     byHospital: (hospitalId: string) => ['doctors', 'byHospital', hospitalId] as const,
+  },
+  reviews: {
+    all: ['reviews'] as const,
+    byHospital: (hospitalId: string, filters: object = {}) => ['reviews', 'byHospital', hospitalId, filters] as const,
   },
   consultRequests: {
     all: ['consultRequests'] as const,

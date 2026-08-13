@@ -1,6 +1,7 @@
 import { screen, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import * as doctorApi from '@/features/doctor/api/doctorApi';
 import * as procedureApi from '@/features/procedure/api/procedureApi';
 import { RouterBridge, router } from '@/navigation';
 import { procedures } from '@/mocks/fixtures/procedures';
@@ -10,7 +11,8 @@ import { renderWithProviders } from '@/test/renderWithProviders';
 /**
  * `router.push` 는 `RouterBridge` 가 마운트돼 있어야 동작한다(`src/navigation/index.tsx`).
  * `fetchProcedures` 를 스파이해 응답 시점을 직접 제어한다 — `?q=` 로 들어온 검색이
- * 시술 목록 로딩과 경합할 때의 동작을 검증하기 위해서다.
+ * 시술 목록 로딩과 경합할 때의 동작을 검증하기 위해서다. `fetchDoctors` 는 이 화면이
+ * 의사 검색에도 쓰므로 기본적으로 빈 목록을 돌려주도록 스텁한다.
  */
 function renderSearch(route: string) {
   return renderWithProviders(
@@ -23,6 +25,13 @@ function renderSearch(route: string) {
 }
 
 describe('검색 화면 — q 로 들어온 자동 검색과 시술 목록 로딩의 경합', () => {
+  beforeEach(() => {
+    vi.spyOn(doctorApi, 'fetchDoctors').mockResolvedValue({
+      items: [],
+      meta: { page: 1, pageSize: 20, totalItems: 0, totalPages: 0 },
+    });
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
   });
