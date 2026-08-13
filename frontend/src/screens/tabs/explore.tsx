@@ -12,7 +12,7 @@ import { CONTAINER_CLASS, CONTAINER_PADDING } from '@/components/layout/Containe
 import { HospitalExploreCard } from '@/features/hospital/components/HospitalExploreCard';
 import { HospitalMapView } from '@/features/hospital/components/HospitalMapView';
 import { PriceCompareTable } from '@/features/hospital/components/PriceCompareTable';
-import { procedures } from '@/mocks/fixtures/procedures';
+import { useProcedures } from '@/features/procedure';
 import { useDoctorStore } from '@/store/useDoctorStore';
 import { useHospitalStore } from '@/store/useHospitalStore';
 import { useScrollShadowStore } from '@/store/useScrollShadowStore';
@@ -43,17 +43,21 @@ const CATEGORY_ICONS: Record<Category, IconComponent> = {
   ...PROCEDURE_ICONS,
 };
 
-// Order matches the product spec exactly: 추천 first, then every procedure in src/data/procedures.ts
-// order (already implant→orthodontics→laminate→inlay→crown→whitening→wisdom-tooth→cavity→gum-disease→
-// splint→snoring-device→tmj), then 기타 (was "전체" — same "no filter" behavior, renamed + moved last).
-const CATEGORY_TABS: { key: Category; label: string }[] = [
-  { key: 'recommended', label: '추천' },
-  ...procedures.map((procedure) => ({ key: procedure.id as Category, label: procedure.name })),
-  { key: 'all', label: '기타' },
-];
-
 export default function ExploreScreen() {
   const params = useLocalSearchParams<{ mode?: string; category?: string }>();
+  const { data: procedures = [] } = useProcedures();
+  // Order matches the product spec exactly: 추천 first, then every procedure in the server's
+  // fixed order (implant→orthodontics→laminate→inlay→crown→whitening→wisdom-tooth→cavity→
+  // gum-disease→splint→snoring-device→tmj→botox), then 기타 (was "전체" — same "no filter"
+  // behavior, renamed + moved last). Empty while `procedures` is still loading.
+  const categoryTabs = useMemo<{ key: Category; label: string }[]>(
+    () => [
+      { key: 'recommended', label: '추천' },
+      ...procedures.map((procedure) => ({ key: procedure.id as Category, label: procedure.name })),
+      { key: 'all', label: '기타' },
+    ],
+    [procedures]
+  );
   const [mode, setMode] = useState<Mode>(params.mode === 'doctor' ? 'doctor' : 'hospital');
   const [selectedCategory, setSelectedCategory] = useState<Category>(
     params.category === 'recommended' ? 'recommended' : (params.category as ProcedureId) || 'all'
@@ -186,7 +190,7 @@ export default function ExploreScreen() {
   }, [doctors, hospitalById, selectedCategory, onlyConsult, onlyOneDay, onlySpecialist, onlyNightConsult, onlyExperienced, sortBy]);
 
   const resultCount = mode === 'doctor' ? filteredDoctors.length : filteredHospitals.length;
-  const selectedCategoryLabel = CATEGORY_TABS.find((tab) => tab.key === selectedCategory)?.label ?? '추천';
+  const selectedCategoryLabel = categoryTabs.find((tab) => tab.key === selectedCategory)?.label ?? '추천';
 
   return (
     <SafeAreaView className="flex-1 bg-neutral-50" edges={['top']}>
@@ -236,7 +240,7 @@ export default function ExploreScreen() {
       <View className="flex-1">
         <View className="border-b border-neutral-100 bg-white py-3">
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName={CONTAINER_PADDING}>
-            {CATEGORY_TABS.map((tab) => (
+            {categoryTabs.map((tab) => (
               <Chip
                 key={tab.key}
                 label={tab.label}

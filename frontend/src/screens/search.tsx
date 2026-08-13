@@ -4,7 +4,7 @@ import { Pressable, ScrollView, Text, TextInput, View, cx } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
 
 import { CONTAINER_PADDING } from '@/components/layout/Container';
-import { procedures } from '@/mocks/fixtures/procedures';
+import { useProcedures } from '@/features/procedure';
 import {
   SPONSORED_SEARCH_SUGGESTIONS,
   TRENDING_SEARCHES,
@@ -73,6 +73,7 @@ function formatNowLabel(): string {
 
 export default function SearchScreen() {
   const { q } = useLocalSearchParams<{ q?: string }>();
+  const { data: procedures = [] } = useProcedures();
   const inputRef = useRef<TextInput>(null);
   const [query, setQuery] = useState(q ?? '');
   const [tab, setTab] = useState<SearchTab>('all');
@@ -121,8 +122,11 @@ export default function SearchScreen() {
 
   // Prefills and auto-runs the search when arriving from a trending-tag link (e.g. the home screen's
   // popular-search pills), which navigate here with a `q` param instead of typing into the input.
+  // `runSearch` is intentionally omitted — it's redefined every render (now also closing over the
+  // `procedures` query result), and this effect should only re-run when `q` itself changes.
   useEffect(() => {
     if (q) runSearch(q.trim());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q]);
 
   return (

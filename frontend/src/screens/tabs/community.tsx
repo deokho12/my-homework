@@ -6,7 +6,7 @@ import { SafeAreaView } from '@/primitives';
 
 import { Badge } from '@/components/Badge';
 import { CONTAINER_PADDING } from '@/components/layout/Container';
-import { getProcedureById } from '@/mocks/fixtures/procedures';
+import { useProcedureMap } from '@/features/procedure';
 import { useCommunityStore } from '@/store/useCommunityStore';
 import { useScrollShadowStore } from '@/store/useScrollShadowStore';
 import type { QAPost } from '@/types/domain';
@@ -14,7 +14,8 @@ import type { QAPost } from '@/types/domain';
 const SCROLL_SHADOW_THRESHOLD = 8;
 
 function PostRow({ post }: { post: QAPost }) {
-  const procedure = getProcedureById(post.procedureId);
+  const procedureMap = useProcedureMap();
+  const procedure = procedureMap.get(post.procedureId);
 
   return (
     <Pressable

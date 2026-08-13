@@ -8,12 +8,13 @@ import { CONTAINER_PADDING } from '@/components/layout/Container';
 import { HospitalCard } from '@/features/hospital/components/HospitalCard';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { StockImage } from '@/components/StockImage';
-import { getProcedureById } from '@/mocks/fixtures/procedures';
+import { useProcedureMap } from '@/features/procedure';
 import { guides } from '@/mocks/fixtures/guides';
 import { getHospitalById } from '@/store/useHospitalStore';
 
 export default function TipDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const procedureMap = useProcedureMap();
   const guide = guides.find((item) => item.id === id);
 
   if (!guide) {
@@ -25,7 +26,7 @@ export default function TipDetailScreen() {
     );
   }
 
-  const procedure = getProcedureById(guide.procedureId);
+  const procedure = procedureMap.get(guide.procedureId);
   const paragraphs = guide.content.split('\n\n');
   const relatedHospitals = (guide.relatedHospitals ?? [])
     .map((hospitalId) => getHospitalById(hospitalId))

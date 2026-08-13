@@ -6,7 +6,7 @@ import { SafeAreaView } from '@/primitives';
 import { Chip } from '@/components/Chip';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { containerClass } from '@/components/layout/Container';
-import { getProcedureById } from '@/mocks/fixtures/procedures';
+import { useProcedureMap } from '@/features/procedure';
 import { useConsultStore } from '@/store/useConsultStore';
 import { getHospitalById } from '@/store/useHospitalStore';
 import { CONSULT_STATUS_LABEL, CONSULT_STATUSES } from '@/types/domain';
@@ -26,6 +26,7 @@ export default function AdminConsultationDetailScreen() {
   const updateStatus = useConsultStore((state) => state.updateStatus);
   const addMemo = useConsultStore((state) => state.addMemo);
   const [memoText, setMemoText] = useState('');
+  const procedureMap = useProcedureMap();
 
   if (!request) {
     return (
@@ -37,7 +38,7 @@ export default function AdminConsultationDetailScreen() {
   }
 
   const hospital = getHospitalById(request.hospitalId);
-  const procedure = request.procedureId ? getProcedureById(request.procedureId) : undefined;
+  const procedure = request.procedureId ? procedureMap.get(request.procedureId) : undefined;
   const sortedHistory = [...request.statusHistory].sort(
     (a, b) => new Date(b.changedAt).getTime() - new Date(a.changedAt).getTime()
   );

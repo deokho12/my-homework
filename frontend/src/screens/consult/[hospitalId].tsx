@@ -6,7 +6,7 @@ import { SafeAreaView } from '@/primitives';
 import { Chip } from '@/components/Chip';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { containerClass } from '@/components/layout/Container';
-import { getProcedureById } from '@/mocks/fixtures/procedures';
+import { useProcedureMap } from '@/features/procedure';
 import { useConsultStore } from '@/store/useConsultStore';
 import { getHospitalById } from '@/store/useHospitalStore';
 import type { ProcedureId } from '@/types/domain';
@@ -16,6 +16,7 @@ const TIME_SLOTS = ['평일 오전', '평일 오후', '주말'];
 
 export default function ConsultRequestScreen() {
   const { hospitalId } = useLocalSearchParams<{ hospitalId: string }>();
+  const procedureMap = useProcedureMap();
   const hospital = getHospitalById(hospitalId);
   const addRequest = useConsultStore((state) => state.addRequest);
 
@@ -74,7 +75,7 @@ export default function ConsultRequestScreen() {
         <Text className="mb-2 text-sm font-semibold text-neutral-700">희망 시술</Text>
         <View className="mb-4 flex-row flex-wrap">
           {hospital.procedureIds.map((id) => {
-            const procedure = getProcedureById(id);
+            const procedure = procedureMap.get(id);
             if (!procedure) return null;
             return (
               <Chip

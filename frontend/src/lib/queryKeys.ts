@@ -33,4 +33,8 @@ export const queryKeys = {
     /** 회원가입 동의에 실을 현재 약관 버전 3개. */
     agreementVersions: ['legalDocuments', 'agreementVersions'] as const,
   },
+  procedures: {
+    /** 13종 고정 마스터 데이터. 필터가 없어 무효화 접두사와 조회 키가 같다. */
+    all: ['procedures'] as const,
+  },
 } as const;

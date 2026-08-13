@@ -5,13 +5,14 @@ import { SafeAreaView } from '@/primitives';
 
 import { Badge } from '@/components/Badge';
 import { containerClass } from '@/components/layout/Container';
-import { getProcedureById } from '@/mocks/fixtures/procedures';
+import { useProcedureMap } from '@/features/procedure';
 import { useCommunityStore } from '@/store/useCommunityStore';
 
 export default function CommunityPostScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const post = useCommunityStore((state) => state.posts.find((p) => p.id === id));
   const incrementView = useCommunityStore((state) => state.incrementView);
+  const procedureMap = useProcedureMap();
   const hasCountedView = useRef(false);
 
   useEffect(() => {
@@ -29,7 +30,7 @@ export default function CommunityPostScreen() {
     );
   }
 
-  const procedure = getProcedureById(post.procedureId);
+  const procedure = procedureMap.get(post.procedureId);
 
   return (
     <SafeAreaView className="flex-1 bg-white" edges={['bottom']}>

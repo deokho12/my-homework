@@ -6,7 +6,7 @@ import { SafeAreaView } from '@/primitives';
 import { Badge } from '@/components/Badge';
 import { Chip } from '@/components/Chip';
 import { CONTAINER_PADDING } from '@/components/layout/Container';
-import { getProcedureById } from '@/mocks/fixtures/procedures';
+import { useProcedureMap } from '@/features/procedure';
 import { useConsultStore } from '@/store/useConsultStore';
 import { getHospitalById } from '@/store/useHospitalStore';
 import { CONSULT_STATUS_LABEL, CONSULT_STATUSES, type ConsultRequest, type ConsultStatus } from '@/types/domain';
@@ -47,8 +47,9 @@ function QuickStatusButton({
 
 function ConsultCard({ request }: { request: ConsultRequest }) {
   const updateStatus = useConsultStore((state) => state.updateStatus);
+  const procedureMap = useProcedureMap();
   const hospital = getHospitalById(request.hospitalId);
-  const procedure = request.procedureId ? getProcedureById(request.procedureId) : undefined;
+  const procedure = request.procedureId ? procedureMap.get(request.procedureId) : undefined;
 
   return (
     <Pressable

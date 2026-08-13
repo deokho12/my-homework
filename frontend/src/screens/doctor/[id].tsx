@@ -7,7 +7,7 @@ import { Badge } from '@/components/Badge';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { StockImage } from '@/components/StockImage';
 import { CONTAINER_PADDING } from '@/components/layout/Container';
-import { getProcedureById } from '@/mocks/fixtures/procedures';
+import { useProcedureMap } from '@/features/procedure';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useDoctorStore } from '@/store/useDoctorStore';
@@ -19,6 +19,7 @@ export default function DoctorDetailScreen() {
   const doctor = useDoctorStore((state) => state.doctors.find((item) => item.id === id));
   const user = useAuthStore((state) => state.user);
   const requireAuth = useRequireAuth();
+  const procedureMap = useProcedureMap();
 
   if (!doctor) {
     return (
@@ -75,7 +76,7 @@ export default function DoctorDetailScreen() {
           <Text className="mb-2 text-base font-bold text-neutral-900">주요 진료 분야</Text>
           <View className="mb-5 flex-row flex-wrap gap-1.5">
             {doctor.procedureIds.map((procedureId) => {
-              const procedure = getProcedureById(procedureId);
+              const procedure = procedureMap.get(procedureId);
               return procedure ? <Badge key={procedureId} label={procedure.name} tone="brand" /> : null;
             })}
           </View>
@@ -127,7 +128,7 @@ export default function DoctorDetailScreen() {
                 </Text>
                 <View className="mb-1.5 flex-row flex-wrap gap-1">
                   {hospital.procedureIds.slice(0, 3).map((procedureId) => {
-                    const procedure = getProcedureById(procedureId);
+                    const procedure = procedureMap.get(procedureId);
                     return procedure ? <Badge key={procedureId} label={procedure.name} /> : null;
                   })}
                 </View>

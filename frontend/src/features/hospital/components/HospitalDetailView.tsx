@@ -10,8 +10,7 @@ import { Badge } from '@/components/Badge';
 import { KakaoMap } from '@/components/map/KakaoMap';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { StockImage } from '@/components/StockImage';
-// 정적 마스터 데이터. features/procedure(또는 content) 가 생기면 그쪽으로 옮긴다 (Task 11).
-import { getProcedureById } from '@/mocks/fixtures/procedures';
+import { useProcedureMap } from '@/features/procedure';
 import { getPromotionByHospital } from '@/mocks/fixtures/promotions';
 import { getReviewsByHospital } from '@/mocks/fixtures/reviews';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
@@ -49,6 +48,7 @@ export function HospitalDetailView({ hospital }: { hospital: Hospital }) {
     () => allDoctors.filter((doctor) => doctor.hospitalId === hospital.id),
     [allDoctors, hospital.id]
   );
+  const procedureMap = useProcedureMap();
   const reviews = getReviewsByHospital(hospital.id);
   const promotion = getPromotionByHospital(hospital.id);
   const isFavorite = useFavoritesStore((state) => state.isFavorite(hospital.id));
@@ -143,7 +143,7 @@ export function HospitalDetailView({ hospital }: { hospital: Hospital }) {
           <Text className="mb-2 text-base font-bold text-neutral-900">대표 시술</Text>
           <View className="mb-4 flex-row flex-wrap gap-1.5">
             {hospital.procedureIds.map((procedureId) => {
-              const procedure = getProcedureById(procedureId);
+              const procedure = procedureMap.get(procedureId);
               return procedure ? <Badge key={procedureId} label={procedure.name} tone="brand" /> : null;
             })}
           </View>

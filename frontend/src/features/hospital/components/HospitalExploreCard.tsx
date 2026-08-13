@@ -3,8 +3,7 @@ import { Pressable, Text, View, type StyleProp, type ViewStyle } from '@/primiti
 
 import { Badge } from '@/components/Badge';
 import { StockImage } from '@/components/StockImage';
-// 정적 마스터 데이터. features/procedure(또는 content) 가 생기면 그쪽으로 옮긴다 (Task 11).
-import { getProcedureById } from '@/mocks/fixtures/procedures';
+import { useProcedureMap } from '@/features/procedure';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { getDoctorsByHospital } from '@/store/useDoctorStore';
 import type { Hospital, ProcedureId } from '@/types/domain';
@@ -20,6 +19,7 @@ interface HospitalExploreCardProps {
 
 export function HospitalExploreCard({ hospital, activeCategory, style }: HospitalExploreCardProps) {
   const requireAuth = useRequireAuth();
+  const procedureMap = useProcedureMap();
   const representativeSpecialist = getRepresentativeSpecialist(getDoctorsByHospital(hospital.id));
   const matchesActiveCategory =
     !!representativeSpecialist &&
@@ -67,7 +67,7 @@ export function HospitalExploreCard({ hospital, activeCategory, style }: Hospita
             />
           ) : null}
           {hospital.procedureIds.slice(0, 3).map((procedureId) => {
-            const procedure = getProcedureById(procedureId);
+            const procedure = procedureMap.get(procedureId);
             return procedure ? <Badge key={procedureId} label={procedure.name} /> : null;
           })}
         </View>

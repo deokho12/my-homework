@@ -3,7 +3,7 @@ import { Pressable, Text, View, type StyleProp, type ViewStyle } from '@/primiti
 
 import { Badge } from '@/components/Badge';
 import { StockImage } from '@/components/StockImage';
-import { getProcedureById } from '@/mocks/fixtures/procedures';
+import { useProcedureMap } from '@/features/procedure';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { getHospitalById } from '@/store/useHospitalStore';
 import type { Doctor } from '@/types/domain';
@@ -16,6 +16,7 @@ interface DoctorCardProps {
 
 export function DoctorCard({ doctor, style }: DoctorCardProps) {
   const requireAuth = useRequireAuth();
+  const procedureMap = useProcedureMap();
   const hospital = getHospitalById(doctor.hospitalId);
   const visibleSpecialty = getVisibleSpecialtyLabel(doctor);
 
@@ -54,7 +55,7 @@ export function DoctorCard({ doctor, style }: DoctorCardProps) {
         {doctor.isRecommended ? <Badge label="🌟 추천" tone="brand" /> : null}
         {isVerifiedSpecialist(doctor) ? <Badge label="전문의" tone="brand" /> : null}
         {doctor.procedureIds.slice(0, 3).map((procedureId) => {
-          const procedure = getProcedureById(procedureId);
+          const procedure = procedureMap.get(procedureId);
           return procedure ? <Badge key={procedureId} label={procedure.name} /> : null;
         })}
       </View>

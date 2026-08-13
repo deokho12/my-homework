@@ -6,15 +6,18 @@ import { SafeAreaView } from '@/primitives';
 import { Chip } from '@/components/Chip';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { containerClass } from '@/components/layout/Container';
-import { procedures } from '@/mocks/fixtures/procedures';
+import { useProcedures } from '@/features/procedure';
 import { useCommunityStore } from '@/store/useCommunityStore';
 import type { ProcedureId } from '@/types/domain';
 
 export default function NewCommunityPostScreen() {
+  const { data: procedures = [] } = useProcedures();
   const addPost = useCommunityStore((state) => state.addPost);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [procedureId, setProcedureId] = useState<ProcedureId>(procedures[0].id);
+  // 'implant' 은 서버가 고정한 시술 목록의 첫 항목이다 — 목록이 아직 로딩 중이어도
+  // 안전한 기본값이다.
+  const [procedureId, setProcedureId] = useState<ProcedureId>('implant');
 
   const canSubmit = title.trim().length > 0 && content.trim().length > 0;
 

@@ -5,7 +5,7 @@ import { AddressSearchInput } from '@/components/admin/AddressSearchInput';
 import { Chip } from '@/components/Chip';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { containerClass } from '@/components/layout/Container';
-import { procedures } from '@/mocks/fixtures/procedures';
+import { useProcedures } from '@/features/procedure';
 import { getDoctorsByHospital } from '@/store/useDoctorStore';
 import {
   DENTAL_SPECIALTIES,
@@ -93,6 +93,7 @@ function CheckboxRow({ label, checked, onPress }: { label: string; checked: bool
 }
 
 export function HospitalForm({ initial, submitLabel, onSubmit }: HospitalFormProps) {
+  const { data: procedures = [] } = useProcedures();
   const [name, setName] = useState(initial?.name ?? '');
   const [specialty, setSpecialty] = useState(initial?.specialty ?? '');
   const [region, setRegion] = useState(initial?.region ?? '');

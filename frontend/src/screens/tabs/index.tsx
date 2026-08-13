@@ -13,8 +13,8 @@ import { PromotionCard } from '@/components/PromotionCard';
 import { SearchBar } from '@/components/SearchBar';
 import { SectionHeader } from '@/components/SectionHeader';
 import { CONTAINER_CLASS } from '@/components/layout/Container';
+import { useProcedures } from '@/features/procedure';
 import { guides } from '@/mocks/fixtures/guides';
-import { procedures } from '@/mocks/fixtures/procedures';
 import { promotions } from '@/mocks/fixtures/promotions';
 import { TRENDING_SEARCHES } from '@/mocks/fixtures/trendingSearches';
 import { useScrollShadowStore } from '@/store/useScrollShadowStore';
@@ -26,6 +26,7 @@ const SCROLL_SHADOW_THRESHOLD = 8;
 const HOME_TRENDING_TAGS = TRENDING_SEARCHES.all.slice(0, 6).map((item) => item.term);
 
 export default function HomeScreen() {
+  const { data: procedures = [] } = useProcedures();
   const setScrolled = useScrollShadowStore((state) => state.setScrolled);
   const scrollOffsetRef = useRef(0);
 

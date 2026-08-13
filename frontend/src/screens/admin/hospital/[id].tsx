@@ -3,18 +3,20 @@ import { Text, View } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
 
 import { HospitalForm } from '@/components/admin/HospitalForm';
-import { getProcedureById } from '@/mocks/fixtures/procedures';
+import { useProcedureMap } from '@/features/procedure';
 import { getDoctorsByHospital, useDoctorStore } from '@/store/useDoctorStore';
 import { useHospitalStore } from '@/store/useHospitalStore';
-import type { Hospital } from '@/types/domain';
+import type { Hospital, Procedure } from '@/types/domain';
 import { getProceduresForSpecialty } from '@/utils/specialty';
 import { isSponsorshipActive } from '@/utils/sponsorship';
 
-function getSponsorshipStatusText(hospital: Hospital): string {
+// 훅은 컴포넌트 본문에서만 부를 수 있으므로, 컴포넌트가 `useProcedureMap()` 으로 얻은
+// 맵을 값으로 넘겨받는다 — 이 함수 자체는 훅을 부르지 않는다.
+function getSponsorshipStatusText(hospital: Hospital, procedureMap: Map<string, Procedure>): string {
   if (!hospital.isSponsored) return '현재 진행중인 광고가 없어요';
 
   const categoryNames = hospital.sponsoredCategories
-    .map((procedureId) => getProcedureById(procedureId)?.name)
+    .map((procedureId) => procedureMap.get(procedureId)?.name)
     .filter(Boolean)
     .join(', ');
 
@@ -26,6 +28,7 @@ function getSponsorshipStatusText(hospital: Hospital): string {
 
 export default function EditHospitalScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const procedureMap = useProcedureMap();
   const hospital = useHospitalStore((state) => state.hospitals.find((item) => item.id === id));
   const updateHospital = useHospitalStore((state) => state.updateHospital);
   const addDoctor = useDoctorStore((state) => state.addDoctor);
@@ -46,7 +49,7 @@ export default function EditHospitalScreen() {
 
       <View className="mx-5 mt-4 rounded-2xl border border-neutral-100 bg-neutral-50 p-4">
         <Text className="mb-1 text-sm font-semibold text-neutral-500">광고 현황 (읽기 전용)</Text>
-        <Text className="text-sm text-neutral-800">{getSponsorshipStatusText(hospital)}</Text>
+        <Text className="text-sm text-neutral-800">{getSponsorshipStatusText(hospital, procedureMap)}</Text>
         <Text className="mt-1 text-xs text-neutral-400">
           광고 신청·결제 기능은 아직 준비중이에요. 변경이 필요하면 담당팀에 문의해주세요.
         </Text>

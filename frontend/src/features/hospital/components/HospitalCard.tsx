@@ -3,8 +3,7 @@ import { Pressable, Text, View } from '@/primitives';
 
 import { Badge } from '@/components/Badge';
 import { StockImage } from '@/components/StockImage';
-// 정적 마스터 데이터. features/procedure(또는 content) 가 생기면 그쪽으로 옮긴다 (Task 11).
-import { getProcedureById } from '@/mocks/fixtures/procedures';
+import { useProcedureMap } from '@/features/procedure';
 import { getPromotionByHospital } from '@/mocks/fixtures/promotions';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { useFavoritesStore } from '@/store/useFavoritesStore';
@@ -22,6 +21,7 @@ export function HospitalCard({ hospital }: HospitalCardProps) {
   const isFavorite = useFavoritesStore((state) => state.isFavorite(hospital.id));
   const toggleFavorite = useFavoritesStore((state) => state.toggleFavorite);
   const requireAuth = useRequireAuth();
+  const procedureMap = useProcedureMap();
   const promotion = getPromotionByHospital(hospital.id);
   const representativeSpecialist = getRepresentativeSpecialist(getDoctorsByHospital(hospital.id));
 
@@ -70,7 +70,7 @@ export function HospitalCard({ hospital }: HospitalCardProps) {
           {hospital.isOneDay ? <Badge label="⚡ 원데이 가능" tone="brand" /> : null}
           {representativeSpecialist ? <Badge label={`${representativeSpecialist.specialty} 상주`} /> : null}
           {hospital.procedureIds.slice(0, 3).map((procedureId) => {
-            const procedure = getProcedureById(procedureId);
+            const procedure = procedureMap.get(procedureId);
             return procedure ? <Badge key={procedureId} label={procedure.name} /> : null;
           })}
         </View>
