@@ -106,7 +106,13 @@ export interface HospitalResponse {
 
 /** 리포지토리가 쓰는 Prisma include. 투영이 요구하는 관계를 한 곳에 모은다. */
 export const HOSPITAL_INCLUDE = {
-  procedures: { select: { procedureId: true } },
+  // 계약이 시술 노출 순서를 고정해 두었고(implant → orthodontics → … → botox) 그 순서는
+  // `Procedure.sortOrder` 에 있다 (`GET /procedures` 와 같은 컬럼). 사전순으로 두면 화면의
+  // 시술 칩 순서가 마스터 목록과 어긋난다. `procedureId asc` 는 동률 tiebreaker 로 남긴다.
+  procedures: {
+    select: { procedureId: true },
+    orderBy: [{ procedure: { sortOrder: 'asc' } }, { procedureId: 'asc' }],
+  },
   images: { select: { url: true, sortOrder: true }, orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] },
   // `HospitalTag` 에는 `sortOrder` 컬럼이 없다 — 계약(`Hospital.tags`)도 순서를 요구하지 않는다.
   tags: { select: { tag: true }, orderBy: { id: 'asc' } },
