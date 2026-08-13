@@ -45,6 +45,18 @@ export const listHospitalsQuerySchema = z
 export type ListHospitalsQuery = z.infer<typeof listHospitalsQuerySchema>;
 
 /**
+ * `GET /admin/hospitals` 쿼리. 공개 목록(`listHospitalsQuerySchema`)과 별개다 — 필터·정렬·
+ * 좌표 파라미터가 없다(관리자 화면은 광고·거리 필터가 필요 없다). `q` 는 병원명 부분 일치.
+ */
+export const listManagedHospitalsQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
+  q: z.string().max(100).optional(),
+});
+
+export type ListManagedHospitalsQuery = z.infer<typeof listManagedHospitalsQuerySchema>;
+
+/**
  * 이 엔드포인트로 바꿀 수 없는 필드.
  *
  * **조용히 무시하지 않고 422 로 거절한다.** 무시하면 관리자 화면이 "저장했는데 안 바뀐다"

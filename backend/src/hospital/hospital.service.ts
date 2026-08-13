@@ -1,6 +1,9 @@
 import { Injectable } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 
 import type { AuthenticatedUser } from '../auth/auth.types';
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { UsersRepository } from '../auth/users.repository';
 import { ApiError } from '../common/errors/api-error';
 import { buildPageMeta, paginate } from '../common/pagination';
 import type { PageMeta } from '../common/pagination';
@@ -12,7 +15,7 @@ import { projectHospital } from './hospital.projection';
 import type { HospitalResponse } from './hospital.projection';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { HospitalRepository } from './hospital.repository';
-import type { CreateHospitalDto, ListHospitalsQuery, UpdateHospitalDto } from './hospital.schemas';
+import type { CreateHospitalDto, ListHospitalsQuery, ListManagedHospitalsQuery, UpdateHospitalDto } from './hospital.schemas';
 import { assertWritableHospitalFields } from './hospital.write';
 import { seoulToday } from './sponsorship';
 
@@ -21,11 +24,19 @@ export interface HospitalListResult {
   meta: PageMeta;
 }
 
+/** `GET /admin/hospitals` 응답. `scope` 는 화면이 빈 목록의 문구를 구분하는 근거다. */
+export interface AdminHospitalListResult {
+  items: HospitalResponse[];
+  meta: PageMeta;
+  scope: 'managed' | 'all';
+}
+
 @Injectable()
 export class HospitalService {
   constructor(
     private readonly hospitals: HospitalRepository,
     private readonly procedures: ProcedureRepository,
+    private readonly users: UsersRepository,
   ) {}
 
   async list(query: ListHospitalsQuery): Promise<HospitalListResult> {
@@ -83,6 +94,42 @@ export class HospitalService {
     }
 
     return projectHospital(row, { today: seoulToday() });
+  }
+
+  /**
+   * `GET /admin/hospitals`. 공개 목록(`list`)과 별개 경로다 — 관리자 화면이 공개 목록을
+   * 쓰다가 스코프를 잃는 회귀를 구조적으로 막는다 (계획 문서 참고).
+   *
+   * **분기는 역할로 한다, 담당 목록의 길이로 하지 않는다.** `hospital_admin` 이 아직 담당
+   * 병원을 배정받지 못했으면 `findManagedHospitalIds` 가 빈 배열을 주고, `{ id: { in: [] } }`
+   * 는 Prisma 에서 0행이다 — 그 담당자는 빈 목록을 받는다(에러가 아니라 정상 상태다).
+   * 반대로 빈 배열 길이로 "전체 노출" 로 분기하면 담당 미배정 담당자가 전 병원을 보게 되는
+   * 권한 상승이 된다. `operator` 는 `hospital_admins` 행이 원래 없으므로(주석 참고,
+   * `UsersRepository.findManagedHospitalIds`) 길이로는 `operator` 와 미배정 담당자를 구분할
+   * 수 없다 — 그래서 반드시 `actor.role` 을 본다.
+   */
+  async listForAdmin(query: ListManagedHospitalsQuery, actor: AuthenticatedUser): Promise<AdminHospitalListResult> {
+    const scope: 'managed' | 'all' = actor.role === 'operator' ? 'all' : 'managed';
+    const where: Prisma.HospitalWhereInput = { deletedAt: null };
+
+    if (query.q !== undefined && query.q.trim() !== '') {
+      where.nameNormalized = { contains: query.q.trim().toLowerCase() };
+    }
+
+    if (scope === 'managed') {
+      const managedIds = await this.users.findManagedHospitalIds(actor.id);
+      where.id = { in: managedIds };
+    }
+
+    const rows = await this.hospitals.findMany(where);
+    const today = seoulToday();
+    const items = rows.map((row) => projectHospital(row, { today }));
+
+    return {
+      items: paginate(items, query),
+      meta: buildPageMeta({ page: query.page, pageSize: query.pageSize, totalItems: items.length }),
+      scope,
+    };
   }
 
   /**
