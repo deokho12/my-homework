@@ -1,10 +1,11 @@
 import { router } from '@/navigation';
 import { useMemo, useState } from 'react';
-import { Pressable, Text, View } from '@/primitives';
+import { Pressable, Text, View, cx } from '@/primitives';
 
 import { Chip } from '@/components/Chip';
 import { KakaoMap } from '@/components/map/KakaoMap';
 // 정적 마스터 데이터. features/procedure(또는 content) 가 생기면 그쪽으로 옮긴다 (Task 11).
+import { CONTAINER_PADDING } from '@/components/layout/Container';
 import { getProcedureById } from '@/mocks/fixtures/procedures';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { useUserLocation } from '@/hooks/useUserLocation';
@@ -41,7 +42,7 @@ export function HospitalMapView({ hospitals }: HospitalMapViewProps) {
 
   return (
     <View className="flex-1">
-      <View className="border-b border-neutral-100 bg-white px-5 py-3">
+      <View className={cx(CONTAINER_PADDING, 'border-b border-neutral-100 bg-white py-3')}>
         {status === 'denied' || status === 'error' ? (
           <Text className="mb-2 text-xs text-neutral-400">
             위치 권한을 확인할 수 없어 서울시청을 기준으로 보여드려요

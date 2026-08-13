@@ -5,6 +5,7 @@ import { SafeAreaView } from '@/primitives';
 
 import { Chip } from '@/components/Chip';
 import { PrimaryButton } from '@/components/PrimaryButton';
+import { containerClass } from '@/components/layout/Container';
 import { procedures } from '@/mocks/fixtures/procedures';
 import { useCommunityStore } from '@/store/useCommunityStore';
 import type { ProcedureId } from '@/types/domain';
@@ -25,7 +26,7 @@ export default function NewCommunityPostScreen() {
   return (
     <SafeAreaView className="flex-1 bg-white" edges={['bottom']}>
       <Stack.Screen options={{ title: '질문하기' }} />
-      <ScrollView contentContainerClassName="px-5 pb-8 pt-4" keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerClassName={containerClass('form', 'pb-8 pt-4')} keyboardShouldPersistTaps="handled">
         <Text className="mb-2 text-sm font-semibold text-neutral-700">관련 시술</Text>
         <View className="mb-4 flex-row flex-wrap">
           {procedures.map((procedure) => (

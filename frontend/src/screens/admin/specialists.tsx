@@ -1,10 +1,11 @@
 import { Stack } from '@/navigation';
 import { useState } from 'react';
-import { FlatList, Pressable, Text, TextInput, View } from '@/primitives';
+import { FlatList, Pressable, Text, TextInput, View, cx } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
 
 import { Badge } from '@/components/Badge';
 import { StockImage } from '@/components/StockImage';
+import { CONTAINER_PADDING } from '@/components/layout/Container';
 import { useDoctorStore } from '@/store/useDoctorStore';
 import { getHospitalById } from '@/store/useHospitalStore';
 import type { Doctor, VerificationStatus } from '@/types/domain';
@@ -125,7 +126,7 @@ export default function SpecialistVerificationScreen() {
   return (
     <SafeAreaView className="flex-1 bg-neutral-50" edges={['bottom']}>
       <Stack.Screen options={{ title: '전문의 인증 검수' }} />
-      <View className="px-5 pb-2 pt-4">
+      <View className={cx(CONTAINER_PADDING, 'pb-2 pt-4')}>
         <Text className="text-lg font-bold text-neutral-900">전문의 인증 검수</Text>
         <Text className="mt-1 text-sm text-neutral-500">
           업로드된 자격증을 확인하고 승인 또는 반려해주세요
@@ -134,7 +135,7 @@ export default function SpecialistVerificationScreen() {
       <FlatList
         data={sorted}
         keyExtractor={(item) => item.id}
-        contentContainerClassName="px-5 py-4"
+        contentContainerClassName={cx(CONTAINER_PADDING, 'py-4')}
         renderItem={({ item }) => <SpecialistRow doctor={item} />}
       />
     </SafeAreaView>

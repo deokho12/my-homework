@@ -1,9 +1,10 @@
 import { router, useFocusEffect } from '@/navigation';
 import { useCallback, useRef } from 'react';
 import type { NativeScrollEvent, NativeSyntheticEvent } from '@/primitives';
-import { FlatList, Pressable, Text, View } from '@/primitives';
+import { FlatList, Pressable, Text, View, cx } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
 
+import { CONTAINER_PADDING } from '@/components/layout/Container';
 import { HospitalCard } from '@/features/hospital/components/HospitalCard';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { useSession } from '@/features/auth/hooks/useSession';
@@ -124,7 +125,7 @@ export default function MyPageScreen() {
         data={user ? favoriteHospitals : []}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => <HospitalCard hospital={item} />}
-        contentContainerClassName="px-5 pb-8 pt-3"
+        contentContainerClassName={cx(CONTAINER_PADDING, 'pb-8 pt-3')}
         onScroll={handleScroll}
         scrollEventThrottle={16}
         ListHeaderComponent={

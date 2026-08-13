@@ -1,8 +1,9 @@
 import { router, Stack, useLocalSearchParams } from '@/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, Text, TextInput, View } from '@/primitives';
+import { Pressable, ScrollView, Text, TextInput, View, cx } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
 
+import { CONTAINER_PADDING } from '@/components/layout/Container';
 import { procedures } from '@/mocks/fixtures/procedures';
 import {
   SPONSORED_SEARCH_SUGGESTIONS,
@@ -128,7 +129,7 @@ export default function SearchScreen() {
     <SafeAreaView className="flex-1 bg-white" edges={['top', 'bottom']}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      <View className="flex-row items-center gap-2 px-5 pt-3">
+      <View className={cx(CONTAINER_PADDING, 'flex-row items-center gap-2 pt-3')}>
         <Pressable onPress={() => router.back()} hitSlop={8} className="px-1 py-2">
           <Text className="text-2xl text-neutral-400">‹</Text>
         </Pressable>
@@ -156,7 +157,7 @@ export default function SearchScreen() {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerClassName="gap-2 px-5 pb-2 pt-4"
+          contentContainerClassName={cx(CONTAINER_PADDING, 'gap-2 pb-2 pt-4')}
         >
           {SPONSORED_SEARCH_SUGGESTIONS.map((suggestion) => (
             <Pressable
@@ -176,12 +177,12 @@ export default function SearchScreen() {
           </View>
         ) : null}
 
-        <View className="mb-1 mt-4 flex-row items-center justify-between px-5">
+        <View className={cx(CONTAINER_PADDING, 'mb-1 mt-4 flex-row items-center justify-between')}>
           <Text className="text-lg font-extrabold text-neutral-900">인기 검색어</Text>
           <Text className="text-xs text-neutral-400">{nowLabel}</Text>
         </View>
 
-        <View className="mb-2 flex-row border-b border-neutral-100 px-5">
+        <View className={cx(CONTAINER_PADDING, 'mb-2 flex-row border-b border-neutral-100')}>
           {TABS.map((item) => (
             <Pressable
               key={item.key}
@@ -197,7 +198,7 @@ export default function SearchScreen() {
           ))}
         </View>
 
-        <View className="px-5">
+        <View className={CONTAINER_PADDING}>
           {TRENDING_SEARCHES[tab].map((item) => (
             <SearchRow key={`${tab}-${item.rank}`} item={item} />
           ))}

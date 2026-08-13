@@ -1,9 +1,10 @@
 import { router, Stack, useLocalSearchParams } from '@/navigation';
 import { ChevronLeft } from 'lucide-react';
-import { Pressable, ScrollView, Text, View } from '@/primitives';
+import { Pressable, ScrollView, Text, View, cx } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
 
 import { Badge } from '@/components/Badge';
+import { CONTAINER_PADDING } from '@/components/layout/Container';
 import { HospitalCard } from '@/features/hospital/components/HospitalCard';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { StockImage } from '@/components/StockImage';
@@ -35,7 +36,7 @@ export default function TipDetailScreen() {
       <Stack.Screen options={{ title: '' }} />
 
       <ScrollView showsVerticalScrollIndicator={false}>
-        <View className="px-5 pt-4">
+        <View className={cx(CONTAINER_PADDING, 'pt-4')}>
           <Pressable
             onPress={() => router.back()}
             hitSlop={8}
@@ -45,7 +46,7 @@ export default function TipDetailScreen() {
           </Pressable>
         </View>
 
-        <View className="px-5">
+        <View className={CONTAINER_PADDING}>
           <StockImage
             uri={guide.thumbnail}
             alt={guide.title}
@@ -55,7 +56,7 @@ export default function TipDetailScreen() {
           />
         </View>
 
-        <View className="px-5 pt-5">
+        <View className={cx(CONTAINER_PADDING, 'pt-5')}>
           {procedure ? (
             <View className="mb-3 flex-row">
               <Badge label={procedure.name} tone="brand" />
@@ -89,7 +90,7 @@ export default function TipDetailScreen() {
         </View>
       </ScrollView>
 
-      <SafeAreaView edges={['bottom']} className="border-t border-neutral-100 bg-white px-5 pt-3">
+      <SafeAreaView edges={['bottom']} className={cx(CONTAINER_PADDING, 'border-t border-neutral-100 bg-white pt-3')}>
         <View className="pb-3">
           <PrimaryButton
             label="관련 시술 병원 상담받기"

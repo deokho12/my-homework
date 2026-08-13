@@ -1,9 +1,10 @@
 import { router, Stack } from '@/navigation';
 import { useMemo } from 'react';
-import { FlatList, Pressable, Text, View } from '@/primitives';
+import { FlatList, Pressable, Text, View, cx } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
 
 import { PrimaryButton } from '@/components/PrimaryButton';
+import { CONTAINER_PADDING } from '@/components/layout/Container';
 import { useConsultStore } from '@/store/useConsultStore';
 import { useHospitalStore } from '@/store/useHospitalStore';
 import { useNotificationStore } from '@/store/useNotificationStore';
@@ -65,7 +66,7 @@ export default function AdminHospitalListScreen() {
   return (
     <SafeAreaView className="flex-1 bg-neutral-50" edges={['bottom']}>
       <Stack.Screen options={{ title: '병원 관리자' }} />
-      <View className="px-5 pb-2 pt-4">
+      <View className={cx(CONTAINER_PADDING, 'pb-2 pt-4')}>
         <View className="mb-1 flex-row items-center justify-between">
           <Text className="text-lg font-bold text-neutral-900">병원 프로필 관리</Text>
           <AdminBell />
@@ -104,7 +105,7 @@ export default function AdminHospitalListScreen() {
       <FlatList
         data={hospitals}
         keyExtractor={(item) => item.id}
-        contentContainerClassName="px-5 py-4"
+        contentContainerClassName={cx(CONTAINER_PADDING, 'py-4')}
         renderItem={({ item }) => (
           <Pressable
             onPress={() => router.push(`/admin/hospital/${item.id}`)}

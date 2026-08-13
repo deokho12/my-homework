@@ -5,7 +5,6 @@ import { Pressable, ScrollView, Text, View, cx } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
 
 import { CardGrid } from '@/components/layout/CardGrid';
-import { CONTAINER_CLASS } from '@/components/layout/Container';
 import { Footer } from '@/components/Footer';
 import { GuideCard } from '@/components/GuideCard';
 import { HeroBanner } from '@/components/HeroBanner';
@@ -13,6 +12,7 @@ import { ProcedureCategoryCard } from '@/components/ProcedureCategoryCard';
 import { PromotionCard } from '@/components/PromotionCard';
 import { SearchBar } from '@/components/SearchBar';
 import { SectionHeader } from '@/components/SectionHeader';
+import { CONTAINER_CLASS } from '@/components/layout/Container';
 import { guides } from '@/mocks/fixtures/guides';
 import { procedures } from '@/mocks/fixtures/procedures';
 import { promotions } from '@/mocks/fixtures/promotions';

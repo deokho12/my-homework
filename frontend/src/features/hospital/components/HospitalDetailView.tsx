@@ -1,8 +1,9 @@
+import { CONTAINER_PADDING } from '@/components/layout/Container';
 import * as Clipboard from '@/lib/clipboard';
 import { router, Stack } from '@/navigation';
 import { ChevronDown, ChevronUp, Copy, MapPin, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { Modal, Pressable, ScrollView, Text, View } from '@/primitives';
+import { Modal, Pressable, ScrollView, Text, View, cx } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
 
 import { Badge } from '@/components/Badge';
@@ -93,7 +94,7 @@ export function HospitalDetailView({ hospital }: { hospital: Hospital }) {
           ))}
         </ScrollView>
 
-        <View className="px-5 pt-4">
+        <View className={cx(CONTAINER_PADDING, 'pt-4')}>
           <View className="mb-1 flex-row items-center justify-between">
             <Text className="flex-1 text-xl font-extrabold text-neutral-900">{hospital.name}</Text>
             <Text className="text-sm text-neutral-500">
@@ -318,7 +319,7 @@ export function HospitalDetailView({ hospital }: { hospital: Hospital }) {
         </View>
       </ScrollView>
 
-      <SafeAreaView edges={['bottom']} className="border-t border-neutral-100 bg-white px-5 pt-3">
+      <SafeAreaView edges={['bottom']} className={cx(CONTAINER_PADDING, 'border-t border-neutral-100 bg-white pt-3')}>
         <View className="flex-row items-center gap-2 pb-3">
           <Pressable
             onPress={() => requireAuth(() => toggleFavorite(hospital.id))}
@@ -355,7 +356,7 @@ export function HospitalDetailView({ hospital }: { hospital: Hospital }) {
 
       <Modal visible={mapVisible} animationType="slide" onRequestClose={() => setMapVisible(false)}>
         <SafeAreaView className="flex-1 bg-white">
-          <View className="flex-row items-center justify-between border-b border-neutral-100 px-5 py-3">
+          <View className={cx(CONTAINER_PADDING, 'flex-row items-center justify-between border-b border-neutral-100 py-3')}>
             <Text className="text-base font-bold text-neutral-900">{hospital.name} 위치</Text>
             <Pressable onPress={() => setMapVisible(false)} hitSlop={8}>
               <X size={22} color="#171717" />

@@ -1,8 +1,9 @@
 import { router, Stack } from '@/navigation';
 import { useMemo } from 'react';
-import { FlatList, Pressable, Text, View } from '@/primitives';
+import { FlatList, Pressable, Text, View, cx } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
 
+import { CONTAINER_PADDING } from '@/components/layout/Container';
 import { useConsultStore } from '@/store/useConsultStore';
 import { useNotificationStore } from '@/store/useNotificationStore';
 import type { AppNotification } from '@/types/domain';
@@ -77,7 +78,7 @@ export default function NotificationsScreen() {
   return (
     <SafeAreaView className="flex-1 bg-neutral-50" edges={['bottom']}>
       <Stack.Screen options={{ title: '알림' }} />
-      <View className="flex-row items-center justify-between px-5 pb-2 pt-4">
+      <View className={cx(CONTAINER_PADDING, 'flex-row items-center justify-between pb-2 pt-4')}>
         <Text className="text-lg font-bold text-neutral-900">알림함</Text>
         <Pressable onPress={() => markAllAsRead('user')} hitSlop={8}>
           <Text className="text-sm font-semibold text-brand-700">모두 읽음</Text>
@@ -87,7 +88,7 @@ export default function NotificationsScreen() {
       <FlatList
         data={userNotifications}
         keyExtractor={(item) => item.id}
-        contentContainerClassName="px-5 py-2"
+        contentContainerClassName={cx(CONTAINER_PADDING, 'py-2')}
         renderItem={({ item }) => <NotificationRow notification={item} />}
         ListEmptyComponent={
           <View className="items-center px-8 py-16">

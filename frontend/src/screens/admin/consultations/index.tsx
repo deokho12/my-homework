@@ -1,10 +1,11 @@
 import { router, Stack } from '@/navigation';
 import { useMemo, useState } from 'react';
-import { FlatList, Pressable, Text, View } from '@/primitives';
+import { FlatList, Pressable, Text, View, cx } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
 
 import { Badge } from '@/components/Badge';
 import { Chip } from '@/components/Chip';
+import { CONTAINER_PADDING } from '@/components/layout/Container';
 import { getProcedureById } from '@/mocks/fixtures/procedures';
 import { useConsultStore } from '@/store/useConsultStore';
 import { getHospitalById } from '@/store/useHospitalStore';
@@ -101,7 +102,7 @@ export default function AdminConsultationsScreen() {
   return (
     <SafeAreaView className="flex-1 bg-neutral-50" edges={['bottom']}>
       <Stack.Screen options={{ title: '상담 관리' }} />
-      <View className="px-5 pb-2 pt-4">
+      <View className={cx(CONTAINER_PADDING, 'pb-2 pt-4')}>
         <Text className="mb-1 text-lg font-bold text-neutral-900">상담 관리</Text>
         <Text className="mb-4 text-sm text-neutral-500">접수된 상담 신청을 확인하고 상태를 관리해요</Text>
         <View className="flex-row flex-wrap">
@@ -114,7 +115,7 @@ export default function AdminConsultationsScreen() {
       <FlatList
         data={filtered}
         keyExtractor={(item) => item.id}
-        contentContainerClassName="px-5 py-2"
+        contentContainerClassName={cx(CONTAINER_PADDING, 'py-2')}
         renderItem={({ item }) => <ConsultCard request={item} />}
         ListEmptyComponent={
           <View className="items-center px-8 py-16">

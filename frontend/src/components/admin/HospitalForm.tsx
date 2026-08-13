@@ -4,6 +4,7 @@ import { Pressable, ScrollView, Text, TextInput, View } from '@/primitives';
 import { AddressSearchInput } from '@/components/admin/AddressSearchInput';
 import { Chip } from '@/components/Chip';
 import { PrimaryButton } from '@/components/PrimaryButton';
+import { containerClass } from '@/components/layout/Container';
 import { procedures } from '@/mocks/fixtures/procedures';
 import { getDoctorsByHospital } from '@/store/useDoctorStore';
 import {
@@ -190,7 +191,7 @@ export function HospitalForm({ initial, submitLabel, onSubmit }: HospitalFormPro
   };
 
   return (
-    <ScrollView contentContainerClassName="px-5 pb-10 pt-4" keyboardShouldPersistTaps="handled">
+    <ScrollView contentContainerClassName={containerClass('form', 'pb-10 pt-4')} keyboardShouldPersistTaps="handled">
       <Text className="mb-2 text-sm font-semibold text-neutral-700">병원명</Text>
       <TextInput
         value={name}

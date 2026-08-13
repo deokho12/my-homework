@@ -6,6 +6,7 @@ import { Link, router, Stack, useLocalSearchParams } from '@/navigation';
 import { ScrollView, Text } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
 
+import { containerClass } from '@/components/layout/Container';
 import { TextField } from '@/features/auth/components/TextField';
 import {
   AGREEMENT_LABEL,
@@ -80,7 +81,7 @@ export default function SignUpScreen() {
   return (
     <SafeAreaView className="flex-1 bg-white" edges={['bottom']}>
       <Stack.Screen options={{ title: '회원가입' }} />
-      <ScrollView contentContainerClassName="px-5 pb-8 pt-6" keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerClassName={containerClass('form', 'pb-8 pt-6')} keyboardShouldPersistTaps="handled">
         <Text className="mb-1 text-2xl font-extrabold text-neutral-900">회원가입</Text>
         <Text className="mb-6 text-sm text-neutral-500">몰라몰라에서 나에게 맞는 병원을 찾아보세요</Text>
 

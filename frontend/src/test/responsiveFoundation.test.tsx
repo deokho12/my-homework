@@ -9,7 +9,13 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { render } from '@testing-library/react';
 
 import { CardGrid } from '@/components/layout/CardGrid';
-import { CONTAINER_CLASS, Container } from '@/components/layout/Container';
+import {
+  CONTAINER_CLASS,
+  CONTAINER_PADDING,
+  CONTAINER_WIDTHS,
+  Container,
+  containerClass,
+} from '@/components/layout/Container';
 import { Text } from '@/primitives';
 
 /**
@@ -126,6 +132,33 @@ describe('레이아웃 컴포넌트', () => {
     // 화면마다 좌우 여백이 어긋난다.
     for (const cls of CONTAINER_CLASS.split(' ')) {
       expect(el.className).toContain(cls);
+    }
+  });
+});
+
+describe('화면 성격별 최대폭', () => {
+  it('폼과 긴 글은 본문(1200)보다 좁게 묶인다', () => {
+    // 폼 입력 칸이 1200 까지 벌어지면 라벨과 값이 멀어지고, 긴 글은 한 줄이 길수록
+    // 다음 줄 첫 글자를 찾기 어려워진다. 목록·상세만 폭을 끝까지 쓴다.
+    expect(containerClass('form')).toContain('max-w-xl');
+    expect(containerClass('prose')).toContain('max-w-3xl');
+    expect(containerClass('content')).toContain('max-w-content');
+  });
+
+  it('어떤 폭이든 좌우 여백 규칙은 공유한다', () => {
+    for (const width of ['content', 'prose', 'form'] as const) {
+      expect(containerClass(width)).toContain(CONTAINER_PADDING);
+      expect(containerClass(width)).toContain('mx-auto');
+    }
+  });
+
+  it('추가 클래스를 뒤에 붙일 수 있다', () => {
+    expect(containerClass('form', 'pb-8 pt-6')).toContain('pb-8 pt-6');
+  });
+
+  it('세 폭의 클래스가 모두 CSS 에 존재한다', () => {
+    for (const cls of Object.values(CONTAINER_WIDTHS)) {
+      expect(css).toContain(`.${cls}`);
     }
   });
 });

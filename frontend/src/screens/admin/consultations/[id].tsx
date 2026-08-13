@@ -5,6 +5,7 @@ import { SafeAreaView } from '@/primitives';
 
 import { Chip } from '@/components/Chip';
 import { PrimaryButton } from '@/components/PrimaryButton';
+import { containerClass } from '@/components/layout/Container';
 import { getProcedureById } from '@/mocks/fixtures/procedures';
 import { useConsultStore } from '@/store/useConsultStore';
 import { getHospitalById } from '@/store/useHospitalStore';
@@ -54,7 +55,7 @@ export default function AdminConsultationDetailScreen() {
   return (
     <SafeAreaView className="flex-1 bg-neutral-50" edges={['bottom']}>
       <Stack.Screen options={{ title: '상담 상세' }} />
-      <ScrollView contentContainerClassName="px-5 pb-10 pt-4" keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerClassName={containerClass('form', 'pb-10 pt-4')} keyboardShouldPersistTaps="handled">
         <View className="mb-4 rounded-2xl border border-neutral-100 bg-white p-4">
           <Text className="mb-3 text-base font-bold text-neutral-900">{hospital?.name ?? '알 수 없는 병원'}</Text>
           <InfoRow label="이름" value={request.name} />

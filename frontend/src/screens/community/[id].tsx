@@ -4,6 +4,7 @@ import { ScrollView, Text, View } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
 
 import { Badge } from '@/components/Badge';
+import { containerClass } from '@/components/layout/Container';
 import { getProcedureById } from '@/mocks/fixtures/procedures';
 import { useCommunityStore } from '@/store/useCommunityStore';
 
@@ -33,7 +34,7 @@ export default function CommunityPostScreen() {
   return (
     <SafeAreaView className="flex-1 bg-white" edges={['bottom']}>
       <Stack.Screen options={{ title: '질문 상세' }} />
-      <ScrollView contentContainerClassName="px-5 pb-8 pt-4">
+      <ScrollView contentContainerClassName={containerClass('prose', 'pb-8 pt-4')}>
         <View className="mb-2 flex-row items-center gap-1.5">
           {procedure ? <Badge label={procedure.name} tone="brand" /> : null}
           <Text className="text-xs text-neutral-400">{post.createdAt}</Text>

@@ -1,11 +1,12 @@
 import { router, Stack, useLocalSearchParams } from '@/navigation';
 import { ChevronLeft } from 'lucide-react';
-import { Pressable, ScrollView, Text, View } from '@/primitives';
+import { Pressable, ScrollView, Text, View, cx } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
 
 import { Badge } from '@/components/Badge';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { StockImage } from '@/components/StockImage';
+import { CONTAINER_PADDING } from '@/components/layout/Container';
 import { getProcedureById } from '@/mocks/fixtures/procedures';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { useAuthStore } from '@/store/useAuthStore';
@@ -36,7 +37,7 @@ export default function DoctorDetailScreen() {
       <Stack.Screen options={{ title: '' }} />
 
       <ScrollView showsVerticalScrollIndicator={false}>
-        <View className="px-5 pt-4">
+        <View className={cx(CONTAINER_PADDING, 'pt-4')}>
           <Pressable
             onPress={() => router.back()}
             hitSlop={8}
@@ -156,7 +157,7 @@ export default function DoctorDetailScreen() {
         </View>
       </ScrollView>
 
-      <SafeAreaView edges={['bottom']} className="border-t border-neutral-100 bg-white px-5 pt-3">
+      <SafeAreaView edges={['bottom']} className={cx(CONTAINER_PADDING, 'border-t border-neutral-100 bg-white pt-3')}>
         <View className="pb-3">
           <PrimaryButton
             label={hospital?.consultAvailable ? '상담 신청' : '상담 마감'}

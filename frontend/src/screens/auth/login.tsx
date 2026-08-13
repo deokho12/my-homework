@@ -6,6 +6,7 @@ import { Pressable, ScrollView, Text, View } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
 
 import { PrimaryButton } from '@/components/PrimaryButton';
+import { containerClass } from '@/components/layout/Container';
 import { TextField } from '@/features/auth/components/TextField';
 import { applyServerFieldErrors, formErrorMessage } from '@/features/auth/lib/serverFieldErrors';
 import { loginSchema, type LoginInput } from '@/features/auth/schemas/authSchemas';
@@ -60,7 +61,7 @@ export default function LoginScreen() {
   return (
     <SafeAreaView className="flex-1 bg-white" edges={['bottom']}>
       <Stack.Screen options={{ title: '로그인' }} />
-      <ScrollView contentContainerClassName="px-5 pb-8 pt-6" keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerClassName={containerClass('form', 'pb-8 pt-6')} keyboardShouldPersistTaps="handled">
         <Text className="mb-1 text-2xl font-extrabold text-neutral-900">로그인</Text>
         <Text className="mb-6 text-sm text-neutral-500">
           로그인하고 찜한 병원과 상담 신청 내역을 관리해보세요
