@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from '../common/pagination';
+import { DAY_LABELS } from './hospital.projection';
 
 /**
  * 쿼리 문자열은 전부 문자열로 온다. `z.coerce` 로 변환하되 **boolean 은 coerce 를
@@ -73,7 +74,9 @@ const featuresSchema = z.object({
 });
 
 const businessHourSchema = z.object({
-  day: z.enum(['월', '화', '수', '목', '금', '토', '일']),
+  // `DAY_LABELS`(hospital.projection.ts) 단일 출처를 재사용한다 — Correction 1 이 만든
+  // 요일 라벨의 유일한 출처를 여기서 손으로 복제하면 두 목록이 갈릴 수 있다.
+  day: z.enum(DAY_LABELS),
   hours: z.string().min(1),
   isClosed: z.boolean().optional().default(false),
 });
@@ -95,7 +98,10 @@ export const createHospitalSchema = z.object({
   businessHours: z.array(businessHourSchema).optional(),
   directions: z.string().optional(),
   introduction: z.string().optional(),
-  tags: z.array(z.string().min(1)).optional(),
+  // `.trim()` — `tagNormalized` 는 이미 trim 하는데 표시값(`tag`)만 공백이 남으면
+  // `' 야간진료'` 와 `'야간진료'` 가 다른 표시값인데 같은 정규화 값이 되어 중복 제거가
+  // 어긋난다 (`hospital.write.ts` 의 `dedupeTagsByNormalized`).
+  tags: z.array(z.string().trim().min(1)).optional(),
   events: z.array(z.string().min(1)).optional(),
 });
 

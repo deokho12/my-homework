@@ -4,6 +4,8 @@ import type { AuthenticatedUser } from '../auth/auth.types';
 import { ApiError } from '../common/errors/api-error';
 import { buildPageMeta, paginate } from '../common/pagination';
 import type { PageMeta } from '../common/pagination';
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { ProcedureRepository } from '../procedure/procedure.repository';
 import { boundingBox, haversineKm } from './distance';
 import { buildHospitalWhere, orderHospitals } from './hospital.filters';
 import { projectHospital } from './hospital.projection';
@@ -21,7 +23,10 @@ export interface HospitalListResult {
 
 @Injectable()
 export class HospitalService {
-  constructor(private readonly hospitals: HospitalRepository) {}
+  constructor(
+    private readonly hospitals: HospitalRepository,
+    private readonly procedures: ProcedureRepository,
+  ) {}
 
   async list(query: ListHospitalsQuery): Promise<HospitalListResult> {
     const today = seoulToday();
@@ -85,6 +90,8 @@ export class HospitalService {
    * 광고·집계 필드는 `createHospitalSchema` 에 아예 없어 이 경로로는 보낼 수 없다.
    */
   async create(dto: CreateHospitalDto): Promise<HospitalResponse> {
+    await this.assertProceduresExist(dto.procedureIds);
+
     const id = await this.hospitals.create(dto);
 
     return this.getById(id);
@@ -101,9 +108,37 @@ export class HospitalService {
     actor: AuthenticatedUser,
   ): Promise<HospitalResponse> {
     assertWritableHospitalFields(rawBody, actor.role);
+    await this.assertProceduresExist(dto.procedureIds);
 
     await this.hospitals.update(id, dto);
 
     return this.getById(id);
+  }
+
+  /**
+   * `procedureIds` 가 실제로 존재하는지 **트랜잭션 시작 전에** 확인한다.
+   *
+   * 확인 없이 `hospitalProcedure.createMany` 로 바로 넣으면 오타 난 id 하나가 FK 위반이
+   * 되고, 이 저장소에는 `PrismaClientKnownRequestError` 매핑이 없어 그대로 `500
+   * INTERNAL_ERROR` 로 샌다. 운영자가 원인을 알 수 없는 "서버 오류" 를 받게 되므로
+   * 여기서 `422 VALIDATION_FAILED` 로 먼저 거절한다.
+   *
+   * `procedureIds` 가 dto 에 없으면(부분 수정에서 안 보낸 경우) 검사하지 않는다.
+   */
+  private async assertProceduresExist(procedureIds: string[] | undefined): Promise<void> {
+    if (procedureIds === undefined || procedureIds.length === 0) return;
+
+    const existing = await this.procedures.findExistingIds(procedureIds);
+    const missing = procedureIds.filter((id) => !existing.has(id));
+
+    if (missing.length > 0) {
+      throw new ApiError('VALIDATION_FAILED', {
+        details: missing.map((id) => ({
+          field: 'procedureIds',
+          code: 'unknown_procedure',
+          message: `존재하지 않는 시술이에요: ${id}`,
+        })),
+      });
+    }
   }
 }

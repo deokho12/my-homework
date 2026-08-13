@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 
 import { AuthModule } from '../auth/auth.module';
 import { DoctorModule } from '../doctor/doctor.module';
+import { ProcedureModule } from '../procedure/procedure.module';
 import { ReviewModule } from '../review/review.module';
 import { HospitalController } from './hospital.controller';
 import { HospitalRepository } from './hospital.repository';
@@ -19,9 +20,13 @@ import { HospitalService } from './hospital.service';
  * 2. **쓰기 엔드포인트(`POST /hospitals`·`PATCH /hospitals/:hospitalId`)의 인가 3층**
  *    (`AuthGuard`·`RolesGuard`·`HospitalScopeGuard`) — 이 가드들이 주입받는
  *    `UsersRepository`·`ResourceScopeService`·`TokenService` 도 `AuthModule` 이 export 한다.
+ *
+ * `ProcedureModule` 은 `HospitalService` 가 쓰기 경로에서 `procedureIds` 존재를 확인하는
+ * `ProcedureRepository.findExistingIds` 를 얻으려고 import 한다 — FK 위반을 만나기 전에
+ * `422 VALIDATION_FAILED` 로 거절해야 오타 난 id 가 원인 없는 500 이 되지 않는다.
  */
 @Module({
-  imports: [DoctorModule, ReviewModule, AuthModule],
+  imports: [DoctorModule, ReviewModule, AuthModule, ProcedureModule],
   controllers: [HospitalController],
   providers: [HospitalService, HospitalRepository],
   exports: [HospitalService, HospitalRepository],

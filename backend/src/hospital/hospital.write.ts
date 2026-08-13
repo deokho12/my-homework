@@ -190,6 +190,28 @@ export interface HospitalChildRows {
   businessHours?: { id: string; hospitalId: string; dayOfWeek: number; hours: string; isClosed: boolean }[];
 }
 
+/**
+ * 정규화 값이 같은 태그는 같은 태그다 (`docs/database/README.md` §3.9) — `HospitalTag`
+ * 유니크가 `(hospitalId, tagNormalized)` 인 이유이기도 하다. `createMany` 가 그 제약을
+ * 위반해 500 으로 새는 것을 막으려고 여기서 먼저 합친다. **에러가 아니라 정상 처리다** —
+ * 첫 등장의 표시값을 남기고 이후 중복은 버린다.
+ */
+function dedupeTagsByNormalized(tags: string[]): string[] {
+  const seen = new Set<string>();
+  const deduped: string[] = [];
+
+  for (const tag of tags) {
+    const normalized = tag.trim().toLowerCase();
+
+    if (seen.has(normalized)) continue;
+
+    seen.add(normalized);
+    deduped.push(tag);
+  }
+
+  return deduped;
+}
+
 export function buildChildRows(hospitalId: string, dto: UpdateHospitalDto): HospitalChildRows {
   const rows: HospitalChildRows = {};
 
@@ -202,7 +224,7 @@ export function buildChildRows(hospitalId: string, dto: UpdateHospitalDto): Hosp
   }
 
   if (dto.tags !== undefined) {
-    rows.tags = dto.tags.map((tag) => ({
+    rows.tags = dedupeTagsByNormalized(dto.tags).map((tag) => ({
       id: createId(),
       hospitalId,
       tag,

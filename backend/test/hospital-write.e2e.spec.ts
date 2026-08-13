@@ -218,5 +218,56 @@ describe('병원 쓰기', () => {
       expect(response.status).toBe(422);
       expect(response.body.error.code).toBe('VALIDATION_FAILED');
     });
+
+    it('존재하지 않는 procedureId 는 422 VALIDATION_FAILED 다 (FK 위반으로 500 이 되면 안 된다)', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/hospitals')
+        .set('Authorization', bearer(operator))
+        .send({ ...body, procedureIds: ['does-not-exist-procedure'] });
+
+      expect(response.status).toBe(422);
+      expect(response.body.error.code).toBe('VALIDATION_FAILED');
+      expect(
+        response.body.error.details.some((detail: { field: string }) => detail.field === 'procedureIds')
+      ).toBe(true);
+    });
+  });
+
+  describe('procedureIds FK 검증 · 태그 정규화 중복 제거', () => {
+    it('PATCH 로 존재하지 않는 procedureId 를 보내면 POST 와 같은 422 다', async () => {
+      const response = await patch(SEED_FIXTURES.hospitalManagedByH1Admin, operator, {
+        procedureIds: ['does-not-exist-procedure'],
+      });
+
+      expect(response.status).toBe(422);
+      expect(response.body.error.code).toBe('VALIDATION_FAILED');
+      expect(
+        response.body.error.details.some((detail: { field: string }) => detail.field === 'procedureIds')
+      ).toBe(true);
+    });
+
+    it('정규화 값이 같은 태그 2개를 보내면 200 이고 태그가 1개로 합쳐진다 (일회용 병원 — 시드를 건드리지 않는다)', async () => {
+      const created = await request(app.getHttpServer())
+        .post('/api/v1/hospitals')
+        .set('Authorization', bearer(operator))
+        .send({
+          name: '__write-spec__ 태그중복용 병원',
+          region: '서울 강남구',
+          address: '서울 강남구 테헤란로 4',
+          latitude: 37.5,
+          longitude: 127.03,
+          thumbnail: 'https://example.test/tag-dedupe.jpg',
+          procedureIds: ['implant'],
+          priceRange: { min: 100000, max: 200000 },
+        })
+        .expect(201);
+
+      createdHospitalIds.push(created.body.id);
+
+      const patched = await patch(created.body.id, operator, { tags: ['VIP', 'vip'] });
+
+      expect(patched.status).toBe(200);
+      expect(patched.body.tags).toEqual(['VIP']);
+    });
   });
 });
