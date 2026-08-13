@@ -38,6 +38,19 @@
     overflow: hidden;
   }
 
+  /*
+   * RNW's AppRegistry makes the mount node itself a flex column; we only had `height: 100%`.
+   * A block container ignores its child's `flex`, so the app root `<View style={{ flex: 1 }}>`
+   * fell back to `height: auto` and grew to its content instead of being capped at the
+   * viewport. Every `flex: 1` below it inherited that unbounded height, so no ScrollView ever
+   * overflowed — nothing scrolled, and `body { overflow: hidden }` clipped the excess.
+   * This is the ancestor half of the fix in 4f3ddf6 (which corrected the ScrollView itself).
+   */
+  #root {
+    display: flex;
+    flex-direction: column;
+  }
+
   /* --- View (react-native-web View: `view$raw`) --- */
   .rnw-view {
     align-content: flex-start;
