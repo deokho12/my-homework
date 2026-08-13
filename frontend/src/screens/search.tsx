@@ -1,5 +1,5 @@
 import { router, Stack, useLocalSearchParams } from '@/navigation';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View, cx } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
 
@@ -73,7 +73,10 @@ function formatNowLabel(): string {
 
 export default function SearchScreen() {
   const { q } = useLocalSearchParams<{ q?: string }>();
-  const { data: procedures = [] } = useProcedures();
+  // 시술 매칭이 이 조회에 의존한다. 로딩 중에 검색을 돌리면 `procedures` 가 아직 빈
+  // 배열이라 실제로 있는 시술을 "결과 없음" 으로 잘못 단정하게 된다 — `proceduresPending`
+  // 을 아래에서 게이트로 쓴다.
+  const { data: procedures = [], isPending: proceduresPending } = useProcedures();
   const inputRef = useRef<TextInput>(null);
   const [query, setQuery] = useState(q ?? '');
   const [tab, setTab] = useState<SearchTab>('all');
@@ -85,49 +88,57 @@ export default function SearchScreen() {
     return () => clearTimeout(timeout);
   }, []);
 
-  const runSearch = (trimmed: string) => {
-    if (!trimmed) return;
+  // `procedures` 가 바뀔 때만 새로 만든다 — 아래 자동검색 effect 가 이 함수를 의존성으로
+  // 쓸 수 있게(그리고 매 렌더마다 다시 실행되지 않게) 안정된 참조로 유지한다.
+  const runSearch = useCallback(
+    (trimmed: string) => {
+      if (!trimmed) return;
 
-    const matchedProcedure = procedures.find((procedure) => procedure.name.includes(trimmed));
-    if (matchedProcedure) {
-      setNotice(null);
-      navigateToTarget({ kind: 'procedure', procedureId: matchedProcedure.id });
-      return;
-    }
+      const matchedProcedure = procedures.find((procedure) => procedure.name.includes(trimmed));
+      if (matchedProcedure) {
+        setNotice(null);
+        navigateToTarget({ kind: 'procedure', procedureId: matchedProcedure.id });
+        return;
+      }
 
-    const matchedHospital = useHospitalStore.getState().hospitals.find((hospital) => hospital.name.includes(trimmed));
-    if (matchedHospital) {
-      setNotice(null);
-      navigateToTarget({ kind: 'hospital', hospitalId: matchedHospital.id });
-      return;
-    }
+      const matchedHospital = useHospitalStore
+        .getState()
+        .hospitals.find((hospital) => hospital.name.includes(trimmed));
+      if (matchedHospital) {
+        setNotice(null);
+        navigateToTarget({ kind: 'hospital', hospitalId: matchedHospital.id });
+        return;
+      }
 
-    // Trending terms append a title suffix (e.g. "김민준 원장") that isn't part of the stored
-    // doctor name ("김민준"), so also match when the search term starts with the doctor's name —
-    // narrower than a general bidirectional includes() so it can't false-positive against
-    // hospital names that happen to contain a procedure name (e.g. "더화이트 라미네이트클리닉").
-    const matchedDoctor = useDoctorStore
-      .getState()
-      .doctors.find((doctor) => doctor.name.includes(trimmed) || trimmed.startsWith(doctor.name));
-    if (matchedDoctor) {
-      setNotice(null);
-      navigateToTarget({ kind: 'doctor', doctorId: matchedDoctor.id });
-      return;
-    }
+      // Trending terms append a title suffix (e.g. "김민준 원장") that isn't part of the stored
+      // doctor name ("김민준"), so also match when the search term starts with the doctor's name —
+      // narrower than a general bidirectional includes() so it can't false-positive against
+      // hospital names that happen to contain a procedure name (e.g. "더화이트 라미네이트클리닉").
+      const matchedDoctor = useDoctorStore
+        .getState()
+        .doctors.find((doctor) => doctor.name.includes(trimmed) || trimmed.startsWith(doctor.name));
+      if (matchedDoctor) {
+        setNotice(null);
+        navigateToTarget({ kind: 'doctor', doctorId: matchedDoctor.id });
+        return;
+      }
 
-    setNotice(`"${trimmed}"에 대한 검색 결과가 없어요. 아래 인기 검색어를 살펴보세요`);
-  };
+      setNotice(`"${trimmed}"에 대한 검색 결과가 없어요. 아래 인기 검색어를 살펴보세요`);
+    },
+    [procedures]
+  );
 
   const handleSubmit = () => runSearch(query.trim());
 
   // Prefills and auto-runs the search when arriving from a trending-tag link (e.g. the home screen's
   // popular-search pills), which navigate here with a `q` param instead of typing into the input.
-  // `runSearch` is intentionally omitted — it's redefined every render (now also closing over the
-  // `procedures` query result), and this effect should only re-run when `q` itself changes.
+  // 시술 목록이 아직 로딩 중이면 실행을 미룬다(빈 배열을 근거로 "결과 없음" 을 단정하지
+  // 않기 위해) — 로딩이 끝나 `runSearch` 가 최신 `procedures` 를 담은 새 참조로 바뀌면
+  // 이 effect 가 다시 돌아 그때 한 번 검색한다.
   useEffect(() => {
-    if (q) runSearch(q.trim());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q]);
+    if (!q || proceduresPending) return;
+    runSearch(q.trim());
+  }, [q, proceduresPending, runSearch]);
 
   return (
     <SafeAreaView className="flex-1 bg-white" edges={['top', 'bottom']}>

@@ -6,13 +6,13 @@ import { HospitalForm } from '@/components/admin/HospitalForm';
 import { useProcedureMap } from '@/features/procedure';
 import { getDoctorsByHospital, useDoctorStore } from '@/store/useDoctorStore';
 import { useHospitalStore } from '@/store/useHospitalStore';
-import type { Hospital, Procedure } from '@/types/domain';
+import type { Hospital, Procedure, ProcedureId } from '@/types/domain';
 import { getProceduresForSpecialty } from '@/utils/specialty';
 import { isSponsorshipActive } from '@/utils/sponsorship';
 
 // 훅은 컴포넌트 본문에서만 부를 수 있으므로, 컴포넌트가 `useProcedureMap()` 으로 얻은
 // 맵을 값으로 넘겨받는다 — 이 함수 자체는 훅을 부르지 않는다.
-function getSponsorshipStatusText(hospital: Hospital, procedureMap: Map<string, Procedure>): string {
+function getSponsorshipStatusText(hospital: Hospital, procedureMap: Map<ProcedureId, Procedure>): string {
   if (!hospital.isSponsored) return '현재 진행중인 광고가 없어요';
 
   const categoryNames = hospital.sponsoredCategories

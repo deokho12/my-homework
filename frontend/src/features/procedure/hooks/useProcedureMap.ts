@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 
 import { useProcedures } from '@/features/procedure/hooks/useProcedures';
-import type { Procedure } from '@/types/domain';
+import type { Procedure, ProcedureId } from '@/types/domain';
 
 /**
  * `getProcedureById()` 를 대신한다. 렌더 중 동기 조회라는 성질을 유지하려고 맵으로
@@ -9,7 +9,7 @@ import type { Procedure } from '@/types/domain';
  *
  * 로딩 중에는 빈 맵이다. 호출부는 `map.get(id)?.name` 처럼 옵셔널로 쓴다.
  */
-export function useProcedureMap(): Map<string, Procedure> {
+export function useProcedureMap(): Map<ProcedureId, Procedure> {
   const { data } = useProcedures();
 
   return useMemo(() => new Map((data ?? []).map((item) => [item.id, item])), [data]);

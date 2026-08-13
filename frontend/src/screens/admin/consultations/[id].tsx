@@ -6,7 +6,7 @@ import { SafeAreaView } from '@/primitives';
 import { Chip } from '@/components/Chip';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { containerClass } from '@/components/layout/Container';
-import { useProcedureMap } from '@/features/procedure';
+import { useProcedureMap, useProcedures } from '@/features/procedure';
 import { useConsultStore } from '@/store/useConsultStore';
 import { getHospitalById } from '@/store/useHospitalStore';
 import { CONSULT_STATUS_LABEL, CONSULT_STATUSES } from '@/types/domain';
@@ -27,6 +27,7 @@ export default function AdminConsultationDetailScreen() {
   const addMemo = useConsultStore((state) => state.addMemo);
   const [memoText, setMemoText] = useState('');
   const procedureMap = useProcedureMap();
+  const { isPending: proceduresPending } = useProcedures();
 
   if (!request) {
     return (
@@ -39,6 +40,9 @@ export default function AdminConsultationDetailScreen() {
 
   const hospital = getHospitalById(request.hospitalId);
   const procedure = request.procedureId ? procedureMap.get(request.procedureId) : undefined;
+  // "미지정" 은 `request.procedureId` 가 정말 `null` 일 때만 맞는 말이다. id 는 있는데
+  // 맵에 아직 없는 것은 시술 목록이 로딩 중이라는 뜻일 수 있어, 중립 표시(—)를 대신 쓴다.
+  const procedureLabel = procedure ? procedure.name : request.procedureId && proceduresPending ? '—' : '미지정';
   const sortedHistory = [...request.statusHistory].sort(
     (a, b) => new Date(b.changedAt).getTime() - new Date(a.changedAt).getTime()
   );
@@ -61,7 +65,7 @@ export default function AdminConsultationDetailScreen() {
           <Text className="mb-3 text-base font-bold text-neutral-900">{hospital?.name ?? '알 수 없는 병원'}</Text>
           <InfoRow label="이름" value={request.name} />
           <InfoRow label="연락처" value={request.phone} />
-          <InfoRow label="희망 시술" value={procedure?.name ?? '미지정'} />
+          <InfoRow label="희망 시술" value={procedureLabel} />
           <InfoRow label="희망 시간" value={request.preferredTime || '미지정'} />
           <InfoRow label="신청일시" value={new Date(request.createdAt).toLocaleString('ko-KR')} />
         </View>

@@ -6,7 +6,7 @@ import { SafeAreaView } from '@/primitives';
 import { Badge } from '@/components/Badge';
 import { Chip } from '@/components/Chip';
 import { CONTAINER_PADDING } from '@/components/layout/Container';
-import { useProcedureMap } from '@/features/procedure';
+import { useProcedureMap, useProcedures } from '@/features/procedure';
 import { useConsultStore } from '@/store/useConsultStore';
 import { getHospitalById } from '@/store/useHospitalStore';
 import { CONSULT_STATUS_LABEL, CONSULT_STATUSES, type ConsultRequest, type ConsultStatus } from '@/types/domain';
@@ -48,8 +48,13 @@ function QuickStatusButton({
 function ConsultCard({ request }: { request: ConsultRequest }) {
   const updateStatus = useConsultStore((state) => state.updateStatus);
   const procedureMap = useProcedureMap();
+  const { isPending: proceduresPending } = useProcedures();
   const hospital = getHospitalById(request.hospitalId);
   const procedure = request.procedureId ? procedureMap.get(request.procedureId) : undefined;
+  // "시술 미지정" 은 `request.procedureId` 가 정말 `null` 일 때만 맞는 말이다. id 는
+  // 있는데 맵에 아직 없는 것은 시술 목록이 로딩 중이라는 뜻일 수 있어, "지정 안 됨" 이라고
+  // 잘못 단정하지 않고 중립 표시(—)를 쓴다.
+  const procedureLabel = procedure ? procedure.name : request.procedureId && proceduresPending ? '—' : '시술 미지정';
 
   return (
     <Pressable
@@ -60,7 +65,7 @@ function ConsultCard({ request }: { request: ConsultRequest }) {
         <View className="flex-1 pr-2">
           <Text className="text-base font-bold text-neutral-900">{request.name}</Text>
           <Text className="mt-0.5 text-xs text-neutral-500">
-            {hospital?.name ?? '알 수 없는 병원'} · {procedure?.name ?? '시술 미지정'}
+            {hospital?.name ?? '알 수 없는 병원'} · {procedureLabel}
           </Text>
         </View>
         <Badge

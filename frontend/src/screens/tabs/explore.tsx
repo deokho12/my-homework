@@ -45,7 +45,7 @@ const CATEGORY_ICONS: Record<Category, IconComponent> = {
 
 export default function ExploreScreen() {
   const params = useLocalSearchParams<{ mode?: string; category?: string }>();
-  const { data: procedures = [] } = useProcedures();
+  const { data: procedures = [], isPending: proceduresPending } = useProcedures();
   // Order matches the product spec exactly: 추천 first, then every procedure in the server's
   // fixed order (implant→orthodontics→laminate→inlay→crown→whitening→wisdom-tooth→cavity→
   // gum-disease→splint→snoring-device→tmj→botox), then 기타 (was "전체" — same "no filter"
@@ -190,7 +190,18 @@ export default function ExploreScreen() {
   }, [doctors, hospitalById, selectedCategory, onlyConsult, onlyOneDay, onlySpecialist, onlyNightConsult, onlyExperienced, sortBy]);
 
   const resultCount = mode === 'doctor' ? filteredDoctors.length : filteredHospitals.length;
-  const selectedCategoryLabel = categoryTabs.find((tab) => tab.key === selectedCategory)?.label ?? '추천';
+  const matchedCategoryTab = categoryTabs.find((tab) => tab.key === selectedCategory);
+  const isProcedureCategory = selectedCategory !== 'recommended' && selectedCategory !== 'all';
+  // "못 찾음" 이 두 가지 다른 이유일 수 있다: (1) 시술 목록이 아직 로딩 중이라 안 왔거나,
+  // (2) 데이터가 다 왔는데도 정말 그런 카테고리가 없다. 전자를 "추천" 이라고 잘못
+  // 단정하면 안 된다 — `filteredHospitals`/`resultCount` 는 이미 `selectedCategory` 로
+  // 올바르게 필터링돼 있는데 제목만 다른 카테고리를 주장하게 된다. `null` 이면
+  // 아래에서 스켈레톤을 그린다.
+  const selectedCategoryLabel = matchedCategoryTab
+    ? matchedCategoryTab.label
+    : isProcedureCategory && proceduresPending
+      ? null
+      : '추천';
 
   return (
     <SafeAreaView className="flex-1 bg-neutral-50" edges={['top']}>
@@ -240,15 +251,29 @@ export default function ExploreScreen() {
       <View className="flex-1">
         <View className="border-b border-neutral-100 bg-white py-3">
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName={CONTAINER_PADDING}>
-            {categoryTabs.map((tab) => (
-              <Chip
-                key={tab.key}
-                label={tab.label}
-                icon={CATEGORY_ICONS[tab.key]}
-                selected={selectedCategory === tab.key}
-                onPress={() => setSelectedCategory(tab.key)}
-              />
-            ))}
+            {proceduresPending ? (
+              // `categoryTabs` 는 로딩 중엔 [추천, 기타] 뿐이다 — 이걸 그대로 그리면 진짜
+              // 13종 목록인 것처럼 보여 "기타"(=전체)를 누르도록 유도한다. 로딩 표시로 대신한다.
+              <View
+                className="flex-row gap-2"
+                role="status"
+                accessibilityLabel="시술 카테고리를 불러오는 중이에요"
+              >
+                {Array.from({ length: 6 }).map((_, index) => (
+                  <View key={index} className="h-8 w-16 animate-pulse rounded-full bg-neutral-100" />
+                ))}
+              </View>
+            ) : (
+              categoryTabs.map((tab) => (
+                <Chip
+                  key={tab.key}
+                  label={tab.label}
+                  icon={CATEGORY_ICONS[tab.key]}
+                  selected={selectedCategory === tab.key}
+                  onPress={() => setSelectedCategory(tab.key)}
+                />
+              ))
+            )}
           </ScrollView>
         </View>
 
@@ -296,9 +321,18 @@ export default function ExploreScreen() {
             onScroll={handleScroll}
             scrollEventThrottle={16}
           >
-            <Text className="mb-2 text-base font-bold text-neutral-900">
-              &ldquo;{selectedCategoryLabel}&rdquo; {mode === 'doctor' ? '의사' : '병원'}
-            </Text>
+            {selectedCategoryLabel ? (
+              <Text className="mb-2 text-base font-bold text-neutral-900">
+                &ldquo;{selectedCategoryLabel}&rdquo; {mode === 'doctor' ? '의사' : '병원'}
+              </Text>
+            ) : (
+              // 카테고리 라벨이 아직 없다(로딩 중) — "추천" 이라고 잘못 주장하지 않고 자리를 비운다.
+              <View
+                className="mb-2 h-5 w-32 animate-pulse rounded bg-neutral-100"
+                role="status"
+                accessibilityLabel="카테고리 이름을 불러오는 중이에요"
+              />
+            )}
             <View className="mb-3 flex-row items-center justify-between">
               <Text className="text-sm text-neutral-500">총 {resultCount}{mode === 'doctor' ? '명' : '곳'}</Text>
               {mode === 'hospital' ? (
