@@ -185,6 +185,64 @@ describe('전문의 쓰기', () => {
       expect(verifications).toHaveLength(2);
     });
 
+    it('certificateUrl 만 바뀌어도 pending 으로 되돌아가고 rejectionReason 이 실제로 지워진다', async () => {
+      const current = await currentRoster();
+      expect(current).toHaveLength(1);
+
+      const target = current[0];
+
+      // rejectionReason 에 미리 값을 심어둔다 — 호출 전부터 null 이면 "지워졌다" 는 것을
+      // 증명하지 못한다. specialty 는 안 바꿀 것이므로 verifiedSpecialty 를 그것과 맞춘다.
+      await prisma.doctor.update({
+        where: { id: target.id },
+        data: {
+          verificationStatus: 'approved',
+          verifiedSpecialty: target.specialty,
+          rejectionReason: '검수 반려',
+          certificateUrl: 'https://example.test/cert-old.jpg',
+        },
+      });
+
+      const response = await put(operator, hospitalId, [
+        {
+          id: target.id,
+          name: target.name,
+          specialty: target.specialty,
+          certificateUrl: 'https://example.test/cert-new.jpg',
+        },
+      ]);
+
+      expect(response.status).toBe(200);
+      const updated = response.body.find((item: { id: string }) => item.id === target.id);
+
+      expect(updated.verificationStatus).toBe('pending');
+      expect(updated.rejectionReason).toBeNull();
+      expect(updated.certificateUrl).toBe('https://example.test/cert-new.jpg');
+    });
+
+    it('무관한 필드(title)만 바꾸면 승인이 유지된다 — 재검수는 specialty·certificateUrl 에만 반응한다', async () => {
+      const current = await currentRoster();
+      expect(current).toHaveLength(1);
+
+      const target = current[0];
+
+      await prisma.doctor.update({
+        where: { id: target.id },
+        data: { verificationStatus: 'approved', verifiedSpecialty: target.specialty, rejectionReason: null },
+      });
+
+      const response = await put(operator, hospitalId, [
+        { id: target.id, name: target.name, specialty: target.specialty, title: '새원장' },
+      ]);
+
+      expect(response.status).toBe(200);
+      const updated = response.body.find((item: { id: string }) => item.id === target.id);
+
+      expect(updated.title).toBe('새원장');
+      // specialty·certificateUrl 을 안 건드렸으니 승인이 그대로 유지된다.
+      expect(updated.verificationStatus).toBe('approved');
+    });
+
     it('verificationStatus 를 직접 보내도 승인되지 않는다', async () => {
       const current = await currentRoster();
       expect(current).toHaveLength(1);
@@ -275,6 +333,44 @@ describe('전문의 쓰기', () => {
         where: { doctorId: { in: existing.map((item) => item.id) } },
       });
       expect(verifications).toHaveLength(2);
+    });
+
+    it('다른 병원(h11) 전문의 id 를 h1 로스터에 끼워 넣으면 422 unknown_doctor_id 이고 아무것도 바뀌지 않는다', async () => {
+      // 앞선 테스트가 h1 에 신규 전문의를 하나 추가해뒤서(`h1AddedDoctorIds`), 그것까지 빼고
+      // 시드 전문의(d1·d7) 2명만 기준선으로 삼는다.
+      const existing = await prisma.doctor.findMany({
+        where: { hospitalId: SEED_FIXTURES.hospitalManagedByH1Admin, deletedAt: null, id: { notIn: h1AddedDoctorIds } },
+        orderBy: { id: 'asc' },
+        select: { id: true, name: true, specialty: true },
+      });
+      expect(existing).toHaveLength(2);
+
+      const intruder = await prisma.doctor.findUniqueOrThrow({ where: { id: SEED_FIXTURES.doctorAtH11 } });
+      // d14 가 실제로 h1 이 아닌 다른 병원 소속인지부터 확인한다 — 아니면 이 테스트가 무의미하다.
+      expect(intruder.hospitalId).not.toBe(SEED_FIXTURES.hospitalManagedByH1Admin);
+
+      const response = await put(adminH1, SEED_FIXTURES.hospitalManagedByH1Admin, [
+        ...existing.map((item) => ({ id: item.id, name: item.name, specialty: item.specialty })),
+        { id: intruder.id, name: intruder.name, specialty: intruder.specialty },
+      ]);
+
+      expect(response.status).toBe(422);
+      expect(response.body.error.code).toBe('VALIDATION_FAILED');
+      expect(
+        response.body.error.details.some(
+          (detail: { field: string; code: string }) => detail.field === 'doctors' && detail.code === 'unknown_doctor_id'
+        )
+      ).toBe(true);
+
+      // 거절은 트랜잭션 전이라 아무것도 바뀌지 않았다 — d14 는 여전히 원래 병원 소속이고 살아 있다.
+      const intruderAfter = await prisma.doctor.findUnique({ where: { id: intruder.id } });
+      expect(intruderAfter?.hospitalId).toBe(intruder.hospitalId);
+      expect(intruderAfter?.deletedAt).toBeNull();
+
+      // h1 의 기존 로스터도 그대로다 — soft delete 되지 않았다.
+      const h1After = await prisma.doctor.findMany({ where: { id: { in: existing.map((item) => item.id) } } });
+      expect(h1After).toHaveLength(2);
+      expect(h1After.every((row) => row.deletedAt === null)).toBe(true);
     });
   });
 
