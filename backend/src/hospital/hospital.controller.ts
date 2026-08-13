@@ -9,6 +9,11 @@ import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { DoctorService } from '../doctor/doctor.service';
 import type { DoctorPublicResponse } from '../doctor/doctor.projection';
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { ReviewService } from '../review/review.service';
+import type { ReviewListResult } from '../review/review.service';
+import { listReviewsQuerySchema } from '../review/review.schemas';
+import type { ListReviewsQuery } from '../review/review.schemas';
 import type { HospitalResponse } from './hospital.projection';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { HospitalRepository } from './hospital.repository';
@@ -24,6 +29,7 @@ export class HospitalController {
     private readonly hospitals: HospitalService,
     private readonly hospitalRepository: HospitalRepository,
     private readonly doctors: DoctorService,
+    private readonly reviews: ReviewService,
     private readonly tokens: TokenService,
   ) {}
 
@@ -56,5 +62,25 @@ export class HospitalController {
     }
 
     return this.doctors.listByHospital(hospitalId, { authenticated: resolveAuthenticated(request, this.tokens) });
+  }
+
+  /**
+   * 경로 소유자는 병원이라 여기 둔다 (`ReviewModule` 이 `HospitalModule` 을 import 하면
+   * 순환 참조가 되므로 반대로 뒀다 — `review.module.ts` 주석 참고). 병원 존재 확인을
+   * 여기서 먼저 해 `404 HOSPITAL_NOT_FOUND` 를 낸다 — `ReviewService` 는 `hospitalId` 만 받는다.
+   * 작성 엔드포인트는 없다 — 어느 화면에도 후기 작성 기능이 없다.
+   */
+  @Get(':hospitalId/reviews')
+  async listReviews(
+    @Param('hospitalId') hospitalId: string,
+    @Query(new ZodValidationPipe(listReviewsQuerySchema)) query: ListReviewsQuery,
+  ): Promise<ReviewListResult> {
+    const hospital = await this.hospitalRepository.findById(hospitalId);
+
+    if (hospital === null) {
+      throw new ApiError('HOSPITAL_NOT_FOUND');
+    }
+
+    return this.reviews.listByHospital(hospitalId, query);
   }
 }
