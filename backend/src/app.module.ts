@@ -6,6 +6,7 @@ import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
 import { validateEnv } from './config/env.schema';
 import { HealthModule } from './health/health.module';
+import { HospitalModule } from './hospital/hospital.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProcedureModule } from './procedure/procedure.module';
 
@@ -34,6 +35,7 @@ import { ProcedureModule } from './procedure/procedure.module';
     AuditModule,
     HealthModule,
     ProcedureModule,
+    HospitalModule,
   ],
 })
 export class AppModule {}

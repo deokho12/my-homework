@@ -116,6 +116,18 @@ describe('projectHospital', () => {
     expect(result.sponsoredEndDate).toBe('2026-09-30');
   });
 
+  it('procedureId 를 넘겼고 그 시술이 sponsoredCategories 에 없으면 isPlacementEligible 이 false 다', () => {
+    const result = projectHospital(
+      row({
+        rating: 4.5,
+        sponsorships: [{ procedureId: 'implant', rank: 1, startDate: '2026-07-01', endDate: '2026-09-30' }],
+      }),
+      { today, procedureId: 'orthodontics' }
+    );
+
+    expect(result.sponsorship).toEqual({ isActive: true, isPlacementEligible: false });
+  });
+
   it('distanceKm 는 인자로 받은 값을 그대로 싣고, 없으면 필드가 없다', () => {
     expect(projectHospital(row(), { today, distanceKm: 1.234 }).distanceKm).toBe(1.234);
     expect(projectHospital(row(), { today }).distanceKm).toBeUndefined();

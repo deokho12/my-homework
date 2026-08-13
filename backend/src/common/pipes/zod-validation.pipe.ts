@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { PipeTransform } from '@nestjs/common';
-import type { ZodIssue, ZodType } from 'zod';
+import type { ZodIssue, ZodType, ZodTypeDef } from 'zod';
 
 import { ApiError } from '../errors/api-error';
 import type { ApiErrorDetail } from '../errors/api-error';
@@ -23,7 +23,12 @@ import type { ApiErrorDetail } from '../errors/api-error';
  */
 @Injectable()
 export class ZodValidationPipe<T> implements PipeTransform<unknown, T> {
-  constructor(private readonly schema: ZodType<T>) {}
+  // 세 번째 타입 인자(Input)를 `unknown` 으로 둔다. `.default()` 가 있는 스키마는
+  // Output(T)이 Input(파싱 전, optional)과 다른데, `ZodType<T>` 의 기본값은
+  // Input=Output(T)라 그런 스키마를 넘기면 `_input` 타입이 안 맞아 컴파일이 깨진다.
+  // `safeParse` 는 런타임에 항상 `unknown` 을 받으므로(Input 제네릭은 타입 레벨에만
+  // 존재) 느슨하게 둬도 안전하다.
+  constructor(private readonly schema: ZodType<T, ZodTypeDef, unknown>) {}
 
   transform(value: unknown): T {
     const result = this.schema.safeParse(value);
