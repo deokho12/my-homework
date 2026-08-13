@@ -3,12 +3,15 @@ import { Injectable } from '@nestjs/common';
 import { ApiError } from '../common/errors/api-error';
 import { buildPageMeta, paginate } from '../common/pagination';
 import type { PageMeta } from '../common/pagination';
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { ProcedureRepository } from '../procedure/procedure.repository';
 import { buildDoctorWhere } from './doctor.filters';
-import { projectDoctorPublic } from './doctor.projection';
-import type { DoctorPublicResponse } from './doctor.projection';
+import { GENERAL_PRACTITIONER, projectDoctorAdmin, projectDoctorPublic } from './doctor.projection';
+import type { DoctorAdminResponse, DoctorPublicResponse } from './doctor.projection';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { DoctorRepository } from './doctor.repository';
-import type { ListDoctorsQuery } from './doctor.schemas';
+import { collectExplicitProcedureIds } from './doctor.write';
+import type { DoctorUpsertDto, ListDoctorsQuery, UpdateDoctorDto } from './doctor.schemas';
 
 export interface DoctorListResult {
   items: DoctorPublicResponse[];
@@ -21,7 +24,10 @@ export interface Viewer {
 
 @Injectable()
 export class DoctorService {
-  constructor(private readonly doctors: DoctorRepository) {}
+  constructor(
+    private readonly doctors: DoctorRepository,
+    private readonly procedures: ProcedureRepository,
+  ) {}
 
   async list(query: ListDoctorsQuery, viewer: Viewer): Promise<DoctorListResult> {
     const where = buildDoctorWhere(query);
@@ -72,5 +78,104 @@ export class DoctorService {
     const rows = await this.doctors.findByHospital(hospitalId);
 
     return rows.map((row) => projectDoctorPublic(row, viewer));
+  }
+
+  /**
+   * `PUT /hospitals/:hospitalId/doctors`. 병원 존재·담당 여부는 `HospitalScopeGuard` 가
+   * 이미 확인했다(`resource: 'hospital'`) — 여기서 다시 조회하지 않는다.
+   *
+   * 관리자 시야(`DoctorAdminView`)로 응답한다 — 교체 직후 화면이 자기가 보낸
+   * `certificateUrl` 을 그대로 확인해야 한다.
+   */
+  async replaceForHospital(hospitalId: string, items: DoctorUpsertDto[]): Promise<DoctorAdminResponse[]> {
+    const existingById = await this.doctors.findRosterSnapshot(hospitalId);
+
+    // `id` 가 있는데 이 병원 로스터에 없는 항목 — 다른 병원 전문의를 슬쩍 편입시키는 경로를
+    // 막는다. 스키마 통과 후의 애플리케이션 검증이라 422 다.
+    const unknownIds = items
+      .map((item) => item.id)
+      .filter((id): id is string => id !== undefined && !existingById.has(id));
+
+    if (unknownIds.length > 0) {
+      throw new ApiError('VALIDATION_FAILED', {
+        details: unknownIds.map((id) => ({
+          field: 'doctors',
+          code: 'unknown_doctor_id',
+          message: `이 병원 소속이 아닌 전문의예요: ${id}`,
+        })),
+      });
+    }
+
+    await this.assertProceduresExist(collectExplicitProcedureIds(items));
+
+    // 신규 `일반의` 가 `procedureIds` 를 안 보냈을 때만 병원의 시술 전체가 필요하다 —
+    // 그 밖의 경우엔 조회 자체를 건너뛴다.
+    const needsHospitalProcedures = items.some(
+      (item) => item.id === undefined && item.procedureIds === undefined && item.specialty === GENERAL_PRACTITIONER,
+    );
+    const hospitalProcedureIds = needsHospitalProcedures
+      ? await this.doctors.findHospitalProcedureIds(hospitalId)
+      : [];
+
+    await this.doctors.replaceForHospital(hospitalId, items, { existingById, hospitalProcedureIds });
+
+    const rows = await this.doctors.findByHospital(hospitalId);
+
+    return rows.map((row) => projectDoctorAdmin(row));
+  }
+
+  /** `PATCH /doctors/:doctorId`. `HospitalScopeGuard` 가 존재·담당 여부를 이미 확인했다. */
+  async update(doctorId: string, dto: UpdateDoctorDto): Promise<DoctorAdminResponse> {
+    const existing = await this.doctors.findSnapshot(doctorId);
+
+    if (existing === null) {
+      throw new ApiError('DOCTOR_NOT_FOUND');
+    }
+
+    if (dto.procedureIds !== undefined) {
+      await this.assertProceduresExist(dto.procedureIds);
+    }
+
+    await this.doctors.update(doctorId, dto, existing);
+
+    const row = await this.doctors.findById(doctorId);
+
+    if (row === null) {
+      throw new ApiError('DOCTOR_NOT_FOUND');
+    }
+
+    return projectDoctorAdmin(row);
+  }
+
+  /**
+   * `DELETE /doctors/:doctorId`. **soft delete 다** — 물리 삭제하면
+   * `ConsultRequest.doctor` 가 `onDelete: SetNull` 이라 그 전문의를 지목한 상담들의
+   * `doctorId` 가 전부 사라진다.
+   */
+  async softDelete(doctorId: string): Promise<void> {
+    await this.doctors.softDelete(doctorId);
+  }
+
+  /**
+   * `procedureIds` 가 실제로 존재하는지 확인한다 (`hospital.service.ts` 의
+   * `assertProceduresExist` 와 같은 이유 — FK 위반으로 원인 없는 500 이 되지 않게
+   * 트랜잭션 전에 422 로 거절한다). `ProcedureRepository.findExistingIds` 를 그대로
+   * 재사용한다 — 같은 검증을 두 곳에 두면 갈린다.
+   */
+  private async assertProceduresExist(procedureIds: string[]): Promise<void> {
+    if (procedureIds.length === 0) return;
+
+    const existing = await this.procedures.findExistingIds(procedureIds);
+    const missing = procedureIds.filter((id) => !existing.has(id));
+
+    if (missing.length > 0) {
+      throw new ApiError('VALIDATION_FAILED', {
+        details: missing.map((id) => ({
+          field: 'procedureIds',
+          code: 'unknown_procedure',
+          message: `존재하지 않는 시술이에요: ${id}`,
+        })),
+      });
+    }
   }
 }

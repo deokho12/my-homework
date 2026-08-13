@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 
 import type { AuthenticatedUser } from '../auth/auth.types';
@@ -13,9 +13,11 @@ import { resolveAuthenticated } from '../auth/optional-auth';
 import { TokenService } from '../auth/token.service';
 import { ApiError } from '../common/errors/api-error';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
+import { replaceDoctorsSchema } from '../doctor/doctor.schemas';
+import type { ReplaceDoctorsDto } from '../doctor/doctor.schemas';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { DoctorService } from '../doctor/doctor.service';
-import type { DoctorPublicResponse } from '../doctor/doctor.projection';
+import type { DoctorAdminResponse, DoctorPublicResponse } from '../doctor/doctor.projection';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { ReviewService } from '../review/review.service';
 import type { ReviewListResult } from '../review/review.service';
@@ -98,6 +100,26 @@ export class HospitalController {
     }
 
     return this.doctors.listByHospital(hospitalId, { authenticated: resolveAuthenticated(request, this.tokens) });
+  }
+
+  /**
+   * 병원 소속 전문의 일괄 교체. 경로 소유자는 병원이라 여기 둔다(`GET .../doctors` 와 같은
+   * 이유). `HospitalScopeGuard` 가 `resource: 'hospital'` 로 병원 존재·담당 여부를 이미
+   * 확인했다 — `listDoctors` 처럼 여기서 다시 조회하지 않는다.
+   *
+   * 관리자 병원 폼의 저장 동작 그대로다 — "화면에 남겨둔 전문의 목록이 그대로 정답이 된다".
+   * `id` 있는 항목은 갱신, 없는 항목은 신규(→ `pending`), 목록에서 빠진 항목은 삭제된다
+   * (`DoctorService.replaceForHospital` 주석 참고).
+   */
+  @Put(':hospitalId/doctors')
+  @Roles('hospital_admin', 'operator')
+  @HospitalScope({ resource: 'hospital' })
+  @UseGuards(AuthGuard, RolesGuard, HospitalScopeGuard)
+  replaceDoctors(
+    @Param('hospitalId') hospitalId: string,
+    @Body(new ZodValidationPipe(replaceDoctorsSchema)) dto: ReplaceDoctorsDto,
+  ): Promise<DoctorAdminResponse[]> {
+    return this.doctors.replaceForHospital(hospitalId, dto.doctors);
   }
 
   /**
