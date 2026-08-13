@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
+import type { AuthenticatedUser } from '../auth/auth.types';
 import { ApiError } from '../common/errors/api-error';
 import { buildPageMeta, paginate } from '../common/pagination';
 import type { PageMeta } from '../common/pagination';
@@ -9,7 +10,8 @@ import { projectHospital } from './hospital.projection';
 import type { HospitalResponse } from './hospital.projection';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { HospitalRepository } from './hospital.repository';
-import type { ListHospitalsQuery } from './hospital.schemas';
+import type { CreateHospitalDto, ListHospitalsQuery, UpdateHospitalDto } from './hospital.schemas';
+import { assertWritableHospitalFields } from './hospital.write';
 import { seoulToday } from './sponsorship';
 
 export interface HospitalListResult {
@@ -76,5 +78,32 @@ export class HospitalService {
     }
 
     return projectHospital(row, { today: seoulToday() });
+  }
+
+  /**
+   * `POST /hospitals` — `operator` 전용 (컨트롤러의 `@Roles('operator')` 가 보장한다).
+   * 광고·집계 필드는 `createHospitalSchema` 에 아예 없어 이 경로로는 보낼 수 없다.
+   */
+  async create(dto: CreateHospitalDto): Promise<HospitalResponse> {
+    const id = await this.hospitals.create(dto);
+
+    return this.getById(id);
+  }
+
+  /**
+   * `PATCH /hospitals/:hospitalId`. `rawBody` 는 zod 검증 **전** 원본이다 — 쓰기 금지
+   * 판정은 zod 가 모르는 키까지 봐야 한다 (`assertWritableHospitalFields` 주석 참고).
+   */
+  async update(
+    id: string,
+    dto: UpdateHospitalDto,
+    rawBody: Record<string, unknown>,
+    actor: AuthenticatedUser,
+  ): Promise<HospitalResponse> {
+    assertWritableHospitalFields(rawBody, actor.role);
+
+    await this.hospitals.update(id, dto);
+
+    return this.getById(id);
   }
 }

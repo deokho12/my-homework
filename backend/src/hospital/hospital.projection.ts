@@ -50,8 +50,12 @@ export interface HospitalRow {
   doctors: { specialty: string; verifiedSpecialty: string | null; verificationStatus: string }[];
 }
 
-/** `BusinessHour.dayOfWeek` 는 1=월 … 7=일이다 (스키마 주석). 인덱스는 `dayOfWeek - 1`. */
-const DAY_LABELS = ['월', '화', '수', '목', '금', '토', '일'] as const;
+/**
+ * `BusinessHour.dayOfWeek` 는 1=월 … 7=일이다 (스키마 주석). 인덱스는 `dayOfWeek - 1`.
+ *
+ * 쓰기 경로(`hospital.write.ts`)가 라벨 → 정수 역변환에 재사용하므로 export 한다.
+ */
+export const DAY_LABELS = ['월', '화', '수', '목', '금', '토', '일'] as const;
 
 /**
  * 병원 카드의 `OO전문의 상주` 배지에 쓸 전공.

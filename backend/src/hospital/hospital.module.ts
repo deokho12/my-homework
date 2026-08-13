@@ -13,9 +13,12 @@ import { HospitalService } from './hospital.service';
  * (경로 소유자가 병원이다). 두 모듈은 이 모듈을 다시 import 하지 않는다 — 순환 참조 방지
  * (`doctor.module.ts`·`review.module.ts` 주석 참고).
  *
- * `AuthModule` 은 `HospitalController` 가 선택 인증에 쓰는 `TokenService` 를 얻으려고
- * 직접 import 한다 — `DoctorModule` 이 `TokenService` 를 export 하지 않으므로
- * (캡슐화, `AuthModule` 만이 export 한다) 여기서 다시 받아야 한다.
+ * `AuthModule` 은 두 가지 이유로 import 한다:
+ * 1. `HospitalController` 가 선택 인증(`GET /hospitals/:hospitalId/doctors|reviews`)에
+ *    쓰는 `TokenService` — `DoctorModule` 이 이를 export 하지 않으므로(캡슐화) 여기서 다시 받는다.
+ * 2. **쓰기 엔드포인트(`POST /hospitals`·`PATCH /hospitals/:hospitalId`)의 인가 3층**
+ *    (`AuthGuard`·`RolesGuard`·`HospitalScopeGuard`) — 이 가드들이 주입받는
+ *    `UsersRepository`·`ResourceScopeService`·`TokenService` 도 `AuthModule` 이 export 한다.
  */
 @Module({
   imports: [DoctorModule, ReviewModule, AuthModule],

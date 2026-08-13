@@ -1,6 +1,13 @@
-import { Controller, Get, Param, Query, Req } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 
+import type { AuthenticatedUser } from '../auth/auth.types';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { HospitalScope } from '../auth/decorators/hospital-scope.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { AuthGuard } from '../auth/guards/auth.guard';
+import { HospitalScopeGuard } from '../auth/guards/hospital-scope.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
 import { resolveAuthenticated } from '../auth/optional-auth';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { TokenService } from '../auth/token.service';
@@ -17,8 +24,8 @@ import type { ListReviewsQuery } from '../review/review.schemas';
 import type { HospitalResponse } from './hospital.projection';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { HospitalRepository } from './hospital.repository';
-import { listHospitalsQuerySchema } from './hospital.schemas';
-import type { ListHospitalsQuery } from './hospital.schemas';
+import { createHospitalSchema, listHospitalsQuerySchema, updateHospitalSchema } from './hospital.schemas';
+import type { CreateHospitalDto, ListHospitalsQuery, UpdateHospitalDto } from './hospital.schemas';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { HospitalService } from './hospital.service';
 import type { HospitalListResult } from './hospital.service';
@@ -43,6 +50,35 @@ export class HospitalController {
   @Get(':hospitalId')
   getById(@Param('hospitalId') hospitalId: string): Promise<HospitalResponse> {
     return this.hospitals.getById(hospitalId);
+  }
+
+  /** `operator` 만 병원을 만들 수 있다 — 아무나 병원을 만들 수 있으면 안 된다. */
+  @Post()
+  @HttpCode(HttpStatus.CREATED)
+  @Roles('operator')
+  @UseGuards(AuthGuard, RolesGuard)
+  create(@Body(new ZodValidationPipe(createHospitalSchema)) dto: CreateHospitalDto): Promise<HospitalResponse> {
+    return this.hospitals.create(dto);
+  }
+
+  /**
+   * `hospital_admin`(담당 병원만) · `operator`(전 병원). 지금은 주소의 병원 id 만 바꾸면
+   * 남의 병원을 고칠 수 있다 — `HospitalScopeGuard` 가 그것을 막는다.
+   *
+   * `@Body()` 를 **두 번** 받는다: `dto` 는 zod 검증본, `rawBody` 는 원본이다. 쓰기 금지
+   * 필드 판정(`FIELD_NOT_WRITABLE`)은 zod 가 모르는 키까지 봐야 하므로 원본으로 한다.
+   */
+  @Patch(':hospitalId')
+  @Roles('hospital_admin', 'operator')
+  @HospitalScope({ resource: 'hospital' })
+  @UseGuards(AuthGuard, RolesGuard, HospitalScopeGuard)
+  update(
+    @Param('hospitalId') hospitalId: string,
+    @Body(new ZodValidationPipe(updateHospitalSchema)) dto: UpdateHospitalDto,
+    @Body() rawBody: Record<string, unknown>,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<HospitalResponse> {
+    return this.hospitals.update(hospitalId, dto, rawBody, user);
   }
 
   /**
