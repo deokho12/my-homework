@@ -1,6 +1,7 @@
 import { Controller, Get, Param, Query, Req } from '@nestjs/common';
 import type { Request } from 'express';
 
+import { resolveAuthenticated } from '../auth/optional-auth';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { TokenService } from '../auth/token.service';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
@@ -23,7 +24,7 @@ export class DoctorController {
     @Query(new ZodValidationPipe(listDoctorsQuerySchema)) query: ListDoctorsQuery,
     @Req() request: Request,
   ): Promise<DoctorListResult> {
-    return this.doctors.list(query, { authenticated: this.authenticatedFrom(request) });
+    return this.doctors.list(query, { authenticated: resolveAuthenticated(request, this.tokens) });
   }
 
   // ★ 새 GET 라우트는 이 주석 위에 선언한다. `@Get(':doctorId')` 가 마지막이어야 한다 —
@@ -32,19 +33,6 @@ export class DoctorController {
 
   @Get(':doctorId')
   getById(@Param('doctorId') doctorId: string, @Req() request: Request): Promise<DoctorPublicResponse> {
-    return this.doctors.getById(doctorId, { authenticated: this.authenticatedFrom(request) });
-  }
-
-  /**
-   * 선택 인증(`security: [{}, bearerAuth]`). `AuthGuard` 를 붙이지 않고 토큰을 직접 해석해
-   * `authenticated` 만 판정한다. 만료·위조 토큰이어도 401 을 내지 않는다 — 공개 화면이라
-   * 로그인 실패가 조회 실패가 되면 안 된다.
-   */
-  private authenticatedFrom(request: Request): boolean {
-    const header = request.header('authorization');
-
-    if (header === undefined || !header.toLowerCase().startsWith('bearer ')) return false;
-
-    return this.tokens.verifyAccessToken(header.slice(7).trim()).ok;
+    return this.doctors.getById(doctorId, { authenticated: resolveAuthenticated(request, this.tokens) });
   }
 }

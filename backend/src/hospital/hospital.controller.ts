@@ -1,6 +1,7 @@
 import { Controller, Get, Param, Query, Req } from '@nestjs/common';
 import type { Request } from 'express';
 
+import { resolveAuthenticated } from '../auth/optional-auth';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { TokenService } from '../auth/token.service';
 import { ApiError } from '../common/errors/api-error';
@@ -54,15 +55,6 @@ export class HospitalController {
       throw new ApiError('HOSPITAL_NOT_FOUND');
     }
 
-    return this.doctors.listByHospital(hospitalId, { authenticated: this.authenticatedFrom(request) });
-  }
-
-  /** 선택 인증. `doctor.controller.ts` 의 `authenticatedFrom` 과 같은 판정이다. */
-  private authenticatedFrom(request: Request): boolean {
-    const header = request.header('authorization');
-
-    if (header === undefined || !header.toLowerCase().startsWith('bearer ')) return false;
-
-    return this.tokens.verifyAccessToken(header.slice(7).trim()).ok;
+    return this.doctors.listByHospital(hospitalId, { authenticated: resolveAuthenticated(request, this.tokens) });
   }
 }
