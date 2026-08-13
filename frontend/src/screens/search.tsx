@@ -3,9 +3,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View, cx } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
 
+import { queryClient } from '@/app/providers';
 import { CONTAINER_PADDING } from '@/components/layout/Container';
-import { useDoctors } from '@/features/doctor';
+import { fetchDoctorById, fetchDoctors } from '@/features/doctor';
 import { useProcedures } from '@/features/procedure';
+import { queryKeys } from '@/lib/queryKeys';
 import {
   SPONSORED_SEARCH_SUGGESTIONS,
   TRENDING_SEARCHES,
@@ -24,7 +26,41 @@ const TABS: { key: SearchTab; label: string }[] = [
   { key: 'doctor', label: '의사' },
 ];
 
-function navigateToTarget(target: SearchTarget, doctors: Doctor[]) {
+/**
+ * 이름으로 전문의를 찾는다. 서버의 `q` 필터(`nameNormalized.contains`, 부분일치)에 검색을
+ * 맡긴다 — 클라이언트가 목록을 훑지 않으므로 로스터가 페이지 크기(기본 20)를 넘어도
+ * 안전하다. `queryClient.fetchQuery` 를 쓰는 이유는 이 함수가 훅이 아니라 이벤트 핸들러에서
+ * 부르는 일회성 조회라서다(`src/app/providers.tsx` 의 모듈 수준 `queryClient` 용도 그대로).
+ *
+ * Trending 문구는 직함을 붙여 온다(예: "김민준 원장") — `q` 는 부분일치라 검색어가 실제
+ * 이름보다 길면(직함이 붙어서) 매칭되지 않는다. 그 경우 마지막 낱말을 떼고 한 번 더
+ * 시도해 이름이 검색어로 시작하는지 확인한다.
+ */
+async function findMatchingDoctor(trimmed: string): Promise<Doctor | undefined> {
+  // `staleTime: 0` 을 강제한다 — 이 조회는 캐시 재사용보다 "지금 서버가 뭐라고 하는지"가
+  // 중요한 일회성 검색 액션이다. 기본 `staleTime`(`src/app/providers.tsx`, 30s)에 맡기면
+  // 같은 검색어를 다시 치거나(다른 검색에서 우연히 같은 키를 썼을 때) 오래된 결과를
+  // 그대로 돌려줄 수 있다.
+  const direct = await queryClient.fetchQuery({
+    queryKey: queryKeys.doctors.list({ q: trimmed }),
+    queryFn: () => fetchDoctors({ q: trimmed }),
+    staleTime: 0,
+  });
+  if (direct.items.length > 0) return direct.items[0];
+
+  const lastSpace = trimmed.lastIndexOf(' ');
+  if (lastSpace === -1) return undefined;
+
+  const namePart = trimmed.slice(0, lastSpace);
+  const fallback = await queryClient.fetchQuery({
+    queryKey: queryKeys.doctors.list({ q: namePart }),
+    queryFn: () => fetchDoctors({ q: namePart }),
+    staleTime: 0,
+  });
+  return fallback.items.find((doctor) => trimmed.startsWith(doctor.name));
+}
+
+async function navigateToTarget(target: SearchTarget) {
   if (target.kind === 'procedure') {
     router.push({ pathname: '/(tabs)/explore', params: { mode: 'hospital', category: target.procedureId } });
     return;
@@ -33,8 +69,17 @@ function navigateToTarget(target: SearchTarget, doctors: Doctor[]) {
     router.push(`/hospital/${target.hospitalId}`);
     return;
   }
-  const doctor = doctors.find((item) => item.id === target.doctorId);
-  if (doctor) router.push(`/hospital/${doctor.hospitalId}`);
+  try {
+    const doctor = await queryClient.fetchQuery({
+      queryKey: queryKeys.doctors.detail(target.doctorId),
+      queryFn: () => fetchDoctorById(target.doctorId),
+      staleTime: 0,
+    });
+    router.push(`/hospital/${doctor.hospitalId}`);
+  } catch {
+    // 존재하지 않는 전문의면 조용히 무시한다 — 이전 로직(로컬 배열에서 못 찾으면 아무 일도
+    // 하지 않는다)과 같은 동작이다.
+  }
 }
 
 function TrendBadge({ trend }: { trend: SearchTrend }) {
@@ -76,13 +121,9 @@ export default function SearchScreen() {
   const { q } = useLocalSearchParams<{ q?: string }>();
   // 시술 매칭이 이 조회에 의존한다. 로딩 중에 검색을 돌리면 `procedures` 가 아직 빈
   // 배열이라 실제로 있는 시술을 "결과 없음" 으로 잘못 단정하게 된다 — `proceduresPending`
-  // 을 아래에서 게이트로 쓴다.
+  // 을 아래에서 게이트로 쓴다. 전문의 매칭은 `findMatchingDoctor` 가 제출 시점에 서버
+  // `q` 필터로 직접 조회하므로 여기서 전체 목록을 미리 불러 둘 필요가 없다.
   const { data: procedures = [], isPending: proceduresPending } = useProcedures();
-  // 의사 매칭도 같은 이유로 서버 조회에 의존한다 — 아직 안 왔으면 "결과 없음" 을
-  // 단정하지 않는다(`doctorsPending` 게이트). `useMemo` 로 감싸는 이유는 아래 `runSearch`
-  // 의 `useCallback` 의존성이 매 렌더마다 바뀌는 새 배열 참조로 흔들리지 않게 하기 위해서다.
-  const { data: doctorsPage, isPending: doctorsPending } = useDoctors();
-  const doctors = useMemo(() => doctorsPage?.items ?? [], [doctorsPage]);
   const inputRef = useRef<TextInput>(null);
   const [query, setQuery] = useState(q ?? '');
   const [tab, setTab] = useState<SearchTab>('all');
@@ -94,16 +135,16 @@ export default function SearchScreen() {
     return () => clearTimeout(timeout);
   }, []);
 
-  // `procedures`/`doctors` 가 바뀔 때만 새로 만든다 — 아래 자동검색 effect 가 이 함수를
-  // 의존성으로 쓸 수 있게(그리고 매 렌더마다 다시 실행되지 않게) 안정된 참조로 유지한다.
+  // `procedures` 가 바뀔 때만 새로 만든다 — 아래 자동검색 effect 가 이 함수를 의존성으로
+  // 쓸 수 있게(그리고 매 렌더마다 다시 실행되지 않게) 안정된 참조로 유지한다.
   const runSearch = useCallback(
-    (trimmed: string) => {
+    async (trimmed: string) => {
       if (!trimmed) return;
 
       const matchedProcedure = procedures.find((procedure) => procedure.name.includes(trimmed));
       if (matchedProcedure) {
         setNotice(null);
-        navigateToTarget({ kind: 'procedure', procedureId: matchedProcedure.id }, doctors);
+        await navigateToTarget({ kind: 'procedure', procedureId: matchedProcedure.id });
         return;
       }
 
@@ -112,39 +153,35 @@ export default function SearchScreen() {
         .hospitals.find((hospital) => hospital.name.includes(trimmed));
       if (matchedHospital) {
         setNotice(null);
-        navigateToTarget({ kind: 'hospital', hospitalId: matchedHospital.id }, doctors);
+        await navigateToTarget({ kind: 'hospital', hospitalId: matchedHospital.id });
         return;
       }
 
-      // Trending terms append a title suffix (e.g. "김민준 원장") that isn't part of the stored
-      // doctor name ("김민준"), so also match when the search term starts with the doctor's name —
-      // narrower than a general bidirectional includes() so it can't false-positive against
-      // hospital names that happen to contain a procedure name (e.g. "더화이트 라미네이트클리닉").
-      const matchedDoctor = doctors.find(
-        (doctor) => doctor.name.includes(trimmed) || trimmed.startsWith(doctor.name)
-      );
+      const matchedDoctor = await findMatchingDoctor(trimmed);
       if (matchedDoctor) {
         setNotice(null);
-        navigateToTarget({ kind: 'doctor', doctorId: matchedDoctor.id }, doctors);
+        router.push(`/hospital/${matchedDoctor.hospitalId}`);
         return;
       }
 
       setNotice(`"${trimmed}"에 대한 검색 결과가 없어요. 아래 인기 검색어를 살펴보세요`);
     },
-    [procedures, doctors]
+    [procedures]
   );
 
-  const handleSubmit = () => runSearch(query.trim());
+  const handleSubmit = () => {
+    void runSearch(query.trim());
+  };
 
   // Prefills and auto-runs the search when arriving from a trending-tag link (e.g. the home screen's
   // popular-search pills), which navigate here with a `q` param instead of typing into the input.
-  // 시술·전문의 목록이 아직 로딩 중이면 실행을 미룬다(빈 배열을 근거로 "결과 없음" 을
-  // 단정하지 않기 위해) — 로딩이 끝나 `runSearch` 가 최신 목록을 담은 새 참조로 바뀌면
+  // 시술 목록이 아직 로딩 중이면 실행을 미룬다(빈 배열을 근거로 "결과 없음" 을 단정하지
+  // 않기 위해) — 로딩이 끝나 `runSearch` 가 최신 `procedures` 를 담은 새 참조로 바뀌면
   // 이 effect 가 다시 돌아 그때 한 번 검색한다.
   useEffect(() => {
-    if (!q || proceduresPending || doctorsPending) return;
-    runSearch(q.trim());
-  }, [q, proceduresPending, doctorsPending, runSearch]);
+    if (!q || proceduresPending) return;
+    void runSearch(q.trim());
+  }, [q, proceduresPending, runSearch]);
 
   return (
     <SafeAreaView className="flex-1 bg-white" edges={['top', 'bottom']}>
@@ -224,7 +261,9 @@ export default function SearchScreen() {
             <SearchRow
               key={`${tab}-${item.rank}`}
               item={item}
-              onSelect={(target) => navigateToTarget(target, doctors)}
+              onSelect={(target) => {
+                void navigateToTarget(target);
+              }}
             />
           ))}
         </View>

@@ -147,9 +147,14 @@ export interface Doctor {
   yearsOfExperience: number;
   /** "경력 및 활동" bullet list shown on the doctor detail screen. */
   career: string[];
-  /** 표시해도 되는 전공. `일반의` → 항상 노출, 그 밖은 `approved` 일 때만. 서버 계산 필드. */
+  /** 표시해도 되는 전공. `일반의` → 항상 노출, 그 밖은 `isVerifiedSpecialist` 일 때만. 서버 계산 필드. */
   visibleSpecialty: DentalSpecialty | null;
-  /** `전문의` 배지 조건 (`approved` && `specialty !== 일반의`). 서버 계산 필드. */
+  /**
+   * `전문의` 배지 조건: `verificationStatus === 'approved' && specialty !== '일반의' &&
+   * verifiedSpecialty === specialty`. 승인 후 전공을 바꾼 전문의는 `verifiedSpecialty` 가
+   * 옛 전공에 머물러 있어 이 조건이 거짓이 된다(재검수 전까지 배지를 잃는다) — 서버 계산
+   * 필드이며 클라이언트는 재계산하지 않고 이 값을 그대로 신뢰해야 한다.
+   */
   isVerifiedSpecialist: boolean;
 }
 

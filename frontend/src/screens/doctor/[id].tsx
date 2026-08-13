@@ -19,8 +19,10 @@ export default function DoctorDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data: doctor, error, isLoading, isError, isFetching, refetch } = useDoctor(id);
   // `doctor` 가 아직 없으면 `useHospital` 이 fetch 를 걸지 않는다(`enabled: Boolean(id)`) —
-  // 전문의가 로드된 뒤에야 소속 병원을 조회한다.
-  const { data: hospital } = useHospital(doctor?.hospitalId);
+  // 전문의가 로드된 뒤에야 소속 병원을 조회한다. `isHospitalLoading` 이 필요한 이유: 병원이
+  // 아직 안 왔다고 "없다"고 단정하면 안 된다 — 조회가 끝나기 전의 `undefined` 는 "없음" 이
+  // 아니라 "아직 모름" 이다.
+  const { data: hospital, isLoading: isHospitalLoading } = useHospital(doctor?.hospitalId);
   const user = useAuthStore((state) => state.user);
   const requireAuth = useRequireAuth();
   const procedureMap = useProcedureMap();
@@ -116,7 +118,13 @@ export default function DoctorDetailScreen() {
               </View>
 
               <Text className="mb-2 text-base font-bold text-neutral-900">소속 병원</Text>
-              {hospital ? (
+              {isHospitalLoading ? (
+                <View
+                  className="mb-5 h-20 w-full animate-pulse rounded-2xl bg-neutral-100"
+                  role="status"
+                  accessibilityLabel="소속 병원 정보를 불러오는 중이에요"
+                />
+              ) : hospital ? (
                 <Pressable
                   onPress={() => router.push(`/hospital/${hospital.id}`)}
                   className="mb-5 flex-row items-center gap-3 rounded-2xl border border-neutral-100 p-4"
@@ -172,8 +180,10 @@ export default function DoctorDetailScreen() {
           <SafeAreaView edges={['bottom']} className={cx(CONTAINER_PADDING, 'border-t border-neutral-100 bg-white pt-3')}>
             <View className="pb-3">
               <PrimaryButton
-                label={hospital?.consultAvailable ? '상담 신청' : '상담 마감'}
-                disabled={!hospital || !hospital.consultAvailable}
+                // 로딩 중에는 "상담 마감" 이라고 단정하지 않는다 — 아직 모를 뿐이다. 버튼은
+                // 비활성으로 두되(`disabled`), 문구는 조회가 끝난 뒤에만 실제 상태를 말한다.
+                label={isHospitalLoading ? '상담 신청' : hospital?.consultAvailable ? '상담 신청' : '상담 마감'}
+                disabled={isHospitalLoading || !hospital || !hospital.consultAvailable}
                 onPress={() =>
                   hospital &&
                   requireAuth(() => router.push(`/consult/${hospital.id}`), `/consult/${hospital.id}`)
