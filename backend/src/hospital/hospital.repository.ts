@@ -18,9 +18,7 @@ export class HospitalRepository {
   async findMany(where: Prisma.HospitalWhereInput): Promise<HospitalRow[]> {
     return this.prisma.hospital.findMany({
       where,
-      // `HOSPITAL_INCLUDE` 는 `as const` 라 `orderBy` 배열이 readonly 튜플이고, Prisma 의
-      // include 타입은 mutable 배열을 요구한다. 값 자체는 바꾸지 않는다 (변경 금지 대상).
-      include: HOSPITAL_INCLUDE as Prisma.HospitalInclude,
+      include: HOSPITAL_INCLUDE,
       orderBy: { id: 'asc' },
     }) as unknown as Promise<HospitalRow[]>;
   }
@@ -28,7 +26,7 @@ export class HospitalRepository {
   async findById(id: string): Promise<HospitalRow | null> {
     return this.prisma.hospital.findFirst({
       where: { id, deletedAt: null },
-      include: HOSPITAL_INCLUDE as Prisma.HospitalInclude,
+      include: HOSPITAL_INCLUDE,
     }) as unknown as Promise<HospitalRow | null>;
   }
 }

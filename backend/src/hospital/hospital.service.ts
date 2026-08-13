@@ -50,6 +50,14 @@ export class HospitalService {
       items = items.filter((item) => (item.distanceKm ?? Number.POSITIVE_INFINITY) <= query.radiusKm!);
     }
 
+    // hasVerifiedSpecialist 는 SQL 로 2항(verificationStatus·specialty)까지만 좁혀진다 —
+    // Prisma 는 컬럼 간 비교(verifiedSpecialty === specialty)를 표현할 수 없다. 나머지
+    // 한 항은 배지 규칙의 단일 출처인 representativeSpecialty(= hasSpecialistBadge)로
+    // 앱에서 정제한다. 반경 필터의 bounding box → 하버사인 정밀 필터와 같은 2단 구조다.
+    if (query.hasVerifiedSpecialist === true) {
+      items = items.filter((item) => item.representativeSpecialty !== null);
+    }
+
     // 계약 규칙 4 — 필터가 없으면 광고를 당기지 않는다.
     const sponsoredFirst = query.procedureId !== undefined || query.recommended === true;
     const ordered = orderHospitals(items, { sort: query.sort, sponsoredFirst });

@@ -1,3 +1,5 @@
+import type { Prisma } from '@prisma/client';
+
 import { hasSpecialistBadge } from '../doctor/specialty-badge';
 import { computeSponsorship } from './sponsorship';
 import type { SponsorshipState } from './sponsorship';
@@ -136,7 +138,7 @@ export const HOSPITAL_INCLUDE = {
     select: { specialty: true, verifiedSpecialty: true, verificationStatus: true },
     orderBy: { id: 'asc' },
   },
-} as const;
+} satisfies Prisma.HospitalInclude;
 
 export interface ProjectHospitalOptions {
   /** `Asia/Seoul` 기준 오늘 (`YYYY-MM-DD`). 광고 기간 판정에 쓴다. */

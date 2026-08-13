@@ -48,6 +48,9 @@ describe('GET /api/v1/hospitals', () => {
   it('consultAvailable=false 는 상담을 받지 않는 병원만 준다', async () => {
     const response = await get('?consultAvailable=false');
 
+    // 시드에 정확히 1곳 — 개수 단정이 없으면 필터가 0건을 돌려줘도 `.every()` 가
+    // 공허하게 true 라 통과한다 (빈 배열 위의 every).
+    expect(response.body.items.length).toBe(1);
     expect(response.body.items.every((item: { consultAvailable: boolean }) => item.consultAvailable === false)).toBe(true);
   });
 
@@ -80,6 +83,9 @@ describe('GET /api/v1/hospitals', () => {
     const response = await get('?latitude=37.4979&longitude=127.0276&radiusKm=3');
 
     expect(response.status).toBe(200);
+    // 개수 단정이 없으면 정밀 필터가 전부 걸러내도 `.every()` 가 공허하게 true 다.
+    // 좌표·반경이 바뀌면 정확한 개수도 바뀔 수 있으니 "0건이 아니다" 만 고정한다.
+    expect(response.body.items.length).toBeGreaterThan(0);
     expect(
       response.body.items.every((item: { distanceKm: number }) => item.distanceKm <= 3)
     ).toBe(true);
