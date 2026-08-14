@@ -400,7 +400,8 @@ paths:
         | 보기 `리스트`/`지도`/`가격 비교표` | 순수 클라이언트 표현. 파라미터 없음 |
 
         **스폰서(광고) 노출 순서는 서버가 계산해서 이미 정렬된 배열로 내려준다.** 클라이언트가 다시 정렬하면 안 된다.
-        규칙(`frontend/src/utils/sponsorship.ts` 의 현재 규칙을 그대로 옮긴 것):
+        규칙(`backend/src/hospital/sponsorship.ts` 에 있다. 예전 `frontend/src/utils/sponsorship.ts`
+        의 규칙을 그대로 옮긴 것이고, 그 파일은 삭제됐다):
 
         1. `procedureId` 지정 시: 광고 기간 중 && `sponsoredCategories` 에 그 시술 포함 && `rating >= 3.5`
         2. `recommended=true` 시: 광고 기간 중 && `rating >= 3.5`
@@ -706,8 +707,11 @@ paths:
         관리자 병원 폼의 저장 동작을 그대로 표현한 것이다 — "화면에 남겨둔 전문의 목록이 그대로 정답이 된다".
         `id` 가 있는 항목은 갱신, 없는 항목은 신규(→ `pending`), 목록에서 빠진 항목은 삭제된다.
 
-        **`name` 이 필수(minLength 1)다.** 현재는 이름을 비우고 저장하면 그 전문의가 조용히 삭제되며 되돌릴 수 없다.
-        서버가 `422 VALIDATION_FAILED` 로 거절하면 그 사고 경로가 막힌다. 삭제는 목록에서 항목을 빼는 것으로만 가능하다.
+        **`name` 이 필수(minLength 1)다.** 이름을 명시적으로 빈 문자열로 보내면 서버가
+        `422 VALIDATION_FAILED` 로 거절한다. 다만 관리자 폼은 그 값을 아예 보내지 않고 목록에서
+        빼는 방식으로 여전히 같은 결과(삭제)에 이를 수 있다 — 이제는 폼이 **기존** 전문의의 빈
+        이름을 감지하면 저장 자체를 막아 그 경로를 차단한다(`docs/features/known-issues.md`).
+        신규 추가한 빈 이름 행은 조용히 목록에서 빠지는 것이 의도된 동작이다.
 
         **재검수 규칙 (현재 없는 것을 서버가 넣는다):** 기존 전문의의 `specialty` 또는 `certificateUrl` 이
         바뀌면 `verificationStatus` 가 `pending` 으로 되돌아가고 `rejectionReason` 이 지워진다.
@@ -3564,8 +3568,11 @@ components:
         images:
           type: array
           description: |
-            병원 상세의 사진 캐러셀. 관리자 폼에는 이 배열을 편집하는 칸이 없다 —
-            `대표 이미지 URL` 을 바꿔도 캐러셀이 안 바뀌는 현재 증상의 원인이다.
+            병원 상세의 사진 캐러셀. 관리자 폼에는 이 배열을 직접 편집하는 칸이 없다.
+            **등록** 화면은 `대표 이미지 URL` 값을 `[thumbnail]` 로 넣어 우회한다(캐러셀이
+            비어 보이는 문제만 막는다). **수정** 화면은 여전히 이 키를 보내지 않는다 —
+            `대표 이미지 URL` 을 바꿔도 캐러셀이 안 바뀌는 증상이 수정 화면에만 남아 있다
+            (`docs/features/known-issues.md`).
           items:
             type: string
             format: uri
@@ -3971,7 +3978,8 @@ components:
       type: object
       description: |
         병원 폼의 전문의 한 명. `id` 가 있으면 갱신, 없으면 신규.
-        **`name` 이 필수다** — 이름을 비우고 저장하면 삭제되는 현재 동작을 막기 위한 것이다.
+        **`name` 이 필수다** — 명시적으로 빈 문자열을 보내는 경로를 막기 위한 것이다. 폼이 이름
+        없는 행을 아예 빼고 보내는 경로는 `docs/features/known-issues.md` 참고.
       required: [name, specialty]
       properties:
         id:
