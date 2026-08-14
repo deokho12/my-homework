@@ -5,16 +5,12 @@ import { Pressable, Text, View, cx } from '@/primitives';
 import { Chip } from '@/components/Chip';
 import { KakaoMap } from '@/components/map/KakaoMap';
 import { CONTAINER_PADDING } from '@/components/layout/Container';
-import { MAP_RADIUS_OPTIONS_KM } from '@/features/hospital/hooks/useExploreFilters';
+import { formatRadiusLabel, MAP_RADIUS_OPTIONS_KM } from '@/features/hospital/hooks/useExploreFilters';
 import { useProcedureMap } from '@/features/procedure';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 import type { LocationStatus } from '@/hooks/useUserLocation';
 import type { Hospital } from '@/types/domain';
 import { formatDistance } from '@/utils/geo';
-
-function formatRadiusLabel(km: number): string {
-  return km < 1 ? `${km * 1000}m` : `${km}km`;
-}
 
 interface HospitalMapViewProps {
   /**

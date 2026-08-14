@@ -5,6 +5,7 @@ import type { HospitalFilters } from '@/features/hospital/api/hospitalApi';
 import { useUserLocation } from '@/hooks/useUserLocation';
 import { useLocalSearchParams } from '@/navigation';
 import type { ProcedureId } from '@/types/domain';
+import { PROCEDURE_ICONS } from '@/utils/procedureIcons';
 
 export type ExploreMode = 'doctor' | 'hospital';
 export type HospitalView = 'list' | 'map';
@@ -21,6 +22,14 @@ export const SORT_OPTIONS: { key: ExploreSortKey; label: string }[] = [
 export const MAP_RADIUS_OPTIONS_KM = [0.5, 1, 3, 5];
 const DEFAULT_RADIUS_KM = 3;
 
+/**
+ * 반경 라벨 포맷의 단일 출처. `HospitalMapView`(반경 칩)와 `ExplorePage`(지도 빈 상태 문구)
+ * 둘 다 이 함수를 쓴다 — 예전에는 두 곳에 같은 `km < 1 ? ... : ...` 삼항식이 중복돼 있었다.
+ */
+export function formatRadiusLabel(km: number): string {
+  return km < 1 ? `${km * 1000}m` : `${km}km`;
+}
+
 /** `경력` 칩이 켜졌을 때 요구하는 최소 연차. 병원·의사 모드 둘 다 같다. */
 const MIN_EXPERIENCED_YEARS = 10;
 
@@ -29,6 +38,17 @@ const SORT_TO_SERVER: Record<ExploreSortKey, 'rating' | 'reviewCount' | 'consult
   reviews: 'reviewCount',
   consults: 'consultCount',
 };
+
+/**
+ * `PROCEDURE_ICONS` 가 `Record<ProcedureId, IconComponent>` 라 13종 전체를 정적으로 덮는다 —
+ * 서버 시술 목록(`useProcedures`)을 기다리지 않고도(네트워크 대기 없이) 유효성 검사를 할 수
+ * 있는 이유다. `Object.keys` 는 문자열만 주므로 `as` 없이 `Set.has` 로 좁힌다.
+ */
+const KNOWN_PROCEDURE_IDS: ReadonlySet<string> = new Set(Object.keys(PROCEDURE_ICONS));
+
+function isProcedureId(value: string | undefined): value is ProcedureId {
+  return value !== undefined && KNOWN_PROCEDURE_IDS.has(value);
+}
 
 /**
  * 탐색 화면 상태(모드·칩·정렬·반경) → 서버 필터 변환을 한 곳에 모은다.
@@ -54,7 +74,11 @@ export function useExploreFilters() {
 
   const [mode, setMode] = useState<ExploreMode>(params.mode === 'doctor' ? 'doctor' : 'hospital');
   const [selectedCategory, setSelectedCategory] = useState<ExploreCategory>(
-    params.category === 'recommended' ? 'recommended' : (params.category as ProcedureId) || 'all'
+    params.category === 'recommended'
+      ? 'recommended'
+      : isProcedureId(params.category)
+        ? params.category
+        : 'all'
   );
   const [hospitalView, setHospitalView] = useState<HospitalView>('list');
   const [sortBy, setSortBy] = useState<ExploreSortKey>('popular');

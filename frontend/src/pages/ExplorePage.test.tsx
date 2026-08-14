@@ -265,4 +265,39 @@ describe('ExplorePage', () => {
     await waitFor(() => expect(screen.getByText('“임플란트” 병원')).toBeInTheDocument());
     expect(screen.queryByText('“추천” 병원')).not.toBeInTheDocument();
   });
+
+  /**
+   * [Important 2 리뷰 수정] 지도 보기에서 반경 검색이 0건이면, 반경을 넓혀 재검색할 수단
+   * (반경 칩)이 화면에서 사라지면 안 된다 — 사라지면 사용자가 막다른 곳에 갇힌다.
+   * `HospitalMapView` 는 `QueryState` 의 `isEmpty` 판정과 무관하게 항상 마운트돼야 하고,
+   * 빈 안내는 지도 위 오버레이로(전체 화면 대체가 아니라) 보여야 한다.
+   */
+  it('지도 보기에서 반경 검색이 0건이어도 반경 칩이 계속 렌더되고 조작할 수 있다', async () => {
+    vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue(procedures);
+    const fetchHospitalsSpy = vi.spyOn(hospitalApi, 'fetchHospitals').mockImplementation(async (filters = {}) => {
+      // 리스트 보기(좌표 없음)는 결과가 있다 — 지도 보기로 전환한 뒤 기본 반경(3km)
+      // 검색만 0건으로 만들어 빈 지도 시나리오를 재현한다.
+      if (filters.radiusKm === undefined) return pagedHospitals([baseHospital()], 1);
+      if (filters.radiusKm === 5) return pagedHospitals([baseHospital()], 1);
+      return pagedHospitals([], 0);
+    });
+
+    renderWithProviders(<ExplorePage />);
+    await waitFor(() => expect(screen.getByText(/총 \d+곳/)).toBeInTheDocument());
+
+    await userEvent.click(screen.getByRole('button', { name: '지도 보기' }));
+
+    // 기본 반경(3km) 검색은 0건이다 — 그래도 지도 화면 전체가 일반 빈 상태 문구로
+    // 바뀌면 안 되고, 반경 칩은 계속 눌릴 수 있어야 한다.
+    await waitFor(() => expect(screen.getByRole('button', { name: '3km' })).toBeInTheDocument());
+    expect(screen.queryByText('조건에 맞는 병원이 없어요')).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: '5km' }));
+
+    await waitFor(() =>
+      expect(fetchHospitalsSpy).toHaveBeenLastCalledWith(expect.objectContaining({ radiusKm: 5 }))
+    );
+    // 반경을 바꾼 뒤에도 칩 자체는 여전히 화면에 있다(막다른 곳이 아니다).
+    expect(screen.getByRole('button', { name: '5km' })).toBeInTheDocument();
+  });
 });

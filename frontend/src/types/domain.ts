@@ -94,7 +94,11 @@ export interface Hospital {
   address: string;
   introduction: string;
   events: string[];
-  /** 서버가 계산한다 (`backend/src/hospital/sponsorship.ts`). 탐색 화면은 아직 client 계산(`src/utils/sponsorship.ts`)을 쓴다. */
+  /**
+   * 서버가 계산한다 (`backend/src/hospital/sponsorship.ts`). 사용자 화면(탐색·병원 카드·
+   * 병원 상세)은 이 값을 그대로 쓴다 — 기기 시계로 광고 기간을 다시 계산하지 않는다.
+   * `src/utils/sponsorship.ts`(클라이언트 계산)는 아직 목을 쓰는 관리자 화면에만 남아 있다.
+   */
   sponsorship: SponsorshipState;
   /** 병원 카드의 `OO전문의 상주` 배지. 서버가 계산한다. 없으면 null. */
   representativeSpecialty: DentalSpecialty | null;

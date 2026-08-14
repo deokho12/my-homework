@@ -277,12 +277,12 @@ export default function ExplorePage() {
               void hospitalsQuery.refetch();
             }}
             isRetrying={hospitalsQuery.isError && hospitalsQuery.isFetching}
-            isEmpty={(data) => data.items.length === 0}
-            emptyState={{
-              title: isMapMode
-                ? `반경 ${radiusKm < 1 ? `${radiusKm * 1000}m` : `${radiusKm}km`} 안에 병원이 없어요`
-                : '조건에 맞는 병원이 없어요',
-            }}
+            // 지도 보기에서는 0건이어도 `QueryState` 의 공용 빈 화면으로 통째로 바꾸지 않는다
+            // — 그러면 반경 칩(재검색 수단)까지 함께 사라져 사용자가 막다른 곳에 갇힌다.
+            // `HospitalMapView` 를 그대로 마운트하고, 빈 안내는 그 안에서 지도 위 오버레이로
+            // 보여준다(반경 칩은 계속 보이고 눌린다).
+            isEmpty={(data) => !isMapMode && data.items.length === 0}
+            emptyState={{ title: '조건에 맞는 병원이 없어요' }}
           >
             {(data) =>
               isMapMode ? (

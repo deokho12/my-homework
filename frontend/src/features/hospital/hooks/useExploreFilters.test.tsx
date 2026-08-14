@@ -19,6 +19,19 @@ function wrapper({ children }: { children: ReactNode }) {
   );
 }
 
+/** 쿼리 문자열이 있는 콜드 로드(`/explore?category=...`)를 재현할 때 쓴다. */
+function wrapperWithRoute(route: string) {
+  return function RoutedWrapper({ children }: { children: ReactNode }) {
+    return (
+      <MemoryRouter initialEntries={[route]}>
+        <Routes>
+          <Route path="/explore" element={children} />
+        </Routes>
+      </MemoryRouter>
+    );
+  };
+}
+
 describe('useExploreFilters — 화면 상태 → 서버 필터 매핑', () => {
   it('기본 상태는 아무 조건 칩도 서버로 보내지 않는다', () => {
     const { result } = renderHook(() => useExploreFilters(), { wrapper });
@@ -154,5 +167,28 @@ describe('useExploreFilters — 화면 상태 → 서버 필터 매핑', () => {
     });
 
     expect(result.current.hospitalFilters.latitude).toBeUndefined();
+  });
+
+  /**
+   * [Important 1 리뷰 수정] `/explore?category=bogus` 처럼 인식 못 할 값이 URL 에 오면
+   * `procedureId=bogus` 를 서버로 보내면 안 된다 — 서버는 문자열 존재만 검사하므로 그대로
+   * 통과시켜 "설명 없는 빈 목록" 을 만든다. 알려진 시술 id 집합으로 검증하고, 아니면
+   * `'all'`(필터 없음) 로 떨어뜨린다.
+   */
+  it('/explore?category=bogus 처럼 알 수 없는 값이 오면 procedureId 를 보내지 않고 all 로 떨어진다', () => {
+    const { result } = renderHook(() => useExploreFilters(), { wrapper: wrapperWithRoute('/explore?category=bogus') });
+
+    expect(result.current.selectedCategory).toBe('all');
+    expect(result.current.hospitalFilters.procedureId).toBeUndefined();
+    expect(result.current.hospitalFilters.recommended).toBeUndefined();
+  });
+
+  it('/explore?category=implant 처럼 알려진 시술 id 는 그대로 procedureId 가 된다', () => {
+    const { result } = renderHook(() => useExploreFilters(), {
+      wrapper: wrapperWithRoute('/explore?category=implant'),
+    });
+
+    expect(result.current.selectedCategory).toBe('implant');
+    expect(result.current.hospitalFilters.procedureId).toBe('implant');
   });
 });
