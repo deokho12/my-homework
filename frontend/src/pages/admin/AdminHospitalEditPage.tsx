@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { router, Stack, useLocalSearchParams } from '@/navigation';
+import { Stack, useLocalSearchParams } from '@/navigation';
 import { Text, View } from '@/primitives';
 
-import { HospitalForm } from '@/components/admin/HospitalForm';
+import { HospitalForm, type RosterSaveAction } from '@/components/admin/HospitalForm';
 import { QueryState } from '@/components/QueryState';
 import { useSession } from '@/features/auth/hooks/useSession';
-import { useHospitalDoctors, useReplaceHospitalDoctors } from '@/features/doctor';
+import { useDeleteDoctor, useHospitalDoctors, useReplaceHospitalDoctors, useUpdateDoctor } from '@/features/doctor';
 import { useHospital, useUpdateHospital } from '@/features/hospital';
 import { mapHospitalFieldErrors, type HospitalFieldErrors } from '@/features/hospital/lib/hospitalFieldErrors';
 import { useProcedureMap } from '@/features/procedure';
@@ -46,6 +46,8 @@ export default function AdminHospitalEditPage() {
 
   const updateHospital = useUpdateHospital();
   const replaceHospitalDoctors = useReplaceHospitalDoctors();
+  const updateDoctor = useUpdateDoctor();
+  const deleteDoctor = useDeleteDoctor();
   const [fieldErrors, setFieldErrors] = useState<HospitalFieldErrors>({});
 
   const isLoading = hospitalQuery.isLoading || doctorsQuery.isLoading;
@@ -55,6 +57,62 @@ export default function AdminHospitalEditPage() {
 
   const data: LoadedHospital | undefined =
     hospitalQuery.data && doctorsQuery.data ? { hospital: hospitalQuery.data, doctors: doctorsQuery.data } : undefined;
+
+  /**
+   * 로스터 저장. `PUT`(전체 교체, 새 전문의가 있을 때만) 또는 `PATCH`/`DELETE` 여러 건
+   * (새 전문의가 없을 때)으로 갈린다 — `HospitalForm` 이 어느 경로인지 이미 판정해서 넘긴다.
+   *
+   * `patch` 경로는 호출이 여러 개로 늘어난다(전문의 수 × PATCH/DELETE). 조용히 절반만
+   * 저장되면 안 되므로 `Promise.allSettled` 로 전부 시도하고, 실패한 항목을 **이름으로**
+   * 짚어 알린다 — "일부 실패했습니다" 보다 "OO 전문의를 저장하지 못했어요" 가 낫다.
+   */
+  const saveRoster = (hospitalId: string, action: RosterSaveAction) => {
+    if (action.mode === 'replace') {
+      replaceHospitalDoctors.mutate(
+        { hospitalId, doctors: action.doctors },
+        {
+          onSuccess: () => {
+            showAlert('저장했어요', '전문의 정보를 저장했어요');
+          },
+          onError: (error) => {
+            showAlert(
+              '전문의 정보를 저장하지 못했어요',
+              isApiError(error) ? error.message : '잠시 후 다시 시도해주세요'
+            );
+          },
+        }
+      );
+      return;
+    }
+
+    if (action.updates.length === 0 && action.deletions.length === 0) return;
+
+    void (async () => {
+      const updateResults = await Promise.allSettled(
+        action.updates.map((update) => updateDoctor.mutateAsync({ id: update.id, patch: update.patch }))
+      );
+      const deleteResults = await Promise.allSettled(
+        action.deletions.map((deletion) => deleteDoctor.mutateAsync(deletion.id))
+      );
+
+      const failedNames = [
+        ...action.updates.filter((_, index) => updateResults[index].status === 'rejected').map((u) => u.name),
+        ...action.deletions
+          .filter((_, index) => deleteResults[index].status === 'rejected')
+          .map((deletion) => `${deletion.name} 삭제`),
+      ];
+
+      if (failedNames.length > 0) {
+        showAlert(
+          '전문의 정보 중 일부를 저장하지 못했어요',
+          `${failedNames.join(', ')} — 다시 시도해주세요`
+        );
+        return;
+      }
+
+      showAlert('저장했어요', '전문의 정보를 저장했어요');
+    })();
+  };
 
   return (
     <QueryState
@@ -83,34 +141,23 @@ export default function AdminHospitalEditPage() {
 
           <View style={{ flex: 1 }}>
             <HospitalForm
+              mode="split"
               initial={hospital}
               doctors={doctors}
               canEditRecommended={isOperator}
               fieldErrors={fieldErrors}
-              submitLabel="저장하기"
-              onSubmit={(formData, doctorsPayload) => {
+              onSaveHospital={(formData) => {
                 setFieldErrors({});
 
-                // 병원 폼 저장은 API 호출 2개다 — 하나가 성공하고 다른 하나가 실패할 수 있다.
-                // 조용히 절반만 저장되면 안 되므로 각 단계의 실패를 사용자에게 알린다.
+                // 병원 필드 저장은 로스터 상태와 완전히 독립이다 — 이 호출은 전문의 로스터를
+                // 전혀 건드리지 않고, 로스터의 상태(전공 확인 불가 등)와 무관하게 항상 시도된다.
                 updateHospital.mutate(
                   { id: hospital.id, input: formData },
                   {
+                    // 로스터 저장과 독립된 액션이라 성공해도 화면을 떠나지 않는다 — 관리자가
+                    // 이어서 전문의 로스터도 저장하고 싶을 수 있다.
                     onSuccess: () => {
-                      replaceHospitalDoctors.mutate(
-                        { hospitalId: hospital.id, doctors: doctorsPayload },
-                        {
-                          onSuccess: () => {
-                            router.back();
-                          },
-                          onError: (error) => {
-                            showAlert(
-                              '병원 정보는 저장됐지만 전문의 정보는 저장하지 못했어요',
-                              isApiError(error) ? error.message : '전문의 정보를 다시 저장해주세요'
-                            );
-                          },
-                        }
-                      );
+                      showAlert('저장했어요', '병원 정보를 저장했어요');
                     },
                     onError: (error) => {
                       if (isApiError(error) && error.details?.length) {
@@ -128,6 +175,7 @@ export default function AdminHospitalEditPage() {
                   }
                 );
               }}
+              onSaveRoster={(action) => saveRoster(hospital.id, action)}
             />
           </View>
         </View>

@@ -5,7 +5,7 @@ import { AddressSearchInput } from '@/components/admin/AddressSearchInput';
 import { Chip } from '@/components/Chip';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { containerClass } from '@/components/layout/Container';
-import type { DoctorUpsertInput } from '@/features/doctor/api/doctorApi';
+import type { DoctorUpdateInput, DoctorUpsertInput } from '@/features/doctor/api/doctorApi';
 import type { HospitalWriteInput } from '@/features/hospital/api/hospitalApi';
 import type { HospitalFieldErrors } from '@/features/hospital/lib/hospitalFieldErrors';
 import { useProcedures } from '@/features/procedure';
@@ -83,7 +83,25 @@ function toFormEntry(doctor: Doctor): SpecialistFormEntry {
   };
 }
 
-interface HospitalFormProps {
+/**
+ * 전문의 로스터 저장 액션. 두 경로로 갈린다 — **새 전문의 추가 여부**가 기준이다.
+ *
+ * - `replace` — `PUT /hospitals/:id/doctors`(전체 교체). 새 전문의가 있으면 이 경로뿐이다
+ *   (단건 생성 엔드포인트가 없다). 이 요청은 로스터의 **모든** 항목에 `specialty` 가
+ *   필수라서, 검수 대기·반려로 전공이 감춰진 기존 항목이 하나라도 있으면 보낼 수 없다.
+ * - `patch` — 새 전문의가 없을 때만. 기존 항목은 `PATCH /doctors/:id`(전공 선택 필드라
+ *   모르면 생략 가능), 제거된 항목은 `DELETE /doctors/:id`. **전공을 몰라도 절대 막히지
+ *   않는다** — 병원 소개만 고치듯 무관한 편집이 감춰진 전공 때문에 막히는 사고를 없앤다.
+ */
+export type RosterSaveAction =
+  | { mode: 'replace'; doctors: DoctorUpsertInput[] }
+  | {
+      mode: 'patch';
+      updates: { id: string; name: string; patch: DoctorUpdateInput }[];
+      deletions: { id: string; name: string }[];
+    };
+
+interface HospitalFormBaseProps {
   initial?: Hospital;
   /** 병원 소속 전문의. 신규 등록 화면은 항상 빈 배열(또는 생략)이다. */
   doctors?: Doctor[];
@@ -91,9 +109,27 @@ interface HospitalFormProps {
   canEditRecommended: boolean;
   /** 서버 `422` 를 필드별로 매핑한 결과. 해당 입력 칸 아래에 그대로 표시한다. */
   fieldErrors?: HospitalFieldErrors;
+}
+
+interface HospitalFormCombinedProps extends HospitalFormBaseProps {
+  /** 신규 등록 화면. 병원+전문의를 한 번에 `POST /hospitals` 로 원자적으로 만든다 — 아직
+   * 존재하지 않는 병원이라 `PATCH`/`PUT` 을 나눌 이유가 없다(부분 실패가 있을 수 없다). */
+  mode: 'combined';
   submitLabel: string;
   onSubmit: (data: HospitalWriteInput, doctors: DoctorUpsertInput[]) => void;
 }
+
+interface HospitalFormSplitProps extends HospitalFormBaseProps {
+  /**
+   * 수정 화면. 병원 필드 저장과 전문의 로스터 저장이 **독립된 두 액션**이다 — 감춰진 전공
+   * 때문에 로스터 저장이 막혀도 병원 소개 같은 무관한 필드 저장은 절대 막히지 않아야 한다.
+   */
+  mode: 'split';
+  onSaveHospital: (data: HospitalWriteInput) => void;
+  onSaveRoster: (action: RosterSaveAction) => void;
+}
+
+type HospitalFormProps = HospitalFormCombinedProps | HospitalFormSplitProps;
 
 function CheckboxRow({ label, checked, onPress }: { label: string; checked: boolean; onPress: () => void }) {
   return (
@@ -113,21 +149,54 @@ function FieldError({ message }: { message?: string }) {
   );
 }
 
-export function HospitalForm({
-  initial,
-  doctors = [],
-  canEditRecommended,
-  fieldErrors,
-  submitLabel,
-  onSubmit,
-}: HospitalFormProps) {
+/** 저장 대상(이름이 있는) 항목만, `null` 전공은 방어적으로 한 번 더 건너뛴다. */
+function buildDoctorsPayload(specialists: SpecialistFormEntry[]): DoctorUpsertInput[] {
+  const payload: DoctorUpsertInput[] = [];
+
+  for (const entry of specialists) {
+    const trimmedName = entry.name.trim();
+    if (trimmedName.length === 0) continue;
+    if (entry.specialty === null) continue; // 호출부가 이미 막았어야 한다 — 여기서도 지어내지 않는다.
+
+    const upsert: DoctorUpsertInput = {
+      name: trimmedName,
+      title: entry.title.trim() || '원장',
+      specialty: entry.specialty,
+    };
+
+    if (entry.id) upsert.id = entry.id;
+    // ★ 함정1 — 실제로 입력한 경우에만 키를 넣는다.
+    if (entry.certificateUrlTouched) upsert.certificateUrl = entry.certificateUrl.trim() || null;
+
+    payload.push(upsert);
+  }
+
+  return payload;
+}
+
+/** `PATCH /doctors/:id` 본문. `specialty` 는 선택 필드라 모르면(=null) 아예 생략한다(함정2). */
+function buildDoctorUpdate(entry: SpecialistFormEntry): DoctorUpdateInput {
+  const update: DoctorUpdateInput = {
+    name: entry.name.trim(),
+    title: entry.title.trim() || '원장',
+  };
+
+  if (entry.specialty !== null) update.specialty = entry.specialty;
+  // ★ 함정1 — 실제로 입력한 경우에만 키를 넣는다.
+  if (entry.certificateUrlTouched) update.certificateUrl = entry.certificateUrl.trim() || null;
+
+  return update;
+}
+
+export function HospitalForm(props: HospitalFormProps) {
+  const { initial, doctors = [], canEditRecommended, fieldErrors } = props;
   const { data: procedures = [] } = useProcedures();
   const [name, setName] = useState(initial?.name ?? '');
   const [specialty, setSpecialty] = useState(initial?.specialty ?? '');
   const [region, setRegion] = useState(initial?.region ?? '');
   // Editing an existing hospital assumes its stored coordinates are already valid (no re-search
   // required). Registering a new hospital starts with no coordinates until AddressSearchInput
-  // resolves one — canSubmit blocks submission until then.
+  // resolves one — canSubmitHospital blocks submission until then.
   const [address, setAddress] = useState(initial?.address ?? '');
   const [latitude, setLatitude] = useState<number | null>(initial?.latitude ?? null);
   const [longitude, setLongitude] = useState<number | null>(initial?.longitude ?? null);
@@ -146,6 +215,9 @@ export function HospitalForm({
   const [directions, setDirections] = useState(initial?.directions ?? '');
   const [features, setFeatures] = useState<HospitalFeatures>(initial?.features ?? EMPTY_FEATURES);
   const [specialists, setSpecialists] = useState<SpecialistFormEntry[]>(() => doctors.map(toFormEntry));
+  // 로스터 저장이 '패치' 경로일 때 무엇이 빠졌는지(=삭제할 항목) 판정하는 기준선. 마운트
+  // 시점의 서버 상태를 얼려 둔다 — `specialists` 도 그 시점부터 로컬로만 편집되므로 짝이 맞는다.
+  const [initialDoctorsById] = useState<Map<string, Doctor>>(() => new Map(doctors.map((doctor) => [doctor.id, doctor])));
 
   const toggleProcedure = (id: ProcedureId) => {
     setProcedureIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
@@ -174,53 +246,34 @@ export function HospitalForm({
     setFeatures((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  // 이름을 적어 저장 대상이 될 전문의 중 전공을 아직 확인할 수 없는 항목이 있으면 막는다 —
-  // 무엇을 보낼지 모르는 채로 '일반의' 등 임의 값을 조용히 지어내지 않는다(함정2).
-  const hasUnresolvedSpecialty = specialists.some(
-    (entry) => entry.name.trim().length > 0 && entry.specialty === null
-  );
-
-  const canSubmit =
+  // 병원 필드 저장 가능 여부 — 전문의 로스터 상태와 **완전히 무관**하다. 미승인 전공의
+  // 전문의가 있어도 병원 소개·이름 같은 무관한 필드는 절대 막히면 안 된다.
+  const canSubmitHospital =
     name.trim().length > 0 &&
     region.trim().length > 0 &&
     procedureIds.length > 0 &&
     priceMin.length > 0 &&
     priceMax.length > 0 &&
     latitude !== null &&
-    longitude !== null &&
-    !hasUnresolvedSpecialty;
+    longitude !== null;
 
-  const handleSubmit = () => {
-    if (latitude === null || longitude === null) return;
+  // 이름이 있어 저장 대상이 될 항목만 본다 — 빈 이름 행은 어차피 제출에서 빠진다.
+  const includedSpecialists = specialists.filter((entry) => entry.name.trim().length > 0);
+  const hasNewSpecialistEntries = includedSpecialists.some((entry) => !entry.id);
+  const hasUnresolvedSpecialty = includedSpecialists.some((entry) => entry.specialty === null);
+  // 새 전문의를 추가할 때만 막는다 — 그때만 로스터 전체를 `PUT` 으로 다시 보내야 하고,
+  // 그 요청은 모든 항목에 `specialty` 가 필수라 감춰진 전공을 대신 지어낼 수 없다.
+  // 기존 항목 수정·삭제는 `PATCH`/`DELETE` 라 전공을 몰라도 절대 막히지 않는다.
+  const rosterBlocked = hasNewSpecialistEntries && hasUnresolvedSpecialty;
 
-    const doctorsPayload: DoctorUpsertInput[] = [];
-
-    for (const entry of specialists) {
-      const trimmedName = entry.name.trim();
-      if (trimmedName.length === 0) continue;
-      if (entry.specialty === null) continue; // canSubmit 이 막지만, 방어적으로도 지어내지 않는다.
-
-      const upsert: DoctorUpsertInput = {
-        name: trimmedName,
-        title: entry.title.trim() || '원장',
-        specialty: entry.specialty,
-      };
-
-      if (entry.id) upsert.id = entry.id;
-      // ★ 함정1 — 실제로 입력한 경우에만 키를 넣는다. 건드리지 않았으면 아예 생략해
-      // 서버가 기존 자격증을 유지하게 한다 (보내면 "지우겠다"/"바꾸겠다"로 읽힌다).
-      if (entry.certificateUrlTouched) upsert.certificateUrl = entry.certificateUrl.trim() || null;
-
-      doctorsPayload.push(upsert);
-    }
-
+  const buildHospitalData = (lat: number, lng: number): HospitalWriteInput => {
     const data: HospitalWriteInput = {
       name: name.trim(),
       specialty: specialty.trim(),
       region: region.trim(),
       address: address.trim(),
-      latitude,
-      longitude,
+      latitude: lat,
+      longitude: lng,
       thumbnail: thumbnail.trim() || 'https://picsum.photos/seed/molarmolar-new/800/500',
       introduction: introduction.trim(),
       priceRange: { min: Number(priceMin) || 0, max: Number(priceMax) || 0 },
@@ -239,7 +292,45 @@ export function HospitalForm({
     // `hospital_admin` 은 이 키를 아예 보내면 안 된다 (`operator` 전용, 아니면 422 FIELD_NOT_WRITABLE).
     if (canEditRecommended) data.isRecommended = isRecommended;
 
-    onSubmit(data, doctorsPayload);
+    return data;
+  };
+
+  const handleSubmitCombined = () => {
+    if (props.mode !== 'combined') return;
+    if (latitude === null || longitude === null) return;
+
+    props.onSubmit(buildHospitalData(latitude, longitude), buildDoctorsPayload(specialists));
+  };
+
+  const handleSaveHospitalOnly = () => {
+    if (props.mode !== 'split') return;
+    if (latitude === null || longitude === null) return;
+
+    props.onSaveHospital(buildHospitalData(latitude, longitude));
+  };
+
+  const handleSaveRoster = () => {
+    if (props.mode !== 'split') return;
+
+    if (hasNewSpecialistEntries) {
+      if (rosterBlocked) return; // 버튼이 이미 비활성이지만 방어적으로 한 번 더 막는다.
+      props.onSaveRoster({ mode: 'replace', doctors: buildDoctorsPayload(specialists) });
+      return;
+    }
+
+    const currentIds = new Set(
+      includedSpecialists.map((entry) => entry.id).filter((id): id is string => Boolean(id))
+    );
+    const deletions = [...initialDoctorsById.entries()]
+      .filter(([id]) => !currentIds.has(id))
+      .map(([id, doctor]) => ({ id, name: doctor.name }));
+    const updates = includedSpecialists
+      .filter((entry): entry is SpecialistFormEntry & { id: string } => Boolean(entry.id))
+      .map((entry) => ({ id: entry.id, name: entry.name.trim(), patch: buildDoctorUpdate(entry) }));
+
+    if (updates.length === 0 && deletions.length === 0) return;
+
+    props.onSaveRoster({ mode: 'patch', updates, deletions });
   };
 
   return (
@@ -430,6 +521,12 @@ export function HospitalForm({
       </View>
       <FieldError message={fieldErrors?.features} />
 
+      {props.mode === 'split' ? (
+        <View className="mb-2 mt-2">
+          <PrimaryButton label="병원 정보 저장" onPress={handleSaveHospitalOnly} disabled={!canSubmitHospital} />
+        </View>
+      ) : null}
+
       <View className="mb-2 mt-2 flex-row items-center justify-between">
         <Text className="text-sm font-semibold text-neutral-700">전문의</Text>
         <Pressable onPress={addSpecialist}>
@@ -494,7 +591,18 @@ export function HospitalForm({
       ))}
 
       <View className="mt-2">
-        <PrimaryButton label={submitLabel} onPress={handleSubmit} disabled={!canSubmit} />
+        {props.mode === 'combined' ? (
+          <PrimaryButton label={props.submitLabel} onPress={handleSubmitCombined} disabled={!canSubmitHospital} />
+        ) : (
+          <>
+            {rosterBlocked ? (
+              <Text className="mb-2 text-xs text-amber-600">
+                검수 대기·반려 상태인 전문의가 있어 새 전문의를 추가할 수 없어요. 운영자 검수 후 가능합니다.
+              </Text>
+            ) : null}
+            <PrimaryButton label="전문의 정보 저장" onPress={handleSaveRoster} disabled={rosterBlocked} />
+          </>
+        )}
       </View>
     </ScrollView>
   );

@@ -15,6 +15,7 @@ export default function AdminHospitalNewPage() {
     <>
       <Stack.Screen options={{ title: '병원 등록' }} />
       <HospitalForm
+        mode="combined"
         submitLabel="등록하기"
         canEditRecommended
         fieldErrors={fieldErrors}
