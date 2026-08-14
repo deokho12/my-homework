@@ -11,6 +11,8 @@ export const queryKeys = {
     /** 필터별로 캐시를 가른다. `all` 은 무효화 접두사로 남긴다 — mutation 이 목록·상세를 한 번에 깬다. */
     list: (filters: object = {}) => ['hospitals', 'list', filters] as const,
     detail: (id: string) => ['hospitals', id] as const,
+    /** `GET /admin/hospitals`. `all` 로 시작하므로 병원 mutation 이 함께 무효화한다. */
+    managed: (filters: object = {}) => ['hospitals', 'managed', filters] as const,
   },
   doctors: {
     all: ['doctors'] as const,
@@ -18,6 +20,8 @@ export const queryKeys = {
     list: (filters: object = {}) => ['doctors', 'list', filters] as const,
     detail: (id: string) => ['doctors', id] as const,
     byHospital: (hospitalId: string) => ['doctors', 'byHospital', hospitalId] as const,
+    /** `GET /doctors/verification-queue`. `all` 로 시작하므로 전문의 mutation 이 함께 무효화한다. */
+    verificationQueue: (filters: object = {}) => ['doctors', 'verification-queue', filters] as const,
   },
   reviews: {
     all: ['reviews'] as const,

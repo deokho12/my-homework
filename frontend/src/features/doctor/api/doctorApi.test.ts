@@ -1,6 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { fetchDoctorById, fetchDoctors, fetchHospitalDoctors } from '@/features/doctor/api/doctorApi';
+import {
+  decideVerification,
+  deleteDoctor,
+  fetchDoctorById,
+  fetchDoctors,
+  fetchHospitalDoctors,
+  fetchVerificationQueue,
+  replaceHospitalDoctors,
+  updateDoctor,
+} from '@/features/doctor/api/doctorApi';
 import { ApiError } from '@/lib/apiClient';
 
 /**
@@ -113,5 +122,106 @@ describe('fetchHospitalDoctors', () => {
 
     expect(error).toBeInstanceOf(ApiError);
     expect((error as ApiError).code).toBe('HOSPITAL_NOT_FOUND');
+  });
+});
+
+describe('replaceHospitalDoctors', () => {
+  it('PUT 으로 병원 소속 전문의를 일괄 교체한다', async () => {
+    fetchMock.mockResolvedValue(ok([{ id: 'd1', certificateUrl: null }]));
+
+    await replaceHospitalDoctors('h1', [{ name: '김민준', specialty: '일반의' }]);
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(String(url)).toContain('/hospitals/h1/doctors');
+    expect(init?.method).toBe('PUT');
+    expect(JSON.parse(init?.body as string)).toEqual({ doctors: [{ name: '김민준', specialty: '일반의' }] });
+  });
+
+  it('★ 함정1 — certificateUrl 을 건드리지 않은 항목은 요청 본문에 그 키가 없다', async () => {
+    fetchMock.mockResolvedValue(ok([]));
+
+    await replaceHospitalDoctors('h1', [{ id: 'd1', name: '김민준', specialty: '일반의' }]);
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1]?.body as string) as { doctors: Record<string, unknown>[] };
+    expect('certificateUrl' in body.doctors[0]).toBe(false);
+  });
+
+  it('결과(DoctorAdminView[])를 그대로 돌려준다', async () => {
+    const body = [{ id: 'd1', certificateUrl: 'https://example.com/cert.png', rejectionReason: null }];
+    fetchMock.mockResolvedValue(ok(body));
+
+    await expect(replaceHospitalDoctors('h1', [])).resolves.toEqual(body);
+  });
+});
+
+describe('updateDoctor', () => {
+  it('PATCH 로 단건 수정한다', async () => {
+    fetchMock.mockResolvedValue(ok({ id: 'd1' }));
+
+    await updateDoctor('d1', { title: '부원장' });
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(String(url)).toContain('/doctors/d1');
+    expect(init?.method).toBe('PATCH');
+    expect(JSON.parse(init?.body as string)).toEqual({ title: '부원장' });
+  });
+});
+
+describe('deleteDoctor', () => {
+  it('DELETE 로 삭제한다', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 204,
+      headers: new Headers(),
+      text: async () => '',
+    } as Response);
+
+    await deleteDoctor('d1');
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(String(url)).toContain('/doctors/d1');
+    expect(init?.method).toBe('DELETE');
+  });
+});
+
+describe('fetchVerificationQueue', () => {
+  it('검수 큐를 조회한다', async () => {
+    const body = { items: [], meta: { page: 1, pageSize: 20, totalItems: 0, totalPages: 0 } };
+    fetchMock.mockResolvedValue(ok(body));
+
+    await expect(fetchVerificationQueue()).resolves.toEqual(body);
+    expect(String(fetchMock.mock.calls[0][0])).toMatch(/\/doctors\/verification-queue$/);
+  });
+
+  it('필터를 쿼리 파라미터로 보낸다', async () => {
+    fetchMock.mockResolvedValue(ok({ items: [], meta: { page: 1, pageSize: 20, totalItems: 0, totalPages: 0 } }));
+
+    await fetchVerificationQueue({ includeGeneralPractitioners: true, status: 'pending' });
+
+    const url = String(fetchMock.mock.calls[0][0]);
+    expect(url).toContain('includeGeneralPractitioners=true');
+    expect(url).toContain('status=pending');
+  });
+});
+
+describe('decideVerification', () => {
+  it('PUT 으로 승인·반려를 결정한다', async () => {
+    fetchMock.mockResolvedValue(ok({ id: 'd1', verificationStatus: 'approved' }));
+
+    await decideVerification('d1', { status: 'approved' });
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(String(url)).toContain('/doctors/d1/verification');
+    expect(init?.method).toBe('PUT');
+    expect(JSON.parse(init?.body as string)).toEqual({ status: 'approved' });
+  });
+
+  it('반려 사유를 함께 보낸다', async () => {
+    fetchMock.mockResolvedValue(ok({ id: 'd1', verificationStatus: 'rejected' }));
+
+    await decideVerification('d1', { status: 'rejected', rejectionReason: '자격증이 흐려요' });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1]?.body as string);
+    expect(body).toEqual({ status: 'rejected', rejectionReason: '자격증이 흐려요' });
   });
 });

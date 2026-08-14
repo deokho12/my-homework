@@ -162,6 +162,27 @@ export interface Doctor {
   isVerifiedSpecialist: boolean;
 }
 
+/**
+ * 관리자 시야 (`PUT /hospitals/{id}/doctors`, `PATCH /doctors/{id}`,
+ * `GET /doctors/verification-queue`, `PUT /doctors/{id}/verification` 응답).
+ *
+ * 공개 `Doctor` 와 달리 `certificateUrl`/`rejectionReason` 을 포함하고, `specialty` 가
+ * 검수 상태와 무관하게 **항상** 실린다 — 검수 화면은 승인 전 전공 주장을 직접 판단해야 한다.
+ *
+ * ⚠ 이 시야를 얻을 수 있는 경로가 제한적이다: 기존 전문의의 `certificateUrl`/`specialty` 원본을
+ * 다시 읽을 GET 이 없다 (`GET /hospitals/{id}/doctors` 는 공개 `Doctor` 뿐이다). 이 타입의 값은
+ * 방금 그 자신이 보낸 `PUT`/`PATCH`/검수 응답에서만 얻을 수 있다 — 병원 폼을 다시 열면 사라진다.
+ */
+export interface DoctorAdminView extends Omit<Doctor, 'specialty'> {
+  specialty: DentalSpecialty;
+}
+
+/** `GET /doctors/verification-queue` 항목. 검수 화면이 소속 병원 이름·제출 시각까지 함께 받는다. */
+export interface VerificationQueueItem extends DoctorAdminView {
+  hospitalName: string;
+  submittedAt: string | null;
+}
+
 export interface Review {
   id: string;
   hospitalId: string;
@@ -314,4 +335,12 @@ export interface Paged<T> {
     totalItems: number;
     totalPages: number;
   };
+}
+
+/**
+ * `GET /admin/hospitals` 응답. `scope` 로 빈 목록 문구를 가른다 —
+ * `managed`(담당 병원만, `hospital_admin`)와 `all`(전 병원, `operator`)은 0건의 의미가 다르다.
+ */
+export interface ManagedHospitalsResponse extends Paged<Hospital> {
+  scope: 'managed' | 'all';
 }

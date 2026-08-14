@@ -1,12 +1,20 @@
 import { apiRequest } from '@/lib/apiClient';
+import type { DoctorUpsertInput } from '@/features/doctor/api/doctorApi';
 import { toSearchParams } from '@/lib/searchParams';
-import { mockDb } from '@/mocks/db';
-import { delay } from '@/mocks/latency';
-import type { Hospital, Paged } from '@/types/domain';
+import type {
+  BusinessHourEntry,
+  Hospital,
+  HospitalFeatures,
+  ManagedHospitalsResponse,
+  Paged,
+  PriceRange,
+  ProcedureId,
+} from '@/types/domain';
 
 /**
- * 병원 조회는 실제 백엔드(`GET /hospitals`, `GET /hospitals/:id`)를 부른다.
- * 등록·수정은 아직 `mockDb` 를 쓴다 — 관리자 화면이 이관되는 나중 Task 에서 함께 바뀐다.
+ * 병원 조회·쓰기 전부 실제 백엔드를 부른다
+ * (`GET /hospitals`, `GET /hospitals/:id`, `POST /hospitals`, `PATCH /hospitals/:id`,
+ * `GET /admin/hospitals`).
  */
 export type HospitalFilters = {
   page?: number;
@@ -37,25 +45,57 @@ export function fetchHospitalById(id: string): Promise<Hospital> {
   return apiRequest<Hospital>(`/hospitals/${encodeURIComponent(id)}`);
 }
 
-export async function createHospital(hospital: Hospital): Promise<Hospital> {
-  await delay();
-  mockDb.write('hospitals', [...mockDb.read('hospitals'), hospital]);
-  return hospital;
+/**
+ * 관리자 병원 폼이 다루는 필드. `HospitalCreateRequest`/`HospitalUpdateRequest` 와 같은
+ * 필드 집합이다 (id·집계·광고 필드·`sponsorship`·`representativeSpecialty` 제외).
+ *
+ * `isRecommended` 만 optional 이다 — **`operator` 만 이 키를 보낼 수 있다.** `hospital_admin`
+ * 은 이 키를 아예 생략해야 한다. 보내면(값이 같아도) `422 FIELD_NOT_WRITABLE` 로 거절된다.
+ */
+export interface HospitalWriteInput {
+  name: string;
+  specialty: string;
+  region: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+  thumbnail: string;
+  introduction: string;
+  priceRange: PriceRange;
+  tags: string[];
+  procedureIds: ProcedureId[];
+  consultAvailable: boolean;
+  isOneDay: boolean;
+  isRecommended?: boolean;
+  businessHours: BusinessHourEntry[];
+  directions: string;
+  features: HospitalFeatures;
 }
 
-export async function updateHospital(id: string, patch: Partial<Hospital>): Promise<Hospital> {
-  await delay();
+export type ManagedHospitalFilters = {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+};
 
-  const rows = mockDb.read('hospitals');
-  const index = rows.findIndex((hospital) => hospital.id === id);
+/**
+ * `operator` 전용. `doctors` 를 함께 보내면 병원 등록과 소속 전문의 등록이 **한 요청**으로
+ * 끝난다 — 등록 화면(새 병원)은 아직 `hospitalId` 가 없어 두 요청으로 나누면 중간 실패 시
+ * 전문의 없는 병원이 남는다. 수정 화면은 이 원자성이 없다(`PATCH` + `PUT` 두 호출).
+ */
+export function createHospital(input: HospitalWriteInput & { doctors?: DoctorUpsertInput[] }): Promise<Hospital> {
+  return apiRequest<Hospital>('/hospitals', { method: 'POST', body: input });
+}
 
-  if (index === -1) throw new Error(`병원을 찾을 수 없어요: ${id}`);
+/** 부분 수정. 인가: `hospital_admin` 은 담당 병원만 (`403 HOSPITAL_NOT_MANAGED`), `operator` 는 전체. */
+export function updateHospital(id: string, input: HospitalWriteInput): Promise<Hospital> {
+  return apiRequest<Hospital>(`/hospitals/${encodeURIComponent(id)}`, { method: 'PATCH', body: input });
+}
 
-  const updated = { ...rows[index], ...patch };
-  // Array.prototype.with 은 ES2023 이고 이 프로젝트의 tsconfig lib 은 ES2022 다 — 쓰지 않는다.
-  const next = [...rows];
-  next[index] = updated;
-  mockDb.write('hospitals', next);
-
-  return updated;
+/**
+ * `/admin` 병원 목록. 응답의 `scope` 로 빈 목록 문구를 가른다 — `managed`(담당 병원만) vs
+ * `all`(전 병원). `GET /hospitals` 와 분리된 이유는 openapi 참고.
+ */
+export function fetchManagedHospitals(filters: ManagedHospitalFilters = {}): Promise<ManagedHospitalsResponse> {
+  return apiRequest<ManagedHospitalsResponse>(`/admin/hospitals${toSearchParams(filters)}`);
 }
