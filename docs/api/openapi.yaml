@@ -587,7 +587,7 @@ paths:
         - 후기 → `GET /hospitals/{hospitalId}/reviews`
         - 진행중인 이벤트 → `GET /promotions?hospitalId={hospitalId}`
       x-screens: [hospital-detail.md, consult-request.md, doctor-detail.md, events.md, notifications.md]
-      x-screen-status: "🟡"
+      x-screen-status: "✅"
       responses:
         '200':
           description: 병원 상세
@@ -669,12 +669,24 @@ paths:
       description: |
         병원 상세의 `전문의 소개`, 병원 카드의 `OO전문의 상주` 배지, 상담 신청의 전문의 지정에 쓰인다.
 
-        인증되지 않은 전문의의 전공은 응답에서 **가려서** 내려간다 (`visibleSpecialty: null`).
-        현재는 클라이언트가 `getVisibleSpecialtyLabel()` 로 숨기지만, 원본 `specialty` 가 응답에 실려 있으면
-        검수 전 전공이 API 응답을 뜯어보는 누구에게나 보인다. 규칙 자체를 서버로 옮긴다.
-        `certificateUrl` / `rejectionReason` 도 관리자 응답에만 포함된다.
+        인증되지 않은 전문의의 전공은 응답에서 **가려서** 내려간다 (`visibleSpecialty: null`,
+        `doctor.projection.ts` 의 `visibleSpecialty()`). 예전에는 클라이언트가
+        `getVisibleSpecialtyLabel()` 로 숨겼지만, 원본 `specialty` 가 응답에 실려 있으면 검수 전
+        전공이 API 응답을 뜯어보는 누구에게나 보였다 — 규칙 자체를 서버로 옮겼다.
+        `certificateUrl` / `rejectionReason` 도 관리자 응답(`DoctorAdminView`)에만 포함된다.
+
+        ★ 이 GET 은 **공개** 응답뿐이다 — 관리자가 미승인·반려 전문의의 원본 `specialty` 나
+        `certificateUrl` 을 다시 읽을 방법이 지금 없다(가장 큰 계약 격차, 다음 조각 후보:
+        `GET /hospitals/{hospitalId}/doctors?view=admin`). 그 값은 방금 자신이 보낸
+        `PUT`/`PATCH`/검수 응답에서만 얻을 수 있고, 병원 폼을 다시 열면 사라진다 —
+        `PUT` 의 `DoctorUpsert.specialty` 가 필수라서, 미승인 전공을 가진 전문의가 있는 병원은
+        새 전문의를 추가하는 저장에서 막힌다(기존 항목 수정·삭제는 `PATCH`/`DELETE` 라 막히지
+        않는다). `docs/features/known-issues.md` 참고.
       x-screens: [hospital-detail.md, explore.md, consult-request.md, doctor-detail.md]
-      x-screen-status: "🟡"
+      x-screen-status: "✅"
+      security:
+        - {}
+        - bearerAuth: []
       responses:
         '200':
           description: 소속 전문의. 등록 순서.
@@ -758,7 +770,7 @@ paths:
         `rating` / `reviewCount` 가 후기로부터 집계되지 않고 병원 필드에 직접 들어 있는 것도 같은 이유다.
         후기 작성이 생기면 그때 `POST` 와 집계 재계산을 함께 설계해야 한다.
       x-screens: [hospital-detail.md]
-      x-screen-status: "🟡"
+      x-screen-status: "✅"
       parameters:
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/PageSize'
@@ -800,14 +812,14 @@ paths:
         있다 (확인된 결함). 공개 목록과 경로를 분리해 두면 "관리자 화면이 공개 목록을 그대로 쓰다가
         스코프를 잃는" 회귀가 구조적으로 불가능해진다.
 
-        응답에 `scope` 를 함께 내려준다. 화면이 "내 병원" 과 "전체" 를 구분해 표시할 수 있어야 하고,
+        응답에 `scope` 를 함께 내려준다. 화면이 "내 병원" 과 "전체" 를 구분해 표시하고,
         `hospital_admin` 의 목록이 0건일 때 "담당 병원이 아직 지정되지 않았어요" 와
-        "등록된 병원이 없어요" 를 구분해야 한다 (현재는 둘 다 그냥 빈 화면이다).
+        "등록된 병원이 없어요" 를 구분한다 (`scope` 로 갈린다. 예전에는 둘 다 그냥 빈 화면이었다).
 
         응답 항목은 공개 `Hospital` 과 같지만 광고 현황 표시용 `sponsorship` 계산 필드가 항상 포함된다
         (병원 수정 화면의 `광고 현황 (읽기 전용)` 카드).
       x-screens: [admin-home.md, admin-hospital-edit.md]
-      x-screen-status: "🟡"
+      x-screen-status: "✅"
       x-role: [hospital_admin, operator]
       security:
         - bearerAuth: []
@@ -1041,7 +1053,10 @@ paths:
 
         스폰서 우선 노출은 `의사` 모드에 적용되지 않는다 (현재 동작과 동일 — 광고는 병원 단위 상품이다).
       x-screens: [explore.md]
-      x-screen-status: "🟡"
+      x-screen-status: "✅"
+      security:
+        - {}
+        - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/PageSize'
@@ -1130,7 +1145,7 @@ paths:
         소속 병원이 삭제됐으면 `hospitalId` 는 유지되고 `GET /hospitals/{id}` 가 404 를 준다 —
         화면의 `소속 병원 정보를 찾을 수 없어요` + 하단 `상담 마감` 상태에 대응한다.
       x-screens: [doctor-detail.md]
-      x-screen-status: "🟡"
+      x-screen-status: "✅"
       security:
         - {}
         - bearerAuth: []
@@ -1239,7 +1254,7 @@ paths:
         승인/반려가 사용자 화면 표시를 바꾸지도 않는다. 기본값으로 제외하고 `includeGeneralPractitioners=true`
         일 때만 넣는다.
       x-screens: [admin-specialists.md]
-      x-screen-status: "🟡"
+      x-screen-status: "✅"
       x-role: operator
       security:
         - bearerAuth: []
@@ -3945,7 +3960,12 @@ components:
             submittedAt:
               type: [string, 'null']
               format: date-time
-              description: 자격증이 제출된 시각. 검수 대기 순서 판단에 쓴다.
+              description: |
+                자격증이 제출된 시각. 검수 대기 순서 판단에 쓴다.
+
+                **미구현 — 화면 미사용.** 선택 필드이고(`required` 는 `hospitalName` 뿐),
+                `docs/features/admin-specialists.md` 의 검수 화면이 제출 시각을 표시하지 않는다
+                (정렬은 상태 → 등록 순). 소비자가 생기면 그때 구현한다.
 
     DoctorUpsert:
       type: object
@@ -4023,6 +4043,12 @@ components:
             $ref: '#/components/schemas/ProcedureId'
         isRecommended:
           type: boolean
+          description: |
+            **미구현 — 권한 정의 필요.** 병원의 동명 필드(`Hospital.isRecommended`)와 달리
+            여기는 역할 제한 표기가 없다. 어느 화면도 이 값을 쓰지 않고(`DoctorCard` 는 읽기만
+            한다), 계약이 침묵하는 권한 문제(허용하면 병원 담당자가 자기 병원 전문의를 스스로
+            추천 노출시킬 수 있다)를 추측으로 정할 수 없어 `PATCH /doctors/{doctorId}` 는 이
+            키를 받지 않는다. 필드 자체는 지우지 않는다 — 권한이 정해지면 구현한다.
 
     VerificationDecisionRequest:
       type: object

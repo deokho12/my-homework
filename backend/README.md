@@ -1,8 +1,14 @@
 # 몰라몰라 백엔드 (NestJS + Prisma + SQLite)
 
-현재 상태: **인증·인가까지 구현되어 있습니다.** 도메인 API(병원·전문의·상담…)는 아직 없고,
-`GET /health`, `POST|GET /api/v1/auth/*` 5개, 그 위에 얹을 가드 3층, 그리고 감사 로그·
-리프레시 토큰 정리 배치가 있습니다.
+현재 상태: **인증·인가에 이어 병원·전문의 도메인 API 까지 구현되어 있습니다**
+(`2026-08-13-hospital-doctor-domain-api` 조각 1 — 시술 목록, 병원 조회·등록·수정, 전문의
+조회·수정·삭제·인증 검수, 병원 후기 조회. 총 15개 오퍼레이션. `docs/api/openapi.yaml` 의
+`x-screen-status` 참고). 그 밖의 도메인(상담 신청·찜·알림, 커뮤니티·콘텐츠·검색)은 아직
+없습니다 — 아래 [아직 없는 것](#아직-없는-것-다음-task-로-넘김) 절과 [다음 조각](#다음-조각)
+참고.
+
+`GET /health`, `POST|GET /api/v1/auth/*` 5개, 그 위에 얹을 가드 3층, 감사 로그·
+리프레시 토큰 정리 배치가 인증·인가 기반입니다.
 
 **모든 API 는 `/api/v1` 로 시작합니다. `GET /health` 만 예외입니다** (아래 [라우팅](#라우팅) 절).
 
@@ -125,12 +131,16 @@ backend/
 │   ├── auth/                  # 인증·인가 + 리프레시 토큰 저장소·정리 (아래 절 참고)
 │   ├── audit/                 # audit_logs (append-only. 리포지토리에 update/delete 없음)
 │   ├── legal/                 # 약관 버전 조회 (가입 동의 검증용)
+│   ├── procedure/             # 시술 목록 (13종, 마스터 데이터)
+│   ├── hospital/              # 병원 조회·등록·수정 + 관리자 로스터 + 스폰서 계산 + 거리 계산
+│   ├── doctor/                # 전문의 조회·로스터 교체·수정·삭제 + 인증 검수
+│   ├── review/                # 병원 후기 조회 (작성 엔드포인트 없음 — 화면에 없다)
 │   ├── scripts/
 │   │   ├── operator-role.ts   # 운영자 승격·회수 CLI (HTTP 경로 없음 — 결정 4)
 │   │   └── tokens-cleanup.ts  # refresh_tokens 수동 정리 CLI
 │   ├── prisma/                # PrismaService (전역 모듈, lifecycle hook)
 │   └── health/                # GET /health
-└── test/                      # 10 파일 / 131 테스트
+└── test/                      # 26 파일 / 289 테스트 (auth·인가 기반 + 병원·전문의 도메인)
     ├── support/
     │   ├── app.ts                   # 테스트 앱 + 시드 계정 로그인 헬퍼
     │   ├── guard-test.module.ts      # ★ 인가 테스트 전용 보호 라우트 (src 에 두지 않습니다)
@@ -290,6 +300,36 @@ npm run operator:revoke -- someone@example.com --actor=me@molarmolar.example --f
   지금 실제로 쓰는 곳은 `operator:grant` / `operator:revoke` 입니다
 - **`POST /auth/social/{provider}`** — 화면이 버튼만 있는 상태라 미구현
 - **비밀번호 찾기** — 계정을 운영자가 만들지 않는 설계이므로 우선순위가 높습니다 (결정 문서 §미결 6)
+
+병원·전문의 도메인(조각 1) 안에서 의도적으로 미룬 것들입니다. 전부 `docs/api/openapi.yaml`
+또는 `docs/features/known-issues.md` 에도 기록되어 있습니다(자세한 판정 근거는
+`.superpowers/sdd/2026-08-13-hospital-doctor-domain-api/task-21-contract-followups.md`):
+
+- **관리자용 병원 로스터 GET 이 없습니다** — `certificateUrl` 이나 미승인 전문의의 원본
+  `specialty` 를 다시 읽을 GET 이 없어서, 병원 폼을 다시 열면 그 값이 사라집니다. 미승인
+  전공을 가진 전문의가 있는 병원은 새 전문의를 추가하는 저장이 막힙니다(`PUT` 의
+  `DoctorUpsert.specialty` 가 필수라서). 다음 후보: `GET /hospitals/{hospitalId}/doctors?view=admin`
+- **공개 `Doctor` 응답에 `hospitalName` 이 없습니다** — 전문의·찜·관련병원 카드가 항목마다
+  `useHospital(hospitalId)` 를 불러 N+1 조회가 됩니다. TanStack Query 가 중복 제거하므로
+  현재 페이지 크기(20)에서는 견딜 만하지만, 근본 해결은 `GET /hospitals` 의 ids 배치 필터나
+  `Doctor` 에 `hospitalName`/`consultAvailable` 추가입니다 — 계약 변경이라 다음 조각
+- **시술→전공 매핑이 프론트·백엔드 양쪽에 있습니다** — `PROCEDURE_SPECIALTY_MAP` 을
+  `backend/src/doctor/specialty-procedures.ts` 로 옮겼지만, `frontend/src/utils/specialty.ts`
+  에도 사본이 남아 있습니다(`HospitalExploreCard` 가 시술 카테고리와 병원 대표 전공이
+  맞는지 판단하는 데 씁니다). 근본 해결은 서버가 그 판정을 응답에 담는 것(예:
+  `matchesRequestedProcedure`) — 계약 변경이라 다음 조각
+
+### 다음 조각
+
+이 저장소는 `hospital-doctor-domain-api` 조각 1(Task 1~21) 까지 끝났습니다. 남은 도메인은
+`.superpowers/sdd/2026-08-13-hospital-doctor-domain-api/task-21-brief.md` 의 "다음 조각" 표
+기준으로 이렇게 나뉩니다:
+
+| 조각 | 내용 |
+|---|---|
+| 2 | 찜·상담접수·알림 (검수가 이미 만들고 있는 알림 행을 읽는 API 포함) |
+| 3 | 관리자 상담 처리 (`@HospitalScope({ resource: 'consultRequest' })` 는 이미 준비됨) |
+| 4 | 커뮤니티·콘텐츠·검색 (`frontend/src/mocks/db.ts` 의 남은 테이블 3개: `consultRequests`·`communityPosts`·`notifications`) |
 
 ## 개발용 계정
 

@@ -985,6 +985,15 @@ git commit -m "refactor(frontend): move hospital detail to pages/ with useQuery 
 
 ## Task 4: explore 필터 로직을 hospital feature 훅으로 분리
 
+> **2026-08-14 — `2026-08-13-hospital-doctor-domain-api` 조각 1이 이 Task를 대체했다.**
+> 이 Task가 만든 `useHospitalFilters`는 병원·전문의 전량을 클라이언트 메모리로 받아
+> `useMemo`로 필터링·정렬하는 훅이었다(아래 Step 3 참고). 조각 1의 Task 18("탐색 화면 서버
+> 필터")이 그 방식을 걷어내고 `useExploreFilters`(`frontend/src/features/hospital/hooks/useExploreFilters.ts`)로
+> 바꿨다 — 화면 상태(칩·정렬·반경)를 `HospitalFilters`/`DoctorFilters` 쿼리 파라미터로만
+> 변환하고, 실제 필터링·정렬·스폰서 우선 노출은 서버(`GET /hospitals`, `GET /doctors`)가 한다.
+> 클라이언트 정렬이 아예 사라졌다는 점이 핵심 차이다 — 서버가 이미 정렬된 배열을 내려준다.
+> `ExplorePage.tsx`는 이관됐지만 이 Task가 쓴 형태가 아니라 그 위에 다시 쓰인 형태다.
+
 `screens/tabs/explore.tsx`(337줄)에 필터·정렬·스폰서 랭킹이 인라인으로 들어 있다. CLAUDE.md의 "Business logic belongs in hooks"를 정면으로 위반하는 지점이고, 병원용/전문의용 필터가 거의 동일하게 두 번 반복된다.
 
 **Files:**
@@ -1229,6 +1238,17 @@ explore 화면에 인라인이던 필터/정렬/스폰서 랭킹 로직을 hospi
 ---
 
 ## Task 5: doctor feature
+
+> **2026-08-14 — `2026-08-13-hospital-doctor-domain-api` 조각 1이 이 Task를 대체했다.**
+> 이 Task가 만든 `doctorApi.ts`는 `mockDb`(로컬스토리지)를 읽고 쓰는 **목 백엔드**였다(아래
+> Step 3 참고, `fetchDoctors`/`fetchDoctorById`/`updateDoctor`가 전부 `mockDb.read/write`
+> 호출). 조각 1의 Task 15·17이 같은 파일 경로를 그대로 두고 내부를 실제 HTTP 호출
+> (`apiRequest`, `GET/PATCH/DELETE /doctors`, `GET/PUT /hospitals/{id}/doctors`,
+> `GET /doctors/verification-queue`, `PUT /doctors/{id}/verification`)로 바꿨다. 훅 구성도
+> 이 Task의 3개(`useDoctors`/`useDoctor`/`useDoctorsByHospital`)에서 관리자 검수·로스터
+> 교체·단건 수정·삭제까지 다루는 8개(`useHospitalDoctors`, `useReplaceHospitalDoctors`,
+> `useUpdateDoctor`, `useDeleteDoctor`, `useVerificationQueue`, `useDecideVerification` 포함)로
+> 늘었다. `DoctorCard`의 `getHospitalById` 제거(이 Task의 핵심 목표)는 그대로 유지됐다.
 
 **Files:**
 - Create: `src/features/doctor/api/doctorApi.ts`
