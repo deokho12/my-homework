@@ -4,11 +4,13 @@ import { FlatList, Pressable, Text, TextInput, View, cx } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
 
 import { Badge } from '@/components/Badge';
+import { QueryState } from '@/components/QueryState';
 import { StockImage } from '@/components/StockImage';
 import { CONTAINER_PADDING } from '@/components/layout/Container';
-import { useDoctorStore } from '@/store/useDoctorStore';
-import { getHospitalById } from '@/store/useHospitalStore';
-import type { Doctor, VerificationStatus } from '@/types/domain';
+import { useDecideVerification, useVerificationQueue } from '@/features/doctor';
+import { isApiError } from '@/lib/apiClient';
+import type { VerificationQueueItem, VerificationStatus } from '@/types/domain';
+import { showAlert } from '@/utils/alert';
 
 const STATUS_LABEL: Record<VerificationStatus, string> = {
   pending: '대기',
@@ -16,17 +18,26 @@ const STATUS_LABEL: Record<VerificationStatus, string> = {
   rejected: '반려',
 };
 
-const STATUS_ORDER: Record<VerificationStatus, number> = {
-  pending: 0,
-  rejected: 1,
-  approved: 2,
-};
-
-function SpecialistRow({ doctor }: { doctor: Doctor }) {
-  const setVerification = useDoctorStore((state) => state.setVerification);
-  const hospital = getHospitalById(doctor.hospitalId);
+function SpecialistRow({ doctor }: { doctor: VerificationQueueItem }) {
+  const decideVerification = useDecideVerification();
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState('');
+
+  const isPending = decideVerification.isPending;
+
+  const decide = (input: { status: 'approved' } | { status: 'rejected'; rejectionReason: string }) => {
+    decideVerification.mutate(
+      { id: doctor.id, decision: input },
+      {
+        onError: (error) => {
+          showAlert(
+            '검수 결과를 저장하지 못했어요',
+            isApiError(error) ? error.message : '잠시 후 다시 시도해주세요'
+          );
+        },
+      }
+    );
+  };
 
   return (
     <View className="mb-3 rounded-2xl border border-neutral-100 bg-white p-4">
@@ -49,7 +60,7 @@ function SpecialistRow({ doctor }: { doctor: Doctor }) {
             {doctor.name} · {doctor.title}
           </Text>
           <Text className="text-xs text-neutral-500">{doctor.specialty}</Text>
-          <Text className="text-xs text-neutral-400">{hospital?.name ?? '알 수 없는 병원'}</Text>
+          <Text className="text-xs text-neutral-400">{doctor.hospitalName}</Text>
         </View>
         <Badge label={STATUS_LABEL[doctor.verificationStatus]} tone={doctor.verificationStatus === 'approved' ? 'brand' : 'neutral'} />
       </View>
@@ -82,16 +93,21 @@ function SpecialistRow({ doctor }: { doctor: Doctor }) {
             </Pressable>
             <Pressable
               onPress={() => {
-                setVerification(doctor.id, 'rejected', reason.trim() || '사유 미입력');
+                // 반려 사유는 서버도 1자 이상을 요구한다 — 빈 값으로 보내지 않는다.
+                decide({ status: 'rejected', rejectionReason: reason.trim() });
                 setRejecting(false);
                 setReason('');
               }}
-              disabled={reason.trim().length === 0}
+              disabled={reason.trim().length === 0 || isPending}
               className={`flex-1 items-center rounded-xl py-2.5 ${
-                reason.trim().length === 0 ? 'bg-neutral-200' : 'bg-rose-500'
+                reason.trim().length === 0 || isPending ? 'bg-neutral-200' : 'bg-rose-500'
               }`}
             >
-              <Text className={`text-sm font-semibold ${reason.trim().length === 0 ? 'text-neutral-400' : 'text-white'}`}>
+              <Text
+                className={`text-sm font-semibold ${
+                  reason.trim().length === 0 || isPending ? 'text-neutral-400' : 'text-white'
+                }`}
+              >
                 반려 확정
               </Text>
             </Pressable>
@@ -100,13 +116,15 @@ function SpecialistRow({ doctor }: { doctor: Doctor }) {
       ) : (
         <View className="flex-row gap-2">
           <Pressable
-            onPress={() => setVerification(doctor.id, 'approved')}
+            onPress={() => decide({ status: 'approved' })}
+            disabled={isPending}
             className="flex-1 items-center rounded-xl bg-brand-600 py-2.5 active:bg-brand-700"
           >
             <Text className="text-sm font-semibold text-white">승인</Text>
           </Pressable>
           <Pressable
             onPress={() => setRejecting(true)}
+            disabled={isPending}
             className="flex-1 items-center rounded-xl border border-neutral-200 py-2.5"
           >
             <Text className="text-sm font-semibold text-neutral-600">반려</Text>
@@ -117,11 +135,8 @@ function SpecialistRow({ doctor }: { doctor: Doctor }) {
   );
 }
 
-export default function SpecialistVerificationScreen() {
-  const doctors = useDoctorStore((state) => state.doctors);
-  const sorted = [...doctors].sort(
-    (a, b) => STATUS_ORDER[a.verificationStatus] - STATUS_ORDER[b.verificationStatus]
-  );
+export default function AdminSpecialistsPage() {
+  const { data, error, isLoading, isError, isFetching, refetch } = useVerificationQueue();
 
   return (
     <SafeAreaView className="flex-1 bg-neutral-50" edges={['bottom']}>
@@ -132,12 +147,30 @@ export default function SpecialistVerificationScreen() {
           업로드된 자격증을 확인하고 승인 또는 반려해주세요
         </Text>
       </View>
-      <FlatList
-        data={sorted}
-        keyExtractor={(item) => item.id}
-        contentContainerClassName={cx(CONTAINER_PADDING, 'py-4')}
-        renderItem={({ item }) => <SpecialistRow doctor={item} />}
-      />
+
+      <QueryState
+        isLoading={isLoading}
+        isError={isError}
+        data={data}
+        errorState={{
+          description: isApiError(error) ? error.message : undefined,
+        }}
+        onRetry={() => {
+          void refetch();
+        }}
+        isRetrying={isError && isFetching}
+        isEmpty={(value) => value.items.length === 0}
+        emptyState={{ title: '검수할 전문의가 없어요' }}
+      >
+        {(value) => (
+          <FlatList
+            data={value.items}
+            keyExtractor={(item) => item.id}
+            contentContainerClassName={cx(CONTAINER_PADDING, 'py-4')}
+            renderItem={({ item }) => <SpecialistRow doctor={item} />}
+          />
+        )}
+      </QueryState>
     </SafeAreaView>
   );
 }

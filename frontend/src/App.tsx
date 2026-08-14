@@ -15,22 +15,22 @@ import {
 } from '@/navigation';
 import { Text, View } from '@/primitives';
 
+import AdminHomePage from '@/pages/admin/AdminHomePage';
+import AdminHospitalEditPage from '@/pages/admin/AdminHospitalEditPage';
+import AdminHospitalNewPage from '@/pages/admin/AdminHospitalNewPage';
+import AdminSpecialistsPage from '@/pages/admin/AdminSpecialistsPage';
+import DoctorDetailPage from '@/pages/DoctorDetailPage';
 import ExplorePage from '@/pages/ExplorePage';
 import HospitalDetailPage from '@/pages/HospitalDetailPage';
 import AboutScreen from '@/screens/about';
 import AdminConsultationDetailScreen from '@/screens/admin/consultations/[id]';
 import AdminConsultationsScreen from '@/screens/admin/consultations/index';
-import AdminHospitalEditScreen from '@/screens/admin/hospital/[id]';
-import AdminHospitalNewScreen from '@/screens/admin/hospital/new';
-import AdminHomeScreen from '@/screens/admin/index';
 import AdminNotificationsScreen from '@/screens/admin/notifications';
-import AdminSpecialistsScreen from '@/screens/admin/specialists';
 import LoginScreen from '@/screens/auth/login';
 import SignupScreen from '@/screens/auth/signup';
 import CommunityPostScreen from '@/screens/community/[id]';
 import CommunityNewScreen from '@/screens/community/new';
 import ConsultRequestScreen from '@/screens/consult/[hospitalId]';
-import DoctorDetailScreen from '@/screens/doctor/[id]';
 import EventsScreen from '@/screens/events';
 import LocationTermsScreen from '@/screens/legal/location';
 import PrivacyScreen from '@/screens/legal/privacy';
@@ -83,7 +83,7 @@ const ROUTES: AppRoute[] = [
   { path: '/mypage', element: <MyPageScreen />, options: { headerShown: false }, isTab: true },
 
   { path: '/hospital/:id', element: <HospitalDetailPage />, options: { title: '' } },
-  { path: '/doctor/:id', element: <DoctorDetailScreen />, options: { title: '' } },
+  { path: '/doctor/:id', element: <DoctorDetailPage />, options: { title: '' } },
   { path: '/tips/:id', element: <TipDetailScreen />, options: { title: '' } },
   { path: '/events', element: <EventsScreen />, options: { title: '이벤트' } },
 
@@ -99,23 +99,23 @@ const ROUTES: AppRoute[] = [
   { path: '/auth/login', element: <LoginScreen />, options: { title: '로그인' } },
   { path: '/auth/signup', element: <SignupScreen />, options: { title: '회원가입' } },
 
-  { path: '/admin', element: <AdminHomeScreen />, options: { title: '병원 관리자' }, guard: 'admin' },
+  { path: '/admin', element: <AdminHomePage />, options: { title: '병원 관리자' }, guard: 'admin' },
   {
     path: '/admin/hospital/new',
-    element: <AdminHospitalNewScreen />,
+    element: <AdminHospitalNewPage />,
     options: { title: '병원 등록' },
     // 병원 생성은 운영자만 한다. 입점 심사가 선행되며, 아무나 병원을 만들 수 없다.
     guard: 'operator',
   },
   {
     path: '/admin/hospital/:id',
-    element: <AdminHospitalEditScreen />,
+    element: <AdminHospitalEditPage />,
     options: { title: '병원 정보 수정' },
     guard: 'admin',
   },
   {
     path: '/admin/specialists',
-    element: <AdminSpecialistsScreen />,
+    element: <AdminSpecialistsPage />,
     options: { title: '전문의 인증 검수' },
     // 전문의 인증 검수는 플랫폼의 판정이다. 병원 담당자에게 열면 자기 병원 전문의를
     // 스스로 승인할 수 있게 된다.

@@ -97,7 +97,8 @@ export interface Hospital {
   /**
    * 서버가 계산한다 (`backend/src/hospital/sponsorship.ts`). 사용자 화면(탐색·병원 카드·
    * 병원 상세)은 이 값을 그대로 쓴다 — 기기 시계로 광고 기간을 다시 계산하지 않는다.
-   * `src/utils/sponsorship.ts`(클라이언트 계산)는 아직 목을 쓰는 관리자 화면에만 남아 있다.
+   * `src/utils/sponsorship.ts`(클라이언트 계산)는 이제 호출부가 없다 — 스토어 정리 Task 가
+   * 함께 지운다 (지금은 그대로 둔다).
    */
   sponsorship: SponsorshipState;
   /** 병원 카드의 `OO전문의 상주` 배지. 서버가 계산한다. 없으면 null. */
