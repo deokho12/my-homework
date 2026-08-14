@@ -1,11 +1,42 @@
 import { DOCTOR_FEMALE_1, DOCTOR_FEMALE_2, DOCTOR_FEMALE_3, DOCTOR_FEMALE_4, DOCTOR_MALE_1, DOCTOR_MALE_2, DOCTOR_MALE_3, sized } from '@/config/stockImages';
-import type { Doctor } from '@/types/domain';
+import type { DentalSpecialty, ProcedureId, VerificationStatus } from '@/types/domain';
 
-/** 시드 소스 행. `visibleSpecialty`/`isVerifiedSpecialist` 는 여기서 채우지 않는다 — 그 둘은
- * 서버 계산 필드(`backend/src/doctor/doctor.projection.ts`)이고, 시드는 `verificationStatus`
- * 로부터 `verifiedSpecialty` 를 직접 유도한다(`prisma/seed.ts`). 시드 소스가 그 필드를
- * 미리 계산해 들고 있으면 판정 규칙이 두 곳에 생기는 셈이라 여기서는 원본 행만 내보낸다. */
-export const doctors: Omit<Doctor, 'visibleSpecialty' | 'isVerifiedSpecialist'>[] = [
+/**
+ * DB 시드 행 전용 타입 — 서버 응답 프로젝션인 `Doctor` 를 재사용하지 않는다.
+ *
+ * `Doctor.specialty`(`DentalSpecialty | undefined`)와 `Doctor.rating`(`number | null`)이
+ * optional/nullable 인 이유는 **응답을 만들 때** 서버가 하는 일 때문이다 — 미승인 전공
+ * 주장은 공개 응답에서 숨겨지고(`specialty` 가 빠짐), 비로그인 조회는 평점을 감춘다
+ * (`rating` 이 null). 둘 다 저장된 DB 행의 성질이 아니다 — 이 fixture 의 모든 행은 실제로
+ * `specialty`/`rating` 값을 갖는다. 시드가 `Omit<Doctor, ...>` 를 그대로 쓰면 "이 필드들이
+ * 없을 수도 있다"는 프로젝션의 거짓을 시드 행에도 떠안기게 되어 `prisma/seed.ts` 의
+ * `prisma.doctor.upsert()`/`prisma.doctorVerification.upsert()` 호출이 타입 에러가 난다
+ * (Prisma 컬럼은 항상 값이 있다). 그래서 이 파일이 시드 행의 모양을 직접 선언한다.
+ *
+ * `visibleSpecialty`/`isVerifiedSpecialist` 는 이 타입에 아예 없다 — 그 둘도 서버 계산
+ * 필드(`backend/src/doctor/doctor.projection.ts`)이고, 시드는 `verificationStatus` 로부터
+ * `verifiedSpecialty` 를 직접 유도한다(`prisma/seed.ts`).
+ */
+export interface DoctorSeedRow {
+  id: string;
+  name: string;
+  title: string;
+  specialty: DentalSpecialty;
+  hospitalId: string;
+  photo: string;
+  procedureIds: ProcedureId[];
+  rating: number;
+  reviewCount: number;
+  consultCount: number;
+  certificateUrl: string | null;
+  verificationStatus: VerificationStatus;
+  rejectionReason: string | null;
+  isRecommended: boolean;
+  yearsOfExperience: number;
+  career: string[];
+}
+
+export const doctors: DoctorSeedRow[] = [
   {
     id: 'd1',
     name: '김민준',

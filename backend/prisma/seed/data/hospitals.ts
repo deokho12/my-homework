@@ -1,7 +1,50 @@
 import { CLINIC_INTERIOR_1, CLINIC_INTERIOR_2, PROCEDURE_IN_PROGRESS, sized } from '@/config/stockImages';
-import type { Hospital } from '@/types/domain';
+import type { BusinessHourEntry, HospitalFeatures, PriceRange, ProcedureId } from '@/types/domain';
 
-const rawHospitals: Omit<Hospital, 'sponsorship' | 'representativeSpecialty'>[] = [
+/**
+ * DB 시드 행 전용 타입 — 서버 응답 프로젝션인 `Hospital` 을 재사용하지 않는다.
+ *
+ * `Hospital.sponsorship`/`Hospital.representativeSpecialty` 는 DB 컬럼이 아니다 — 요청마다
+ * 서버가 계산해 응답에 얹는 값이다(`backend/src/hospital/sponsorship.ts`,
+ * `backend/src/hospital/hospital.projection.ts`). `prisma/seed.ts` 도 이 둘을 전혀 읽지
+ * 않는다 — 광고는 `isSponsored`/`sponsoredCategories`/`sponsoredRank`/`sponsoredStartDate`/
+ * `sponsoredEndDate` 원본 필드로부터 `hospital_sponsorships` 행을 직접 만든다(§5.10).
+ * `Omit<Hospital, 'sponsorship' | 'representativeSpecialty'>` 로 대신 쓰면 "이 두 필드만
+ * 없는 Hospital"이라는 잘못된 관계를 표현하는 셈이라, 이 파일이 시드 행의 모양을 직접
+ * 선언한다.
+ */
+export interface HospitalSeedRow {
+  id: string;
+  name: string;
+  specialty: string;
+  region: string;
+  latitude: number;
+  longitude: number;
+  thumbnail: string;
+  images: string[];
+  procedureIds: ProcedureId[];
+  priceRange: PriceRange;
+  rating: number;
+  reviewCount: number;
+  consultCount: number;
+  consultAvailable: boolean;
+  businessHours: BusinessHourEntry[];
+  directions: string;
+  features: HospitalFeatures;
+  isOneDay: boolean;
+  isRecommended: boolean;
+  isSponsored: boolean;
+  sponsoredCategories: ProcedureId[];
+  sponsoredRank: number | null;
+  sponsoredStartDate: string | null;
+  sponsoredEndDate: string | null;
+  tags: string[];
+  address: string;
+  introduction: string;
+  events: string[];
+}
+
+export const hospitals: HospitalSeedRow[] = [
   {
     id: 'h1',
     name: '강남 스마일 치과',
@@ -506,15 +549,3 @@ const rawHospitals: Omit<Hospital, 'sponsorship' | 'representativeSpecialty'>[] 
     events: ['신학기 교정상담 구강스캔 무료'],
   },
 ];
-
-/**
- * 서버가 계산해 내려주는 필드. 목 백엔드가 서버 대역이므로 여기서 기본값을 채운다.
- * 사용자 화면(탐색 등)은 이제 실제 백엔드를 호출하므로 이 값을 안 본다 — 이 어댑터는
- * 아직 목을 쓰는 관리자 화면의 CRUD 와 `mockDb.read('hospitals')` 를 쓰는 테스트 픽스처용이다.
- * 관리자 화면이 목을 벗어나면(나중 Task) 이 어댑터와 `rawHospitals` 는 함께 사라진다.
- */
-export const hospitals: Hospital[] = rawHospitals.map((hospital) => ({
-  ...hospital,
-  sponsorship: { isActive: false, isPlacementEligible: false },
-  representativeSpecialty: null,
-}));

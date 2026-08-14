@@ -3,55 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useHospital, useHospitals } from '@/features/hospital';
 import { isApiError, type ApiError } from '@/lib/apiClient';
+import { baseHospital } from '@/test/hospitalFixture';
 import { queryWrapper } from '@/test/queryWrapper';
-import type { Hospital } from '@/types/domain';
 
 /**
  * `fetchHospitals`/`fetchHospitalById` 가 HTTP 를 부르므로 `vi.stubGlobal('fetch', ...)` 로
- * 가로챈다. 아래 fixture 는 응답 본문을 채우는 데만 쓴다 (실제 요청 경로는 아니다).
+ * 가로챈다. `baseHospital` fixture 는 응답 본문을 채우는 데만 쓴다 (실제 요청 경로는 아니다).
  */
-function baseHospital(overrides: Partial<Hospital> = {}): Hospital {
-  return {
-    id: 'h1',
-    name: '강남 스마일 치과',
-    specialty: '임플란트 전문의원',
-    region: '서울 강남구',
-    latitude: 37.5006,
-    longitude: 127.0364,
-    thumbnail: 'https://example.com/thumb.jpg',
-    images: [],
-    procedureIds: ['implant'],
-    priceRange: { min: 900000, max: 1800000 },
-    rating: 4.8,
-    reviewCount: 312,
-    consultCount: 128,
-    consultAvailable: true,
-    businessHours: [],
-    directions: '',
-    features: {
-      coordinator: true,
-      painlessAnesthesia: true,
-      digitalCare: true,
-      parking: true,
-      nightConsult: true,
-      cctv: false,
-    },
-    isOneDay: true,
-    isRecommended: true,
-    isSponsored: false,
-    sponsoredCategories: [],
-    sponsoredRank: null,
-    sponsoredStartDate: null,
-    sponsoredEndDate: null,
-    tags: [],
-    address: '서울특별시 강남구 테헤란로 123',
-    introduction: '',
-    events: [],
-    sponsorship: { isActive: false, isPlacementEligible: false },
-    representativeSpecialty: null,
-    ...overrides,
-  };
-}
 function ok(body: unknown): Response {
   return {
     ok: true,

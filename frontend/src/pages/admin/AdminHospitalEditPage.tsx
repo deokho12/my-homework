@@ -17,7 +17,7 @@ import { showAlert } from '@/utils/alert';
 // 맵을 값으로 넘겨받는다 — 이 함수 자체는 훅을 부르지 않는다.
 function getSponsorshipStatusText(hospital: Hospital, procedureMap: Map<ProcedureId, Procedure>): string {
   // `sponsorship` 은 서버 계산 필드다(`backend/src/hospital/hospital.projection.ts`) — 기기 시계로
-  // 기간을 다시 계산하지 않는다(`src/utils/sponsorship.ts` 는 더 이상 이 화면에서 부르지 않는다).
+  // 기간을 다시 계산하지 않는다. 판정 규칙은 `backend/src/hospital/sponsorship.ts` 한 곳에만 있다.
   if (!hospital.isSponsored || !hospital.sponsorship.isActive) return '현재 진행중인 광고가 없어요';
 
   const categoryNames = hospital.sponsoredCategories
