@@ -318,6 +318,18 @@ npm run operator:revoke -- someone@example.com --actor=me@molarmolar.example --f
   에도 사본이 남아 있습니다(`HospitalExploreCard` 가 시술 카테고리와 병원 대표 전공이
   맞는지 판단하는 데 씁니다). 근본 해결은 서버가 그 판정을 응답에 담는 것(예:
   `matchesRequestedProcedure`) — 계약 변경이라 다음 조각
+- **`POST /hospitals` 는 쓰기 금지 필드를 조용히 버립니다** (Task 21 QA 에서 발견).
+  `PATCH` 는 원본 본문을 따로 받아 `422 FIELD_NOT_WRITABLE` 로 거절하는데, `POST` 는
+  `assertWritableHospitalFields` 를 부르지 않아 광고·집계 필드를 보내도 `201` 이 나갑니다.
+  **값이 쓰이지는 않습니다** — zod 가 모르는 키를 떨어뜨리고 서버가 자기 값을 넣습니다.
+  계약(`createHospital`)도 create 에 422 를 규정하지 않고, 등록 화면은 `operator` 전용이라
+  `isRecommended` 외에는 보낼 경로가 없어 현재 도달하지 않습니다. 붙인다면 `PATCH` 와
+  같은 방식(원본 본문 + 같은 검사)입니다
+- **계약이 "서버 기본값" 이라 적은 두 곳이 구현에 없습니다** (Task 21 QA 에서 발견).
+  ① `thumbnail` 을 생략하면 계약은 서버가 기본 이미지를 넣으라고 하는데 구현은
+  `422 REQUIRED` 입니다 — 등록 폼이 플레이스홀더를 채워 보내(`HospitalForm.tsx`) 화면에서는
+  드러나지 않습니다. ② 신규 전문의의 `photo` 가 빈 문자열이 됩니다(`doctor.write.ts`).
+  폼에 사진 칸이 없어 항상 빈 값이고 화면은 `StockImage` 폴백으로 버팁니다
 
 ### 다음 조각
 

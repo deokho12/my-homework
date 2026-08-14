@@ -134,7 +134,16 @@ export class HospitalService {
 
   /**
    * `POST /hospitals` — `operator` 전용 (컨트롤러의 `@Roles('operator')` 가 보장한다).
-   * 광고·집계 필드는 `createHospitalSchema` 에 아예 없어 이 경로로는 보낼 수 없다.
+   *
+   * 광고·집계 필드는 `createHospitalSchema` 에 없어 **값이 반영되지는 않는다.** 다만
+   * "보낼 수 없다" 가 아니라 **조용히 떨어진다** — zod 객체는 기본이 non-strict 라
+   * 모르는 키를 거절하지 않고 버리고, 보낸 쪽은 `201` 만 받는다.
+   *
+   * `PATCH` 는 바로 그 이유로 원본 본문을 따로 받아 `assertWritableHospitalFields` 로
+   * `422 FIELD_NOT_WRITABLE` 를 낸다 (`hospital.write.ts` 의 "보냈는데 거절되지 않는
+   * 구멍" 주석). 이 경로에 같은 검사를 붙이지 않은 것은 조각 1 의 판정이며
+   * `backend/README.md` 의 미룬 항목에 기록해 두었다 — 쓰기가 일어나지 않으므로
+   * 데이터 문제는 없고, 계약도 create 에는 422 를 규정하지 않는다.
    */
   async create(dto: CreateHospitalDto): Promise<HospitalResponse> {
     await this.assertProceduresExist(dto.procedureIds);
