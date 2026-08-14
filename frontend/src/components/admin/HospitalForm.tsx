@@ -257,14 +257,25 @@ export function HospitalForm(props: HospitalFormProps) {
     latitude !== null &&
     longitude !== null;
 
-  // 이름이 있어 저장 대상이 될 항목만 본다 — 빈 이름 행은 어차피 제출에서 빠진다.
-  const includedSpecialists = specialists.filter((entry) => entry.name.trim().length > 0);
+  // 이름이 있어 저장 대상이 될 항목만 본다. **새 행**(`id` 없음)의 빈 이름은 "추가했다가
+  // 마음을 바꿔 비워둔 것"이라 조용히 빠지는 게 맞다. **기존 행**(`id` 있음)의 빈 이름은
+  // 다르다 — 그대로 두면 "빠진 항목 = 삭제" 규칙 때문에 그 전문의가 조용히, 되돌릴 수 없이
+  // 삭제된다. 그래서 기존 행은 여기서 걸러내지 않고 아래 `blankExistingSpecialists` 로 따로
+  // 잡아 저장 자체를 막는다.
+  const includedSpecialists = specialists.filter((entry) => entry.id || entry.name.trim().length > 0);
   const hasNewSpecialistEntries = includedSpecialists.some((entry) => !entry.id);
   const hasUnresolvedSpecialty = includedSpecialists.some((entry) => entry.specialty === null);
   // 새 전문의를 추가할 때만 막는다 — 그때만 로스터 전체를 `PUT` 으로 다시 보내야 하고,
   // 그 요청은 모든 항목에 `specialty` 가 필수라 감춰진 전공을 대신 지어낼 수 없다.
   // 기존 항목 수정·삭제는 `PATCH`/`DELETE` 라 전공을 몰라도 절대 막히지 않는다.
-  const rosterBlocked = hasNewSpecialistEntries && hasUnresolvedSpecialty;
+  const unresolvedSpecialtyBlocked = hasNewSpecialistEntries && hasUnresolvedSpecialty;
+  // 기존 전문의(`id` 있음)의 이름 칸을 지운 상태. 삭제 버튼을 누른 게 아니므로 저장을
+  // 막고 어느 항목인지 짚어준다 — 조용한 삭제(known-issues 였던 그 사고)를 막는 지점이다.
+  const blankExistingSpecialists = specialists.filter(
+    (entry) => Boolean(entry.id) && entry.name.trim().length === 0
+  );
+  const hasBlankExistingName = blankExistingSpecialists.length > 0;
+  const rosterBlocked = unresolvedSpecialtyBlocked || hasBlankExistingName;
 
   const buildHospitalData = (lat: number, lng: number): HospitalWriteInput => {
     const data: HospitalWriteInput = {
@@ -299,7 +310,11 @@ export function HospitalForm(props: HospitalFormProps) {
     if (props.mode !== 'combined') return;
     if (latitude === null || longitude === null) return;
 
-    props.onSubmit(buildHospitalData(latitude, longitude), buildDoctorsPayload(specialists));
+    // 신규 등록만 `images` 를 채운다 — 캐러셀에 최소 1장(대표 이미지)이 있어야 한다.
+    // `hospitalData.thumbnail` 은 이미 빈 값 → 플레이스홀더로 대체된 **최종 값**이라
+    // 그 값을 그대로 재사용한다(빈 문자열이 캐러셀에 들어가는 사고를 막는다).
+    const hospitalData = buildHospitalData(latitude, longitude);
+    props.onSubmit({ ...hospitalData, images: [hospitalData.thumbnail] }, buildDoctorsPayload(specialists));
   };
 
   const handleSaveHospitalOnly = () => {
@@ -311,9 +326,12 @@ export function HospitalForm(props: HospitalFormProps) {
 
   const handleSaveRoster = () => {
     if (props.mode !== 'split') return;
+    // 버튼이 이미 비활성이지만 방어적으로 한 번 더 막는다 — 특히 `hasBlankExistingName` 은
+    // 여기서 막지 않으면 아래 patch 경로가 그 항목을 `deletions` 대신 빈 이름 `updates` 로
+    // 보내 422 로 실패하거나(운 좋으면), 최악의 경우 조용히 삭제된다.
+    if (rosterBlocked) return;
 
     if (hasNewSpecialistEntries) {
-      if (rosterBlocked) return; // 버튼이 이미 비활성이지만 방어적으로 한 번 더 막는다.
       props.onSaveRoster({ mode: 'replace', doctors: buildDoctorsPayload(specialists) });
       return;
     }
@@ -561,6 +579,12 @@ export function HospitalForm(props: HospitalFormProps) {
             />
           </View>
 
+          {entry.id && entry.name.trim().length === 0 ? (
+            <p role="alert" className="mb-2 text-xs text-rose-500">
+              {initialDoctorsById.get(entry.id)?.name ?? '이 전문의'}의 이름 칸이 비어 있어요. 삭제하려면
+              이름이 아니라 위의 "삭제" 를 눌러주세요 — 이대로 저장하면 안내만 하고 저장하지 않아요.
+            </p>
+          ) : null}
           {entry.specialty === null ? (
             <Text className="mb-2 text-xs text-amber-600">
               검수 대기 중이라 전공을 확인할 수 없어요. 저장하려면 전공을 다시 선택해주세요.
@@ -595,7 +619,14 @@ export function HospitalForm(props: HospitalFormProps) {
           <PrimaryButton label={props.submitLabel} onPress={handleSubmitCombined} disabled={!canSubmitHospital} />
         ) : (
           <>
-            {rosterBlocked ? (
+            {hasBlankExistingName ? (
+              <Text className="mb-2 text-xs text-rose-500">
+                이름이 비어 있는 전문의가 있어 저장할 수 없어요:{' '}
+                {blankExistingSpecialists
+                  .map((entry) => (entry.id ? (initialDoctorsById.get(entry.id)?.name ?? '이름 없는 항목') : '이름 없는 항목'))
+                  .join(', ')}
+              </Text>
+            ) : unresolvedSpecialtyBlocked ? (
               <Text className="mb-2 text-xs text-amber-600">
                 검수 대기·반려 상태인 전문의가 있어 새 전문의를 추가할 수 없어요. 운영자 검수 후 가능합니다.
               </Text>

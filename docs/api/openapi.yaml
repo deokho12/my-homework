@@ -3932,7 +3932,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/Doctor'
         - type: object
-          description: 관리자 전용 확장. `Cache-Control: no-store`.
+          description: '관리자 전용 확장. `Cache-Control: no-store`.'
           required: [certificateUrl, rejectionReason]
           properties:
             specialty:

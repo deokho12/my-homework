@@ -70,6 +70,14 @@ export interface HospitalWriteInput {
   businessHours: BusinessHourEntry[];
   directions: string;
   features: HospitalFeatures;
+  /**
+   * 병원 상세의 사진 캐러셀. **등록(신규) 경로에서만** 보낸다 — `[thumbnail]` 로 채워서
+   * 새로 만든 병원이 최소 1장의 캐러셀 사진을 갖게 한다. 수정 경로는 이 키를 절대 보내지
+   * 않는다 — 이미 여러 장의 진짜 사진을 가진 병원의 갤러리를 대표 이미지 한 장으로
+   * 덮어쓰게 되기 때문이다(회귀). 그 화면에 캐러셀 편집기가 생기기 전까지는
+   * `docs/features/known-issues.md` 의 알려진 한계로 남는다.
+   */
+  images?: string[];
 }
 
 export type ManagedHospitalFilters = {

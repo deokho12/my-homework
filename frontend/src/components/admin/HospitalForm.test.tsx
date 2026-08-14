@@ -260,6 +260,63 @@ describe('HospitalForm — split 모드 (수정 화면)', () => {
     expect(action.deletions).toEqual([{ id: 'd1', name: '김민준' }]);
   });
 
+  it('기존 전문의 이름을 지우면 저장이 막히고 DELETE 로 가지 않는다 (조용한 삭제 방지)', async () => {
+    vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue(procedures);
+    const onSaveRoster = vi.fn();
+
+    renderWithProviders(
+      <HospitalForm
+        mode="split"
+        initial={baseHospital()}
+        doctors={[baseDoctor()]}
+        canEditRecommended={false}
+        onSaveHospital={vi.fn()}
+        onSaveRoster={onSaveRoster}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByText('전문의 1')).toBeInTheDocument());
+    await userEvent.clear(screen.getByPlaceholderText('이름'));
+
+    expect(screen.getByText(/이름이 비어 있는 전문의가 있어 저장할 수 없어요/)).toBeInTheDocument();
+    expect(screen.getByText(/이름 칸이 비어 있어요/)).toHaveTextContent('김민준');
+    expect(screen.getByRole('button', { name: '전문의 정보 저장' })).toHaveAttribute('aria-disabled', 'true');
+
+    await userEvent.click(screen.getByRole('button', { name: '전문의 정보 저장' }));
+    expect(onSaveRoster).not.toHaveBeenCalled();
+  });
+
+  it('새로 추가한 빈 이름 행은 조용히 빠지고 저장을 막지 않는다', async () => {
+    vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue(procedures);
+    const onSaveRoster = vi.fn();
+
+    renderWithProviders(
+      <HospitalForm
+        mode="split"
+        initial={baseHospital()}
+        doctors={[baseDoctor()]}
+        canEditRecommended={false}
+        onSaveHospital={vi.fn()}
+        onSaveRoster={onSaveRoster}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByText('전문의 1')).toBeInTheDocument());
+    await userEvent.click(screen.getByText('+ 전문의 추가'));
+    // 새로 추가한 "전문의 2" 의 이름은 비워둔 채로 둔다 — id 가 없는 새 행이라 조용히 빠져야 한다.
+
+    expect(screen.queryByText(/이름이 비어 있는 전문의가 있어 저장할 수 없어요/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '전문의 정보 저장' })).not.toHaveAttribute('aria-disabled', 'true');
+
+    await userEvent.click(screen.getByRole('button', { name: '전문의 정보 저장' }));
+
+    const action = onSaveRoster.mock.calls[0][0] as RosterSaveAction;
+    expect(action.mode).toBe('patch');
+    if (action.mode !== 'patch') throw new Error('unreachable');
+    expect(action.deletions).toEqual([]);
+    expect(action.updates).toHaveLength(1); // 기존 전문의(김민준)는 변경 없이도 patch 에 실린다 — 기존 동작
+  });
+
   it('canEditRecommended=false 면 추천 병원 체크박스를 숨기고 현재 상태만 읽기 전용으로 보여준다', async () => {
     vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue(procedures);
 
@@ -310,6 +367,64 @@ describe('HospitalForm — combined 모드 (등록 화면)', () => {
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     const [data] = onSubmit.mock.calls[0];
     expect(data.isRecommended).toBe(true);
+  });
+
+  it('등록 시 대표 이미지가 캐러셀 images 로도 함께 전송된다', async () => {
+    vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue(procedures);
+    vi.spyOn(geocoding, 'searchAddress').mockResolvedValue([
+      { id: 'a1', addressName: '서울 강남구 테스트로 1', latitude: 37.1, longitude: 127.1 },
+    ]);
+    const onSubmit = vi.fn();
+
+    renderWithProviders(
+      <HospitalForm mode="combined" canEditRecommended={false} submitLabel="등록하기" onSubmit={onSubmit} />
+    );
+
+    await userEvent.type(screen.getByPlaceholderText('병원명을 입력해주세요'), '새 치과');
+    await userEvent.type(screen.getByPlaceholderText('예: 서울 강남구'), '서울 강남구');
+    await userEvent.type(screen.getByPlaceholderText('도로명 또는 지번 주소를 입력해주세요'), '테스트로');
+    await waitFor(() => expect(screen.getByText('서울 강남구 테스트로 1')).toBeInTheDocument());
+    await userEvent.click(screen.getByText('서울 강남구 테스트로 1'));
+    await userEvent.click(screen.getByRole('button', { name: '임플란트' }));
+    await userEvent.type(screen.getByPlaceholderText('최소'), '100000');
+    await userEvent.type(screen.getByPlaceholderText('최대'), '200000');
+    await userEvent.type(screen.getByPlaceholderText('https://...'), 'https://example.com/my-thumb.jpg');
+
+    await userEvent.click(screen.getByRole('button', { name: '등록하기' }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    const [data] = onSubmit.mock.calls[0];
+    expect(data.thumbnail).toBe('https://example.com/my-thumb.jpg');
+    expect(data.images).toEqual(['https://example.com/my-thumb.jpg']);
+  });
+
+  it('대표 이미지를 비워두고 등록하면 플레이스홀더 이미지가 images 에도 그대로 들어간다', async () => {
+    vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue(procedures);
+    vi.spyOn(geocoding, 'searchAddress').mockResolvedValue([
+      { id: 'a1', addressName: '서울 강남구 테스트로 1', latitude: 37.1, longitude: 127.1 },
+    ]);
+    const onSubmit = vi.fn();
+
+    renderWithProviders(
+      <HospitalForm mode="combined" canEditRecommended={false} submitLabel="등록하기" onSubmit={onSubmit} />
+    );
+
+    await userEvent.type(screen.getByPlaceholderText('병원명을 입력해주세요'), '새 치과');
+    await userEvent.type(screen.getByPlaceholderText('예: 서울 강남구'), '서울 강남구');
+    await userEvent.type(screen.getByPlaceholderText('도로명 또는 지번 주소를 입력해주세요'), '테스트로');
+    await waitFor(() => expect(screen.getByText('서울 강남구 테스트로 1')).toBeInTheDocument());
+    await userEvent.click(screen.getByText('서울 강남구 테스트로 1'));
+    await userEvent.click(screen.getByRole('button', { name: '임플란트' }));
+    await userEvent.type(screen.getByPlaceholderText('최소'), '100000');
+    await userEvent.type(screen.getByPlaceholderText('최대'), '200000');
+    // 대표 이미지는 선택 입력이라 비워둔다.
+
+    await userEvent.click(screen.getByRole('button', { name: '등록하기' }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    const [data] = onSubmit.mock.calls[0];
+    expect(data.thumbnail).toBe('https://picsum.photos/seed/molarmolar-new/800/500');
+    expect(data.images).toEqual(['https://picsum.photos/seed/molarmolar-new/800/500']);
   });
 
   it('새로 추가하는 전문의는 항상 기본 전공이 선택돼 있어 등록이 막히지 않는다', async () => {
