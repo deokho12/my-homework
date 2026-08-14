@@ -1,13 +1,9 @@
 import { consultRequests as seedConsultRequests } from '@/mocks/fixtures/consultRequests';
-import { doctors as seedDoctors } from '@/mocks/fixtures/doctors';
-import { hospitals as seedHospitals } from '@/mocks/fixtures/hospitals';
 import { notifications as seedNotifications } from '@/mocks/fixtures/notifications';
 import { qaPosts as seedQaPosts } from '@/mocks/fixtures/qaPosts';
 import type {
   AppNotification,
   ConsultRequest,
-  Doctor,
-  Hospital,
   QAPost,
 } from '@/types/domain';
 
@@ -16,10 +12,12 @@ import type {
  * 이 모듈은 삭제된다. 그때까지 영속화 책임은 여기에 있다 — Zustand persist 가
  * 아니다. 서버성 데이터를 TanStack Query 가 관리하는데 Zustand 도 같은 값을
  * 붙들고 있으면 두 캐시가 어긋나기 때문이다.
+ *
+ * `hospitals`·`doctors` 는 실제 API 로 옮겨가며 여기서 빠졌다(Task 20). 남은 세
+ * 테이블(`consultRequests`·`communityPosts`·`notifications`)은 아직 이 목 DB 가
+ * 원본이다 — 각자의 이전 조각이 끝나면 함께 빠진다.
  */
 interface Tables {
-  hospitals: Hospital[];
-  doctors: Doctor[];
   consultRequests: ConsultRequest[];
   communityPosts: QAPost[];
   notifications: AppNotification[];
@@ -30,8 +28,6 @@ export type MockTable = keyof Tables;
 const STORAGE_PREFIX = 'molarmolar-mockdb-';
 
 const SEEDS: Tables = {
-  hospitals: seedHospitals,
-  doctors: seedDoctors,
   consultRequests: seedConsultRequests,
   communityPosts: seedQaPosts,
   notifications: seedNotifications,
@@ -43,8 +39,6 @@ const SEEDS: Tables = {
  * 키와 안쪽 필드 이름은 각 스토어의 persist 설정에서 그대로 가져온 값이다.
  */
 const LEGACY_SOURCES: Record<MockTable, { key: string; field: string }> = {
-  hospitals: { key: 'molarmolar-hospitals', field: 'hospitals' },
-  doctors: { key: 'molarmolar-doctors', field: 'doctors' },
   consultRequests: { key: 'molarmolar-consult-requests', field: 'requests' },
   communityPosts: { key: 'molarmolar-community-posts', field: 'posts' },
   notifications: { key: 'molarmolar-notifications', field: 'notifications' },

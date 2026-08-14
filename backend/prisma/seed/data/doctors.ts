@@ -1,8 +1,11 @@
 import { DOCTOR_FEMALE_1, DOCTOR_FEMALE_2, DOCTOR_FEMALE_3, DOCTOR_FEMALE_4, DOCTOR_MALE_1, DOCTOR_MALE_2, DOCTOR_MALE_3, sized } from '@/config/stockImages';
 import type { Doctor } from '@/types/domain';
-import { getVisibleSpecialtyLabel, isVerifiedSpecialist } from '@/utils/specialty';
 
-const rawDoctors: Omit<Doctor, 'visibleSpecialty' | 'isVerifiedSpecialist'>[] = [
+/** 시드 소스 행. `visibleSpecialty`/`isVerifiedSpecialist` 는 여기서 채우지 않는다 — 그 둘은
+ * 서버 계산 필드(`backend/src/doctor/doctor.projection.ts`)이고, 시드는 `verificationStatus`
+ * 로부터 `verifiedSpecialty` 를 직접 유도한다(`prisma/seed.ts`). 시드 소스가 그 필드를
+ * 미리 계산해 들고 있으면 판정 규칙이 두 곳에 생기는 셈이라 여기서는 원본 행만 내보낸다. */
+export const doctors: Omit<Doctor, 'visibleSpecialty' | 'isVerifiedSpecialist'>[] = [
   {
     id: 'd1',
     name: '김민준',
@@ -283,14 +286,3 @@ const rawDoctors: Omit<Doctor, 'visibleSpecialty' | 'isVerifiedSpecialist'>[] = 
     career: ['전 충남대학교병원 구강악안면외과 전공의'],
   },
 ];
-
-/**
- * 서버가 계산해 내려주는 필드(`visibleSpecialty`/`isVerifiedSpecialist`). 목 백엔드가
- * 서버 대역이므로 여기서 기존 클라이언트 규칙(`src/utils/specialty.ts`)으로 채운다 —
- * 판정 규칙이 두 곳에 있으면 갈릴 수 있으므로 그 함수들을 그대로 재사용한다.
- */
-export const doctors: Doctor[] = rawDoctors.map((doctor) => ({
-  ...doctor,
-  visibleSpecialty: getVisibleSpecialtyLabel(doctor),
-  isVerifiedSpecialist: isVerifiedSpecialist(doctor),
-}));

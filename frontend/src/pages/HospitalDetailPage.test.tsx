@@ -4,10 +4,52 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import * as hospitalApi from '@/features/hospital/api/hospitalApi';
 import { ApiError } from '@/lib/apiClient';
-import { mockDb } from '@/mocks/db';
 import HospitalDetailPage from '@/pages/HospitalDetailPage';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import type { Hospital } from '@/types/domain';
+
+function baseHospital(overrides: Partial<Hospital> = {}): Hospital {
+  return {
+    id: 'h1',
+    name: '강남 스마일 치과',
+    specialty: '임플란트 전문의원',
+    region: '서울 강남구',
+    latitude: 37.5006,
+    longitude: 127.0364,
+    thumbnail: 'https://example.com/thumb.jpg',
+    images: [],
+    procedureIds: ['implant'],
+    priceRange: { min: 900000, max: 1800000 },
+    rating: 4.8,
+    reviewCount: 312,
+    consultCount: 128,
+    consultAvailable: true,
+    businessHours: [],
+    directions: '',
+    features: {
+      coordinator: true,
+      painlessAnesthesia: true,
+      digitalCare: true,
+      parking: true,
+      nightConsult: true,
+      cctv: false,
+    },
+    isOneDay: true,
+    isRecommended: true,
+    isSponsored: false,
+    sponsoredCategories: [],
+    sponsoredRank: null,
+    sponsoredStartDate: null,
+    sponsoredEndDate: null,
+    tags: [],
+    address: '서울특별시 강남구 테헤란로 123',
+    introduction: '',
+    events: [],
+    sponsorship: { isActive: false, isPlacementEligible: false },
+    representativeSpecialty: null,
+    ...overrides,
+  };
+}
 
 /**
  * `fetchHospitalById` 는 이제 HTTP 를 부른다 — 목 백엔드를 거치지 않으므로 매 테스트가
@@ -19,7 +61,7 @@ describe('HospitalDetailPage', () => {
   });
 
   it('로딩 중에는 status 영역을 보여준다', () => {
-    const target = mockDb.read('hospitals')[0];
+    const target = baseHospital();
     // 응답이 오지 않은 상태를 고정한다 — resolve/reject 하지 않는 프라미스.
     vi.spyOn(hospitalApi, 'fetchHospitalById').mockReturnValue(new Promise(() => {}));
 
@@ -33,7 +75,7 @@ describe('HospitalDetailPage', () => {
   });
 
   it('불러온 병원 이름을 렌더한다', async () => {
-    const target = mockDb.read('hospitals')[0];
+    const target = baseHospital();
     vi.spyOn(hospitalApi, 'fetchHospitalById').mockResolvedValue(target);
 
     renderWithProviders(<HospitalDetailPage />, {
@@ -77,7 +119,7 @@ describe('HospitalDetailPage', () => {
   });
 
   it('다시 시도가 성공하면 병원 정보를 렌더하고 에러를 치운다', async () => {
-    const target = mockDb.read('hospitals')[0];
+    const target = baseHospital();
     const spy = vi
       .spyOn(hospitalApi, 'fetchHospitalById')
       .mockRejectedValueOnce(
@@ -99,7 +141,7 @@ describe('HospitalDetailPage', () => {
   });
 
   it('businessHours/features 가 없는 병원도 폴백 문구로 렌더한다', async () => {
-    const base = mockDb.read('hospitals')[0];
+    const base = baseHospital();
     // 목 데이터 백필이 끝나지 않은 레코드를 재현한다 — 타입상 필수지만 실제로는 빠질 수 있다.
     const partial = {
       ...base,

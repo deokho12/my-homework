@@ -81,7 +81,7 @@ export interface Hospital {
   isOneDay: boolean;
   /** Editorially curated pick, surfaced under the "추천" filter. */
   isRecommended: boolean;
-  /** Paid placement. Category-scoped, ranked, and time-boxed — see src/utils/sponsorship.ts for the active-window/eligibility rules. */
+  /** Paid placement. Category-scoped, ranked, and time-boxed — the active-window/eligibility rules live on the server, see backend/src/hospital/sponsorship.ts. */
   isSponsored: boolean;
   sponsoredCategories: ProcedureId[];
   /** Lower ranks surface first among sponsored hospitals within the same category. Null when not sponsored. */
@@ -97,8 +97,7 @@ export interface Hospital {
   /**
    * 서버가 계산한다 (`backend/src/hospital/sponsorship.ts`). 사용자 화면(탐색·병원 카드·
    * 병원 상세)은 이 값을 그대로 쓴다 — 기기 시계로 광고 기간을 다시 계산하지 않는다.
-   * `src/utils/sponsorship.ts`(클라이언트 계산)는 이제 호출부가 없다 — 스토어 정리 Task 가
-   * 함께 지운다 (지금은 그대로 둔다).
+   * 클라이언트 계산 규칙은 없다(규칙은 서버 한 곳에만 있다).
    */
   sponsorship: SponsorshipState;
   /** 병원 카드의 `OO전문의 상주` 배지. 서버가 계산한다. 없으면 null. */
