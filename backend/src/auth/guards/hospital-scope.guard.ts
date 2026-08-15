@@ -5,6 +5,7 @@ import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 
 import { ApiError } from '../../common/errors/api-error';
+import { traceStep } from '../../common/logging/dev-trace';
 import { HOSPITAL_SCOPE_METADATA_KEY } from '../decorators/hospital-scope.decorator';
 import type { HospitalScopeOptions, HospitalScopeResource } from '../decorators/hospital-scope.decorator';
 /* eslint-disable @typescript-eslint/consistent-type-imports */
@@ -111,7 +112,17 @@ export class HospitalScopeGuard implements CanActivate {
     return true;
   }
 
+  /** 통과한 두 경로(운영자 / 담당 병원)가 모두 여기를 지나므로 추적 줄도 여기 한 곳에 둔다. */
   private attach(request: Request, scope: ResolvedScope): void {
     (request as Request & Record<string, unknown>)[SCOPE_KEY] = scope;
+
+    // 자원이 병원 자신이면 `resourceId` 와 `hospitalId` 가 같은 값이라 한 번만 적는다.
+    // 상담·전문의처럼 병원에 딸린 자원일 때만 둘을 함께 보여준다.
+    const target =
+      scope.resource === 'hospital'
+        ? `hospital=${scope.hospitalId}`
+        : `${scope.resource}=${scope.resourceId} hospital=${scope.hospitalId}`;
+
+    traceStep(request, 'scope ✓', `${target} managed=${scope.managed}`);
   }
 }

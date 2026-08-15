@@ -3,6 +3,7 @@ import type { CanActivate, ExecutionContext } from '@nestjs/common';
 import type { Request } from 'express';
 
 import { ApiError } from '../../common/errors/api-error';
+import { traceStep } from '../../common/logging/dev-trace';
 import type { AuthenticatedUser } from '../auth.types';
 /* eslint-disable @typescript-eslint/consistent-type-imports */
 import { TokenService } from '../token.service';
@@ -78,6 +79,8 @@ export class AuthGuard implements CanActivate {
       provider: account.provider,
       role: account.role,
     } satisfies AuthenticatedUser;
+
+    traceStep(request, 'auth ✓', `${account.id} (${account.role})`);
 
     return true;
   }

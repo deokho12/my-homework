@@ -2,6 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import type { OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
+import { isDevTraceEnabled } from '../common/logging/dev-trace';
+
 /**
  * Prisma Client 를 NestJS 의 lifecycle 에 붙인 래퍼.
  *
@@ -19,11 +21,21 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
 
   constructor() {
     super({
-      // 쿼리 로그는 필요할 때 켜세요. 기본은 경고/에러만.
-      log: [
-        { emit: 'stdout', level: 'warn' },
-        { emit: 'stdout', level: 'error' },
-      ],
+      // 기본은 경고/에러만. **개발 모드에서만** 쿼리 로그를 함께 켠다.
+      //
+      // 이것이 단계 추적(`common/logging/dev-trace.ts`)의 나머지 절반이다 — 추적 줄이
+      // "어느 단계까지 갔는가" 를 보여주고, 이 쿼리 줄이 "그 단계가 DB 에 무엇을
+      // 물었는가" 를 보여준다. 덕분에 서비스·리포지토리를 한 줄도 계측하지 않아도 된다.
+      log: isDevTraceEnabled()
+        ? [
+            { emit: 'stdout', level: 'query' },
+            { emit: 'stdout', level: 'warn' },
+            { emit: 'stdout', level: 'error' },
+          ]
+        : [
+            { emit: 'stdout', level: 'warn' },
+            { emit: 'stdout', level: 'error' },
+          ],
     });
   }
 

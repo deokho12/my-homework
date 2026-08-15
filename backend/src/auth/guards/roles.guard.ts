@@ -5,6 +5,7 @@ import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 
 import { ApiError } from '../../common/errors/api-error';
+import { traceStep } from '../../common/logging/dev-trace';
 import type { UserRole } from '../auth.types';
 import { ROLES_METADATA_KEY } from '../decorators/roles.decorator';
 import { getAuthUser } from './auth.guard';
@@ -47,6 +48,8 @@ export class RolesGuard implements CanActivate {
     if (!required.includes(user.role)) {
       throw new ApiError('FORBIDDEN');
     }
+
+    traceStep(request, 'roles ✓', `allowed=[${required.join(', ')}]`);
 
     return true;
   }

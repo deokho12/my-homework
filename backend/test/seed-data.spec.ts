@@ -213,7 +213,14 @@ describe('시드 데이터 (integration)', () => {
   });
 
   it('개발용 계정 19개가 역할별로 있고 비밀번호는 해시로만 저장된다', async () => {
-    const users = await prisma.user.findMany({ orderBy: { id: 'asc' } });
+    // **시드가 만든 계정만 본다.** 개발 DB 는 `npm run dev` 로 띄운 앱과 같은 파일이라
+    // 화면에서 한 번 가입해 보면 그 계정이 여기 섞인다. 전체 건수로 단정하면
+    // (예전 `expect(users).toHaveLength(19)`) 누군가 가입해 보는 것만으로 이 테스트가
+    // 빨개지는데, 그건 시드의 결함이 아니다. 시드 계정은 도메인이 `.example` 이라
+    // 실제 가입 계정과 구분된다.
+    const users = (await prisma.user.findMany({ orderBy: { id: 'asc' } })).filter((user) =>
+      user.email.endsWith('@molarmolar.example'),
+    );
 
     expect(users).toHaveLength(19);
     expect(users.filter((u) => u.role === 'operator')).toHaveLength(1);
@@ -223,7 +230,6 @@ describe('시드 데이터 (integration)', () => {
     for (const user of users) {
       // 이메일은 정규화되어 저장된다 (docs §3.9)
       expect(user.email).toBe(user.email.trim().toLowerCase());
-      expect(user.email.endsWith('@molarmolar.example')).toBe(true);
       // bcrypt 해시 형태. 평문 비밀번호 컬럼은 스키마에 아예 없다 (docs §5.9)
       expect(user.passwordHash).toMatch(/^\$2[aby]\$12\$/);
       expect(user.deletedAt).toBeNull();

@@ -2,6 +2,7 @@ import type { INestApplication } from '@nestjs/common';
 
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { requestIdMiddleware } from './common/http/request-id';
+import { devTraceMiddleware } from './common/logging/dev-trace';
 
 /**
  * HTTP 레벨 설정을 **한 곳에** 모은다. `main.ts` 와 e2e 테스트가 같은 함수를 호출한다.
@@ -18,6 +19,11 @@ import { requestIdMiddleware } from './common/http/request-id';
 export function configureApp(app: INestApplication): void {
   // 요청 id 는 예외 필터보다 먼저 붙어야 한다 (에러 본문이 이 값을 쓴다)
   app.use(requestIdMiddleware);
+
+  // 개발용 단계 추적. `NODE_ENV=development` 가 아니면 스스로 아무것도 하지 않으므로
+  // 테스트(이 함수를 그대로 쓴다)와 운영에서는 조용하다. 요청 id 뒤에 붙는 이유는
+  // 상관 키가 그 미들웨어가 붙인 값이기 때문이다.
+  app.use(devTraceMiddleware);
 
   // 모든 라우트에 `/api/v1` 접두어. `docs/api/openapi.yaml` 의 `servers` 와 같은 값이고,
   // 프론트엔드는 `VITE_API_BASE_URL` 로, Flutter 앱은 같은 base URL 로 이 경로를 가리킨다.

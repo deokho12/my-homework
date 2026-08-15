@@ -5,6 +5,7 @@ import type { Request, Response } from 'express';
 import { ERROR_CATALOG } from '../errors/api-error';
 import type { ApiErrorCode, ApiErrorDetail } from '../errors/api-error';
 import { getRequestId } from '../http/request-id';
+import { traceStep } from '../logging/dev-trace';
 
 /**
  * 모든 4xx/5xx 응답 본문. docs/api/openapi.yaml `components.schemas.Error` 와 같은 모양이다.
@@ -41,6 +42,14 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const request = ctx.getRequest<Request>();
 
     const { status, body } = this.toResponse(exception, getRequestId(request));
+
+    // 막은 이유를 단계 추적에 남긴다 (개발 모드 밖에서는 no-op). 마지막으로 찍힌 `✓` 가
+    // 통과한 마지막 단계이므로, 이 한 줄이 "어느 단계에서 왜 멈췄는가" 를 완성한다.
+    traceStep(
+      request,
+      `✗ ${body.error.code}`,
+      body.error.details?.map((detail) => detail.field).join(', ') ?? '',
+    );
 
     if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
       this.logger.error(
