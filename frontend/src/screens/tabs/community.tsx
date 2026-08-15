@@ -1,11 +1,12 @@
 import { router, useFocusEffect } from '@/navigation';
 import { useCallback, useRef } from 'react';
 import type { NativeScrollEvent, NativeSyntheticEvent } from '@/primitives';
-import { FlatList, Pressable, Text, View } from '@/primitives';
+import { FlatList, Pressable, Text, View, cx } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
 
 import { Badge } from '@/components/Badge';
-import { getProcedureById } from '@/data/procedures';
+import { CONTAINER_PADDING } from '@/components/layout/Container';
+import { useProcedureMap } from '@/features/procedure';
 import { useCommunityStore } from '@/store/useCommunityStore';
 import { useScrollShadowStore } from '@/store/useScrollShadowStore';
 import type { QAPost } from '@/types/domain';
@@ -13,7 +14,8 @@ import type { QAPost } from '@/types/domain';
 const SCROLL_SHADOW_THRESHOLD = 8;
 
 function PostRow({ post }: { post: QAPost }) {
-  const procedure = getProcedureById(post.procedureId);
+  const procedureMap = useProcedureMap();
+  const procedure = procedureMap.get(post.procedureId);
 
   return (
     <Pressable
@@ -57,7 +59,7 @@ export default function CommunityScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-neutral-50" edges={['top']}>
-      <View className="flex-row items-center justify-between px-5 pb-2 pt-3">
+      <View className={cx(CONTAINER_PADDING, 'flex-row items-center justify-between pb-2 pt-3')}>
         <View>
           <Text className="text-2xl font-extrabold text-neutral-900">커뮤니티</Text>
           <Text className="mt-1 text-sm text-neutral-500">궁금한 점을 물어보고 답변을 받아보세요</Text>
@@ -74,7 +76,7 @@ export default function CommunityScreen() {
         data={posts}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => <PostRow post={item} />}
-        contentContainerClassName="px-5 pb-8 pt-3"
+        contentContainerClassName={cx(CONTAINER_PADDING, 'pb-8 pt-3')}
         onScroll={handleScroll}
         scrollEventThrottle={16}
       />

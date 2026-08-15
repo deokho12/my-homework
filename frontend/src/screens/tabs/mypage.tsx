@@ -1,20 +1,44 @@
 import { router, useFocusEffect } from '@/navigation';
 import { useCallback, useRef } from 'react';
 import type { NativeScrollEvent, NativeSyntheticEvent } from '@/primitives';
-import { FlatList, Pressable, Text, View } from '@/primitives';
+import { FlatList, Pressable, Text, View, cx } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
 
-import { HospitalCard } from '@/components/HospitalCard';
+import { CONTAINER_PADDING } from '@/components/layout/Container';
+import { useHospital } from '@/features/hospital';
+import { HospitalCard } from '@/features/hospital/components/HospitalCard';
 import { PrimaryButton } from '@/components/PrimaryButton';
+import { useSession } from '@/features/auth/hooks/useSession';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useFavoritesStore } from '@/store/useFavoritesStore';
-import { getHospitalById } from '@/store/useHospitalStore';
 import { useNotificationStore } from '@/store/useNotificationStore';
 import { useScrollShadowStore } from '@/store/useScrollShadowStore';
-import type { Hospital } from '@/types/domain';
 import { showAlert } from '@/utils/alert';
 
 const SCROLL_SHADOW_THRESHOLD = 8;
+
+/**
+ * 찜한 병원 하나를 조회해 렌더한다 — 공개 목록 API 는 id 배열로 한 번에 묻는 필터가 없어
+ * 항목마다 `useHospital` 을 부른다. 로딩 중에는 자리만 비우고(스켈레톤), 조회가 끝났는데도
+ * 없으면(삭제된 병원 등) 조용히 걷어낸다 — 예전 `getHospitalById()` 필터링과 같은 동작이다.
+ */
+function FavoriteHospitalCard({ hospitalId }: { hospitalId: string }) {
+  const { data: hospital, isLoading } = useHospital(hospitalId);
+
+  if (isLoading) {
+    return (
+      <View
+        className="mb-4 h-40 w-full animate-pulse rounded-2xl bg-neutral-100"
+        role="status"
+        accessibilityLabel="찜한 병원 정보를 불러오는 중이에요"
+      />
+    );
+  }
+
+  if (!hospital) return null;
+
+  return <HospitalCard hospital={hospital} />;
+}
 
 function AuthCard() {
   const user = useAuthStore((state) => state.user);
@@ -51,7 +75,15 @@ function AuthCard() {
         onPress={() =>
           showAlert('로그아웃', '로그아웃할까요?', [
             { text: '취소', style: 'cancel' },
-            { text: '로그아웃', style: 'destructive', onPress: logOut },
+            {
+              text: '로그아웃',
+              style: 'destructive',
+              // 서버 세션 폐기(`POST /auth/logout`)를 기다리지 않고 화면은 즉시 반응한다 —
+              // 로컬 상태는 스토어가 성공·실패와 무관하게 비운다.
+              onPress: () => {
+                void logOut();
+              },
+            },
           ])
         }
         className="items-center rounded-xl border border-neutral-200 py-3"
@@ -89,11 +121,8 @@ function NotificationLinkRow() {
 }
 
 export default function MyPageScreen() {
-  const user = useAuthStore((state) => state.user);
+  const { user, isHospitalAdmin } = useSession();
   const hospitalIds = useFavoritesStore((state) => state.hospitalIds);
-  const favoriteHospitals = hospitalIds
-    .map((id) => getHospitalById(id))
-    .filter((hospital): hospital is Hospital => Boolean(hospital));
   const setScrolled = useScrollShadowStore((state) => state.setScrolled);
   const scrollOffsetRef = useRef(0);
 
@@ -112,10 +141,10 @@ export default function MyPageScreen() {
   return (
     <SafeAreaView className="flex-1 bg-neutral-50" edges={['top']}>
       <FlatList
-        data={user ? favoriteHospitals : []}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => <HospitalCard hospital={item} />}
-        contentContainerClassName="px-5 pb-8 pt-3"
+        data={user ? hospitalIds : []}
+        keyExtractor={(id) => id}
+        renderItem={({ item }) => <FavoriteHospitalCard hospitalId={item} />}
+        contentContainerClassName={cx(CONTAINER_PADDING, 'pb-8 pt-3')}
         onScroll={handleScroll}
         scrollEventThrottle={16}
         ListHeaderComponent={
@@ -137,9 +166,13 @@ export default function MyPageScreen() {
           ) : null
         }
         ListFooterComponent={
-          <Pressable onPress={() => router.push('/admin')} className="mt-6 items-center py-4">
-            <Text className="text-xs text-neutral-400 underline">병원 담당자이신가요? 관리자 페이지</Text>
-          </Pressable>
+          // 권한이 있는 계정에만 보여준다. 예전에는 로그인 여부와 무관하게 노출되어
+          // 우연히 관리자 화면에 들어가는 경로가 됐다 (`docs/features/known-issues.md` 🔴).
+          isHospitalAdmin ? (
+            <Pressable onPress={() => router.push('/admin')} className="mt-6 items-center py-4">
+              <Text className="text-xs text-neutral-400 underline">관리자 페이지</Text>
+            </Pressable>
+          ) : null
         }
       />
     </SafeAreaView>

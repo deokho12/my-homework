@@ -1,13 +1,14 @@
 import { router, Stack } from '@/navigation';
 import { useMemo, useState } from 'react';
-import { FlatList, Pressable, Text, View } from '@/primitives';
+import { FlatList, Pressable, Text, View, cx } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
 
 import { Badge } from '@/components/Badge';
 import { Chip } from '@/components/Chip';
-import { getProcedureById } from '@/data/procedures';
+import { CONTAINER_PADDING } from '@/components/layout/Container';
+import { useHospital } from '@/features/hospital';
+import { useProcedureMap, useProcedures } from '@/features/procedure';
 import { useConsultStore } from '@/store/useConsultStore';
-import { getHospitalById } from '@/store/useHospitalStore';
 import { CONSULT_STATUS_LABEL, CONSULT_STATUSES, type ConsultRequest, type ConsultStatus } from '@/types/domain';
 
 type FilterKey = 'all' | ConsultStatus;
@@ -46,8 +47,16 @@ function QuickStatusButton({
 
 function ConsultCard({ request }: { request: ConsultRequest }) {
   const updateStatus = useConsultStore((state) => state.updateStatus);
-  const hospital = getHospitalById(request.hospitalId);
-  const procedure = request.procedureId ? getProcedureById(request.procedureId) : undefined;
+  const procedureMap = useProcedureMap();
+  const { isPending: proceduresPending } = useProcedures();
+  const { data: hospital, isLoading: isHospitalLoading } = useHospital(request.hospitalId);
+  const procedure = request.procedureId ? procedureMap.get(request.procedureId) : undefined;
+  // "시술 미지정" 은 `request.procedureId` 가 정말 `null` 일 때만 맞는 말이다. id 는
+  // 있는데 맵에 아직 없는 것은 시술 목록이 로딩 중이라는 뜻일 수 있어, "지정 안 됨" 이라고
+  // 잘못 단정하지 않고 중립 표시(—)를 쓴다.
+  const procedureLabel = procedure ? procedure.name : request.procedureId && proceduresPending ? '—' : '시술 미지정';
+  // 병원 이름도 같은 규칙이다 — 조회가 끝나기 전의 "없음"은 "아직 모름"이지 "알 수 없는 병원"이 아니다.
+  const hospitalLabel = isHospitalLoading ? '—' : (hospital?.name ?? '알 수 없는 병원');
 
   return (
     <Pressable
@@ -58,7 +67,7 @@ function ConsultCard({ request }: { request: ConsultRequest }) {
         <View className="flex-1 pr-2">
           <Text className="text-base font-bold text-neutral-900">{request.name}</Text>
           <Text className="mt-0.5 text-xs text-neutral-500">
-            {hospital?.name ?? '알 수 없는 병원'} · {procedure?.name ?? '시술 미지정'}
+            {hospitalLabel} · {procedureLabel}
           </Text>
         </View>
         <Badge
@@ -101,7 +110,7 @@ export default function AdminConsultationsScreen() {
   return (
     <SafeAreaView className="flex-1 bg-neutral-50" edges={['bottom']}>
       <Stack.Screen options={{ title: '상담 관리' }} />
-      <View className="px-5 pb-2 pt-4">
+      <View className={cx(CONTAINER_PADDING, 'pb-2 pt-4')}>
         <Text className="mb-1 text-lg font-bold text-neutral-900">상담 관리</Text>
         <Text className="mb-4 text-sm text-neutral-500">접수된 상담 신청을 확인하고 상태를 관리해요</Text>
         <View className="flex-row flex-wrap">
@@ -114,7 +123,7 @@ export default function AdminConsultationsScreen() {
       <FlatList
         data={filtered}
         keyExtractor={(item) => item.id}
-        contentContainerClassName="px-5 py-2"
+        contentContainerClassName={cx(CONTAINER_PADDING, 'py-2')}
         renderItem={({ item }) => <ConsultCard request={item} />}
         ListEmptyComponent={
           <View className="items-center px-8 py-16">

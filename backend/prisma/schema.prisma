@@ -1,0 +1,1025 @@
+// =============================================================================
+// 몰라몰라 (mola) — Prisma schema
+// =============================================================================
+// 현재: SQLite. 이전 대상: PostgreSQL 14+
+// 설계 근거와 이전 절차는 docs/database/README.md, 컬럼 주석은
+// docs/database/schema.dbml 에 있습니다. 이 파일은 그 스키마의 Prisma 표현입니다.
+//
+// 이식성 규칙 (PostgreSQL 로 옮길 때 깨지지 않게 하려고 지키는 것들):
+//   - enum 없음            → String + 애플리케이션 검증 (허용값은 각 필드 주석)
+//   - 스칼라 배열 없음      → 조인/자식 테이블
+//   - Json 컬럼 없음        → 실 컬럼 또는 자식 테이블
+//   - autoincrement 없음    → String @id, 애플리케이션이 cuid 생성
+//                            (기존 fixture 의 'h1','d1','cr1' 도 그대로 들어간다)
+//   - 금액은 Int(원). Float 은 표시용 평점에만
+//   - @default(now()) / @updatedAt 없음 → 애플리케이션이 UTC 로 명시 세팅
+//   - 달력 날짜(광고·프로모션 기간)는 String 'YYYY-MM-DD' (KST 달력일)
+//   - raw SQL 없음
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================================
+// 1. 참조 데이터
+// =============================================================================
+
+/// 시술 마스터 13종. ProcedureId 를 DB enum 대신 테이블 + FK 로 표현한다.
+model Procedure {
+  /// implant | orthodontics | laminate | inlay | crown | whitening |
+  /// wisdom-tooth | cavity | gum-disease | splint | snoring-device | tmj | botox
+  id               String @id
+  name             String
+  emoji            String
+  shortDescription String @map("short_description")
+  description      String
+  /// 홈 격자·탐색 칩·커뮤니티 시술 선택이 공유하는 고정 노출 순서
+  sortOrder        Int    @map("sort_order")
+
+  hospitals    HospitalProcedure[]
+  doctors      DoctorProcedure[]
+  sponsorships HospitalSponsorship[]
+  consults     ConsultRequest[]
+  reviews      Review[]
+  promotions   Promotion[]
+  guides       Guide[]
+  qaPosts      QaPost[]
+
+  @@index([sortOrder])
+  @@map("procedures")
+}
+
+// =============================================================================
+// 2. 계정 · 권한
+// =============================================================================
+
+model User {
+  id String @id
+
+  /// 항상 trim + lower 로 정규화해서 저장한다
+  email String @unique
+  name  String
+
+  /// AuthProvider: email | google | kakao
+  provider String
+
+  /// user | hospital_admin | operator
+  role String
+
+  /// bcrypt/argon2 해시. provider != 'email' 이면 null. 평문 컬럼은 두지 않는다
+  passwordHash String? @map("password_hash")
+  /// 해시 문자열에 salt 가 포함되지 않는 알고리즘을 쓸 때만 사용
+  passwordSalt String? @map("password_salt")
+
+  createdAt DateTime  @map("created_at")
+  updatedAt DateTime  @map("updated_at")
+  /// 회원 탈퇴(soft delete)
+  deletedAt DateTime? @map("deleted_at")
+
+  hospitalAdmins         HospitalAdmin[]
+  consultRequests        ConsultRequest[]
+  favorites              Favorite[]
+  qaPosts                QaPost[]
+  qaAnswers              QaAnswer[]
+  notificationRecipients NotificationRecipient[]
+  reviewedVerifications  DoctorVerification[]
+  consultStatusChanges   ConsultStatusChange[]
+  consultMemos           ConsultMemo[]
+
+  // 아래 4개는 §12~15 테이블의 **역방향 관계 필드**다. Prisma 는 관계의 양쪽에 필드를
+  // 요구하므로(한쪽만 선언하면 validate 실패) FK 를 새로 거는 대가로 추가된다.
+  // users 테이블의 컬럼·인덱스는 바뀌지 않는다 (DDL 변화 0).
+  refreshTokens     RefreshToken[]
+  auditLogs         AuditLog[]
+  reviewedInquiries PartnerInquiry[]
+  agreements        UserAgreement[]
+
+  @@index([role])
+  @@index([deletedAt])
+  @@map("users")
+}
+
+/// "이 사람은 어느 병원의 담당자인가". hospital_admin 의 권한 범위를 정한다.
+model HospitalAdmin {
+  id         String   @id
+  userId     String   @map("user_id")
+  hospitalId String   @map("hospital_id")
+  createdAt  DateTime @map("created_at")
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hospital Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, hospitalId])
+  @@index([hospitalId])
+  @@map("hospital_admins")
+}
+
+// =============================================================================
+// 3. 병원
+// =============================================================================
+
+model Hospital {
+  id String @id
+
+  name String
+  /// lower(trim(name)). PostgreSQL LIKE 는 대소문자를 구분하므로 검색은 이 컬럼으로 한다
+  nameNormalized String @map("name_normalized")
+
+  /// '임플란트 전문의원' 같은 병원 자유 문구. Doctor.specialty(DentalSpecialty)와 무관하다
+  specialty String?
+  region    String
+  address   String
+  latitude  Float
+  longitude Float
+
+  /// 카드용 대표 이미지 1장. 상세 캐러셀은 HospitalImage
+  thumbnail    String
+  introduction String @default("")
+  directions   String @default("")
+
+  /// 가격대 (원). PriceRange JSON 을 실 컬럼 2개로 펼쳤다
+  priceMin Int @map("price_min")
+  priceMax Int @map("price_max")
+
+  /// 표시용 집계값 (비정규화)
+  rating       Float @default(0)
+  reviewCount  Int   @default(0) @map("review_count")
+  consultCount Int   @default(0) @map("consult_count")
+
+  consultAvailable Boolean @default(true) @map("consult_available")
+  /// 당일 보철 가능. 병원 특징 6개와 출처가 다른 별도 속성
+  isOneDay         Boolean @default(false) @map("is_one_day")
+  isRecommended    Boolean @default(false) @map("is_recommended")
+
+  /// HospitalFeatures JSON 6개 → 실 boolean 컬럼 6개
+  featureCoordinator        Boolean @default(false) @map("feature_coordinator")
+  featurePainlessAnesthesia Boolean @default(false) @map("feature_painless_anesthesia")
+  featureDigitalCare        Boolean @default(false) @map("feature_digital_care")
+  featureParking            Boolean @default(false) @map("feature_parking")
+  /// 야간상담. 탐색의 '진료시간' 조건 칩이 실제로 거르는 값
+  featureNightConsult       Boolean @default(false) @map("feature_night_consult")
+  featureCctv               Boolean @default(false) @map("feature_cctv")
+
+  createdAt DateTime  @map("created_at")
+  updatedAt DateTime  @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  procedures      HospitalProcedure[]
+  images          HospitalImage[]
+  tags            HospitalTag[]
+  eventNotes      HospitalEventNote[]
+  businessHours   BusinessHour[]
+  sponsorships    HospitalSponsorship[]
+  doctors         Doctor[]
+  consultRequests ConsultRequest[]
+  favorites       Favorite[]
+  reviews         Review[]
+  promotions      Promotion[]
+  guideLinks      GuideHospital[]
+  admins          HospitalAdmin[]
+  qaAnswers       QaAnswer[]
+  notifications   Notification[]
+
+  // §13·§14 의 역방향 관계 필드. hospitals 테이블의 컬럼·인덱스는 바뀌지 않는다
+  auditLogs        AuditLog[]
+  partnerInquiries PartnerInquiry[]
+
+  @@index([nameNormalized])
+  @@index([rating])
+  @@index([reviewCount])
+  @@index([consultCount])
+  @@index([deletedAt])
+  @@map("hospitals")
+}
+
+/// Hospital.procedureIds (배열) → 조인 테이블
+model HospitalProcedure {
+  id          String @id
+  hospitalId  String @map("hospital_id")
+  procedureId String @map("procedure_id")
+
+  hospital  Hospital  @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  procedure Procedure @relation(fields: [procedureId], references: [id], onDelete: Restrict)
+
+  @@unique([hospitalId, procedureId])
+  @@index([procedureId])
+  @@map("hospital_procedures")
+}
+
+/// Hospital.images (배열) → 자식 테이블. 병원 상세 사진 캐러셀
+model HospitalImage {
+  id         String @id
+  hospitalId String @map("hospital_id")
+  url        String
+  sortOrder  Int    @default(0) @map("sort_order")
+
+  hospital Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+
+  @@index([hospitalId, sortOrder])
+  @@map("hospital_images")
+}
+
+/// Hospital.tags (배열) → 자식 테이블
+model HospitalTag {
+  id         String @id
+  hospitalId String @map("hospital_id")
+  tag        String
+  /// lower(trim(tag)). 태그 검색용
+  tagNormalized String @map("tag_normalized")
+
+  hospital Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+
+  @@unique([hospitalId, tagNormalized])
+  @@index([tagNormalized])
+  @@map("hospital_tags")
+}
+
+/// Hospital.events (문자열 배열) → 자식 테이블.
+/// 가격 없는 자유 문구다. 가격·배지가 붙는 할인 이벤트는 Promotion.
+model HospitalEventNote {
+  id         String @id
+  hospitalId String @map("hospital_id")
+  content    String
+  sortOrder  Int    @default(0) @map("sort_order")
+
+  hospital Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+
+  @@index([hospitalId, sortOrder])
+  @@map("hospital_event_notes")
+}
+
+/// Hospital.businessHours (객체 배열 JSON) → 자식 테이블. 요일당 최대 1행
+model BusinessHour {
+  id         String @id
+  hospitalId String @map("hospital_id")
+  /// 1=월 ... 7=일. 표시 라벨('월')은 앱에서 만든다
+  dayOfWeek  Int    @map("day_of_week")
+  /// '10:00 - 19:00' 자유 문자열 (관리자 폼이 자유 입력이고 점심시간을 같은 칸에 적는다)
+  hours      String
+  isClosed   Boolean @default(false) @map("is_closed")
+
+  hospital Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+
+  @@unique([hospitalId, dayOfWeek])
+  @@map("business_hours")
+}
+
+/// Hospital 의 광고 필드 5개를 대체한다. (병원 × 시술 카테고리) 한 행.
+/// isSponsored 는 컬럼이 아니라 "오늘이 [startDate, endDate] 안인 행의 존재" 로 파생된다.
+model HospitalSponsorship {
+  id          String @id
+  hospitalId  String @map("hospital_id")
+  procedureId String @map("procedure_id")
+  /// 낮은 값이 같은 카테고리에서 먼저 노출된다
+  rank        Int    @default(1)
+  /// 'YYYY-MM-DD' (KST 달력일, 포함)
+  startDate   String @map("start_date")
+  /// 'YYYY-MM-DD' (KST 달력일, 포함)
+  endDate     String @map("end_date")
+
+  createdAt DateTime @map("created_at")
+
+  hospital  Hospital  @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  procedure Procedure @relation(fields: [procedureId], references: [id], onDelete: Restrict)
+
+  @@index([procedureId, startDate, endDate])
+  @@index([hospitalId, endDate])
+  @@map("hospital_sponsorships")
+}
+
+// =============================================================================
+// 4. 전문의
+// =============================================================================
+
+model Doctor {
+  id         String @id
+  hospitalId String @map("hospital_id")
+
+  name String
+  /// lower(trim(name)). 검색 화면의 전문의 이름 부분일치용
+  nameNormalized String @map("name_normalized")
+  title          String @default("원장")
+
+  /// DentalSpecialty: 치과보철전문의 | 치과교정전문의 | 구강악안면외과전문의 |
+  /// 치주과전문의 | 소아치과전문의 | 통합치의학과전문의 |
+  /// 구강악안면방사선과전문의 | 일반의
+  /// 병원이 "신고한" 값이며 검수를 통과한 값이 아니다
+  specialty String
+  photo     String @default("")
+
+  rating            Float @default(0)
+  reviewCount       Int   @default(0) @map("review_count")
+  consultCount      Int   @default(0) @map("consult_count")
+  /// 탐색의 '경력' 조건 칩은 10 이상을 남긴다
+  yearsOfExperience Int   @default(0) @map("years_of_experience")
+
+  isRecommended Boolean @default(false) @map("is_recommended")
+
+  /// 현재 제출된 자격증 URL. null 이면 검수 목록에 '미제출'
+  certificateUrl String? @map("certificate_url")
+  /// VerificationStatus: pending | approved | rejected
+  /// DoctorVerification 최신 행 상태의 비정규화 캐시
+  verificationStatus String  @default("pending") @map("verification_status")
+  rejectionReason    String? @map("rejection_reason")
+
+  /// ★ 실제로 승인받은 전문 분야. specialty 와 다르면 배지 노출 자격을 잃는다.
+  ///   전문의 배지 판정: verificationStatus='approved'
+  ///                    AND verifiedSpecialty = specialty
+  ///                    AND specialty <> '일반의'
+  verifiedSpecialty String? @map("verified_specialty")
+
+  createdAt DateTime  @map("created_at")
+  updatedAt DateTime  @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  hospital        Hospital             @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  procedures      DoctorProcedure[]
+  careers         DoctorCareer[]
+  verifications   DoctorVerification[]
+  consultRequests ConsultRequest[]
+  qaAnswers       QaAnswer[]
+
+  @@index([hospitalId])
+  @@index([nameNormalized])
+  @@index([verificationStatus])
+  @@index([rating])
+  @@index([reviewCount])
+  @@index([consultCount])
+  @@index([yearsOfExperience])
+  @@index([deletedAt])
+  @@map("doctors")
+}
+
+/// Doctor.procedureIds (배열) → 조인 테이블. '주요 진료 분야'
+model DoctorProcedure {
+  id          String @id
+  doctorId    String @map("doctor_id")
+  procedureId String @map("procedure_id")
+
+  doctor    Doctor    @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  procedure Procedure @relation(fields: [procedureId], references: [id], onDelete: Restrict)
+
+  @@unique([doctorId, procedureId])
+  @@index([procedureId])
+  @@map("doctor_procedures")
+}
+
+/// Doctor.career (문자열 배열) → 자식 테이블. '경력 및 활동'
+model DoctorCareer {
+  id        String @id
+  doctorId  String @map("doctor_id")
+  content   String
+  sortOrder Int    @default(0) @map("sort_order")
+
+  doctor Doctor @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  @@index([doctorId, sortOrder])
+  @@map("doctor_careers")
+}
+
+/// ★ 전문의 인증 이력. 목 모델에 없던 테이블.
+/// specialty 나 certificateUrl 이 바뀌면 pending 행을 새로 만들어 재검수를 강제한다.
+model DoctorVerification {
+  id       String @id
+  doctorId String @map("doctor_id")
+
+  /// 이 건에서 심사 대상이 된 전문 분야 스냅샷
+  submittedSpecialty String  @map("submitted_specialty")
+  /// 제출 시점 자격증 URL 스냅샷. null 이면 미제출로 올라온 건
+  submittedCertificateUrl String? @map("submitted_certificate_url")
+
+  /// pending | approved | rejected
+  status          String
+  rejectionReason String? @map("rejection_reason")
+
+  /// 검수를 결정한 운영자. **nullable 이지만 `Restrict` 다** — 아직 검수되지 않은 건(pending)과
+  /// 시드 행이 null 인 것은 정상이고, 값이 들어간 뒤에는 그 사용자를 물리 삭제할 수 없다.
+  /// `audit_logs.actor_user_id` 와 같은 정책이다: "이 결정을 누가 했는가" 필드의 FK 정책이
+  /// 테이블마다 다르면 감사 때 한쪽만 행위자가 사라진다 (README §11.7 권고 1건 반영)
+  reviewedByUserId String?   @map("reviewed_by_user_id")
+  reviewedAt       DateTime? @map("reviewed_at")
+  /// 검수 요청(제출) 시각
+  createdAt        DateTime  @map("created_at")
+
+  doctor     Doctor @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  reviewedBy User?  @relation(fields: [reviewedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([doctorId, createdAt])
+  @@index([status, createdAt])
+  @@map("doctor_verifications")
+}
+
+// =============================================================================
+// 5. 상담
+// =============================================================================
+
+model ConsultRequest {
+  id String @id
+
+  /// ★ 신청자. 상담 신청 화면이 로그인을 강제하므로 필수다.
+  ///   이 컬럼이 없어서 사용자가 자기 신청 내역을 볼 수 없었다
+  userId     String  @map("user_id")
+  hospitalId String  @map("hospital_id")
+  /// ★ '전문의 상담신청' 으로 들어온 경우의 지목 전문의. 병원 상담이면 null
+  doctorId   String? @map("doctor_id")
+  /// 희망 시술. null 이면 화면에 '시술 미지정'
+  procedureId String? @map("procedure_id")
+
+  /// 신청 폼 입력값. 계정 정보와 다를 수 있어 별도 보관한다
+  name  String
+  phone String
+  /// '평일 오전' | '평일 오후' | '주말'
+  preferredTime String  @map("preferred_time")
+  message       String?
+
+  /// ConsultStatus: new | contacted | booked | cancelled
+  status String @default("new")
+
+  createdAt DateTime @map("created_at")
+  updatedAt DateTime @map("updated_at")
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Restrict)
+  hospital  Hospital   @relation(fields: [hospitalId], references: [id], onDelete: Restrict)
+  doctor    Doctor?    @relation(fields: [doctorId], references: [id], onDelete: SetNull)
+  procedure Procedure? @relation(fields: [procedureId], references: [id], onDelete: SetNull)
+
+  statusChanges ConsultStatusChange[]
+  memos         ConsultMemo[]
+
+  @@index([hospitalId, createdAt])
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@index([createdAt])
+  @@index([doctorId])
+  @@map("consult_requests")
+}
+
+/// ConsultRequest.statusHistory (객체 배열 JSON) → 자식 테이블
+model ConsultStatusChange {
+  id               String   @id
+  consultRequestId String   @map("consult_request_id")
+  /// new | contacted | booked | cancelled
+  status           String
+  changedAt        DateTime @map("changed_at")
+  /// 상태를 바꾼 관리자. 시드/시스템 생성 행은 null
+  changedByUserId  String?  @map("changed_by_user_id")
+
+  consultRequest ConsultRequest @relation(fields: [consultRequestId], references: [id], onDelete: Cascade)
+  changedBy      User?          @relation(fields: [changedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([consultRequestId, changedAt])
+  @@map("consult_status_changes")
+}
+
+/// ConsultRequest.memos (객체 배열 JSON) → 자식 테이블. 내부 공유용 메모
+model ConsultMemo {
+  id               String   @id
+  consultRequestId String   @map("consult_request_id")
+  content          String
+  createdAt        DateTime @map("created_at")
+  authorUserId     String?  @map("author_user_id")
+
+  consultRequest ConsultRequest @relation(fields: [consultRequestId], references: [id], onDelete: Cascade)
+  author         User?          @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
+
+  @@index([consultRequestId, createdAt])
+  @@map("consult_memos")
+}
+
+// =============================================================================
+// 6. 찜
+// =============================================================================
+
+/// ★ 계정별 찜. 목 구현은 브라우저 전역 배열이어서 A 계정의 찜이 B 계정에 보였다
+model Favorite {
+  id         String   @id
+  userId     String   @map("user_id")
+  hospitalId String   @map("hospital_id")
+  createdAt  DateTime @map("created_at")
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hospital Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, hospitalId])
+  @@index([userId, createdAt])
+  @@index([hospitalId])
+  @@map("favorites")
+}
+
+// =============================================================================
+// 7. 후기
+// =============================================================================
+
+model Review {
+  id          String @id
+  hospitalId  String @map("hospital_id")
+  procedureId String @map("procedure_id")
+  /// '김**' 처럼 마스킹된 표시 이름. 후기 작성 화면이 없어 User 연결은 두지 않았다
+  authorName  String @map("author_name")
+  /// 1~5 별점 (정수 입력값)
+  rating      Int
+  content     String
+
+  createdAt DateTime @map("created_at")
+
+  hospital  Hospital      @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  procedure Procedure     @relation(fields: [procedureId], references: [id], onDelete: Restrict)
+  photos    ReviewPhoto[]
+
+  @@index([hospitalId, createdAt])
+  @@index([procedureId])
+  @@map("reviews")
+}
+
+/// Review.photos (배열) → 자식 테이블
+model ReviewPhoto {
+  id        String @id
+  reviewId  String @map("review_id")
+  url       String
+  sortOrder Int    @default(0) @map("sort_order")
+
+  review Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+
+  @@index([reviewId, sortOrder])
+  @@map("review_photos")
+}
+
+// =============================================================================
+// 8. 프로모션 (할인 이벤트)
+// =============================================================================
+
+model Promotion {
+  id          String @id
+  hospitalId  String @map("hospital_id")
+  procedureId String @map("procedure_id")
+  title       String
+
+  /// 금액은 Int (원). 할인율은 저장하지 않고 두 값으로 계산한다
+  originalPrice Int @map("original_price")
+  salePrice     Int @map("sale_price")
+
+  /// '얼리버드' 같은 🔥 배지 문구
+  badge String
+
+  /// ★ 'YYYY-MM-DD' (KST 달력일, 포함). 화면이 '기간 한정' 이라고 말하는데
+  ///   기간 필드가 아예 없던 문제를 해결한다
+  startDate String @map("start_date")
+  endDate   String @map("end_date")
+
+  createdAt DateTime @map("created_at")
+
+  hospital  Hospital  @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  procedure Procedure @relation(fields: [procedureId], references: [id], onDelete: Restrict)
+
+  @@index([hospitalId, startDate, endDate])
+  @@index([procedureId, startDate, endDate])
+  @@map("promotions")
+}
+
+// =============================================================================
+// 9. 시술 꿀팁 (가이드)
+// =============================================================================
+
+model Guide {
+  id          String @id
+  title       String
+  summary     String
+  thumbnail   String
+  procedureId String @map("procedure_id")
+  /// 본문. 문단은 빈 줄(\n\n) 로 구분한다
+  content     String
+  /// '몰라몰라 편집팀'. 자유 문자열이며 User 연결이 아니다
+  author      String
+
+  createdAt DateTime @map("created_at")
+
+  procedure Procedure       @relation(fields: [procedureId], references: [id], onDelete: Restrict)
+  hospitals GuideHospital[]
+
+  @@index([procedureId])
+  @@index([createdAt])
+  @@map("guides")
+}
+
+/// GuideContent.relatedHospitals (배열) → 조인 테이블
+model GuideHospital {
+  id         String @id
+  guideId    String @map("guide_id")
+  hospitalId String @map("hospital_id")
+  sortOrder  Int    @default(0) @map("sort_order")
+
+  guide    Guide    @relation(fields: [guideId], references: [id], onDelete: Cascade)
+  hospital Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+
+  @@unique([guideId, hospitalId])
+  @@index([hospitalId])
+  @@map("guide_hospitals")
+}
+
+// =============================================================================
+// 10. 커뮤니티
+// =============================================================================
+
+model QaPost {
+  id          String @id
+  title       String
+  content     String
+  /// 작성 폼에서 항상 하나가 선택되어 있어 필수다
+  procedureId String @map("procedure_id")
+
+  /// ★ 작성자. 새 글은 반드시 채운다. null 은 시드·레거시 익명 글 전용
+  authorUserId String? @map("author_user_id")
+  /// ★ 작성자를 연결해도 화면에 '익명' 으로 보이게 하는 표시 플래그
+  isAnonymous  Boolean @default(true) @map("is_anonymous")
+
+  viewCount Int @default(0) @map("view_count")
+
+  createdAt DateTime  @map("created_at")
+  updatedAt DateTime  @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  procedure Procedure  @relation(fields: [procedureId], references: [id], onDelete: Restrict)
+  author    User?      @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
+  answers   QaAnswer[]
+
+  @@index([createdAt])
+  @@index([procedureId])
+  @@index([authorUserId])
+  @@index([deletedAt])
+  @@map("qa_posts")
+}
+
+/// ★ QaPost.answers (객체 배열 JSON) → 자식 테이블.
+/// 배열이었기 때문에 답변 작성 화면을 만들 수 없었다.
+model QaAnswer {
+  id      String @id
+  postId  String @map("post_id")
+  content String
+
+  authorUserId String? @map("author_user_id")
+  /// authorUserId 가 null 인 행의 표시 이름 스냅샷 ('몰라몰라 자문의' 등)
+  authorName   String? @map("author_name")
+  isAnonymous  Boolean @default(false) @map("is_anonymous")
+
+  /// ★ 병원 자격으로 답변한 경우
+  hospitalId String? @map("hospital_id")
+  /// ★ 전문의 자격으로 답변한 경우
+  doctorId   String? @map("doctor_id")
+  /// '치과의사 답변' 배지. doctorId 가 있고 승인 상태면 true 로 저장한다
+  isDentist  Boolean @default(false) @map("is_dentist")
+
+  createdAt DateTime  @map("created_at")
+  updatedAt DateTime  @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  post     QaPost    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author   User?     @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
+  hospital Hospital? @relation(fields: [hospitalId], references: [id], onDelete: SetNull)
+  doctor   Doctor?   @relation(fields: [doctorId], references: [id], onDelete: SetNull)
+
+  @@index([postId, createdAt])
+  @@index([authorUserId])
+  @@index([doctorId])
+  @@index([hospitalId])
+  @@map("qa_answers")
+}
+
+// =============================================================================
+// 11. 알림
+// =============================================================================
+
+/// 알림의 "내용". 누가 받는지는 NotificationRecipient 가 정한다
+model Notification {
+  id String @id
+
+  /// NotificationAudience: user | admin
+  audience String
+  /// NotificationType: consult-status | event | system
+  type     String
+  title    String
+  message  String
+
+  /// relatedId 가 무엇의 id 인지: consult_request | hospital | doctor | promotion
+  relatedType String? @map("related_type")
+  /// 다형 참조라 FK 를 걸 수 없다. 무결성은 애플리케이션 책임
+  relatedId   String? @map("related_id")
+
+  /// audience='admin' 일 때 어느 병원의 알림함인지
+  hospitalId String? @map("hospital_id")
+
+  createdAt DateTime @map("created_at")
+
+  hospital   Hospital?               @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  recipients NotificationRecipient[]
+
+  @@index([createdAt])
+  @@index([audience, createdAt])
+  @@index([relatedType, relatedId])
+  @@index([hospitalId, createdAt])
+  @@map("notifications")
+}
+
+/// ★ 수신자 + 계정별 읽음 상태.
+/// AppNotification.isRead 가 전역이어서 아무 계정이나 모든 알림을 보고,
+/// 관리자가 상담 상태를 바꾸면 자기 알림함에도 알림이 들어왔다.
+model NotificationRecipient {
+  id             String    @id
+  notificationId String    @map("notification_id")
+  userId         String    @map("user_id")
+  /// null 이면 안 읽음
+  readAt         DateTime? @map("read_at")
+
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([notificationId, userId])
+  @@index([userId, readAt])
+  @@map("notification_recipients")
+}
+
+// =============================================================================
+// 12. 세션 (리프레시 토큰)
+// =============================================================================
+
+/// ★ 리프레시 토큰의 서버 상태. 지금은 프로세스 메모리(`InMemoryRefreshTokenStore`)에 있어서
+/// ① 서버를 재시작하면 전원 로그아웃 ② 인스턴스가 2개면 회전이 깨짐
+/// ③ `npm run operator:grant` 같은 별도 프로세스가 세션을 폐기할 수 없음 — 세 가지가 깨진다.
+///
+/// ☆ **토큰 문자열을 저장하지 않는다.** 저장하는 것은 토큰 본문(JWT)이 아니라 그 안의 `jti`
+///   하나뿐이다. 서명 검증은 비밀키가 하고, 이 테이블은 "그 jti 가 아직 살아 있는가" 만 답한다.
+///   그래서 이 테이블이 유출돼도 **토큰을 재생할 수 없다** (해시를 저장하는 방식보다도 강하다 —
+///   비교 대상 자체가 없다). 같은 이유로 토큰 해시 컬럼도 두지 않았다.
+///
+/// 정리 전략은 docs/database/README.md §11.1 참고 (만료 행은 계속 누적된다).
+model RefreshToken {
+  id String @id
+
+  /// 토큰 식별자 (JWT `jti` 클레임). 조회 키이므로 유니크다
+  jti    String @unique
+  userId String @map("user_id")
+
+  /// 회전 계열. 로그인 1회 = 계열 1개이고, 회전할 때마다 같은 family_id 로 새 행이 생긴다.
+  /// 이미 소비된 jti 가 다시 오면(= 토큰 복제) 이 값으로 계열 전체를 폐기한다
+  familyId String @map("family_id")
+
+  expiresAt DateTime @map("expires_at")
+
+  /// 회전으로 소비된 시각. null 이면 아직 쓰이지 않았다.
+  /// ☆ 소비된 행을 **지우지 않는다** — 지우면 재사용 공격이 'unknown'(단순 만료)으로 보여
+  ///   계열 폐기가 일어나지 않는다. 재사용 감지는 이 컬럼이 남아 있는 동안만 가능하다
+  usedAt DateTime? @map("used_at")
+
+  /// 로그아웃·역할 변경·비밀번호 변경으로 폐기된 시각. 폐기도 삭제가 아니라 이 컬럼을 채운다
+  revokedAt DateTime? @map("revoked_at")
+
+  createdAt DateTime @map("created_at")
+
+  /// 세션 목록·이상 징후 확인용 스냅샷. 없으면 null (헤더가 없는 클라이언트)
+  userAgent String? @map("user_agent")
+  ip        String?
+
+  /// 계정이 물리 삭제되면 세션도 사라져야 한다. 감사 자료가 아니라 인증 상태다
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // (user_id, expires_at) — "이 계정의 살아있는 세션" 조회 + 계정 단위 일괄 폐기
+  @@index([userId, expiresAt])
+  // (family_id) — 재사용 감지 시 계열 전체 폐기
+  @@index([familyId])
+  // (expires_at) — 만료 행 정리 배치
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+// =============================================================================
+// 13. 감사 로그
+// =============================================================================
+
+/// ★ 관리자 행위 감사. 요구사항은 docs/api/README.md §4 에 있다.
+/// 현재는 consult_status_changes.changed_by_user_id 와 doctor_verifications.reviewed_by_user_id 로
+/// **변경 행위만 부분적으로** 남고 **열람 기록은 어디에도 없다.**
+///
+/// ☆ **append-only 테이블이다.** UPDATE 는 어떤 경로에서도 하지 않고, DELETE 는 보존기간
+///   만료 삭제 배치 하나만 한다. Prisma/SQLite 로는 강제할 수 없어 애플리케이션이 지킨다
+///   (README §11.2 — Prisma 리포지토리에 create/find 만 노출, PostgreSQL 이전 후에는
+///   `REVOKE UPDATE, DELETE` 로 DB 권한으로 굳힌다). `updated_at` 컬럼을 두지 않은 것도
+///   같은 이유다 — 갱신될 수 있는 행이라는 신호를 스키마에 남기지 않는다.
+model AuditLog {
+  id String @id
+
+  /// 행위자. 감사 기록이 사라지면 안 되므로 onDelete: Restrict 다 (README §11.2)
+  actorUserId String @map("actor_user_id")
+
+  /// ☆ **행위 시점의 역할 스냅샷** (user | hospital_admin | operator).
+  ///   users.role 을 조인하면 승격·해제로 값이 바뀌어 과거 행위의 역할을 알 수 없게 된다
+  actorRole String @map("actor_role")
+
+  /// 허용값 9개 (기록 대상과 1:1):
+  ///   consult_request.view          상담 상세 열람
+  ///   partner_inquiry.view          입점 문의 상세 열람
+  ///   consult_request.status_change 상담 상태 변경
+  ///   consult_request.memo_create   메모 작성
+  ///   doctor.verify                 전문의 검수 결정
+  ///   hospital_admin.assign         담당자 지정
+  ///   hospital_admin.unassign       담당자 해제
+  ///   hospital.create               병원 생성
+  ///   partner_inquiry.review        입점 문의 심사
+  action String
+
+  /// consult_request | partner_inquiry | doctor | hospital | user
+  targetType String @map("target_type")
+  /// 다형 참조라 FK 를 걸 수 없다 (notifications.related_id 와 같은 사정).
+  /// 대상이 삭제돼도 "무엇을 열람했는가" 는 남아야 하므로 FK 가 없는 편이 오히려 맞다
+  targetId String @map("target_id")
+
+  /// 병원 범위 행위일 때. 병원별 감사 조회용. Restrict — 병원을 지워도 감사는 남는다
+  hospitalId String? @map("hospital_id")
+
+  /// ☆ **마스킹 정책 스냅샷.** 정책이 바뀌어도 과거 행위가 무엇을 봤는지는 바뀌지 않아야 한다.
+  ///   true  = 마스킹된 값을 봤다 (operator)
+  ///   false = **마스킹하지 않은 개인정보를 봤다** (담당 병원 hospital_admin) ← 감사의 핵심 질문
+  ///   null  = 그 행위의 응답에 개인정보가 없다 (hospital.create, doctor.verify)
+  ///   null 을 둔 이유: NOT NULL 이면 개인정보와 무관한 행위도 false 가 되어
+  ///   "누가 원본을 봤는가"(`pii_masked = false`) 질의가 오염된다
+  piiMasked Boolean? @map("pii_masked")
+
+  /// 에러 응답의 requestId 와 같은 값. 애플리케이션 로그와의 상관관계 추적용
+  requestId String @map("request_id")
+
+  ip        String?
+  userAgent String? @map("user_agent")
+
+  /// 상태 전이형 행위의 전/후 스냅샷. JSON 컬럼(metadata)을 쓰지 않기 위한 실 컬럼 2개다
+  /// (§3.3 의 PriceRange → price_min/price_max 와 같은 처리).
+  ///   consult_request.status_change → 'new' / 'contacted'
+  ///   doctor.verify                 → 'pending' / 'approved'
+  ///   partner_inquiry.review        → 'reviewing' / 'rejected'
+  ///   열람 행위 → 둘 다 null
+  /// 반려 사유·메모 본문 같은 자유 텍스트는 여기 복사하지 않는다 — 원본 테이블에 있고,
+  /// 감사 로그로 개인정보를 한 번 더 복제할 이유가 없다
+  beforeValue String? @map("before_value")
+  afterValue  String? @map("after_value")
+
+  createdAt DateTime @map("created_at")
+
+  actor    User      @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+  hospital Hospital? @relation(fields: [hospitalId], references: [id], onDelete: Restrict)
+
+  // "이 담당자가 무엇을 열람했나"
+  @@index([actorUserId, createdAt])
+  // "이 상담을 누가 열람했나" — 정보주체 문의에 답하는 질의
+  @@index([targetType, targetId, createdAt])
+  // 병원별 감사
+  @@index([hospitalId, createdAt])
+  // 행위 종류별 통계
+  @@index([action, createdAt])
+  // 보존기간 만료 삭제 배치
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// =============================================================================
+// 14. 입점 문의
+// =============================================================================
+
+/// ★ 병원 입점 문의. `/partner-inquiry` 화면은 지금 '문의 폼은 준비중입니다' 한 줄이지만,
+/// 역할 결정(docs/decisions/0001)이 **입점 문의 → 운영자 심사 → 병원 생성 → 담당자 지정**
+/// 을 병원 생성의 유일한 경로로 만들었기 때문에 운영자 콘솔의 전제 테이블이 되었다.
+///
+/// ☆ **개인정보 테이블이다.** contact_name(담당자 실명)·phone·email 이 담긴다.
+///   상세 열람(`GET /partner-inquiries/{id}`)이 **감사 로그 대상**이고
+///   (audit_logs.action='partner_inquiry.view'), 응답은 `Cache-Control: no-store` 다.
+///   상담 신청자 PII 와 달리 **마스킹하지 않는다** — 운영자가 심사를 위해 직접 연락해야 하므로
+///   "연락하지 않아도 되는 열람자" 가 존재하지 않는다.
+model PartnerInquiry {
+  id String @id
+
+  hospitalName String @map("hospital_name")
+  /// 개인정보 (담당자 실명)
+  contactName  String @map("contact_name")
+  /// 개인정보. 병원 대표번호도 들어오므로 휴대폰보다 완화된 패턴을 쓴다 (앱 검증)
+  phone        String
+
+  email   String?
+  region  String?
+  message String?
+
+  /// received | reviewing | approved | rejected
+  /// 흐름: received → reviewing → approved | rejected.
+  /// **종결(approved/rejected) 후에는 되돌릴 수 없다** (앱 검증 — DB CHECK 는 §3.1 규칙상 두지 않는다)
+  status String @default("received")
+
+  /// 운영자 심사 메모. status='rejected' 면 필수다 (앱 검증)
+  reviewNote       String?   @map("review_note")
+  /// 심사한 operator. Restrict — 심사 기록의 행위자는 사라지면 안 된다
+  reviewedByUserId String?   @map("reviewed_by_user_id")
+  reviewedAt       DateTime? @map("reviewed_at")
+
+  /// 이 문의로 만들어진 병원. **승인이 곧 생성은 아니므로**(문의 항목만으로는 병원 등록
+  /// 필수 항목을 채울 수 없다) 병원 생성 후 연결한다.
+  /// hospitals 쪽에 두지 않은 이유: 문의 없이 만들어진 병원이 있고(초기 데이터 이관),
+  /// 문의:병원이 1:1 이 아니다(반려 후 재문의)
+  linkedHospitalId String? @map("linked_hospital_id")
+
+  receivedAt DateTime @map("received_at")
+
+  /// 개인정보 파기를 실행한 시각. 파기 시 contact_name/phone/email 을 '(파기)' 로 치환하고
+  /// 이 컬럼을 채운다 — NOT NULL 컬럼을 치환하기 때문에 "파기됨" 과 "원래 그 값" 을
+  /// 구분할 표시가 필요하다.
+  /// ☆ **보존 기간(며칠)은 컬럼으로 굳히지 않았다** — 아직 미결이고, 정해지면 설정값이 된다.
+  ///   파기 대상 조회: status='rejected' AND received_at < cutoff AND pii_purged_at IS NULL
+  ///   → (status, received_at) 인덱스가 받는다
+  piiPurgedAt DateTime? @map("pii_purged_at")
+
+  reviewedBy     User?     @relation(fields: [reviewedByUserId], references: [id], onDelete: Restrict)
+  linkedHospital Hospital? @relation(fields: [linkedHospitalId], references: [id], onDelete: SetNull)
+
+  // 운영자 심사 대기 목록 (status 필터 + 접수순) · 반려 문의 파기 배치
+  @@index([status, receivedAt])
+  // 전체 목록 최신순
+  @@index([receivedAt])
+  @@map("partner_inquiries")
+}
+
+// =============================================================================
+// 15. 약관 · 동의
+// =============================================================================
+
+/// ★ 약관 본문과 버전. `/legal/terms`, `/legal/privacy`, `/legal/location` 세 화면이 지금
+/// '준비중입니다' 한 줄인데, 그 문구가 들어갈 자리가 이 테이블이다.
+///
+/// ☆ **행은 불변이다.** 본문을 고치면 같은 slug 의 **새 버전 행**을 만든다.
+///   user_agreements 가 legal_documents.id 를 가리키므로, 행을 고치면 "무엇에 동의했는가" 가
+///   소급 변경되어 동의 기록이 증빙 능력을 잃는다.
+model LegalDocument {
+  id String @id
+
+  /// terms | privacy | location | about
+  /// about 은 법적 문서가 아니지만 같은 구조(버전·본문)로 다루면 화면 하나를 줄인다
+  slug String
+  /// 개정 버전 ('1.0'). 회원가입 동의 기록이 이 값을 가리킨다.
+  /// 문자열이므로 정렬은 effective_at 으로 한다 ('1.10' < '1.9' 문제를 피한다)
+  version String
+
+  title String
+  /// 마크다운. API 의 contentFormat 은 const 'markdown' 이라 컬럼으로 두지 않았다
+  content String
+
+  /// ☆ 이 버전이 **동의 기록 대상**인가.
+  ///   false 인 두 경우: ① slug='about' (동의할 성격이 아니다)
+  ///                    ② 오탈자·표현 정정판 (재동의를 받을 실질 변경이 아니다)
+  ///   재동의 판정은 이 값이 true 인 최신 시행 버전을 기준으로 한다 (README §11.3)
+  requiresAgreement Boolean @default(true) @map("requires_agreement")
+
+  /// 시행일. **DateTime(UTC)** 이다 — 광고·프로모션 기간을 'YYYY-MM-DD' 로 둔 것과 다르다.
+  /// 이유: 경계가 시작 하나뿐이고(`effective_at <= now()`) 종료일 포함/배타 애매성이 없으며,
+  /// API 계약(openapi `LegalDocument.effectiveAt: date-time`)이 이미 시각이다.
+  /// KST 자정 시행이면 애플리케이션이 전날 15:00Z 로 변환해 넣는다
+  effectiveAt DateTime @map("effective_at")
+
+  createdAt DateTime @map("created_at")
+
+  agreements UserAgreement[]
+
+  // 같은 slug 에 같은 버전을 두 번 만들 수 없다
+  @@unique([slug, version])
+  // "지금 유효한 버전" — WHERE slug=? AND effective_at <= now() ORDER BY effective_at DESC LIMIT 1
+  @@index([slug, effectiveAt])
+  @@map("legal_documents")
+}
+
+/// ★ 누가 언제 어느 버전에 동의했는가. 지금 `POST /auth/signup` 이 받는
+/// `agreedTermsVersions` 는 **넣을 곳이 없어서 경고만 로그로 남기고 버려진다.**
+/// 동의 기록은 사후 재구성이 불가능하므로(누가 무엇에 동의했는지 추정할 근거가 없다)
+/// 이 테이블 없이는 동의 절차를 도입할 수 없다.
+///
+/// ☆ 입도(grain)가 **(사용자 × 문서 버전)** 이라는 것이 설계의 핵심이다. 약관이 개정되면
+///   새 legal_documents 행이 생기고, 그 행에 대한 동의 행은 아무에게도 없으므로
+///   **재동의 대상이 저절로 계산된다.** '재동의 필요' 플래그를 사용자마다 두지 않는다.
+model UserAgreement {
+  id String @id
+
+  userId String @map("user_id")
+  /// 버전을 가리킨다 (slug 가 아니다). Restrict — 동의 기록이 가리키는 약관은 삭제할 수 없다
+  legalDocumentId String @map("legal_document_id")
+
+  agreedAt DateTime @map("agreed_at")
+
+  /// 계정을 **물리 삭제(파기)** 하면 동의 기록도 함께 파기된다 — 증빙 대상이 없어진 기록이다.
+  /// 회원 탈퇴는 soft delete(users.deleted_at)이므로 이 경로로는 지워지지 않는다
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  document LegalDocument @relation(fields: [legalDocumentId], references: [id], onDelete: Restrict)
+
+  // 같은 버전에 두 번 동의 행을 만들지 않는다 (가입 재요청 멱등).
+  // 이 인덱스의 선두 컬럼이 user_id 라서 "내 동의 목록" 조회도 함께 커버된다
+  // → 별도 (user_id) 인덱스는 만들지 않았다
+  @@unique([userId, legalDocumentId])
+  // "이 버전에 동의한 사용자" (역방향) — 개정 후 재동의 진행률 확인
+  @@index([legalDocumentId])
+  @@map("user_agreements")
+}

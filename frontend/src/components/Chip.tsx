@@ -16,6 +16,7 @@ export function Chip({ label, selected, onPress, icon: Icon }: ChipProps) {
   return (
     <Pressable
       onPress={onPress}
+      pressed={selected}
       className={`mb-2 mr-2 rounded-full border px-3.5 py-2 ${
         selected ? 'border-brand-600 bg-brand-600' : 'border-neutral-200 bg-white'
       }`}

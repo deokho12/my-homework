@@ -5,15 +5,19 @@ import { SafeAreaView } from '@/primitives';
 
 import { Chip } from '@/components/Chip';
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { procedures } from '@/data/procedures';
+import { containerClass } from '@/components/layout/Container';
+import { useProcedures } from '@/features/procedure';
 import { useCommunityStore } from '@/store/useCommunityStore';
 import type { ProcedureId } from '@/types/domain';
 
 export default function NewCommunityPostScreen() {
+  const { data: procedures = [] } = useProcedures();
   const addPost = useCommunityStore((state) => state.addPost);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [procedureId, setProcedureId] = useState<ProcedureId>(procedures[0].id);
+  // 'implant' 은 서버가 고정한 시술 목록의 첫 항목이다 — 목록이 아직 로딩 중이어도
+  // 안전한 기본값이다.
+  const [procedureId, setProcedureId] = useState<ProcedureId>('implant');
 
   const canSubmit = title.trim().length > 0 && content.trim().length > 0;
 
@@ -25,7 +29,7 @@ export default function NewCommunityPostScreen() {
   return (
     <SafeAreaView className="flex-1 bg-white" edges={['bottom']}>
       <Stack.Screen options={{ title: '질문하기' }} />
-      <ScrollView contentContainerClassName="px-5 pb-8 pt-4" keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerClassName={containerClass('form', 'pb-8 pt-4')} keyboardShouldPersistTaps="handled">
         <Text className="mb-2 text-sm font-semibold text-neutral-700">관련 시술</Text>
         <View className="mb-4 flex-row flex-wrap">
           {procedures.map((procedure) => (

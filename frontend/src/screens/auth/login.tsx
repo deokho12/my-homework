@@ -1,9 +1,15 @@
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useForm } from 'react-hook-form';
+
 import { router, Stack, useLocalSearchParams } from '@/navigation';
-import { useState } from 'react';
-import { Pressable, ScrollView, Text, TextInput, View } from '@/primitives';
+import { Pressable, ScrollView, Text, View } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
 
 import { PrimaryButton } from '@/components/PrimaryButton';
+import { containerClass } from '@/components/layout/Container';
+import { TextField } from '@/features/auth/components/TextField';
+import { applyServerFieldErrors, formErrorMessage } from '@/features/auth/lib/serverFieldErrors';
+import { loginSchema, type LoginInput } from '@/features/auth/schemas/authSchemas';
 import { useAuthStore } from '@/store/useAuthStore';
 import type { AuthProvider } from '@/types/domain';
 import { showAlert } from '@/utils/alert';
@@ -17,16 +23,30 @@ export default function LoginScreen() {
   const { redirect } = useLocalSearchParams<{ redirect?: string }>();
   const logIn = useAuthStore((state) => state.logIn);
 
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const {
+    register,
+    handleSubmit,
+    setError,
+    clearErrors,
+    formState: { errors, isSubmitting },
+  } = useForm<LoginInput>({
+    resolver: zodResolver(loginSchema),
+    // 제출 시 검사한다. 타이핑 중에 빨간 글씨가 따라다니지 않게 한다.
+    mode: 'onSubmit',
+    defaultValues: { email: '', password: '' },
+  });
 
-  const canSubmit = email.trim().length > 0 && password.length > 0;
+  const onSubmit = async (values: LoginInput) => {
+    const result = await logIn(values);
 
-  const handleSubmit = () => {
-    const result = logIn({ email, password });
     if (!result.ok) {
-      setError(result.message);
+      // 서버가 `422` 로 필드별 사유를 주면 그 칸 아래에 붙인다. 그 밖의 오류
+      // (`INVALID_CREDENTIALS`, `RATE_LIMITED`, 네트워크)는 어느 칸의 문제도 아니므로
+      // 폼 전체 오류로 둔다.
+      if (!applyServerFieldErrors(result.error, setError, ['email', 'password'])) {
+        setError('root.serverError', { message: formErrorMessage(result.error) });
+      }
+
       return;
     }
 
@@ -41,42 +61,55 @@ export default function LoginScreen() {
   return (
     <SafeAreaView className="flex-1 bg-white" edges={['bottom']}>
       <Stack.Screen options={{ title: '로그인' }} />
-      <ScrollView contentContainerClassName="px-5 pb-8 pt-6" keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerClassName={containerClass('form', 'pb-8 pt-6')} keyboardShouldPersistTaps="handled">
         <Text className="mb-1 text-2xl font-extrabold text-neutral-900">로그인</Text>
         <Text className="mb-6 text-sm text-neutral-500">
           로그인하고 찜한 병원과 상담 신청 내역을 관리해보세요
         </Text>
 
-        <Text className="mb-2 text-sm font-semibold text-neutral-700">이메일</Text>
-        <TextInput
-          value={email}
-          onChangeText={(text) => {
-            setEmail(text);
-            setError(null);
+        <form
+          noValidate
+          onSubmit={(event) => {
+            clearErrors('root.serverError');
+            void handleSubmit(onSubmit)(event);
           }}
-          placeholder="example@email.com"
-          autoCapitalize="none"
-          keyboardType="email-address"
-          className="mb-4 rounded-xl border border-neutral-200 px-4 py-3 text-[15px]"
-        />
+        >
+          <TextField
+            id="login-email"
+            label="이메일"
+            type="email"
+            autoComplete="email"
+            placeholder="example@email.com"
+            error={errors.email?.message}
+            {...register('email')}
+          />
 
-        <Text className="mb-2 text-sm font-semibold text-neutral-700">비밀번호</Text>
-        <TextInput
-          value={password}
-          onChangeText={(text) => {
-            setPassword(text);
-            setError(null);
-          }}
-          placeholder="비밀번호"
-          secureTextEntry
-          className="mb-2 rounded-xl border border-neutral-200 px-4 py-3 text-[15px]"
-        />
+          <TextField
+            id="login-password"
+            label="비밀번호"
+            type="password"
+            autoComplete="current-password"
+            placeholder="비밀번호"
+            error={errors.password?.message}
+            {...register('password')}
+          />
 
-        {error ? <Text className="mb-3 text-sm text-rose-500">{error}</Text> : null}
+          {errors.root?.serverError?.message ? (
+            <p role="alert" className="mb-3 text-sm text-rose-500">
+              {errors.root.serverError.message}
+            </p>
+          ) : null}
 
-        <View className="mb-6 mt-2">
-          <PrimaryButton label="로그인" onPress={handleSubmit} disabled={!canSubmit} />
-        </View>
+          <div className="mb-6 mt-2">
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full items-center justify-center rounded-xl bg-brand-600 px-4 py-3.5 text-base font-semibold text-white active:bg-brand-700 disabled:opacity-40"
+            >
+              {isSubmitting ? '로그인 중' : '로그인'}
+            </button>
+          </div>
+        </form>
 
         <Pressable
           onPress={() =>

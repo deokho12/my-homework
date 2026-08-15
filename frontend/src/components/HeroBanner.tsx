@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent, ScrollView, Text, View } from '@/primitives';
+import { ScrollView, Text, View } from '@/primitives';
+import type { LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent } from '@/primitives';
 
 import { StockImage } from '@/components/StockImage';
 import { CLINIC_INTERIOR_1, DOCTOR_FEMALE_2, PROCEDURE_IN_PROGRESS, sized } from '@/config/stockImages';

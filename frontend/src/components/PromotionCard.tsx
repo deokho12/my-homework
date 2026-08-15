@@ -2,7 +2,7 @@ import { router } from '@/navigation';
 import { Pressable, Text, View } from '@/primitives';
 
 import { StockImage } from '@/components/StockImage';
-import { getHospitalById } from '@/store/useHospitalStore';
+import { useHospital } from '@/features/hospital';
 import type { Promotion } from '@/types/domain';
 import { calcDiscountRate, formatWon } from '@/utils/format';
 
@@ -11,7 +11,9 @@ interface PromotionCardProps {
 }
 
 export function PromotionCard({ promotion }: PromotionCardProps) {
-  const hospital = getHospitalById(promotion.hospitalId);
+  // 조회 훅이라 관리자가 병원 정보를 고치면 반영된다 — 예전 `getHospitalById()` 는
+  // zustand `getState()` 스냅샷이라 비반응형이었다(`docs/features/known-issues.md`).
+  const { data: hospital } = useHospital(promotion.hospitalId);
   if (!hospital) return null;
 
   return (

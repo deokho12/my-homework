@@ -1,5 +1,5 @@
 import { router, usePathname } from '@/navigation';
-import { Pressable, Text, useWindowDimensions, View } from '@/primitives';
+import { Pressable, Text, View } from '@/primitives';
 
 import { useAuthStore } from '@/store/useAuthStore';
 import { useNotificationStore } from '@/store/useNotificationStore';
@@ -12,9 +12,14 @@ const MENU = [
   { key: 'community', label: '커뮤니티', href: '/(tabs)/community' as const, match: '/community' },
 ];
 
-// Two responsive stages: menu labels are ALWAYS text (never emoji), only
-// font size / padding / gaps shrink at the narrow stage so the row never wraps.
-type NavSize = 'full' | 'compact';
+/*
+ * 두 단계로 줄어든다. 메뉴는 항상 글자이고(이모지로 바꾸지 않는다) 글자 크기·여백·간격만
+ * 좁은 단계에서 줄어들어 한 줄이 절대 넘치지 않는다.
+ *
+ * 이 바 자체가 md(768) 이상에서만 보이므로(App.tsx 의 `hidden md:flex`), 기본값이 좁은
+ * 단계이고 lg(1024) 부터 넓은 단계다. 예전에는 900 이라는 자기만의 기준을 썼는데, 표를
+ * 하나로 모으면서 lg 로 흡수했다.
+ */
 
 export function TopNavBar() {
   const pathname = usePathname();
@@ -23,41 +28,28 @@ export function TopNavBar() {
   const unreadCount = useNotificationStore(
     (state) => state.notifications.filter((n) => n.audience === 'user' && !n.isRead).length
   );
-  const { width } = useWindowDimensions();
-
-  const size: NavSize = width >= 900 ? 'full' : 'compact';
-
-  const containerPadding = size === 'full' ? 'px-8 py-4' : 'px-4 py-3';
-  const logoSizeClass = size === 'full' ? 'text-xl' : 'text-lg';
-  const logoMenuGap = size === 'full' ? 40 : 24;
-  const menuGap = size === 'full' ? 32 : 18;
-  const menuTextClass = size === 'full' ? 'text-[15px]' : 'text-xs';
-  const rightGap = size === 'full' ? 'gap-4' : 'gap-2.5';
-  const avatarSize = size === 'full' ? 36 : 32;
-  const loginPillPadding = size === 'full' ? 'px-5 py-2.5' : 'px-3.5 py-2';
-  const loginPillTextClass = size === 'full' ? 'text-sm' : 'text-xs';
 
   return (
     <View
       className={scrolled ? 'bg-white shadow-md' : 'border-b border-neutral-100 bg-white'}
-      style={{ position: 'sticky' as any, top: 0, zIndex: 50 }}
+      style={{ position: 'sticky', top: 0, zIndex: 50 }}
     >
-      <View className={`mx-auto w-full flex-row items-center ${containerPadding}`} style={{ maxWidth: 1200 }}>
+      <View className="mx-auto w-full max-w-content flex-row items-center px-4 py-3 lg:px-8 lg:py-4">
         {/* Left group: logo + text menu, always left-aligned and glued together */}
-        <View className="flex-row flex-shrink-0 items-center" style={{ gap: logoMenuGap }}>
+        <View className="flex-row flex-shrink-0 items-center gap-6 lg:gap-10">
           <Pressable onPress={() => router.push('/(tabs)')} hitSlop={6}>
-            <Text className={`font-extrabold text-brand-700 ${logoSizeClass}`} numberOfLines={1}>
+            <Text className="text-lg font-extrabold text-brand-700 lg:text-xl" numberOfLines={1}>
               몰라몰라
             </Text>
           </Pressable>
 
-          <View className="flex-row items-center" style={{ gap: menuGap }}>
+          <View className="flex-row items-center gap-[18px] lg:gap-8">
             {MENU.map((item) => {
               const active = pathname === item.match;
               return (
                 <Pressable key={item.key} onPress={() => router.push(item.href)} hitSlop={8}>
                   <Text
-                    className={`font-semibold ${menuTextClass} ${active ? 'font-bold text-brand-700' : 'text-neutral-600'}`}
+                    className={`text-xs font-semibold lg:text-[15px] ${active ? 'font-bold text-brand-700' : 'text-neutral-600'}`}
                     numberOfLines={1}
                   >
                     {item.label}
@@ -72,7 +64,7 @@ export function TopNavBar() {
         <View className="flex-1" />
 
         {/* Right cluster */}
-        <View className={`flex-row flex-shrink-0 items-center ${rightGap}`}>
+        <View className="flex-row flex-shrink-0 items-center gap-2.5 lg:gap-4">
           <Pressable onPress={() => router.push('/search')} hitSlop={8}>
             <Text className="text-lg">🔍</Text>
           </Pressable>
@@ -98,8 +90,7 @@ export function TopNavBar() {
 
               <Pressable
                 onPress={() => router.push('/(tabs)/mypage')}
-                className="items-center justify-center rounded-full bg-neutral-100"
-                style={{ height: avatarSize, width: avatarSize }}
+                className="h-8 w-8 items-center justify-center rounded-full bg-neutral-100 lg:h-9 lg:w-9"
                 hitSlop={4}
               >
                 <Text className="text-base">👤</Text>
@@ -108,10 +99,10 @@ export function TopNavBar() {
           ) : (
             <Pressable
               onPress={() => router.push('/auth/login')}
-              className={`rounded-full bg-brand-600 ${loginPillPadding}`}
+              className="rounded-full bg-brand-600 px-3.5 py-2 lg:px-5 lg:py-2.5"
               hitSlop={4}
             >
-              <Text className={`font-semibold text-white ${loginPillTextClass}`} numberOfLines={1}>
+              <Text className="text-xs font-semibold text-white lg:text-sm" numberOfLines={1}>
                 로그인 및 회원가입
               </Text>
             </Pressable>

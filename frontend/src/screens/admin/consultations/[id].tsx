@@ -5,9 +5,10 @@ import { SafeAreaView } from '@/primitives';
 
 import { Chip } from '@/components/Chip';
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { getProcedureById } from '@/data/procedures';
+import { containerClass } from '@/components/layout/Container';
+import { useHospital } from '@/features/hospital';
+import { useProcedureMap, useProcedures } from '@/features/procedure';
 import { useConsultStore } from '@/store/useConsultStore';
-import { getHospitalById } from '@/store/useHospitalStore';
 import { CONSULT_STATUS_LABEL, CONSULT_STATUSES } from '@/types/domain';
 
 function InfoRow({ label, value }: { label: string; value: string }) {
@@ -25,6 +26,10 @@ export default function AdminConsultationDetailScreen() {
   const updateStatus = useConsultStore((state) => state.updateStatus);
   const addMemo = useConsultStore((state) => state.addMemo);
   const [memoText, setMemoText] = useState('');
+  const procedureMap = useProcedureMap();
+  const { isPending: proceduresPending } = useProcedures();
+  // 훅은 조건부 return 전에 불러야 한다 — `request` 가 아직 없어도(또는 끝내 없어도) 호출은 해 둔다.
+  const { data: hospital, isLoading: isHospitalLoading } = useHospital(request?.hospitalId);
 
   if (!request) {
     return (
@@ -35,8 +40,12 @@ export default function AdminConsultationDetailScreen() {
     );
   }
 
-  const hospital = getHospitalById(request.hospitalId);
-  const procedure = request.procedureId ? getProcedureById(request.procedureId) : undefined;
+  const procedure = request.procedureId ? procedureMap.get(request.procedureId) : undefined;
+  // "미지정" 은 `request.procedureId` 가 정말 `null` 일 때만 맞는 말이다. id 는 있는데
+  // 맵에 아직 없는 것은 시술 목록이 로딩 중이라는 뜻일 수 있어, 중립 표시(—)를 대신 쓴다.
+  const procedureLabel = procedure ? procedure.name : request.procedureId && proceduresPending ? '—' : '미지정';
+  // 병원 이름도 같은 규칙 — 조회가 끝나기 전의 "없음"은 "아직 모름"이지 "알 수 없는 병원"이 아니다.
+  const hospitalLabel = isHospitalLoading ? '—' : (hospital?.name ?? '알 수 없는 병원');
   const sortedHistory = [...request.statusHistory].sort(
     (a, b) => new Date(b.changedAt).getTime() - new Date(a.changedAt).getTime()
   );
@@ -54,12 +63,12 @@ export default function AdminConsultationDetailScreen() {
   return (
     <SafeAreaView className="flex-1 bg-neutral-50" edges={['bottom']}>
       <Stack.Screen options={{ title: '상담 상세' }} />
-      <ScrollView contentContainerClassName="px-5 pb-10 pt-4" keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerClassName={containerClass('form', 'pb-10 pt-4')} keyboardShouldPersistTaps="handled">
         <View className="mb-4 rounded-2xl border border-neutral-100 bg-white p-4">
-          <Text className="mb-3 text-base font-bold text-neutral-900">{hospital?.name ?? '알 수 없는 병원'}</Text>
+          <Text className="mb-3 text-base font-bold text-neutral-900">{hospitalLabel}</Text>
           <InfoRow label="이름" value={request.name} />
           <InfoRow label="연락처" value={request.phone} />
-          <InfoRow label="희망 시술" value={procedure?.name ?? '미지정'} />
+          <InfoRow label="희망 시술" value={procedureLabel} />
           <InfoRow label="희망 시간" value={request.preferredTime || '미지정'} />
           <InfoRow label="신청일시" value={new Date(request.createdAt).toLocaleString('ko-KR')} />
         </View>

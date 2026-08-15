@@ -2,7 +2,7 @@ import AsyncStorage from '@/lib/storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
-import { qaPosts } from '@/data/qaPosts';
+import { qaPosts } from '@/mocks/fixtures/qaPosts';
 import type { ProcedureId, QAPost } from '@/types/domain';
 
 interface CommunityState {

@@ -1,0 +1,37 @@
+{
+  "compilerOptions": {
+    // NestJS 는 CommonJS + 데코레이터 메타데이터(emitDecoratorMetadata)를 전제로 한다.
+    // 프론트엔드는 ESM(bundler resolution)이지만, 백엔드에서 ESM 으로 가면
+    // Nest 의 DI(reflect-metadata) 와 @nestjs/cli 빌드 경로가 모두 관례에서 벗어난다.
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "target": "ES2023",
+    "lib": ["ES2023"],
+
+    "declaration": false,
+    "removeComments": false,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "sourceMap": true,
+    "outDir": "./dist",
+    "baseUrl": "./",
+    "incremental": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+
+    "strict": true,
+    "strictNullChecks": true,
+    "strictBindCallApply": true,
+    "noImplicitAny": true,
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true
+
+    // 경로 별칭(paths)을 두지 않는다: `nest build` 는 tsc 만 쓰므로 별칭이
+    // 컴파일 결과에 남아 `node dist/main.js` 가 런타임에 모듈을 못 찾는다.
+    // src 안에서는 상대 경로를 쓴다. (시드 스크립트만 예외 — prisma/tsconfig.seed.json)
+  },
+  "include": ["src/**/*", "test/**/*", "vitest.config.ts", "prisma.config.ts"],
+  "exclude": ["node_modules", "dist", "prisma/seed.ts", "prisma/seed/**/*"]
+}

@@ -209,6 +209,8 @@ export interface PressableProps {
   /** RN expands the touch target; on the web the equivalent is negative margin + padding. */
   hitSlop?: number | { top?: number; bottom?: number; left?: number; right?: number };
   accessibilityLabel?: string;
+  /** 토글형 버튼(필터 칩 등)의 눌림 상태. RN 의 `accessibilityState={{ selected }}` 대역 — `aria-pressed` 로 노출한다. */
+  pressed?: boolean;
   testID?: string;
 }
 
@@ -240,6 +242,7 @@ export function Pressable({
   disabled,
   hitSlop,
   accessibilityLabel,
+  pressed: pressedState,
   testID,
 }: PressableProps) {
   const [pressed, setPressed] = useState(false);
@@ -265,6 +268,7 @@ export function Pressable({
       role="button"
       tabIndex={disabled ? -1 : 0}
       aria-disabled={disabled || undefined}
+      aria-pressed={pressedState}
       aria-label={accessibilityLabel}
       data-testid={testID}
       className={cx('rnw-view', !disabled && 'rnw-pressable', className)}

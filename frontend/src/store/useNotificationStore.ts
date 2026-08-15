@@ -2,7 +2,7 @@ import AsyncStorage from '@/lib/storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
-import { notifications as seedNotifications } from '@/data/notifications';
+import { notifications as seedNotifications } from '@/mocks/fixtures/notifications';
 import type { AppNotification, NotificationAudience } from '@/types/domain';
 
 interface NotificationState {

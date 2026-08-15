@@ -1,0 +1,1017 @@
+// =============================================================================
+// 몰라몰라 (mola) — 데이터베이스 스키마
+// =============================================================================
+// 현재 구현: SQLite (Prisma provider = "sqlite")
+// 이전 대상: PostgreSQL 14+
+//
+// 이 파일은 backend/prisma/schema.prisma 와 1:1 로 대응합니다.
+// 설계 판단·이식성 규칙·인덱스 근거는 docs/database/README.md 를 보세요.
+//
+// -----------------------------------------------------------------------------
+// 전역 규칙 (모든 테이블에 적용)
+// -----------------------------------------------------------------------------
+// 1. PK 는 전부 varchar. 애플리케이션이 cuid 로 생성한다. AUTOINCREMENT 를 쓰지
+//    않으므로 기존 fixture 의 'h1', 'd1', 'cr1', 'q1', 'g1', 'notif1' 을 그대로
+//    수용한다.
+// 2. DB enum 을 쓰지 않는다. 상태값은 varchar + 애플리케이션 검증이며, 허용값을
+//    각 컬럼 note 에 적어 두었다.
+// 3. 스칼라 배열·JSON 컬럼을 쓰지 않는다. 배열은 전부 자식 테이블,
+//    JSON 은 전부 실 컬럼 또는 자식 테이블로 펼쳤다.
+// 4. 금액은 int (원 단위). 평점만 float — 표시 전용이고 계산에 쓰지 않는다.
+// 5. 시각(timestamp)은 DB 기본값을 쓰지 않는다. 애플리케이션이 UTC 로 넣는다.
+// 6. 달력 날짜(광고·프로모션 기간)는 varchar 'YYYY-MM-DD' (KST 기준 달력일).
+//    두 DB 에서 문자열 사전순 비교가 동일하게 동작하고, 시간대 경계 문제가 없다.
+// 7. `*_normalized` 컬럼은 lower(trim(원본)) 을 애플리케이션이 채운다.
+//    SQLite LIKE 는 ASCII 대소문자를 무시하지만 PostgreSQL LIKE 는 구분하므로,
+//    검색은 항상 정규화 컬럼을 대상으로 한다. (README '대소문자 구분 검색' 절)
+// 8. soft delete 는 users / hospitals / doctors / qa_posts / qa_answers 에만 둔다.
+//    deleted_at IS NULL 이 "살아있는 행" 이다.
+// =============================================================================
+
+
+// =============================================================================
+// 1. 참조 데이터
+// =============================================================================
+
+Table procedures {
+  id varchar [pk, note: "ProcedureId. 허용값: implant, orthodontics, laminate, inlay, crown, whitening, wisdom-tooth, cavity, gum-disease, splint, snoring-device, tmj, botox (13종)"]
+  name varchar [not null, note: "'임플란트' 처럼 화면에 그대로 노출되는 이름"]
+  emoji varchar [not null, note: "시술 칩·격자에 붙는 이모지"]
+  short_description varchar [not null, note: "홈 '시술로 찾기' 격자의 한 줄 설명"]
+  description text [not null]
+  sort_order int [not null, note: "홈 격자 / 탐색 칩 / 커뮤니티 시술 선택의 고정 노출 순서. 세 화면이 같은 순서를 쓴다"]
+
+  Indexes {
+    sort_order [name: 'idx_procedures_sort_order']
+  }
+
+  Note: '''
+  시술 마스터 13종. domain.ts 의 `ProcedureId` 를 DB enum 대신 이 테이블로 표현한다.
+  FK 로 참조하므로 enum 보다 강한 무결성을 얻고, 이름·이모지·설명을 함께 보관한다.
+  운영 화면이 없으므로 마이그레이션/시드로만 갱신한다.
+
+  지원 화면: 홈(시술로 찾기), 병원 탐색(시술 칩), 커뮤니티 질문 작성(관련 시술),
+  상담 신청(희망 시술), 병원 등록/수정(취급 시술)
+  '''
+}
+
+
+// =============================================================================
+// 2. 계정 · 권한
+// =============================================================================
+
+Table users {
+  id varchar [pk, note: "cuid. 기존 목 구현의 'user-<timestamp>' 값도 수용 가능"]
+  email varchar [unique, not null, note: "항상 trim + lower 로 정규화해서 저장한다. 로그인/회원가입 화면이 이미 그렇게 비교한다"]
+  name varchar [not null, note: "trim 후 저장. 마이페이지 'OOO님, 안녕하세요'"]
+  provider varchar [not null, note: "AuthProvider. 허용값: email, google, kakao. google/kakao 는 화면상 '준비중' 이지만 값은 이미 도메인에 있다"]
+  role varchar [not null, note: "허용값: user, hospital_admin, operator. user=일반 사용자, hospital_admin=병원 담당자(hospital_admins 로 담당 병원 지정), operator=플랫폼 운영자(전문의 인증 검수). 기본 'user'"]
+  password_hash varchar [null, note: "bcrypt/argon2 해시. provider != 'email' 이면 null. 평문 컬럼은 존재하지 않는다"]
+  password_salt varchar [null, note: "해시 알고리즘이 salt 를 문자열에 포함하지 않는 경우에만 사용. bcrypt/argon2 는 null"]
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+  deleted_at timestamp [null, note: "회원 탈퇴(soft delete). 상담 신청·커뮤니티 글의 FK 를 깨지 않기 위해 물리 삭제하지 않는다"]
+
+  Indexes {
+    email [unique, name: 'idx_users_email']
+    role [name: 'idx_users_role']
+    deleted_at [name: 'idx_users_deleted_at']
+  }
+
+  Note: '''
+  계정. `role` 은 목 모델에 없던 컬럼이며, 관리자 화면에 인가를 걸기 위한 최소 요건이다.
+
+  지원 화면: 회원가입, 로그인, 마이페이지, (인가 판단) /admin 전체
+  '''
+}
+
+Table hospital_admins {
+  id varchar [pk]
+  user_id varchar [not null, ref: > users.id, note: "role='hospital_admin' 인 계정이어야 한다 (앱 검증)"]
+  hospital_id varchar [not null, ref: > hospitals.id]
+  created_at timestamp [not null]
+
+  Indexes {
+    (user_id, hospital_id) [unique, name: 'uq_hospital_admins_user_hospital']
+    hospital_id [name: 'idx_hospital_admins_hospital']
+  }
+
+  Note: '''
+  "이 사람은 어느 병원의 담당자인가". M:N — 한 사람이 여러 지점을 맡을 수 있고,
+  한 병원에 담당자가 여러 명일 수 있다.
+
+  현재 /admin 은 등록된 모든 병원을 보여주고 아무 병원이나 수정할 수 있다.
+  이 테이블이 그 범위를 좁히는 근거가 된다:
+    - hospital_admin  → 이 테이블에 걸린 병원만 조회·수정
+    - operator        → 전 병원 + 전문의 인증 검수
+  두 화면 중 어느 쪽을 어떻게 나눌지는 제품 결정이 필요하다 (README '미결 사항' 참고).
+
+  지원 화면: /admin 전체, /admin/notifications (병원별 알림 수신자 결정)
+  '''
+}
+
+
+// =============================================================================
+// 3. 병원
+// =============================================================================
+
+Table hospitals {
+  id varchar [pk, note: "fixture 의 'h1'..'h11' 을 그대로 수용"]
+  name varchar [not null]
+  name_normalized varchar [not null, note: "lower(trim(name)). 검색 화면의 병원명 부분일치용. PostgreSQL LIKE 는 대소문자를 구분하므로 필수"]
+  specialty varchar [null, note: "'임플란트 전문의원' 같은 병원 자유 문구. doctors.specialty(DentalSpecialty)와 이름만 같고 전혀 다른 값이다"]
+  region varchar [not null, note: "'서울 강남구'. 자유 입력. 지역 필터 화면은 아직 없고 카드 표시용"]
+  address varchar [not null, note: "주소 검색(지오코딩) 결과로 확정된 값"]
+  latitude float [not null, note: "지도 마커·반경 필터용. 금액이 아니므로 float 로 둔다"]
+  longitude float [not null]
+  thumbnail varchar [not null, note: "대표 이미지 URL. 카드에 쓰인다. 상세 화면 캐러셀은 hospital_images"]
+  introduction text [not null, default: '', note: "병원 소개"]
+  directions text [not null, default: '', note: "'찾아오시는 길' 자유 문구. 비어 있으면 화면에서 영역이 빠진다"]
+
+  price_min int [not null, note: "가격대 최소 (원). PriceRange JSON 을 실 컬럼 2개로 펼친 것"]
+  price_max int [not null, note: "가격대 최대 (원)"]
+
+  rating float [not null, default: 0, note: "표시용 평균 평점. 집계 결과를 비정규화해 들고 있다. 계산에 쓰지 않으므로 float 허용"]
+  review_count int [not null, default: 0, note: "표시용 후기 수 (비정규화)"]
+  consult_count int [not null, default: 0, note: "표시용 상담 수 (비정규화). consult_requests 실건수와 별개의 마케팅 표시값이다"]
+
+  consult_available boolean [not null, default: true, note: "'실시간 상담 가능'. false 면 버튼이 '상담 마감'"]
+  is_one_day boolean [not null, default: false, note: "당일 보철 가능. 병원 특징 6개와 출처가 다른 별도 속성"]
+  is_recommended boolean [not null, default: false, note: "에디터 추천. 탐색 '추천' 칩"]
+
+  feature_coordinator boolean [not null, default: false, note: "전담코디네이터"]
+  feature_painless_anesthesia boolean [not null, default: false, note: "무통마취"]
+  feature_digital_care boolean [not null, default: false, note: "디지털진료"]
+  feature_parking boolean [not null, default: false, note: "주차가능"]
+  feature_night_consult boolean [not null, default: false, note: "야간상담. 탐색의 '진료시간' 조건 칩이 실제로 거르는 값"]
+  feature_cctv boolean [not null, default: false, note: "CCTV설치"]
+
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+  deleted_at timestamp [null, note: "병원 삭제 화면은 없다. 삭제가 생겨도 상담·후기·찜의 FK 를 지키기 위해 soft delete"]
+
+  Indexes {
+    name_normalized [name: 'idx_hospitals_name_normalized']
+    rating [name: 'idx_hospitals_rating']
+    review_count [name: 'idx_hospitals_review_count']
+    consult_count [name: 'idx_hospitals_consult_count']
+    deleted_at [name: 'idx_hospitals_deleted_at']
+  }
+
+  Note: '''
+  병원. HospitalFeatures JSON 6개를 실 boolean 컬럼 6개로 펼쳤고(feature_*),
+  PriceRange JSON 을 price_min/price_max 로 펼쳤다. 배열(images/tags/procedureIds/
+  events)과 광고 필드는 각각 자식 테이블로 나갔다.
+
+  지원 화면: 홈(이벤트 카드·병원 이동), 병원 탐색(목록·지도·가격비교표),
+  검색(병원명), 병원 상세, 마이페이지 찜 목록, 시술 꿀팁의 관련 병원,
+  /admin (병원 목록), /admin/hospital/new, /admin/hospital/:id
+  '''
+}
+
+Table hospital_procedures {
+  id varchar [pk]
+  hospital_id varchar [not null, ref: > hospitals.id]
+  procedure_id varchar [not null, ref: > procedures.id]
+
+  Indexes {
+    (hospital_id, procedure_id) [unique, name: 'uq_hospital_procedures']
+    procedure_id [name: 'idx_hospital_procedures_procedure']
+  }
+
+  Note: '''
+  Hospital.procedureIds (배열) → 조인 테이블. 취급 시술.
+
+  지원 화면: 병원 탐색 시술 칩 필터, 병원 상세 '대표 시술',
+  상담 신청의 '희망 시술' 선택지, 카드의 시술 배지(최대 3개)
+  '''
+}
+
+Table hospital_images {
+  id varchar [pk]
+  hospital_id varchar [not null, ref: > hospitals.id]
+  url varchar [not null]
+  sort_order int [not null, default: 0, note: "캐러셀 노출 순서"]
+
+  Indexes {
+    (hospital_id, sort_order) [name: 'idx_hospital_images_hospital_sort']
+  }
+
+  Note: '''
+  Hospital.images (배열) → 조인 테이블. 병원 상세 사진 캐러셀.
+  hospitals.thumbnail(카드 대표 1장)과 의도적으로 분리된 값이다.
+  현재 관리자 폼은 thumbnail 만 수정하고 이 목록은 건드리지 않아
+  "대표 이미지를 바꿔도 상세 사진이 그대로"인 알려진 문제가 생긴다.
+  스키마 차원에서는 두 값이 분리되어 있음이 명시된다.
+
+  지원 화면: 병원 상세(사진 캐러셀)
+  '''
+}
+
+Table hospital_tags {
+  id varchar [pk]
+  hospital_id varchar [not null, ref: > hospitals.id]
+  tag varchar [not null, note: "'당일진료' 처럼 표시되는 원본 문자열"]
+  tag_normalized varchar [not null, note: "lower(trim(tag)). 태그 검색용 (영문 태그의 대소문자 차이를 흡수)"]
+
+  Indexes {
+    (hospital_id, tag_normalized) [unique, name: 'uq_hospital_tags']
+    tag_normalized [name: 'idx_hospital_tags_normalized']
+  }
+
+  Note: '''
+  Hospital.tags (배열) → 자식 테이블. 관리자 폼의 '태그 (쉼표로 구분)' 입력을
+  쉼표로 분리해 한 행씩 저장한다.
+  태그 마스터 테이블은 만들지 않았다 — 자유 입력이고 태그를 관리하는 화면이 없다.
+
+  지원 화면: /admin/hospital/* (태그 입력). 태그 기반 필터 화면은 아직 없다
+  '''
+}
+
+Table hospital_event_notes {
+  id varchar [pk]
+  hospital_id varchar [not null, ref: > hospitals.id]
+  content varchar [not null, note: "'임플란트 상담 시 파노라마 촬영 무료' 같은 자유 문구"]
+  sort_order int [not null, default: 0]
+
+  Indexes {
+    (hospital_id, sort_order) [name: 'idx_hospital_event_notes_hospital_sort']
+  }
+
+  Note: '''
+  Hospital.events (문자열 배열) → 자식 테이블.
+  ⚠️ promotions 와 다른 것이다. 이쪽은 병원 상세 '진행중인 이벤트' 영역에 뿌리는
+  가격 없는 자유 문구이고, 가격·배지·할인율이 붙는 이벤트 카드는 promotions 다.
+  기간 컬럼은 두지 않았다 — 화면 문서에 이 문구의 기간 개념이 없다 (README 제안 절 참고).
+
+  지원 화면: 병원 상세('진행중인 이벤트')
+  '''
+}
+
+Table business_hours {
+  id varchar [pk]
+  hospital_id varchar [not null, ref: > hospitals.id]
+  day_of_week int [not null, note: "1=월 ... 7=일. fixture 의 '월'..'일' 문자열 대신 정수로 저장해 정렬·'오늘 요일' 판정을 로케일과 무관하게 만든다. 표시 라벨은 앱에서 만든다"]
+  hours varchar [not null, note: "'10:00 - 19:00' 자유 문자열. 관리자 폼이 자유 입력이고 점심시간을 같은 칸에 적기 때문에 open/close 로 쪼개지 않는다. is_closed=true 면 '휴진'"]
+  is_closed boolean [not null, default: false, note: "휴진 여부"]
+
+  Indexes {
+    (hospital_id, day_of_week) [unique, name: 'uq_business_hours_hospital_day']
+  }
+
+  Note: '''
+  Hospital.businessHours (객체 배열 JSON) → 자식 테이블. 요일당 최대 1행.
+
+  지원 화면: 병원 상세(진료시간 접기/펼치기, 오늘 요일 강조),
+  /admin/hospital/*(요일 7줄 + 휴진 버튼)
+  '''
+}
+
+Table hospital_sponsorships {
+  id varchar [pk]
+  hospital_id varchar [not null, ref: > hospitals.id]
+  procedure_id varchar [not null, ref: > procedures.id, note: "광고를 산 시술 카테고리"]
+  rank int [not null, default: 1, note: "같은 카테고리 안에서 낮은 값이 먼저 노출된다"]
+  start_date varchar [not null, note: "'YYYY-MM-DD' (KST 달력일, 포함). 광고 시작일"]
+  end_date varchar [not null, note: "'YYYY-MM-DD' (KST 달력일, 포함). 광고 종료일. 오늘이 [start_date, end_date] 안이면 활성 — 현재 sponsorship.ts 의 비교식과 동일하다"]
+  created_at timestamp [not null]
+
+  Indexes {
+    (procedure_id, start_date, end_date) [name: 'idx_sponsorships_procedure_window']
+    (hospital_id, end_date) [name: 'idx_sponsorships_hospital_end']
+  }
+
+  Note: '''
+  Hospital 의 광고 필드 5개(isSponsored, sponsoredCategories[], sponsoredRank,
+  sponsoredStartDate, sponsoredEndDate)를 대체한다. 카테고리 배열이 사라지고
+  (병원 × 카테고리) 한 행이 되므로 카테고리별로 다른 기간·순위를 팔 수 있다.
+
+  `isSponsored` 는 컬럼이 아니라 파생값이다:
+    오늘 날짜가 [start_date, end_date] 안인 행이 있으면 광고 중.
+  평점 3.5 미만이면 배지는 붙지만 상단 노출은 제외 — 이 규칙은 애플리케이션에 있다
+  (MIN_SPONSORED_RATING). 스키마는 노출 기간만 관리한다.
+
+  지원 화면: 병원 탐색(광고 배지·상단 노출), 병원 상세('광고' 배지),
+  /admin/hospital/:id('광고 현황 (읽기 전용)' — 이 병원의 최신 행을 보여주고
+  end_date 가 지났으면 '기간 종료' 로 표기)
+  '''
+}
+
+
+// =============================================================================
+// 4. 전문의
+// =============================================================================
+
+Table doctors {
+  id varchar [pk, note: "fixture 의 'd1'..'d14' 를 그대로 수용"]
+  hospital_id varchar [not null, ref: > hospitals.id]
+  name varchar [not null]
+  name_normalized varchar [not null, note: "lower(trim(name)). 검색 화면의 전문의 이름 부분일치용"]
+  title varchar [not null, default: '원장', note: "'대표원장', '부원장'. 자유 입력"]
+  specialty varchar [not null, note: "DentalSpecialty. 허용값: 치과보철전문의, 치과교정전문의, 구강악안면외과전문의, 치주과전문의, 소아치과전문의, 통합치의학과전문의, 구강악안면방사선과전문의, 일반의. 병원이 신고한 값이며 '검수를 통과한 값'이 아니다"]
+  photo varchar [not null, default: '', note: "프로필 사진 URL"]
+
+  rating float [not null, default: 0, note: "표시용 (비정규화). 전문의 상세에서 비로그인 시 가려진다"]
+  review_count int [not null, default: 0]
+  consult_count int [not null, default: 0]
+  years_of_experience int [not null, default: 0, note: "탐색의 '경력' 조건 칩은 10 이상을 남긴다"]
+  is_recommended boolean [not null, default: false]
+
+  certificate_url varchar [null, note: "현재 제출된 자격증/인증서 이미지 URL. null 이면 검수 목록에 '미제출'"]
+  verification_status varchar [not null, default: 'pending', note: "VerificationStatus. 허용값: pending, approved, rejected. doctor_verifications 최신 행의 상태를 비정규화해 들고 있는 캐시값이다"]
+  rejection_reason text [null, note: "verification_status='rejected' 일 때의 사유. 최신 검수 행의 값을 비정규화"]
+  verified_specialty varchar [null, note: "★ 실제로 승인받은 전문 분야. specialty 를 다른 과로 바꾸면 이 값과 달라지고, 그 순간 전문의 배지 노출 자격을 잃는다. 검수 우회를 막는 컬럼이다. 승인 이력이 없으면 null"]
+
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+  deleted_at timestamp [null, note: "관리자 폼에서 이름을 비우면 삭제되는 알려진 사고가 있어, 복구 가능하도록 soft delete 로 둔다"]
+
+  Indexes {
+    hospital_id [name: 'idx_doctors_hospital']
+    name_normalized [name: 'idx_doctors_name_normalized']
+    verification_status [name: 'idx_doctors_verification_status']
+    rating [name: 'idx_doctors_rating']
+    review_count [name: 'idx_doctors_review_count']
+    consult_count [name: 'idx_doctors_consult_count']
+    years_of_experience [name: 'idx_doctors_years']
+    deleted_at [name: 'idx_doctors_deleted_at']
+  }
+
+  Note: '''
+  전문의(의료진). 한 병원에 여러 명, 한 사람은 한 병원 소속 (현재 모델 그대로 1:N).
+
+  "전문의 배지 노출" 판정식 (앱):
+    verification_status = 'approved'
+    AND verified_specialty = specialty        ← 분야를 바꾸면 즉시 거짓이 된다
+    AND specialty <> '일반의'
+  '일반의' 는 검수와 무관하게 항상 표시된다.
+
+  지원 화면: 병원 상세('전문의 소개'), 전문의 상세, 병원 탐색(의사 모드 카드,
+  '전문의'·'경력' 조건 칩, 'OO전문의 상주' 배지), 검색(전문의 이름),
+  /admin/hospital/*(전문의 반복 입력), /admin/specialists(검수 목록)
+  '''
+}
+
+Table doctor_procedures {
+  id varchar [pk]
+  doctor_id varchar [not null, ref: > doctors.id]
+  procedure_id varchar [not null, ref: > procedures.id]
+
+  Indexes {
+    (doctor_id, procedure_id) [unique, name: 'uq_doctor_procedures']
+    procedure_id [name: 'idx_doctor_procedures_procedure']
+  }
+
+  Note: '''
+  Doctor.procedureIds (배열) → 조인 테이블. '주요 진료 분야'.
+  관리자 폼은 이 값을 직접 받지 않고 전문 분야에서 자동 유도한다
+  ('일반의' 면 병원 취급 시술 전체). 유도 규칙은 애플리케이션에 있다.
+
+  지원 화면: 전문의 상세('주요 진료 분야'), 병원 탐색 의사 모드 시술 필터·배지
+  '''
+}
+
+Table doctor_careers {
+  id varchar [pk]
+  doctor_id varchar [not null, ref: > doctors.id]
+  content varchar [not null]
+  sort_order int [not null, default: 0]
+
+  Indexes {
+    (doctor_id, sort_order) [name: 'idx_doctor_careers_doctor_sort']
+  }
+
+  Note: '''
+  Doctor.career (문자열 배열) → 자식 테이블. 전문의 상세의 '경력 및 활동' 점 목록.
+
+  지원 화면: 전문의 상세
+  '''
+}
+
+Table doctor_verifications {
+  id varchar [pk]
+  doctor_id varchar [not null, ref: > doctors.id]
+  submitted_specialty varchar [not null, note: "이 검수 건에서 심사 대상이 된 전문 분야 스냅샷. DentalSpecialty 허용값과 동일"]
+  submitted_certificate_url varchar [null, note: "제출 시점의 자격증 URL 스냅샷. null 이면 '미제출' 상태로 올라온 건"]
+  status varchar [not null, note: "허용값: pending, approved, rejected"]
+  rejection_reason text [null, note: "status='rejected' 일 때만 채운다"]
+  reviewed_by_user_id varchar [null, ref: > users.id, note: "승인·반려를 누른 운영자. status='pending' 이면 null. ON DELETE RESTRICT — 검수 결정의 행위자는 사라지면 안 된다 (audit_logs.actor_user_id 와 같은 정책. README §11.7)"]
+  reviewed_at timestamp [null, note: "처리 시각. pending 이면 null"]
+  created_at timestamp [not null, note: "검수 요청(제출) 시각"]
+
+  Indexes {
+    (doctor_id, created_at) [name: 'idx_doctor_verifications_doctor_created']
+    (status, created_at) [name: 'idx_doctor_verifications_status_created']
+  }
+
+  Note: '''
+  ★ 전문의 인증 이력. 목 모델에는 없던 테이블이다.
+  "누가 언제 무엇을 근거로 승인/반려했는가" 를 남기고, 재검수 트리거를 표현한다.
+
+  재검수 규칙 (앱이 지키는 불변식):
+    doctors.specialty 또는 doctors.certificate_url 이 바뀌면
+      → status='pending' 인 새 행을 만든다
+      → doctors.verification_status = 'pending'
+      → doctors.rejection_reason = null
+      → doctors.verified_specialty 는 그대로 두되, specialty 와 달라졌으므로
+        배지 판정식이 자동으로 거짓이 된다
+    승인 처리 시
+      → 행을 approved 로 갱신, doctors.verified_specialty = submitted_specialty
+    반려 처리 시
+      → 행을 rejected + rejection_reason 으로 갱신, verified_specialty 는 유지
+
+  이 테이블이 생기면 "승인된 전문의의 분야를 바꿔 검수를 우회" 하는 경로가 막히고,
+  '/admin/specialists' 에 검수 기록(처리자·시각)이 남는다.
+  승인/반려 결과를 병원에 알리는 알림도 이 테이블의 상태 변화를 트리거로 삼는다.
+
+  지원 화면: /admin/specialists, 전문의 상세·병원 상세의 배지 판정
+  '''
+}
+
+
+// =============================================================================
+// 5. 상담
+// =============================================================================
+
+Table consult_requests {
+  id varchar [pk, note: "fixture 의 'cr1'..'cr7' 을 그대로 수용"]
+  user_id varchar [not null, ref: > users.id, note: "★ 신청자. 상담 신청 화면은 이미 로그인을 강제하므로 not null 이다. 이 컬럼이 없어서 사용자가 자기 신청 내역을 볼 수 없었다"]
+  hospital_id varchar [not null, ref: > hospitals.id]
+  doctor_id varchar [null, ref: > doctors.id, note: "★ '전문의 상담신청' 으로 들어온 경우의 지목 전문의. 병원 상담이면 null"]
+  procedure_id varchar [null, ref: > procedures.id, note: "희망 시술. null 이면 화면에 '시술 미지정'"]
+
+  name varchar [not null, note: "신청 폼에 입력한 이름. 계정 이름과 다를 수 있어(가족 대신 신청 등) 별도 보관한다"]
+  phone varchar [not null, note: "신청 폼에 입력한 연락처. 형식 검증은 애플리케이션 책임"]
+  preferred_time varchar [not null, note: "허용값: '평일 오전', '평일 오후', '주말'"]
+  message text [null, note: "'남기고 싶은 말'. 비어 있으면 null"]
+
+  status varchar [not null, default: 'new', note: "ConsultStatus. 허용값: new, contacted, booked, cancelled"]
+  created_at timestamp [not null, note: "신청일시. 관리자 목록의 고정 정렬 기준"]
+  updated_at timestamp [not null]
+
+  Indexes {
+    (hospital_id, created_at) [name: 'idx_consult_requests_hospital_created']
+    (user_id, created_at) [name: 'idx_consult_requests_user_created']
+    (status, created_at) [name: 'idx_consult_requests_status_created']
+    created_at [name: 'idx_consult_requests_created']
+    doctor_id [name: 'idx_consult_requests_doctor']
+  }
+
+  Note: '''
+  상담 신청. JSON 이던 statusHistory / memos 는 자식 테이블로 나갔다.
+
+  중복 신청은 막지 않는다(현재 동작 유지) — 유니크 제약을 두지 않았다.
+  '상담 마감'(hospitals.consult_available=false) 병원의 접수 차단도 앱 검증이다.
+
+  지원 화면: 상담 신청(/consult/:hospitalId), /admin/consultations(목록·상태 필터),
+  /admin/consultations/:id(상세), /admin(이번 달 신규·처리 대기 카운트),
+  그리고 아직 없는 "내 상담 내역" 화면 (user_id 인덱스가 이걸 가능하게 한다)
+  '''
+}
+
+Table consult_status_changes {
+  id varchar [pk]
+  consult_request_id varchar [not null, ref: > consult_requests.id]
+  status varchar [not null, note: "바뀐 뒤의 상태. 허용값: new, contacted, booked, cancelled"]
+  changed_at timestamp [not null]
+  changed_by_user_id varchar [null, ref: > users.id, note: "상태를 바꾼 관리자. 화면에는 아직 표시하지 않지만 감사 목적으로 남긴다. 시드/시스템 생성 행은 null"]
+
+  Indexes {
+    (consult_request_id, changed_at) [name: 'idx_consult_status_changes_request_changed']
+  }
+
+  Note: '''
+  ConsultRequest.statusHistory (객체 배열 JSON) → 자식 테이블.
+  같은 상태를 다시 눌러 이력이 중복 적립되는 문제는 DB 제약으로 막을 수 없다.
+  "직전 status 와 같으면 무시" 는 애플리케이션 가드다.
+
+  지원 화면: /admin/consultations/:id('상태 변경 이력', 최신순)
+  '''
+}
+
+Table consult_memos {
+  id varchar [pk, note: "fixture 의 'memo-cr2-1' 같은 값을 그대로 수용"]
+  consult_request_id varchar [not null, ref: > consult_requests.id]
+  content text [not null]
+  created_at timestamp [not null]
+  author_user_id varchar [null, ref: > users.id, note: "메모 작성자. 현재 화면에 작성자 표시가 없다는 점이 문제로 지목되어 있어 컬럼을 둔다. 시드 행은 null"]
+
+  Indexes {
+    (consult_request_id, created_at) [name: 'idx_consult_memos_request_created']
+  }
+
+  Note: '''
+  ConsultRequest.memos (객체 배열 JSON) → 자식 테이블. 내부 공유용 메모.
+
+  지원 화면: /admin/consultations/:id('메모', 최신순)
+  '''
+}
+
+
+// =============================================================================
+// 6. 찜
+// =============================================================================
+
+Table favorites {
+  id varchar [pk]
+  user_id varchar [not null, ref: > users.id]
+  hospital_id varchar [not null, ref: > hospitals.id]
+  created_at timestamp [not null]
+
+  Indexes {
+    (user_id, hospital_id) [unique, name: 'uq_favorites_user_hospital']
+    (user_id, created_at) [name: 'idx_favorites_user_created']
+    hospital_id [name: 'idx_favorites_hospital']
+  }
+
+  Note: '''
+  ★ 찜. 목 구현은 브라우저 전역 hospitalIds 배열이어서 A 계정의 찜이 B 계정에
+  보였다. (user_id, hospital_id) 유니크로 계정별로 완전히 분리된다.
+  토글은 행의 생성/삭제다 (soft delete 불필요 — 사용자가 의도한 즉시 삭제).
+
+  지원 화면: 병원 상세(하트), 마이페이지(찜 목록·해제), 시술 꿀팁의 관련 병원 카드
+  '''
+}
+
+
+// =============================================================================
+// 7. 후기
+// =============================================================================
+
+Table reviews {
+  id varchar [pk, note: "fixture 의 'r1'..'r5'"]
+  hospital_id varchar [not null, ref: > hospitals.id]
+  procedure_id varchar [not null, ref: > procedures.id]
+  author_name varchar [not null, note: "'김**' 처럼 마스킹된 표시 이름. 후기 작성 기능이 없어 users 연결은 두지 않았다 (README 제안 절)"]
+  rating int [not null, note: "1~5 별점. 사용자 입력이 정수이므로 int. hospitals.rating(표시용 평균)만 float 다"]
+  content text [not null]
+  created_at timestamp [not null]
+
+  Indexes {
+    (hospital_id, created_at) [name: 'idx_reviews_hospital_created']
+    procedure_id [name: 'idx_reviews_procedure']
+  }
+
+  Note: '''
+  방문자 후기. 읽기 전용 — 작성 화면이 없다.
+
+  지원 화면: 병원 상세('방문자 후기')
+  '''
+}
+
+Table review_photos {
+  id varchar [pk]
+  review_id varchar [not null, ref: > reviews.id]
+  url varchar [not null]
+  sort_order int [not null, default: 0]
+
+  Indexes {
+    (review_id, sort_order) [name: 'idx_review_photos_review_sort']
+  }
+
+  Note: 'Review.photos (배열, optional) → 자식 테이블. 지원 화면: 병원 상세 후기 사진'
+}
+
+
+// =============================================================================
+// 8. 프로모션 (할인 이벤트)
+// =============================================================================
+
+Table promotions {
+  id varchar [pk, note: "fixture 의 'p1'..'p4'"]
+  hospital_id varchar [not null, ref: > hospitals.id]
+  procedure_id varchar [not null, ref: > procedures.id]
+  title varchar [not null, note: "'임플란트 1개 진단+식립 패키지'"]
+  original_price int [not null, note: "원가 (원). 취소선으로 표시"]
+  sale_price int [not null, note: "할인가 (원). 할인율은 저장하지 않고 두 값으로 계산한다"]
+  badge varchar [not null, note: "'얼리버드' 같은 🔥 배지 문구"]
+  start_date varchar [not null, note: "★ 'YYYY-MM-DD' (KST 달력일, 포함). 화면이 '기간 한정' 이라고 말하는데 기간 필드가 없던 문제를 해결한다"]
+  end_date varchar [not null, note: "★ 'YYYY-MM-DD' (KST 달력일, 포함). 오늘이 [start_date, end_date] 밖이면 진행중이 아니다"]
+  created_at timestamp [not null]
+
+  Indexes {
+    (hospital_id, start_date, end_date) [name: 'idx_promotions_hospital_window']
+    (procedure_id, start_date, end_date) [name: 'idx_promotions_procedure_window']
+  }
+
+  Note: '''
+  할인 이벤트. hospital_event_notes(가격 없는 자유 문구)와 다른 것이다.
+
+  "한 병원에 이벤트 하나" 는 유니크 제약으로 걸지 않았다 — 화면 문서에도
+  '(확인 필요)' 로 남아 있는 미확정 사항이고, 기간이 겹치지 않는 여러 프로모션은
+  정상 데이터이기 때문이다. 카드에 무엇을 고를지는 앱 규칙(진행중 + 최신)이다.
+
+  지원 화면: 이벤트 목록(/events), 홈('지금 진행중인 이벤트'),
+  병원 카드의 🔥 배지·할인가(홈·탐색·찜 목록), 병원 상세 가격 영역,
+  탐색 가격 비교표의 '할인가'
+  '''
+}
+
+
+// =============================================================================
+// 9. 시술 꿀팁 (가이드)
+// =============================================================================
+
+Table guides {
+  id varchar [pk, note: "fixture 의 'g1'..'g8'"]
+  title varchar [not null]
+  summary varchar [not null, note: "홈 꿀팁 카드의 한 줄 요약"]
+  thumbnail varchar [not null]
+  procedure_id varchar [not null, ref: > procedures.id, note: "관련 시술. 하단 '관련 시술 병원 상담받기' 가 이 값으로 탐색 화면을 필터한다"]
+  content text [not null, note: "본문. 문단은 빈 줄(\\n\\n) 로 구분한다. 서식(제목·목록·표)은 지원하지 않는다"]
+  author varchar [not null, note: "'몰라몰라 편집팀'. 편집팀 표기 자유 문자열이며 users 연결이 아니다"]
+  created_at timestamp [not null]
+
+  Indexes {
+    procedure_id [name: 'idx_guides_procedure']
+    created_at [name: 'idx_guides_created']
+  }
+
+  Note: '''
+  시술 꿀팁 콘텐츠. 작성·수정 화면이 없어 마이그레이션/시드로만 관리한다.
+
+  지원 화면: 홈('이런 꿀팁 어때요?'), 시술 꿀팁 상세(/tips/:id)
+  '''
+}
+
+Table guide_hospitals {
+  id varchar [pk]
+  guide_id varchar [not null, ref: > guides.id]
+  hospital_id varchar [not null, ref: > hospitals.id]
+  sort_order int [not null, default: 0]
+
+  Indexes {
+    (guide_id, hospital_id) [unique, name: 'uq_guide_hospitals']
+    hospital_id [name: 'idx_guide_hospitals_hospital']
+  }
+
+  Note: '''
+  GuideContent.relatedHospitals (배열) → 조인 테이블.
+
+  지원 화면: 시술 꿀팁 상세('관련 병원 보기')
+  '''
+}
+
+
+// =============================================================================
+// 10. 커뮤니티
+// =============================================================================
+
+Table qa_posts {
+  id varchar [pk, note: "fixture 의 'q1'..'q4'"]
+  title varchar [not null]
+  content text [not null]
+  procedure_id varchar [not null, ref: > procedures.id, note: "관련 시술. 작성 폼에서 항상 하나가 선택되어 있어 not null 이다"]
+  author_user_id varchar [null, ref: > users.id, note: "★ 작성자. 새로 쓰는 글은 반드시 채운다(앱이 로그인 강제). null 은 시드·레거시 익명 글 전용"]
+  is_anonymous boolean [not null, default: true, note: "★ 작성자를 연결해도 화면에는 '익명' 으로 보이게 하는 표시 플래그. 작성자 연결과 익명 표시를 분리했다"]
+  view_count int [not null, default: 0, note: "상세 진입 시 증가. 중복 집계 방지 규칙은 앱에 있다"]
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+  deleted_at timestamp [null, note: "글 삭제 기능이 아직 없지만, 생길 때 답변의 FK 를 지키려면 soft delete 여야 한다"]
+
+  Indexes {
+    created_at [name: 'idx_qa_posts_created']
+    procedure_id [name: 'idx_qa_posts_procedure']
+    author_user_id [name: 'idx_qa_posts_author']
+    deleted_at [name: 'idx_qa_posts_deleted_at']
+  }
+
+  Note: '''
+  커뮤니티 질문. 표시 이름 규칙:
+    is_anonymous = true          → '익명'
+    is_anonymous = false         → users.name
+  author_user_id 인덱스는 "내가 쓴 질문" 을 가능하게 한다 (현재는 방법이 없다).
+
+  지원 화면: 커뮤니티 목록(/community), 질문 상세(/community/:id),
+  질문 작성(/community/new)
+  '''
+}
+
+Table qa_answers {
+  id varchar [pk, note: "fixture 의 'a1'..'a3'"]
+  post_id varchar [not null, ref: > qa_posts.id]
+  content text [not null]
+  author_user_id varchar [null, ref: > users.id, note: "★ 답변 작성자 계정. 시드 행은 null"]
+  author_name varchar [null, note: "author_user_id 가 null 인 행의 표시 이름 스냅샷 ('몰라몰라 자문의', '교정경험자'). 계정이 연결되면 users.name 을 쓴다"]
+  is_anonymous boolean [not null, default: false]
+  hospital_id varchar [null, ref: > hospitals.id, note: "★ 병원 자격으로 답변한 경우의 병원"]
+  doctor_id varchar [null, ref: > doctors.id, note: "★ 전문의 자격으로 답변한 경우의 전문의. '누가 답변하는가' 를 표현한다"]
+  is_dentist boolean [not null, default: false, note: "'치과의사 답변' 배지. doctor_id 가 있고 그 전문의가 승인 상태면 true 로 저장한다. 계정 없는 시드 답변('몰라몰라 자문의')을 표현하려고 별도 컬럼으로 남겼다"]
+  created_at timestamp [not null]
+  updated_at timestamp [not null]
+  deleted_at timestamp [null]
+
+  Indexes {
+    (post_id, created_at) [name: 'idx_qa_answers_post_created']
+    author_user_id [name: 'idx_qa_answers_author']
+    doctor_id [name: 'idx_qa_answers_doctor']
+    hospital_id [name: 'idx_qa_answers_hospital']
+  }
+
+  Note: '''
+  ★ QAPost.answers (객체 배열 JSON) → 자식 테이블.
+  배열이었기 때문에 답변을 쓸 화면을 만들 수 없었다. 별도 테이블 + 작성자/병원/
+  전문의 연결이 생기면 답변 작성 화면과 '치과의사 답변' 배지의 실제 근거가 만들어진다.
+
+  지원 화면: 질문 상세(/community/:id, 답변 목록·배지), 커뮤니티 목록('답변 N'),
+  그리고 아직 없는 답변 작성 화면
+  '''
+}
+
+
+// =============================================================================
+// 11. 알림
+// =============================================================================
+
+Table notifications {
+  id varchar [pk, note: "fixture 의 'notif1'..'notif7'"]
+  audience varchar [not null, note: "NotificationAudience. 허용값: user, admin. 두 알림함을 나누는 값"]
+  type varchar [not null, note: "NotificationType. 허용값: consult-status, event, system"]
+  title varchar [not null]
+  message text [not null]
+  related_type varchar [null, note: "related_id 가 무엇의 id 인지. 허용값: consult_request, hospital, doctor, promotion. 현재 관리자 알림은 related_id 만 보고 무조건 상담 상세로 보내는 문제가 있다"]
+  related_id varchar [null, note: "관련 레코드 id. 일반 공지는 null. FK 를 걸 수 없는 다형 참조이므로 애플리케이션이 무결성을 지킨다"]
+  hospital_id varchar [null, ref: > hospitals.id, note: "audience='admin' 일 때 어느 병원의 알림함인지. 사용자 알림은 null"]
+  created_at timestamp [not null]
+
+  Indexes {
+    created_at [name: 'idx_notifications_created']
+    (audience, created_at) [name: 'idx_notifications_audience_created']
+    (related_type, related_id) [name: 'idx_notifications_related']
+    (hospital_id, created_at) [name: 'idx_notifications_hospital_created']
+  }
+
+  Note: '''
+  알림의 "내용". 누가 받는지는 notification_recipients 가 정한다.
+
+  알림이 생기는 두 지점 (현재 앱 기준):
+    상담 신청  → audience='admin', hospital_id=신청 대상 병원 → 그 병원 담당자들
+    상태 변경  → audience='user' → 그 상담의 신청자 1명
+
+  스키마가 새로 가능하게 하는 것: 전문의 승인/반려 결과를 병원에 통보
+  (audience='admin', type='system', related_type='doctor').
+
+  지원 화면: /notifications, /admin/notifications, 각 종 배지
+  '''
+}
+
+Table notification_recipients {
+  id varchar [pk]
+  notification_id varchar [not null, ref: > notifications.id]
+  user_id varchar [not null, ref: > users.id]
+  read_at timestamp [null, note: "null 이면 안 읽음. '모두 읽음' 은 이 컬럼을 채운다"]
+
+  Indexes {
+    (notification_id, user_id) [unique, name: 'uq_notification_recipients']
+    (user_id, read_at) [name: 'idx_notification_recipients_user_read']
+  }
+
+  Note: '''
+  ★ 수신자 + 읽음 상태. 목 모델의 AppNotification.isRead 는 전역 값이어서
+  아무 계정으로 로그인해도 같은 알림을 보고, 관리자가 상담 상태를 바꾸면 자기
+  알림함에도 알림이 들어왔다.
+
+  이 테이블이 그 세 가지를 동시에 해결한다:
+    1) 계정별 알림 분리 — 상담 상태 알림은 신청자에게만 행을 만든다
+    2) 계정별 읽음 상태 — read_at 이 (알림 × 사용자) 단위다
+    3) 관리자 알림 — 병원 담당자들에게만 행을 만든다
+
+  전체 공지(type='event' / 'system')는 쓰기 시점에 대상 계정 수만큼 행을 펼친다
+  (fan-out). 알림 본문은 notifications 에 한 번만 저장되므로 중복되지 않는다.
+
+  안 읽은 개수:
+    SELECT count(*) FROM notification_recipients
+     WHERE user_id = ? AND read_at IS NULL
+  → (user_id, read_at) 인덱스로 커버된다.
+  '''
+}
+
+
+// =============================================================================
+// 12. 세션 (리프레시 토큰)
+// =============================================================================
+
+Table refresh_tokens {
+  id varchar [pk, note: "cuid"]
+  jti varchar [unique, not null, note: "토큰 식별자 (JWT jti 클레임). ★ 토큰 문자열은 저장하지 않는다 — 이 값만 저장한다"]
+  user_id varchar [not null, ref: > users.id, note: "ON DELETE CASCADE. 계정이 물리 삭제되면 세션도 사라져야 한다 (감사 자료가 아니라 인증 상태다)"]
+  family_id varchar [not null, note: "회전 계열. 로그인 1회 = 계열 1개. 회전 때마다 같은 family_id 로 새 행이 생기고, 재사용이 감지되면 이 값으로 계열 전체를 폐기한다"]
+  expires_at timestamp [not null, note: "발급 시각 + REFRESH_TOKEN_TTL_SECONDS (기본 30일). 애플리케이션이 UTC 로 계산해 넣는다"]
+  used_at timestamp [null, note: "회전으로 소비된 시각. null 이면 아직 유효. ★ 소비된 행을 지우지 않는다 — 지우면 재사용 공격이 'unknown'(단순 만료)으로 보여 계열 폐기가 일어나지 않는다"]
+  revoked_at timestamp [null, note: "로그아웃·역할 변경·비밀번호 변경으로 폐기된 시각. 폐기도 삭제가 아니라 이 컬럼을 채운다 (무엇이 왜 끊겼는지 남는다)"]
+  created_at timestamp [not null]
+  user_agent varchar [null, note: "발급 시점 스냅샷. '내 세션 목록'·이상 징후 확인용"]
+  ip varchar [null, note: "발급 시점 스냅샷"]
+
+  Indexes {
+    jti [unique, name: 'uq_refresh_tokens_jti']
+    (user_id, expires_at) [name: 'idx_refresh_tokens_user_expires']
+    family_id [name: 'idx_refresh_tokens_family']
+    expires_at [name: 'idx_refresh_tokens_expires']
+  }
+
+  Note: '''
+  ★ 리프레시 토큰의 서버 상태. 지금은 프로세스 메모리(InMemoryRefreshTokenStore)에 있어서
+  세 가지가 깨진다:
+    1) 서버를 재시작하면 전원 로그아웃
+    2) 인스턴스가 2개면 회전이 깨진다 (다른 인스턴스로 가면 unknown)
+    3) CLI(npm run operator:grant) 같은 별도 프로세스가 세션을 폐기할 수 없다
+
+  ☆ 토큰 문자열도, 그 해시도 저장하지 않는다. 저장하는 것은 jti 하나다.
+    서명 검증은 비밀키가 하고 이 테이블은 "그 jti 가 아직 살아 있는가" 만 답하므로,
+    이 테이블이 유출돼도 토큰을 재생할 수 없다.
+
+  상태 판정:
+    활성   = used_at IS NULL AND revoked_at IS NULL AND expires_at > now()
+    소비됨 = used_at IS NOT NULL           → 다시 오면 계열 전체 폐기 (REFRESH_TOKEN_REUSED)
+    폐기됨 = revoked_at IS NOT NULL        → REFRESH_TOKEN_INVALID
+    만료   = expires_at <= now()           → REFRESH_TOKEN_INVALID
+
+  만료 행 정리 전략은 README §11.1 (누적되면 계속 자란다).
+  지원 화면: 로그인·로그아웃·자동 재발급 (그리고 아직 없는 '내 기기·세션 목록')
+  '''
+}
+
+
+// =============================================================================
+// 13. 감사 로그
+// =============================================================================
+
+Table audit_logs {
+  id varchar [pk, note: "cuid"]
+  actor_user_id varchar [not null, ref: > users.id, note: "행위자. ★ ON DELETE RESTRICT — 사용자를 지우면 삭제가 실패한다. 감사 기록이 대신 사라지는 것보다 삭제가 막히는 편이 맞다 (README §11.2)"]
+  actor_role varchar [not null, note: "★ 행위 시점의 역할 스냅샷 (user | hospital_admin | operator). users.role 을 조인하면 승격·해제로 값이 바뀌어 과거 행위의 역할을 알 수 없게 된다"]
+  action varchar [not null, note: "허용값 9개: consult_request.view | partner_inquiry.view | consult_request.status_change | consult_request.memo_create | doctor.verify | hospital_admin.assign | hospital_admin.unassign | hospital.create | partner_inquiry.review"]
+  target_type varchar [not null, note: "허용값: consult_request | partner_inquiry | doctor | hospital | user"]
+  target_id varchar [not null, note: "다형 참조이므로 FK 를 걸 수 없다 (notifications.related_id 와 같은 사정). 대상이 지워져도 '무엇을 열람했는가' 는 남아야 하므로 FK 가 없는 편이 오히려 맞다"]
+  hospital_id varchar [null, ref: > hospitals.id, note: "병원 범위 행위일 때. 병원별 감사 조회용. ON DELETE RESTRICT"]
+  pii_masked boolean [null, note: "★ 마스킹 정책 스냅샷. true=마스킹된 값을 봤다(operator) / false=마스킹하지 않은 개인정보를 봤다(담당 병원 hospital_admin) / null=그 행위의 응답에 개인정보가 없다(hospital.create, doctor.verify). API 요구사항은 not null 이었지만, 그러면 개인정보와 무관한 행위도 false 가 되어 '누가 원본을 봤는가' 질의가 오염된다"]
+  request_id varchar [not null, note: "에러 응답의 requestId 와 같은 값. 애플리케이션 로그와 상관관계를 잇는다"]
+  ip varchar [null]
+  user_agent varchar [null]
+  before_value varchar [null, note: "상태 전이형 행위의 변경 전 스냅샷 ('new', 'pending', 'reviewing'). JSON metadata 컬럼을 쓰지 않기 위한 실 컬럼이다 (§3.3 의 PriceRange → price_min/price_max 와 같은 처리). 열람 행위는 null"]
+  after_value varchar [null, note: "변경 후 스냅샷 ('contacted', 'approved', 'rejected'). 반려 사유·메모 본문 같은 자유 텍스트는 복사하지 않는다 — 원본 테이블에 있고, 감사 로그로 개인정보를 한 번 더 복제할 이유가 없다"]
+  created_at timestamp [not null]
+
+  Indexes {
+    (actor_user_id, created_at) [name: 'idx_audit_logs_actor_created']
+    (target_type, target_id, created_at) [name: 'idx_audit_logs_target_created']
+    (hospital_id, created_at) [name: 'idx_audit_logs_hospital_created']
+    (action, created_at) [name: 'idx_audit_logs_action_created']
+    created_at [name: 'idx_audit_logs_created']
+  }
+
+  Note: '''
+  ★ 관리자 행위 감사. 요구사항 출처: docs/api/README.md §4,
+  docs/decisions/0001-roles-and-pii.md 결정 3("감사 로그는 이 결정에 따라오는 항목").
+
+  지금 남는 것은 consult_status_changes.changed_by_user_id 와
+  doctor_verifications.reviewed_by_user_id 로 **변경 행위 일부**뿐이고,
+  **열람 기록은 어디에도 없다.** 마스킹으로 operator 쪽 노출면을 막았으므로 남는
+  노출면은 담당 병원 hospital_admin 쪽이고, 그것을 이 테이블이 받는다.
+
+  ☆ append-only 다. UPDATE 는 어떤 경로에서도 하지 않고, DELETE 는 보존기간 만료 배치
+    하나만 한다. Prisma/SQLite 로는 강제할 수 없어 애플리케이션이 지킨다
+    (PostgreSQL 이전 후에는 REVOKE UPDATE, DELETE 로 굳힌다 — README §11.2).
+    updated_at 컬럼을 두지 않은 것도 같은 이유다.
+
+  이 테이블이 답해야 하는 질문 = 인덱스 4개:
+    "이 담당자가 무엇을 열람했나"        (actor_user_id, created_at)
+    "이 상담을 누가 열람했나"            (target_type, target_id, created_at)  ← 정보주체 문의
+    "이 병원에서 무슨 일이 있었나"        (hospital_id, created_at)
+    "열람이 몇 건인가 / 승격이 몇 건인가" (action, created_at)
+  created_at 단독 인덱스는 보존기간 만료 삭제용이다.
+
+  목록 조회(GET /consult-requests)는 기록하지 않는다 — 관리 화면이 목록을 반복 조회해
+  로그가 의미 없이 불어난다. 엑셀 내려받기가 생기면 그때는 필수로 기록한다.
+  '''
+}
+
+
+// =============================================================================
+// 14. 입점 문의
+// =============================================================================
+
+Table partner_inquiries {
+  id varchar [pk, note: "cuid"]
+  hospital_name varchar [not null]
+  contact_name varchar [not null, note: "개인정보 — 담당자 실명"]
+  phone varchar [not null, note: "개인정보. 병원 대표번호도 오므로 휴대폰보다 완화된 패턴 (앱 검증)"]
+  email varchar [null]
+  region varchar [null]
+  message text [null]
+  status varchar [not null, default: 'received', note: "허용값: received, reviewing, approved, rejected. 흐름 received → reviewing → approved | rejected. 종결 후 되돌리기 불가 (앱 검증)"]
+  review_note text [null, note: "운영자 심사 메모. status='rejected' 면 필수 (앱 검증)"]
+  reviewed_by_user_id varchar [null, ref: > users.id, note: "심사한 operator. ON DELETE RESTRICT — 심사 기록의 행위자는 사라지면 안 된다"]
+  reviewed_at timestamp [null]
+  linked_hospital_id varchar [null, ref: > hospitals.id, note: "이 문의로 만들어진 병원. 승인이 곧 생성은 아니므로 생성 후 연결한다. ON DELETE SET NULL"]
+  received_at timestamp [not null, note: "접수 시각. 이 테이블의 created_at 이다"]
+  pii_purged_at timestamp [null, note: "개인정보 파기 실행 시각. 파기 시 contact_name/phone/email 을 '(파기)' 로 치환하고 이 컬럼을 채운다 — NOT NULL 컬럼을 치환하므로 '파기됨' 과 '원래 그 값' 을 구분할 표시가 필요하다. ☆ 보존 기간(며칠)은 컬럼이 아니라 설정값이다 (아직 미결)"]
+
+  Indexes {
+    (status, received_at) [name: 'idx_partner_inquiries_status_received']
+    received_at [name: 'idx_partner_inquiries_received']
+  }
+
+  Note: '''
+  ★ 병원 입점 문의. /partner-inquiry 화면은 지금 '문의 폼은 준비중입니다' 한 줄이지만,
+  역할 결정(docs/decisions/0001)이 **입점 문의 → 운영자 심사 → 병원 생성 → 담당자 지정**
+  을 병원 생성의 유일한 경로로 만들었기 때문에 운영자 콘솔의 전제 테이블이 되었다.
+  "접수만 받는 폼" 이 아니라 심사 상태를 가진 워크플로 테이블이다.
+
+  ☆ 개인정보 테이블이다. contact_name(담당자 실명)·phone·email 이 담긴다.
+    - 상세 열람이 감사 로그 대상이다 (audit_logs.action='partner_inquiry.view')
+    - 심사도 감사 대상이다 (action='partner_inquiry.review', before/after_value = 상태)
+    - 응답은 Cache-Control: no-store
+    - 상담 신청자 PII 와 달리 **마스킹하지 않는다** — 운영자가 심사를 위해 직접 연락해야
+      하므로 "연락하지 않아도 되는 열람자" 가 존재하지 않는다
+
+  updated_at 을 두지 않은 이유: received → reviewing 전이 시각이 필요한데, 그 이력은
+  audit_logs(action='partner_inquiry.review', created_at)가 이미 받는다. 같은 사실을
+  두 곳에 두면 어긋난다.
+
+  linked_hospital_id 를 hospitals 쪽이 아니라 여기 둔 이유: 문의 없이 만들어진 병원이 있고
+  (초기 데이터 이관), 문의:병원이 1:1 이 아니다 (반려 후 재문의).
+
+  지원 화면: 병원 입점 문의(접수), 그리고 아직 없는 운영자 심사 화면
+  '''
+}
+
+
+// =============================================================================
+// 15. 약관 · 동의
+// =============================================================================
+
+Table legal_documents {
+  id varchar [pk, note: "cuid"]
+  slug varchar [not null, note: "허용값: terms, privacy, location, about. about 은 법적 문서가 아니지만 같은 구조(버전·본문)로 다루면 화면 하나를 줄인다"]
+  version varchar [not null, note: "개정 버전 ('1.0'). 회원가입 동의 기록이 이 값을 가리킨다. 문자열이라 정렬에 쓰지 않는다 ('1.10' < '1.9' 문제) — 정렬은 effective_at 으로 한다"]
+  title varchar [not null, note: "'서비스 이용약관'"]
+  content text [not null, note: "마크다운. API 의 contentFormat 은 const 'markdown' 이라 컬럼으로 두지 않았다"]
+  requires_agreement boolean [not null, default: true, note: "☆ 이 버전이 동의 기록 대상인가. false 인 두 경우: ① slug='about' ② 오탈자·표현 정정판(재동의를 받을 실질 변경이 아니다). 재동의 판정의 기준선이 되는 컬럼이다"]
+  effective_at timestamp [not null, note: "시행일. 광고·프로모션 기간과 달리 timestamp 다 — 경계가 시작 하나뿐이고(effective_at <= now()) 종료일 포함/배타 애매성이 없으며, openapi LegalDocument.effectiveAt 가 이미 date-time 이다. KST 자정 시행이면 앱이 전날 15:00Z 로 변환해 넣는다"]
+  created_at timestamp [not null, note: "행 작성 시각. 시행일(effective_at)보다 앞선다 (사전 공고)"]
+
+  Indexes {
+    (slug, version) [unique, name: 'uq_legal_documents_slug_version']
+    (slug, effective_at) [name: 'idx_legal_documents_slug_effective']
+  }
+
+  Note: '''
+  ★ 약관 본문과 버전. /legal/terms, /legal/privacy, /legal/location 세 화면이 지금
+  '준비중입니다' 한 줄인데, 그 문구가 들어갈 자리가 이 테이블이다.
+
+  ☆ 행은 불변이다. 본문을 고치면 같은 slug 의 **새 버전 행**을 만든다.
+    user_agreements 가 legal_documents.id 를 가리키므로, 행을 고치면 "무엇에 동의했는가" 가
+    소급 변경되어 동의 기록이 증빙 능력을 잃는다.
+
+  "지금 유효한 버전" (GET /legal-documents/{slug}):
+    SELECT * FROM legal_documents
+     WHERE slug = ? AND effective_at <= now()
+     ORDER BY effective_at DESC, created_at DESC
+     LIMIT 1
+  → (slug, effective_at) 인덱스가 받는다. 아직 시행 전 버전을 미리 넣어 둘 수 있다.
+
+  지원 화면: 서비스 이용약관 / 개인정보 처리방침 / 위치기반 서비스 이용약관 /
+  몰라몰라 알아보기, 그리고 회원가입의 약관 동의 절차(아직 없음)
+  '''
+}
+
+Table user_agreements {
+  id varchar [pk, note: "cuid"]
+  user_id varchar [not null, ref: > users.id, note: "ON DELETE CASCADE — 계정을 물리 삭제(파기)하면 증빙 대상이 없어진 동의 기록도 함께 파기된다. 회원 탈퇴는 soft delete 이므로 이 경로로는 지워지지 않는다"]
+  legal_document_id varchar [not null, ref: > legal_documents.id, note: "slug 가 아니라 **버전 행**을 가리킨다. ON DELETE RESTRICT — 동의 기록이 가리키는 약관은 삭제할 수 없다"]
+  agreed_at timestamp [not null, note: "동의 시각 (UTC). 가입 요청 처리 시각과 같은 트랜잭션에서 넣는다"]
+
+  Indexes {
+    (user_id, legal_document_id) [unique, name: 'uq_user_agreements_user_document']
+    legal_document_id [name: 'idx_user_agreements_document']
+  }
+
+  Note: '''
+  ★ 누가 언제 어느 버전에 동의했는가. 지금 POST /auth/signup 이 받는 agreedTermsVersions
+  는 **넣을 곳이 없어서 경고만 로그로 남기고 버려진다.** 동의 기록은 사후 재구성이
+  불가능하므로(누가 무엇에 동의했는지 추정할 근거가 없다) 이 테이블 없이는 동의 절차를
+  도입할 수 없다.
+
+  ☆ 입도(grain)가 (사용자 × 문서 버전) 인 것이 설계의 핵심이다. 약관이 개정되면
+    legal_documents 에 새 행이 생기고 그 행에 대한 동의 행은 아무에게도 없으므로,
+    **재동의 대상이 저절로 계산된다.** 사용자마다 '재동의 필요' 플래그를 두지 않는다.
+
+  재동의가 필요한 사용자 (README §11.3):
+    SELECT u.id FROM users u
+     WHERE u.deleted_at IS NULL
+       AND NOT EXISTS (
+         SELECT 1 FROM user_agreements a
+          WHERE a.user_id = u.id AND a.legal_document_id = :현재_필수_버전_id
+       )
+
+  (user_id) 단독 인덱스를 만들지 않은 이유: 유니크 인덱스 (user_id, legal_document_id)
+  의 선두 컬럼이 user_id 라서 "내 동의 목록" 조회가 이미 커버된다.
+  (legal_document_id) 는 그 반대 방향("이 버전에 동의한 사용자 수" = 재동의 진행률)이라
+  별도로 필요하다.
+
+  agreedTermsVersions 는 {slug, version} 배열로 오므로, 서버가 (slug, version) 유니크로
+  legal_documents.id 를 찾아 이 테이블에 넣는다.
+  '''
+}

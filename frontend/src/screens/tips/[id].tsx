@@ -1,18 +1,27 @@
 import { router, Stack, useLocalSearchParams } from '@/navigation';
 import { ChevronLeft } from 'lucide-react';
-import { Pressable, ScrollView, Text, View } from '@/primitives';
+import { Pressable, ScrollView, Text, View, cx } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
 
 import { Badge } from '@/components/Badge';
-import { HospitalCard } from '@/components/HospitalCard';
+import { CONTAINER_PADDING } from '@/components/layout/Container';
+import { useHospital } from '@/features/hospital';
+import { HospitalCard } from '@/features/hospital/components/HospitalCard';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { StockImage } from '@/components/StockImage';
-import { getProcedureById } from '@/data/procedures';
-import { guides } from '@/data/guides';
-import { getHospitalById } from '@/store/useHospitalStore';
+import { useProcedureMap } from '@/features/procedure';
+import { guides } from '@/mocks/fixtures/guides';
+
+/** 관련 병원 하나를 조회해 렌더한다. 아직 안 왔거나 없는 병원이면 아무것도 그리지 않는다. */
+function RelatedHospitalCard({ hospitalId }: { hospitalId: string }) {
+  const { data: hospital } = useHospital(hospitalId);
+  if (!hospital) return null;
+  return <HospitalCard hospital={hospital} />;
+}
 
 export default function TipDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const procedureMap = useProcedureMap();
   const guide = guides.find((item) => item.id === id);
 
   if (!guide) {
@@ -24,18 +33,16 @@ export default function TipDetailScreen() {
     );
   }
 
-  const procedure = getProcedureById(guide.procedureId);
+  const procedure = procedureMap.get(guide.procedureId);
   const paragraphs = guide.content.split('\n\n');
-  const relatedHospitals = (guide.relatedHospitals ?? [])
-    .map((hospitalId) => getHospitalById(hospitalId))
-    .filter((hospital): hospital is NonNullable<typeof hospital> => Boolean(hospital));
+  const relatedHospitalIds = guide.relatedHospitals ?? [];
 
   return (
     <View className="flex-1 bg-white">
       <Stack.Screen options={{ title: '' }} />
 
       <ScrollView showsVerticalScrollIndicator={false}>
-        <View className="px-5 pt-4">
+        <View className={cx(CONTAINER_PADDING, 'pt-4')}>
           <Pressable
             onPress={() => router.back()}
             hitSlop={8}
@@ -45,7 +52,7 @@ export default function TipDetailScreen() {
           </Pressable>
         </View>
 
-        <View className="px-5">
+        <View className={CONTAINER_PADDING}>
           <StockImage
             uri={guide.thumbnail}
             alt={guide.title}
@@ -55,7 +62,7 @@ export default function TipDetailScreen() {
           />
         </View>
 
-        <View className="px-5 pt-5">
+        <View className={cx(CONTAINER_PADDING, 'pt-5')}>
           {procedure ? (
             <View className="mb-3 flex-row">
               <Badge label={procedure.name} tone="brand" />
@@ -76,11 +83,11 @@ export default function TipDetailScreen() {
             ))}
           </View>
 
-          {relatedHospitals.length > 0 ? (
+          {relatedHospitalIds.length > 0 ? (
             <View className="mb-4">
               <Text className="mb-3 text-base font-bold text-neutral-900">관련 병원 보기</Text>
-              {relatedHospitals.map((hospital) => (
-                <HospitalCard key={hospital.id} hospital={hospital} />
+              {relatedHospitalIds.map((hospitalId) => (
+                <RelatedHospitalCard key={hospitalId} hospitalId={hospitalId} />
               ))}
             </View>
           ) : null}
@@ -89,7 +96,7 @@ export default function TipDetailScreen() {
         </View>
       </ScrollView>
 
-      <SafeAreaView edges={['bottom']} className="border-t border-neutral-100 bg-white px-5 pt-3">
+      <SafeAreaView edges={['bottom']} className={cx(CONTAINER_PADDING, 'border-t border-neutral-100 bg-white pt-3')}>
         <View className="pb-3">
           <PrimaryButton
             label="관련 시술 병원 상담받기"
