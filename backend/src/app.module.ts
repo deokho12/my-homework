@@ -5,6 +5,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
 import { validateEnv } from './config/env.schema';
+import { ConsultModule } from './consult/consult.module';
 import { DoctorModule } from './doctor/doctor.module';
 import { FavoriteModule } from './favorite/favorite.module';
 import { HealthModule } from './health/health.module';
@@ -42,6 +43,7 @@ import { ProcedureModule } from './procedure/procedure.module';
     DoctorModule,
     NotificationModule,
     FavoriteModule,
+    ConsultModule,
   ],
 })
 export class AppModule {}
