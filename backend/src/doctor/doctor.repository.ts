@@ -2,6 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { createId } from '@paralleldrive/cuid2';
 import type { Prisma } from '@prisma/client';
 
+import {
+  createNotificationWithRecipients,
+  findHospitalAdminUserIds,
+} from '../notification/notification.write';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PrismaService } from '../prisma/prisma.service';
 import { DOCTOR_INCLUDE } from './doctor.projection';
@@ -183,11 +187,11 @@ export class DoctorRepository {
         },
       });
 
-      const admins = await tx.hospitalAdmin.findMany({ where: { hospitalId: params.hospitalId } });
-
-      const notification = await tx.notification.create({
-        data: {
-          id: createId(),
+      // 알림 행 모양은 `notification.write.ts` 한 곳이 안다 — 상담 접수도 같은 것을
+      // 만든다. 트랜잭션은 여기 것을 그대로 넘겨 검수 이력과 원자성을 유지한다.
+      await createNotificationWithRecipients(
+        tx,
+        {
           audience: 'admin',
           type: 'system',
           title: params.notificationTitle,
@@ -195,15 +199,10 @@ export class DoctorRepository {
           relatedType: 'doctor',
           relatedId: params.doctorId,
           hospitalId: params.hospitalId,
-          createdAt: now,
+          recipientUserIds: await findHospitalAdminUserIds(tx, params.hospitalId),
         },
-      });
-
-      if (admins.length > 0) {
-        await tx.notificationRecipient.createMany({
-          data: admins.map((admin) => ({ id: createId(), notificationId: notification.id, userId: admin.userId })),
-        });
-      }
+        now,
+      );
     });
   }
 

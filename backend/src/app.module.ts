@@ -6,8 +6,10 @@ import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
 import { validateEnv } from './config/env.schema';
 import { DoctorModule } from './doctor/doctor.module';
+import { FavoriteModule } from './favorite/favorite.module';
 import { HealthModule } from './health/health.module';
 import { HospitalModule } from './hospital/hospital.module';
+import { NotificationModule } from './notification/notification.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProcedureModule } from './procedure/procedure.module';
 
@@ -38,6 +40,8 @@ import { ProcedureModule } from './procedure/procedure.module';
     ProcedureModule,
     HospitalModule,
     DoctorModule,
+    NotificationModule,
+    FavoriteModule,
   ],
 })
 export class AppModule {}
