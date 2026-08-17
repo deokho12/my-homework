@@ -67,9 +67,12 @@ describe('상담 (e2e)', () => {
 
   afterAll(async () => {
     if (created.length > 0) {
-      // 알림은 FK 로 상담에 묶여 있지 않다(relatedId 는 문자열이라) — 따로 지운다.
+      // 알림·감사 로그는 FK 로 상담에 묶여 있지 않다(문자열 참조라) — 따로 지운다.
       await prisma.notification.deleteMany({
         where: { relatedType: 'consult_request', relatedId: { in: created } },
+      });
+      await prisma.auditLog.deleteMany({
+        where: { targetType: 'consult_request', targetId: { in: created } },
       });
       // 이력·메모는 상담에 cascade 로 묶여 있다.
       await prisma.consultRequest.deleteMany({ where: { id: { in: created } } });
@@ -101,6 +104,12 @@ describe('상담 (e2e)', () => {
       expect(response.body.statusHistory).toEqual([
         { status: 'new', changedAt: expect.any(String) },
       ]);
+    });
+
+    it('만든 자원의 위치를 Location 으로 알려준다 (신청자가 볼 수 있는 경로다)', async () => {
+      const response = await createConsult();
+
+      expect(response.headers.location).toBe(`/v1/me/consult-requests/${response.body.id}`);
     });
 
     it('★ 신청자 응답에는 내부 메모가 아예 없다', async () => {
@@ -284,13 +293,39 @@ describe('상담 (e2e)', () => {
       expect(new Set(response.body.items.map((i: { hospitalId: string }) => i.hospitalId)).size).toBeGreaterThan(1);
     });
 
-    it('★ 담당 밖 병원을 콕 집어 요청해도 빈 결과다 (403 이면 그 병원의 존재를 알려준다)', async () => {
+    it('★ 담당 밖 병원을 콕 집어 요청하면 403 이다 — 병원은 공개 리소스라 숨기지 않는다', async () => {
       const response = await request(app.getHttpServer())
         .get(`/api/v1/consult-requests?hospitalId=${H2}&pageSize=100`)
         .set('Authorization', bearer(adminH1.accessToken));
 
+      expect(response.status).toBe(403);
+      expect(response.body.error.code).toBe('HOSPITAL_NOT_MANAGED');
+    });
+
+    it('담당 병원을 콕 집어 요청하면 그 병원만 나온다', async () => {
+      const response = await request(app.getHttpServer())
+        .get(`/api/v1/consult-requests?hospitalId=${H1}&pageSize=100`)
+        .set('Authorization', bearer(adminH1.accessToken));
+
       expect(response.status).toBe(200);
-      expect(response.body.items).toEqual([]);
+      expect(response.body.items.every((item: { hospitalId: string }) => item.hospitalId === H1)).toBe(true);
+    });
+
+    it('운영자는 어느 병원이든 집어 볼 수 있다', async () => {
+      const response = await request(app.getHttpServer())
+        .get(`/api/v1/consult-requests?hospitalId=${H2}&pageSize=100`)
+        .set('Authorization', bearer(operator.accessToken));
+
+      expect(response.status).toBe(200);
+    });
+
+    it('★ 역할에 따라 본문이 달라지므로 공유 캐시가 섞이지 않게 Vary 를 붙인다', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/consult-requests')
+        .set('Authorization', bearer(adminH1.accessToken));
+
+      expect(response.headers.vary).toBe('Authorization');
+      expect(response.headers['cache-control']).toBe('no-store');
     });
 
     it('상태로 거른다', async () => {
@@ -340,6 +375,40 @@ describe('상담 (e2e)', () => {
       expect(foreign.status).toBe(404);
       expect(missing.status).toBe(404);
       expect(foreign.body.error).toMatchObject({ code: missing.body.error.code, message: missing.body.error.message });
+    });
+
+    it('★ 열람이 감사 로그에 남는다 (결정 3 — 마스킹되지 않은 개인정보를 본 대가)', async () => {
+      const { body: made } = await createConsult();
+
+      const response = await request(app.getHttpServer())
+        .get(`/api/v1/consult-requests/${made.id}`)
+        .set('Authorization', bearer(adminH1.accessToken));
+
+      expect(response.status).toBe(200);
+      expect(response.headers['x-audit-logged']).toBe('true');
+
+      const rows = await prisma.auditLog.findMany({
+        where: { action: 'consult_request.view', targetId: made.id, actorUserId: adminH1.user.id },
+      });
+
+      expect(rows).toHaveLength(1);
+      // 담당 병원 담당자는 원본을 봤다 → `pii_masked = false`. 가드가 남긴 범위에서 나온다.
+      expect(rows[0]).toMatchObject({ piiMasked: false, hospitalId: H1 });
+    });
+
+    it('★ 운영자 열람은 마스킹된 것으로 기록된다', async () => {
+      const { body: made } = await createConsult();
+
+      await request(app.getHttpServer())
+        .get(`/api/v1/consult-requests/${made.id}`)
+        .set('Authorization', bearer(operator.accessToken));
+
+      const rows = await prisma.auditLog.findMany({
+        where: { action: 'consult_request.view', targetId: made.id, actorUserId: operator.user.id },
+      });
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0].piiMasked).toBe(true);
     });
 
     it('summary 가 상담 id 로 잡히지 않는다', async () => {
@@ -402,6 +471,18 @@ describe('상담 (e2e)', () => {
       const { body: made } = await createConsult();
 
       expect((await patch(made.id, 'contacted', operator)).status).toBe(403);
+    });
+
+    it('★ 실제로 바뀌면 X-Status-Changed: true, 같은 상태면 false 다', async () => {
+      const { body: made } = await createConsult();
+
+      const changed = await patch(made.id, 'contacted', adminH1);
+      const unchanged = await patch(made.id, 'contacted', adminH1);
+
+      expect(changed.headers['x-status-changed']).toBe('true');
+      // 본문만으로는 두 응답이 같다 — 이 헤더가 유일한 구분 수단이다.
+      expect(unchanged.headers['x-status-changed']).toBe('false');
+      expect(unchanged.body.status).toBe(changed.body.status);
     });
 
     it('상태가 바뀌고 이력이 쌓인다', async () => {

@@ -29,11 +29,18 @@ function AdminBell() {
   );
 }
 
-function StatCard({ label, value }: { label: string; value: number }) {
+/**
+ * 숫자 카드.
+ *
+ * **`value` 가 `null` 이면 `—` 를 쓴다.** 조회 중이거나 실패한 상태에서 `0` 을 그리면
+ * "이번 달 신규 상담이 0" 이라는 **사실 주장**이 된다 — 그건 방금 닫은 알려진 문제와
+ * 화면상 구분되지 않는다.
+ */
+function StatCard({ label, value }: { label: string; value: number | null }) {
   return (
     <View className="flex-1 rounded-2xl border border-neutral-100 bg-white p-4">
       <Text className="mb-1 text-xs font-medium text-neutral-500">{label}</Text>
-      <Text className="text-2xl font-extrabold text-neutral-900">{value}</Text>
+      <Text className="text-2xl font-extrabold text-neutral-900">{value === null ? '—' : value}</Text>
     </View>
   );
 }
@@ -51,9 +58,11 @@ export default function AdminHomePage() {
    * 그 경계는 한국 달력이어야 하고(서버는 UTC 로 돈다) 세는 대상도 담당 병원 범위로
    * 좁혀져야 한다. 서버가 `Asia/Seoul` 로 계산해 내려준다.
    */
+  // 조회 중·실패에는 `null` 을 넘겨 `—` 가 뜨게 한다. `?? 0` 으로 두면 "0 건" 이라고
+  // 단정하게 된다.
   const { data: summary } = useConsultSummary();
-  const newThisMonthCount = summary?.newThisMonth ?? 0;
-  const pendingCount = summary?.pending ?? 0;
+  const newThisMonthCount = summary?.newThisMonth ?? null;
+  const pendingCount = summary?.pending ?? null;
 
   return (
     <SafeAreaView className="flex-1 bg-neutral-50" edges={['bottom']}>

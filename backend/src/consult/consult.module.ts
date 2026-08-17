@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { AuditModule } from '../audit/audit.module';
 import { AuthModule } from '../auth/auth.module';
 import { HospitalModule } from '../hospital/hospital.module';
 import { ConsultController } from './consult.controller';
@@ -16,8 +17,12 @@ import { MeConsultController } from './me-consult.controller';
  * `HospitalModule` — 상담 신청이 병원 존재·상담 마감·취급 시술을 확인할 때 쓰는
  * `HospitalRepository`. `HospitalModule` 은 이 모듈을 import 하지 않는다(순환 참조 방지).
  */
+/**
+ * `AuditModule` — 상담 상세 열람을 감사 로그에 남긴다 (결정 3). 담당자에게 마스킹되지
+ * 않은 개인정보가 나가는 유일한 조회 경로라, 결정 문서가 그 노출면의 대가로 요구한 기록이다.
+ */
 @Module({
-  imports: [AuthModule, HospitalModule],
+  imports: [AuthModule, HospitalModule, AuditModule],
   controllers: [ConsultController, MeConsultController],
   providers: [ConsultService, ConsultRepository],
   exports: [ConsultService],

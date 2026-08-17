@@ -19,7 +19,14 @@ export interface ListNotificationsParams {
   isRead?: boolean;
 }
 
-export async function fetchNotifications(params: ListNotificationsParams): Promise<Paged<AppNotification>> {
+export interface NotificationListResponse extends Paged<AppNotification> {
+  /** 이 알림함의 안 읽은 **전체** 개수. 페이지네이션과 무관하다. */
+  unreadCount: number;
+}
+
+export async function fetchNotifications(
+  params: ListNotificationsParams
+): Promise<NotificationListResponse> {
   const query = toSearchParams({
     audience: params.audience,
     page: params.page,
@@ -27,7 +34,7 @@ export async function fetchNotifications(params: ListNotificationsParams): Promi
     isRead: params.isRead,
   });
 
-  return apiRequest<Paged<AppNotification>>(`/notifications${query}`);
+  return apiRequest<NotificationListResponse>(`/notifications${query}`);
 }
 
 export interface UnreadCountResponse {
@@ -47,7 +54,10 @@ export async function markNotificationAsRead(notificationId: string): Promise<Ap
 
 export interface MarkAllReadResponse {
   audience: NotificationAudience;
-  updated: number;
+  /** 이번 호출로 읽음이 된 개수. */
+  markedCount: number;
+  /** 처리 후 남은 안 읽은 개수. 그 알림함을 다 읽었으므로 항상 0 이다. */
+  unreadCount: number;
 }
 
 /**

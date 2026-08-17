@@ -133,6 +133,17 @@ describe('알림 (e2e)', () => {
       expect(item).toHaveProperty('relatedResource');
     });
 
+    it('★ 목록이 안 읽은 전체 개수를 함께 준다 (배지를 위해 한 번 더 부르지 않게)', async () => {
+      const [list, count] = await Promise.all([
+        get('/api/v1/notifications?audience=user&pageSize=1', user.accessToken),
+        get('/api/v1/notifications/unread-count?audience=user', user.accessToken),
+      ]);
+
+      expect(list.body.unreadCount).toEqual(expect.any(Number));
+      // 페이지 크기와 무관하게 알림함 전체 기준이다.
+      expect(list.body.unreadCount).toBe(count.body.unreadCount);
+    });
+
     it('개인 알림이라 캐시하지 않는다', async () => {
       const response = await get('/api/v1/notifications?audience=user', user.accessToken);
 
@@ -220,10 +231,17 @@ describe('알림 (e2e)', () => {
     it('★ 한쪽 알림함만 처리하고 반대쪽은 건드리지 않는다', async () => {
       const before = await get('/api/v1/notifications/unread-count?audience=admin', adminH1.accessToken);
 
-      await request(app.getHttpServer())
+      const result = await request(app.getHttpServer())
         .post('/api/v1/notifications/read-all')
         .set('Authorization', bearer(adminH1.accessToken))
         .send({ audience: 'user' });
+
+      // 계약이 요구하는 세 필드. `unreadCount` 는 그 알림함을 다 읽었으므로 항상 0 이다.
+      expect(result.body).toEqual({
+        audience: 'user',
+        markedCount: expect.any(Number),
+        unreadCount: 0,
+      });
 
       const [userAfter, adminAfter] = await Promise.all([
         get('/api/v1/notifications/unread-count?audience=user', adminH1.accessToken),

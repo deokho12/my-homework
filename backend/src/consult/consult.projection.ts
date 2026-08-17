@@ -74,7 +74,8 @@ export interface MyConsultRequestResponse {
   id: string;
   hospitalId: string;
   hospitalName: string;
-  hospitalThumbnail: string;
+  /** 계약상 `format: uri` 인 **선택** 필드다. 값이 없으면 키를 아예 넣지 않는다. */
+  hospitalThumbnail?: string;
   doctorId: string | null;
   doctorName: string | null;
   procedureId: string | null;
@@ -150,11 +151,14 @@ export function projectConsultForAdmin(
  * 본인 것이므로 이름·연락처는 마스킹하지 않는다.
  */
 export function projectConsultForOwner(row: ConsultRequestRow): MyConsultRequestResponse {
+  const thumbnail = row.hospital?.thumbnail ?? '';
+
   return {
     id: row.id,
     hospitalId: row.hospitalId,
     hospitalName: row.hospital?.name ?? UNKNOWN_HOSPITAL,
-    hospitalThumbnail: row.hospital?.thumbnail ?? '',
+    // 빈 문자열은 uri 가 아니다 — 계약이 선택 필드로 둔 이유가 이것이라, 없으면 생략한다.
+    ...(thumbnail === '' ? {} : { hospitalThumbnail: thumbnail }),
     doctorId: row.doctorId,
     doctorName: row.doctor?.name ?? null,
     procedureId: row.procedureId,

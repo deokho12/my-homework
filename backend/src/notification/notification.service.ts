@@ -14,6 +14,13 @@ import type { ListNotificationsQuery, NotificationAudienceValue } from './notifi
 export interface NotificationListResult {
   items: AppNotificationResponse[];
   meta: PageMeta;
+  /**
+   * 이 알림함의 안 읽은 **전체** 개수. 페이지네이션과 무관하다.
+   *
+   * 계약이 목록 응답에 이 값을 넣은 이유는 왕복을 줄이기 위해서다 — 알림함 화면은
+   * 목록과 배지를 함께 그리는데, 없으면 `unread-count` 를 한 번 더 불러야 한다.
+   */
+  unreadCount: number;
 }
 
 export interface UnreadCountResult {
@@ -23,7 +30,10 @@ export interface UnreadCountResult {
 
 export interface MarkAllReadResult {
   audience: NotificationAudienceValue;
-  updated: number;
+  /** 이번 호출로 읽음이 된 개수. */
+  markedCount: number;
+  /** 처리 후 남은 안 읽은 개수. 이 알림함을 다 읽었으므로 항상 0 이다(계약). */
+  unreadCount: number;
 }
 
 /** `audience=admin` 알림함을 열 수 있는 역할. 문구에 고객 이름이 들어 있다. */
@@ -71,17 +81,21 @@ export class NotificationService {
       where.notification = { audience: query.audience, type: query.type };
     }
 
-    const [rows, totalItems] = await Promise.all([
+    const [rows, totalItems, unreadCount] = await Promise.all([
       this.notifications.findMany(where, {
         skip: (query.page - 1) * query.pageSize,
         take: query.pageSize,
       }),
       this.notifications.count(where),
+      // 안 읽은 수는 **필터와 무관하게** 그 알림함 전체를 센다 — 배지가 목록 필터에
+      // 따라 달라지면 세 화면이 같은 숫자를 보여야 한다는 규칙이 깨진다.
+      this.notifications.count({ ...this.scope(query.audience, actor), readAt: null }),
     ]);
 
     return {
       items: rows.map((row) => projectNotification(row)),
       meta: buildPageMeta({ page: query.page, pageSize: query.pageSize, totalItems }),
+      unreadCount,
     };
   }
 
@@ -109,6 +123,11 @@ export class NotificationService {
       throw new ApiError('NOTIFICATION_NOT_FOUND');
     }
 
+    // 목록과 같은 알림함 규칙을 여기에도 적용한다. 담당자였다가 일반 사용자로 강등된
+    // 계정은 수신자 행이 남아 있어서, 이 검사가 없으면 목록으로는 못 보는 관리자 알림
+    // 본문(고객 실명이 들어 있다)을 id 만으로 응답에서 읽을 수 있다.
+    this.assertCanRead(existing.notification.audience as NotificationAudienceValue, actor);
+
     if (existing.readAt !== null) {
       return projectNotification(existing);
     }
@@ -130,8 +149,10 @@ export class NotificationService {
   ): Promise<MarkAllReadResult> {
     this.assertCanRead(audience, actor);
 
-    const updated = await this.notifications.markRead(this.scope(audience, actor), new Date());
+    const markedCount = await this.notifications.markRead(this.scope(audience, actor), new Date());
 
-    return { audience, updated };
+    // 이 알림함을 다 읽었으므로 0 이다. 계약이 값을 함께 요구하는 이유는 화면이 배지를
+    // 다시 조회하지 않고 바로 지울 수 있게 하기 위해서다.
+    return { audience, markedCount, unreadCount: 0 };
   }
 }

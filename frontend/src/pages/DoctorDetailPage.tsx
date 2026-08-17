@@ -184,10 +184,14 @@ export default function DoctorDetailPage() {
                 // 비활성으로 두되(`disabled`), 문구는 조회가 끝난 뒤에만 실제 상태를 말한다.
                 label={isHospitalLoading ? '상담 신청' : hospital?.consultAvailable ? '상담 신청' : '상담 마감'}
                 disabled={isHospitalLoading || !hospital || !hospital.consultAvailable}
-                onPress={() =>
-                  hospital &&
-                  requireAuth(() => router.push(`/consult/${hospital.id}`), `/consult/${hospital.id}`)
-                }
+                onPress={() => {
+                  if (!hospital) return;
+
+                  // 지목한 전문의를 실어 보낸다 — 서버가 `doctorId` 로 저장한다.
+                  const target = `/consult/${hospital.id}?doctorId=${encodeURIComponent(doctor.id)}`;
+
+                  requireAuth(() => router.push(target), target);
+                }}
               />
             </View>
           </SafeAreaView>

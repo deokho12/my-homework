@@ -8,6 +8,7 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { QueryState } from '@/components/QueryState';
 import { containerClass } from '@/components/layout/Container';
 import { useCreateConsultRequest } from '@/features/consult';
+import { useDoctor } from '@/features/doctor';
 import { useHospital } from '@/features/hospital';
 import { useProcedureMap } from '@/features/procedure';
 import { isApiError } from '@/lib/apiClient';
@@ -18,9 +19,12 @@ const TIME_SLOTS = ['평일 오전', '평일 오후', '주말'];
 
 /** 조회가 끝난 병원을 받아 폼 상태(이름·전화번호·시술 등)를 갖는다 — `QueryState` 의 children 은
  * 콜백이라 그 안에서 훅을 호출할 수 없어 별도 컴포넌트로 뺐다 (`HospitalDetailPage` 와 같은 이유). */
-function ConsultRequestForm({ hospital }: { hospital: Hospital }) {
+function ConsultRequestForm({ hospital, doctorId }: { hospital: Hospital; doctorId?: string }) {
   const procedureMap = useProcedureMap();
   const { mutate: submitRequest, isPending, error } = useCreateConsultRequest();
+  // 지목한 전문의의 이름을 보여주기 위한 조회다. 저장에 필요한 것은 id 뿐이므로
+  // 이 조회가 실패해도 신청은 그대로 진행된다.
+  const { data: doctor } = useDoctor(doctorId);
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -38,6 +42,9 @@ function ConsultRequestForm({ hospital }: { hospital: Hospital }) {
     submitRequest(
       {
         hospitalId: hospital.id,
+        // **지목한 전문의를 함께 보낸다.** 없으면 키를 아예 넣지 않는다 — 서버가
+        // 소속을 검사하므로 빈 값을 지어내면 422 가 된다.
+        ...(doctorId === undefined ? {} : { doctorId }),
         procedureId,
         name: name.trim(),
         phone: phone.trim(),
@@ -64,6 +71,11 @@ function ConsultRequestForm({ hospital }: { hospital: Hospital }) {
         keyboardShouldPersistTaps="handled"
       >
         <Text className="mb-1 text-lg font-bold text-neutral-900">{hospital.name}</Text>
+        {doctorId === undefined ? null : (
+          <Text className="mb-1 text-sm font-semibold text-brand-700">
+            지목 전문의 {doctor ? `· ${doctor.name}` : ''}
+          </Text>
+        )}
         <Text className="mb-6 text-sm text-neutral-500">상담 정보를 남겨주시면 병원에서 연락드려요</Text>
 
         <Text className="mb-2 text-sm font-semibold text-neutral-700">이름</Text>
@@ -138,7 +150,9 @@ function ConsultRequestForm({ hospital }: { hospital: Hospital }) {
 }
 
 export default function ConsultRequestScreen() {
-  const { hospitalId } = useLocalSearchParams<{ hospitalId: string }>();
+  // `doctorId` 는 쿼리로 온다 (`/consult/:hospitalId?doctorId=d1`) — 전문의 카드·상세의
+  // `전문의 상담신청` 이 채운다. 병원의 `병원 상담신청` 으로 들어오면 없다.
+  const { hospitalId, doctorId } = useLocalSearchParams<{ hospitalId: string; doctorId?: string }>();
   // 로그인 검사는 라우트 가드가 한다 (`src/App.tsx` 의 `guard: 'auth'`). 화면 안에서
   // 다시 검사하면 규칙이 두 곳으로 갈린다.
   const { data: hospital, error, isLoading, isError, isFetching, refetch } = useHospital(hospitalId);
@@ -159,7 +173,7 @@ export default function ConsultRequestScreen() {
       emptyState={{ title: '병원 정보를 찾을 수 없어요' }}
       className="flex-1 bg-white"
     >
-      {(hospital) => <ConsultRequestForm hospital={hospital} />}
+      {(hospital) => <ConsultRequestForm hospital={hospital} doctorId={doctorId} />}
     </QueryState>
   );
 }

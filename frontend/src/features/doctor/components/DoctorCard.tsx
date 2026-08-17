@@ -73,7 +73,12 @@ export function DoctorCard({ doctor, hospital, style }: DoctorCardProps) {
         onPress={(event) => {
           event.stopPropagation();
           if (!hospital) return;
-          requireAuth(() => router.push(`/consult/${hospital.id}`), `/consult/${hospital.id}`);
+
+          // **어느 전문의를 지목했는지 실어 보낸다.** 예전에는 병원만 넘어가서 관리자가
+          // 누구를 지목했는지 알 수 없었다 — 신청자가 메시지 칸에 직접 적어야 했다.
+          const target = `/consult/${hospital.id}?doctorId=${encodeURIComponent(doctor.id)}`;
+
+          requireAuth(() => router.push(target), target);
         }}
         disabled={!hospital?.consultAvailable}
         className={`items-center justify-center rounded-xl py-3 ${

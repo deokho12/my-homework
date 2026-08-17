@@ -327,7 +327,8 @@ export interface MyConsultRequest {
   id: string;
   hospitalId: string;
   hospitalName: string;
-  hospitalThumbnail: string;
+  /** 병원 사진이 없으면 서버가 이 키를 아예 보내지 않는다 (계약상 선택 필드). */
+  hospitalThumbnail?: string;
   doctorId: string | null;
   doctorName: string | null;
   procedureId: ProcedureId | null;

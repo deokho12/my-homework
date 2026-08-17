@@ -1,5 +1,8 @@
-import { Body, Controller, Get, Header, HttpCode, HttpStatus, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Header, HttpCode, HttpStatus, Param, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import type { Request, Response } from 'express';
 
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { AuditLogService } from '../audit/audit-log.service';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { HospitalScope } from '../auth/decorators/hospital-scope.decorator';
@@ -36,7 +39,10 @@ import type { AdminConsultListResult, ConsultSummaryResult } from './consult.ser
  */
 @Controller('consult-requests')
 export class ConsultController {
-  constructor(private readonly consults: ConsultService) {}
+  constructor(
+    private readonly consults: ConsultService,
+    private readonly audit: AuditLogService,
+  ) {}
 
   /**
    * 상담 신청. `@Roles` 를 붙이지 않는다 — 계약의 `x-role: user` 는 누적형이라
@@ -46,17 +52,27 @@ export class ConsultController {
   @HttpCode(HttpStatus.CREATED)
   @UseGuards(AuthGuard)
   @Header('Cache-Control', 'no-store')
-  create(
+  async create(
     @Body(new ZodValidationPipe(createConsultRequestSchema)) dto: CreateConsultRequestDto,
     @CurrentUser() user: AuthenticatedUser,
+    @Res({ passthrough: true }) response: Response,
   ): Promise<MyConsultRequestResponse> {
-    return this.consults.create(dto, user);
+    const created = await this.consults.create(dto, user);
+
+    // 계약이 선언한 `Location`. 신청자 시야의 경로를 가리킨다 — 만든 사람이 볼 수 있는
+    // 곳이 거기다(관리자 경로는 그 사람에게 403/404 다).
+    response.setHeader('Location', `/v1/me/consult-requests/${created.id}`);
+
+    return created;
   }
 
   @Get()
   @Roles('hospital_admin', 'operator')
   @UseGuards(AuthGuard, RolesGuard)
   @Header('Cache-Control', 'no-store')
+  // 같은 URL 이 역할에 따라 다른 본문(마스킹 여부·범위)을 준다. 공유 캐시가 그것을
+  // 섞으면 유출이다 — `no-store` 가 1차 방어이고 이것이 2차다 (계약이 둘 다 요구한다).
+  @Header('Vary', 'Authorization')
   list(
     @Query(new ZodValidationPipe(listConsultRequestsQuerySchema)) query: ListConsultRequestsQuery,
     @CurrentUser() user: AuthenticatedUser,
@@ -78,16 +94,39 @@ export class ConsultController {
     return this.consults.summary(user);
   }
 
+  /**
+   * 상담 상세. **열람을 감사 로그에 남긴다** (`docs/decisions/0001-roles-and-pii.md` 결정 3).
+   *
+   * 담당 병원 담당자에게는 마스킹되지 않은 고객 개인정보가 나가는데, 결정 문서가 그
+   * 노출면을 허용한 대가로 요구한 것이 정확히 "그 열람이 기록된다" 는 것이다.
+   * `hospitalId`·`piiMasked` 는 `HospitalScopeGuard` 가 남긴 `ResolvedScope` 에서 나온다 —
+   * 컨트롤러가 다시 계산하면 가드의 판단과 기록이 어긋날 수 있다.
+   */
   @Get(':consultRequestId')
   @Roles('hospital_admin', 'operator')
   @HospitalScope({ resource: 'consultRequest' })
   @UseGuards(AuthGuard, RolesGuard, HospitalScopeGuard)
   @Header('Cache-Control', 'no-store')
-  getById(
+  @Header('Vary', 'Authorization')
+  async getById(
     @Param('consultRequestId') consultRequestId: string,
     @CurrentUser() user: AuthenticatedUser,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
   ): Promise<ConsultRequestAdminResponse> {
-    return this.consults.getForAdmin(consultRequestId, user);
+    const consult = await this.consults.getForAdmin(consultRequestId, user);
+
+    await this.audit.recordFromRequest(request, user, {
+      action: 'consult_request.view',
+      targetType: 'consult_request',
+      targetId: consultRequestId,
+    });
+
+    // 계약이 "항상 true" 로 선언한 헤더. 기록이 실패하면 위 호출이 던지거나(마스킹되지
+    // 않은 열람) 로그만 남기므로, 여기까지 왔다면 정책대로 처리된 것이다.
+    response.setHeader('X-Audit-Logged', 'true');
+
+    return consult;
   }
 
   @Patch(':consultRequestId/status')
@@ -95,12 +134,19 @@ export class ConsultController {
   @HospitalScope({ resource: 'consultRequest' })
   @UseGuards(AuthGuard, RolesGuard, HospitalScopeGuard)
   @Header('Cache-Control', 'no-store')
-  updateStatus(
+  async updateStatus(
     @Param('consultRequestId') consultRequestId: string,
     @Body(new ZodValidationPipe(updateConsultStatusSchema)) dto: UpdateConsultStatusDto,
     @CurrentUser() user: AuthenticatedUser,
+    @Res({ passthrough: true }) response: Response,
   ): Promise<ConsultRequestAdminResponse> {
-    return this.consults.updateStatus(consultRequestId, dto, user);
+    const { consult, changed } = await this.consults.updateStatus(consultRequestId, dto, user);
+
+    // 같은 상태 재지정은 `200` 이지만 아무 일도 일어나지 않는다. 응답 본문만으로는
+    // 그 둘을 구분할 수 없어서 계약이 이 헤더를 뒀다.
+    response.setHeader('X-Status-Changed', String(changed));
+
+    return consult;
   }
 
   @Post(':consultRequestId/memos')

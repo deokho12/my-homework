@@ -15,7 +15,7 @@ interface HospitalCardProps {
 }
 
 export function HospitalCard({ hospital }: HospitalCardProps) {
-  const { isFavorite, toggle } = useFavoriteToggle(hospital.id);
+  const { isFavorite, isPending: favoritesPending, toggle } = useFavoriteToggle(hospital.id);
   const requireAuth = useRequireAuth();
   const procedureMap = useProcedureMap();
   const promotion = getPromotionByHospital(hospital.id);
@@ -40,10 +40,14 @@ export function HospitalCard({ hospital }: HospitalCardProps) {
         <Pressable
           onPress={(e) => {
             e.stopPropagation();
-            requireAuth(toggle);
+            // 찜 목록을 아직 모르는 동안은 누르지 않는다 — 그 상태의 `isFavorite` 는
+            // "찜 안 함" 이 아니라 "모름" 이라, 해제하려는 누름이 추가로 뒤집힌다.
+            if (!favoritesPending) requireAuth(toggle);
           }}
           hitSlop={8}
-          className="absolute right-3 top-3 h-8 w-8 items-center justify-center rounded-full bg-white/90"
+          className={`absolute right-3 top-3 h-8 w-8 items-center justify-center rounded-full bg-white/90 ${
+            favoritesPending ? 'opacity-50' : ''
+          }`}
         >
           <Text className="text-base">{isFavorite ? '❤️' : '🤍'}</Text>
         </Pressable>

@@ -46,7 +46,7 @@ export function HospitalDetailView({ hospital }: { hospital: Hospital }) {
   const reviewsQuery = useHospitalReviews(hospital.id);
   const procedureMap = useProcedureMap();
   const promotion = getPromotionByHospital(hospital.id);
-  const { isFavorite, toggle } = useFavoriteToggle(hospital.id);
+  const { isFavorite, isPending: favoritesPending, toggle } = useFavoriteToggle(hospital.id);
   const requireAuth = useRequireAuth();
 
   const [hoursExpanded, setHoursExpanded] = useState(false);
@@ -339,8 +339,13 @@ export function HospitalDetailView({ hospital }: { hospital: Hospital }) {
       <SafeAreaView edges={['bottom']} className={cx(CONTAINER_PADDING, 'border-t border-neutral-100 bg-white pt-3')}>
         <View className="flex-row items-center gap-2 pb-3">
           <Pressable
-            onPress={() => requireAuth(toggle)}
-            className="h-14 w-14 items-center justify-center rounded-xl border border-neutral-200"
+            onPress={() => {
+              // 찜 목록을 아직 모르는 동안은 누르지 않는다 (`HospitalCard` 와 같은 이유).
+              if (!favoritesPending) requireAuth(toggle);
+            }}
+            className={`h-14 w-14 items-center justify-center rounded-xl border border-neutral-200 ${
+              favoritesPending ? 'opacity-50' : ''
+            }`}
           >
             <Text className="text-xl">{isFavorite ? '❤️' : '🤍'}</Text>
           </Pressable>

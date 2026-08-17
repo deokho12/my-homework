@@ -33,12 +33,17 @@ export function useFavoriteIds(): { ids: Set<string>; isPending: boolean } {
  * "카드에서는 찜인데 상세에서는 아님" 같은 어긋남이 생긴다. 컴포넌트는 API 를
  * 직접 부르지 않는다 (`frontend/CLAUDE.md`).
  */
-export function useFavoriteToggle(hospitalId: string): { isFavorite: boolean; toggle: () => void } {
-  const { ids } = useFavoriteIds();
+export function useFavoriteToggle(hospitalId: string): {
+  isFavorite: boolean;
+  /** 아직 찜 목록을 모르는 상태. 하트를 "찜 안 함" 으로 단정하면 안 된다. */
+  isPending: boolean;
+  toggle: () => void;
+} {
+  const { ids, isPending } = useFavoriteIds();
   const { mutate } = useToggleFavorite();
   const isFavorite = ids.has(hospitalId);
 
-  return { isFavorite, toggle: () => mutate({ hospitalId, isFavorite }) };
+  return { isFavorite, isPending, toggle: () => mutate({ hospitalId, isFavorite }) };
 }
 
 /**

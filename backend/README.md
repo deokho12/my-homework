@@ -147,6 +147,7 @@ backend/
 │   ├── favorite/              # 내 찜 (추가·삭제 멱등, expand=hospital)
 │   ├── notification/          # 알림 조회 4개 + notification.write.ts (부수효과가 쓰는 공용 헬퍼)
 │   ├── consult/               # 상담 접수·내 내역·관리자 처리 + 개인정보 마스킹(순수 함수)
+│                              #   상담 상세 열람은 audit_logs 에 기록된다 (결정 3)
 │   ├── scripts/
 │   │   ├── operator-role.ts   # 운영자 승격·회수 CLI (HTTP 경로 없음 — 결정 4)
 │   │   └── tokens-cleanup.ts  # refresh_tokens 수동 정리 CLI
@@ -213,6 +214,7 @@ Flutter 앱이 이 경로를 가리킵니다. 버전을 경로에 둔 이유는 
 | | |
 |---|---|
 | **주 수단** | 일 1회 스케줄 04:00 KST (`RefreshTokenCleanupService`). `REFRESH_TOKEN_CLEANUP_ENABLED` 로 켜고 끕니다. 실패해도 API 가용성에 영향을 주지 않고 에러 로그만 남깁니다 |
+
 | 수동 수단 | `npm run tokens:cleanup` — 배치가 멈춘 것을 발견했을 때 |
 
 ```bash
@@ -306,10 +308,6 @@ npm run operator:revoke -- someone@example.com --actor=me@molarmolar.example --f
 ### 아직 없는 것 (다음 Task 로 넘김)
 
 - **요청 한도(429 RATE_LIMITED)** — 로그인 브루트포스 방어. 계약에는 있고 구현은 없습니다
-- **감사 로그의 HTTP 배선** — `audit_logs` 테이블·리포지토리·정책은 있고, 상담 상세 열람
-  기록(결정 3)은 그 컨트롤러가 생길 때 `AuditLogService.recordFromRequest()` 한 줄로 붙습니다
-  (`test/audit-log.spec.ts` 의 "도메인 컨트롤러 배선 지점" 테스트가 무엇이 기록되는지 고정합니다).
-  지금 실제로 쓰는 곳은 `operator:grant` / `operator:revoke` 입니다
 - **`POST /auth/social/{provider}`** — 화면이 버튼만 있는 상태라 미구현
 - **비밀번호 찾기** — 계정을 운영자가 만들지 않는 설계이므로 우선순위가 높습니다 (결정 문서 §미결 6)
 

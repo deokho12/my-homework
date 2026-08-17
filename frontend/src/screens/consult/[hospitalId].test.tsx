@@ -25,13 +25,13 @@ describe('ConsultRequestScreen', () => {
     useAuthStore.setState({ user: null, status: 'ready' });
   });
 
-  function renderScreen(hospitalId: string) {
+  function renderScreen(hospitalId: string, query = '') {
     return renderWithProviders(
       <>
         <RouterBridge />
         <ConsultRequestScreen />
       </>,
-      { route: `/consult/${hospitalId}`, path: '/consult/:hospitalId' }
+      { route: `/consult/${hospitalId}${query}`, path: '/consult/:hospitalId' }
     );
   }
 
@@ -65,6 +65,46 @@ describe('ConsultRequestScreen', () => {
       name: '홍길동',
       phone: '01012345678',
     });
+  });
+
+  it('★ 전문의를 지목해 들어오면 그 id 를 함께 보낸다 (예전에는 병원만 넘어갔다)', async () => {
+    const target = baseHospital();
+    vi.spyOn(hospitalApi, 'fetchHospitalById').mockResolvedValue(target);
+    const createSpy = vi
+      .spyOn(consultApi, 'createConsultRequest')
+      .mockResolvedValue(baseMyConsultRequest({ hospitalId: target.id }));
+
+    renderScreen(target.id, '?doctorId=d1');
+
+    await waitFor(() => expect(screen.getByText(target.name)).toBeInTheDocument());
+    expect(screen.getByText(/지목 전문의/)).toBeInTheDocument();
+
+    await userEvent.type(screen.getByPlaceholderText('이름을 입력해주세요'), '홍길동');
+    await userEvent.type(screen.getByPlaceholderText('010-0000-0000'), '01012345678');
+    await userEvent.click(screen.getByRole('button', { name: '상담 신청하기' }));
+
+    await waitFor(() => expect(createSpy).toHaveBeenCalledTimes(1));
+    expect(createSpy.mock.calls[0][0]).toMatchObject({ doctorId: 'd1' });
+  });
+
+  it('★ 병원 상담으로 들어오면 doctorId 키를 아예 넣지 않는다 (빈 값을 지어내면 422)', async () => {
+    const target = baseHospital();
+    vi.spyOn(hospitalApi, 'fetchHospitalById').mockResolvedValue(target);
+    const createSpy = vi
+      .spyOn(consultApi, 'createConsultRequest')
+      .mockResolvedValue(baseMyConsultRequest({ hospitalId: target.id }));
+
+    renderScreen(target.id);
+
+    await waitFor(() => expect(screen.getByText(target.name)).toBeInTheDocument());
+    expect(screen.queryByText(/지목 전문의/)).not.toBeInTheDocument();
+
+    await userEvent.type(screen.getByPlaceholderText('이름을 입력해주세요'), '홍길동');
+    await userEvent.type(screen.getByPlaceholderText('010-0000-0000'), '01012345678');
+    await userEvent.click(screen.getByRole('button', { name: '상담 신청하기' }));
+
+    await waitFor(() => expect(createSpy).toHaveBeenCalledTimes(1));
+    expect('doctorId' in createSpy.mock.calls[0][0]).toBe(false);
   });
 
   it('★ 서버가 거절하면 그 문구를 그대로 보여준다 (상담 마감 등)', async () => {

@@ -37,6 +37,12 @@ export interface MyConsultListResult {
   meta: PageMeta;
 }
 
+export interface StatusUpdateResult {
+  consult: ConsultRequestAdminResponse;
+  /** 부수효과(이력·알림)가 실제로 일어났는가. 같은 상태 재지정이면 `false`. */
+  changed: boolean;
+}
+
 export interface ConsultSummaryResult {
   newThisMonth: number;
   pending: number;
@@ -106,7 +112,9 @@ export class ConsultService {
       phone: normalizePhone(dto.phone.trim()),
       preferredTime: dto.preferredTime,
       message: dto.message,
-      notificationTitle: '새 상담 신청',
+      // 계약(`createConsultRequest`)과 시드 알림이 쓰는 문구 그대로. 같은 알림함에서
+      // 시드 데이터와 실제 접수 알림의 제목이 갈리면 안 된다.
+      notificationTitle: '새로운 상담 신청',
       notificationMessage: `${name}님이 상담을 신청했어요`,
     });
 
@@ -164,11 +172,16 @@ export class ConsultService {
     if (scope === 'managed') {
       const managedIds = await this.users.findManagedHospitalIds(actor.id);
 
-      where.hospitalId =
-        hospitalIdFilter === undefined
-          ? { in: managedIds }
-          : // 담당 밖 병원을 콕 집어 요청하면 빈 결과다. 403 을 주면 "그 병원이 있다" 를 알려준다.
-            { in: managedIds.filter((id) => id === hospitalIdFilter) };
+      if (hospitalIdFilter !== undefined && !managedIds.includes(hospitalIdFilter)) {
+        // **담당 밖 병원을 콕 집어 요청하면 `403` 이다.** 숨기지 않는다 — 병원은 공개
+        // 리소스라 `GET /hospitals/{id}` 로 누구나 존재를 확인할 수 있어서, 빈 목록을
+        // 주는 것은 아무것도 감추지 못하면서 "그 병원에 상담이 없다" 는 틀린 인상만 준다.
+        // 상담 *상세*를 404 로 가리는 것과는 다른 판정이다 — 그건 상담 id 가 고객
+        // 개인정보와 1:1 이라서다 (계약이 두 경우를 의도적으로 나눴다).
+        throw new ApiError('HOSPITAL_NOT_MANAGED');
+      }
+
+      where.hospitalId = hospitalIdFilter === undefined ? { in: managedIds } : hospitalIdFilter;
     } else if (hospitalIdFilter !== undefined) {
       where.hospitalId = hospitalIdFilter;
     }
@@ -228,7 +241,7 @@ export class ConsultService {
     consultRequestId: string,
     dto: UpdateConsultStatusDto,
     actor: AuthenticatedUser,
-  ): Promise<ConsultRequestAdminResponse> {
+  ): Promise<StatusUpdateResult> {
     const row = await this.consults.findById(consultRequestId);
 
     if (row === null) {
@@ -236,13 +249,9 @@ export class ConsultService {
     }
 
     if (row.status === dto.status) {
-      return projectConsultForAdmin(row, actor.role);
-    }
-
-    const requesterUserId = await this.consults.findOwnerUserId(consultRequestId);
-
-    if (requesterUserId === null) {
-      throw new ApiError('CONSULT_REQUEST_NOT_FOUND');
+      // `changed: false` 를 컨트롤러가 `X-Status-Changed` 헤더로 알린다 — 호출자가
+      // "오탭이라 아무 일도 안 일어났다" 와 "바뀌었다" 를 구분할 수 있어야 한다.
+      return { consult: projectConsultForAdmin(row, actor.role), changed: false };
     }
 
     const label = CONSULT_STATUS_LABEL[dto.status] ?? dto.status;
@@ -251,12 +260,13 @@ export class ConsultService {
       consultRequestId,
       status: dto.status,
       changedByUserId: actor.id,
-      requesterUserId,
+      // 신청자는 방금 읽은 행에 이미 있다 — 같은 값을 다시 조회하지 않는다.
+      requesterUserId: row.userId,
       notificationTitle: '상담 상태 변경',
       notificationMessage: `상담 상태가 '${label}'(으)로 변경되었어요`,
     });
 
-    return this.getForAdmin(consultRequestId, actor);
+    return { consult: await this.getForAdmin(consultRequestId, actor), changed: true };
   }
 
   async addMemo(

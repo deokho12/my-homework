@@ -141,13 +141,20 @@ describe('시드 데이터 (integration)', () => {
   });
 
   it('상담 7건에 신청자 계정이 붙어 있고 상태 이력이 최신순으로 나온다', async () => {
+    // **시드가 만든 상담만 본다.** 개발 DB 는 `npm run dev` 로 띄운 앱·QA 와 같은 파일이라
+    // 화면이나 API 로 상담을 한 건 넣으면 여기 섞인다. 전체 건수로 단정하면
+    // (예전 `toHaveLength(7)`) 상담을 한 번 접수해 보는 것만으로 이 테스트가 빨개지는데,
+    // 그건 시드의 결함이 아니다. 시드 상담은 id 가 `cr1`~`cr7` 로 고정이고 접수 API 가
+    // 만드는 것은 cuid 라 구분된다 (`seed-data.spec.ts` 의 계정 검사와 같은 방식).
+    const SEED_CONSULT_IDS = ['cr1', 'cr2', 'cr3', 'cr4', 'cr5', 'cr6', 'cr7'];
     const consults = await prisma.consultRequest.findMany({
+      where: { id: { in: SEED_CONSULT_IDS } },
       // 동일 timestamp 의 순서가 DB 마다 다르지 않게 타이브레이커를 둔다 (docs §7.5)
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       include: { user: true, statusChanges: { orderBy: { changedAt: 'asc' } }, memos: true },
     });
 
-    expect(consults).toHaveLength(7);
+    expect(consults).toHaveLength(SEED_CONSULT_IDS.length);
 
     for (const consult of consults) {
       expect(consult.userId).toBeTruthy();
