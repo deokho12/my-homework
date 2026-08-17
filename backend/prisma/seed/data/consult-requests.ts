@@ -1,10 +1,46 @@
-import type { ConsultRequest } from '@/types/domain';
+/**
+ * 상담 신청 시드 데이터. 조각 2 에서 `frontend/src/mocks/fixtures/consultRequests.ts`
+ * 에서 옮겨왔다 — 상담이 서버로 이관되면서 DB 가 원본이 됐다.
+ *
+ * **프론트의 `ConsultRequest` 타입을 쓰지 않는다.** 그 타입은 이제 *응답* 모양이라
+ * 서버가 계산하는 필드(`hospitalName`·`procedureName`·`piiMasked`·`memos[].authorName`)를
+ * 포함한다. 시드는 *저장* 모양이므로 여기서 행의 모양을 직접 선언한다
+ * (`./doctors.ts` 와 같은 이유).
+ *
+ * 날짜는 `SEED_TODAY` 기준 상대 오프셋으로 다시 계산된다 (`../dates.ts`). 여기 적힌
+ * 고정 날짜는 그 계산의 기준점이다 — 그대로 들어가지 않는다.
+ */
 
-// Seeded against the current mock "today" used across the admin demo data (~2026-07-30), so the
-// admin dashboard's "이번 달 신규 상담" / "처리 대기 중인 상담" stat cards show non-zero, plausible numbers:
-// - 5 requests created in July 2026 (this month), 2 in June 2026 (last month)
-// - 3 requests currently sitting in 'new' (pending)
-export const consultRequests: ConsultRequest[] = [
+export type ConsultStatusValue = 'new' | 'contacted' | 'booked' | 'cancelled';
+
+export interface ConsultStatusChangeSeedRow {
+  status: ConsultStatusValue;
+  changedAt: string;
+}
+
+export interface ConsultMemoSeedRow {
+  id: string;
+  content: string;
+  createdAt: string;
+}
+
+export interface ConsultRequestSeedRow {
+  id: string;
+  hospitalId: string;
+  procedureId: string;
+  name: string;
+  phone: string;
+  preferredTime: string;
+  message: string;
+  createdAt: string;
+  status: ConsultStatusValue;
+  statusHistory: ConsultStatusChangeSeedRow[];
+  memos: ConsultMemoSeedRow[];
+}
+
+// 관리자 대시보드의 `이번 달 신규 상담` / `처리 대기 중인 상담` 카드가 0 이 되지 않도록
+// 섞어 두었다 — 7월 5건 / 6월 2건, `new` 3건.
+export const consultRequests: ConsultRequestSeedRow[] = [
   {
     id: 'cr1',
     hospitalId: 'h1',

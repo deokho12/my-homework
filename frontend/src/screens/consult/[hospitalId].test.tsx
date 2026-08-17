@@ -2,22 +2,27 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import * as consultApi from '@/features/consult/api/consultApi';
 import * as hospitalApi from '@/features/hospital/api/hospitalApi';
 import { ApiError } from '@/lib/apiClient';
 import { RouterBridge } from '@/navigation';
 import ConsultRequestScreen from '@/screens/consult/[hospitalId]';
+import { useAuthStore } from '@/store/useAuthStore';
+import { baseMyConsultRequest } from '@/test/consultFixture';
 import { baseHospital } from '@/test/hospitalFixture';
 import { renderWithProviders } from '@/test/renderWithProviders';
-import { useConsultStore } from '@/store/useConsultStore';
 
 /**
- * `getHospitalById()`(동기 스냅샷)를 `useHospital(hospitalId)` 로 바꿨다 — 조회 상태(로딩·404·
- * 에러)를 실제로 구분해야 한다 (`HospitalDetailPage` 와 같은 패턴).
+ * 상담 신청 화면.
+ *
+ * 제출은 이제 **서버로 간다** — 예전에는 브라우저 저장소(zustand persist)에 넣어서
+ * 관리자 화면이 그것을 볼 수 없었다. 서버가 거절하면(상담 마감·연락처 형식 등)
+ * 그 문구를 그대로 보여준다.
  */
 describe('ConsultRequestScreen', () => {
   afterEach(() => {
     vi.restoreAllMocks();
-    useConsultStore.setState({ requests: [] });
+    useAuthStore.setState({ user: null, status: 'ready' });
   });
 
   function renderScreen(hospitalId: string) {
@@ -39,9 +44,12 @@ describe('ConsultRequestScreen', () => {
     expect(screen.queryByText('병원 정보를 찾을 수 없어요')).not.toBeInTheDocument();
   });
 
-  it('불러온 병원 이름과 폼을 렌더하고, 제출하면 상담 스토어에 저장한다', async () => {
+  it('★ 불러온 병원 이름과 폼을 렌더하고, 제출하면 서버로 보낸다', async () => {
     const target = baseHospital();
     vi.spyOn(hospitalApi, 'fetchHospitalById').mockResolvedValue(target);
+    const createSpy = vi
+      .spyOn(consultApi, 'createConsultRequest')
+      .mockResolvedValue(baseMyConsultRequest({ hospitalId: target.id, name: '홍길동' }));
 
     renderScreen(target.id);
 
@@ -51,12 +59,36 @@ describe('ConsultRequestScreen', () => {
     await userEvent.type(screen.getByPlaceholderText('010-0000-0000'), '01012345678');
     await userEvent.click(screen.getByRole('button', { name: '상담 신청하기' }));
 
-    expect(useConsultStore.getState().requests).toHaveLength(1);
-    expect(useConsultStore.getState().requests[0]).toMatchObject({
+    await waitFor(() => expect(createSpy).toHaveBeenCalledTimes(1));
+    expect(createSpy.mock.calls[0][0]).toMatchObject({
       hospitalId: target.id,
       name: '홍길동',
       phone: '01012345678',
     });
+  });
+
+  it('★ 서버가 거절하면 그 문구를 그대로 보여준다 (상담 마감 등)', async () => {
+    const target = baseHospital();
+    vi.spyOn(hospitalApi, 'fetchHospitalById').mockResolvedValue(target);
+    vi.spyOn(consultApi, 'createConsultRequest').mockRejectedValue(
+      new ApiError({
+        status: 409,
+        code: 'CONSULT_CLOSED',
+        message: '지금은 이 병원의 상담 신청을 받지 않아요',
+      })
+    );
+
+    renderScreen(target.id);
+
+    await waitFor(() => expect(screen.getByText(target.name)).toBeInTheDocument());
+
+    await userEvent.type(screen.getByPlaceholderText('이름을 입력해주세요'), '홍길동');
+    await userEvent.type(screen.getByPlaceholderText('010-0000-0000'), '01012345678');
+    await userEvent.click(screen.getByRole('button', { name: '상담 신청하기' }));
+
+    await waitFor(() =>
+      expect(screen.getByText('지금은 이 병원의 상담 신청을 받지 않아요')).toBeInTheDocument()
+    );
   });
 
   it('404 HOSPITAL_NOT_FOUND 면 안내 문구를 보여준다', async () => {

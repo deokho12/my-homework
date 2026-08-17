@@ -12,7 +12,6 @@ import {
   readTokens,
   writeTokens,
 } from '@/lib/authTokens';
-import { useFavoritesStore } from '@/store/useFavoritesStore';
 import type { User } from '@/types/domain';
 
 /**
@@ -70,18 +69,17 @@ function toErrorInfo(error: unknown): AuthErrorInfo {
 }
 
 /**
- * 계정에 딸린 클라이언트 상태를 비운다.
+ * 계정에 딸린 상태를 비운다.
  *
- * ⚠ **임시 조치다.** 찜 목록은 원래 서버(`GET/PUT/DELETE /me/favorites`)로 가야 하지만
- * favorites API 가 아직 없다. 그때까지는 로그아웃 때 비워서 계정 간 유출만 막는다 —
- * 지금은 A 계정으로 찜하고 로그아웃한 뒤 B 계정으로 들어가면 A 의 찜이 그대로 보인다
- * (`docs/features/known-issues.md` 🔴 "다른 사람의 찜 목록이 보입니다").
- * favorites API 가 생기면 이 줄을 지우고 서버 목록으로 바꾼다.
+ * **찜·상담·알림은 이제 전부 서버 상태다** (`/me/favorites`, `/me/consult-requests`,
+ * `/notifications`). 계정별로 갈리는 것은 서버가 보장하고, 클라이언트에 남는 것은
+ * TanStack Query 캐시뿐이라 그것만 비우면 된다. 예전에는 찜이 zustand `persist` 로
+ * 브라우저에 남아, 로그아웃 뒤 다른 계정에 앞 사람의 찜이 그대로 보였다.
+ *
+ * 캐시 잔상도 유출이다 (`docs/api/README.md` §1) — 역할이 다른 계정으로 갈아타면
+ * 이전 역할로 받은 응답이 화면에 남는다.
  */
 function clearAccountScopedState(): void {
-  useFavoritesStore.getState().clear();
-
-  // 계정별·역할별 서버 상태의 잔상도 유출이다 (`docs/api/README.md` §1).
   queryClient.clear();
 }
 

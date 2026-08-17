@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { queryClient } from '@/app/providers';
 import { LEGACY_MOCK_AUTH_KEY, readTokens, writeTokens } from '@/lib/authTokens';
 import { useAuthStore } from '@/store/useAuthStore';
-import { useFavoritesStore } from '@/store/useFavoritesStore';
 
 interface StubCall {
   path: string;
@@ -62,8 +62,23 @@ const SESSION = {
 
 beforeEach(() => {
   useAuthStore.setState({ user: null, status: 'ready' });
-  useFavoritesStore.setState({ hospitalIds: [] });
+  queryClient.clear();
 });
+
+/**
+ * 계정에 딸린 서버 상태를 캐시에 심어 둔다.
+ *
+ * 찜·상담·알림은 이제 전부 서버 상태라 클라이언트에 남는 것은 이 캐시뿐이다 —
+ * 비우지 않으면 다음 계정 화면에 앞 사람의 응답이 그대로 보인다.
+ */
+function seedAccountScopedCache(): void {
+  queryClient.setQueryData(['favorites', { expand: null }], { hospitalIds: ['h1', 'h2'] });
+  queryClient.setQueryData(['notifications', 'user'], { items: [], meta: {} });
+}
+
+function cachedQueryCount(): number {
+  return queryClient.getQueryCache().getAll().length;
+}
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -136,13 +151,14 @@ describe('useAuthStore — 로그인', () => {
     });
   });
 
-  it('다른 계정으로 로그인하면 앞 계정의 찜을 비운다', async () => {
-    useFavoritesStore.setState({ hospitalIds: ['h1', 'h2'] });
+  it('★ 다른 계정으로 로그인하면 앞 계정의 캐시를 비운다', async () => {
+    seedAccountScopedCache();
+    expect(cachedQueryCount()).toBeGreaterThan(0);
     stubFetch({ '/auth/login': () => json(200, SESSION) });
 
     await useAuthStore.getState().logIn({ email: 'seed-2@molarmolar.example', password: 'pw' });
 
-    expect(useFavoritesStore.getState().hospitalIds).toEqual([]);
+    expect(cachedQueryCount()).toBe(0);
   });
 });
 
@@ -167,20 +183,20 @@ describe('useAuthStore — 로그아웃', () => {
     expect(readTokens()).toBeNull();
   });
 
-  it('찜 목록을 비운다', async () => {
-    // 비우지 않으면 다음에 로그인한 계정에 앞 사람의 찜이 그대로 보인다.
+  it('★ 계정에 딸린 캐시를 비운다', async () => {
+    // 비우지 않으면 다음에 로그인한 계정 화면에 앞 사람의 응답이 그대로 보인다.
     writeTokens({ accessToken: 'access-1', refreshToken: 'refresh-1' });
-    useFavoritesStore.setState({ hospitalIds: ['h1', 'h3'] });
+    seedAccountScopedCache();
     stubFetch({ '/auth/logout': () => new Response(null, { status: 204 }) });
 
     await useAuthStore.getState().logOut();
 
-    expect(useFavoritesStore.getState().hospitalIds).toEqual([]);
+    expect(cachedQueryCount()).toBe(0);
   });
 
   it('서버 폐기가 실패해도 로컬은 비운다', async () => {
     writeTokens({ accessToken: 'access-1', refreshToken: 'refresh-1' });
-    useFavoritesStore.setState({ hospitalIds: ['h1'] });
+    seedAccountScopedCache();
     stubFetch({
       '/auth/logout': () =>
         json(500, { error: { code: 'INTERNAL_ERROR', message: '일시적인 문제가 발생했어요', requestId: 'r' } }),
@@ -190,7 +206,7 @@ describe('useAuthStore — 로그아웃', () => {
 
     expect(useAuthStore.getState().user).toBeNull();
     expect(readTokens()).toBeNull();
-    expect(useFavoritesStore.getState().hospitalIds).toEqual([]);
+    expect(cachedQueryCount()).toBe(0);
   });
 });
 

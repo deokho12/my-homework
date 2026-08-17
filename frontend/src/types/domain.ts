@@ -280,26 +280,65 @@ export const CONSULT_STATUS_LABEL: Record<ConsultStatus, string> = {
 export interface ConsultStatusChange {
   status: ConsultStatus;
   changedAt: string;
+  /** 누가 바꿨는지. **관리자 응답에만 있다** — 신청자에게 처리자 이름을 알릴 이유가 없다. */
+  changedByName?: string | null;
 }
 
 export interface ConsultMemo {
   id: string;
   content: string;
   createdAt: string;
+  authorName: string | null;
 }
 
+/**
+ * **관리자 시야** (`hospital_admin` / `operator` 공용).
+ *
+ * `name`/`phone` 은 역할에 따라 값이 달라진다 — 운영자에게는 마스킹된 값이 오고
+ * `piiMasked` 가 `true` 다. 화면은 그 값으로 전화 걸기·복사를 잠그고 안내를 띄운다.
+ * **역할로 추론하지 않는다** — 마스킹 정책이 바뀌면 서버 한 곳만 고치면 되게 둔다.
+ */
 export interface ConsultRequest {
   id: string;
   hospitalId: string;
+  hospitalName: string;
+  doctorId: string | null;
+  doctorName: string | null;
   procedureId: ProcedureId | null;
+  procedureName: string | null;
   name: string;
   phone: string;
+  piiMasked: boolean;
   preferredTime: string;
   message: string;
   createdAt: string;
   status: ConsultStatus;
   statusHistory: ConsultStatusChange[];
   memos: ConsultMemo[];
+}
+
+/**
+ * **신청자 시야.** 같은 저장 구조에서 나오는 다른 투영이다.
+ *
+ * `memos`(내부 공유용)와 `statusHistory[].changedByName` 이 **없다** — 구조가 달라서
+ * 타입을 나눈다. 본인 것이라 이름·연락처는 마스킹되지 않는다.
+ */
+export interface MyConsultRequest {
+  id: string;
+  hospitalId: string;
+  hospitalName: string;
+  hospitalThumbnail: string;
+  doctorId: string | null;
+  doctorName: string | null;
+  procedureId: ProcedureId | null;
+  procedureName: string | null;
+  name: string;
+  phone: string;
+  preferredTime: string;
+  message: string;
+  createdAt: string;
+  status: ConsultStatus;
+  statusHistory: { status: ConsultStatus; changedAt: string }[];
 }
 
 /** Address search result from geocoding — see src/services/geocoding.ts. */
@@ -324,6 +363,11 @@ export interface AppNotification {
   createdAt: string;
   /** Id of the related consult request, hospital, etc. Null for generic notices. */
   relatedId: string | null;
+  /**
+   * `relatedId` 가 어떤 종류인지. **이게 없으면 알림함이 종류를 구분하지 못한다** —
+   * 지금 관리자 알림함은 `relatedId` 만 보고 무조건 상담 상세로 보낸다.
+   */
+  relatedResource: 'consultRequest' | 'hospital' | 'doctor' | 'promotion' | null;
 }
 
 /** 목록 조회 계약의 공통 페이지네이션 모양. `GET /hospitals` 등이 이 모양으로 응답한다. */

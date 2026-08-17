@@ -32,6 +32,8 @@ import CommunityPostScreen from '@/screens/community/[id]';
 import CommunityNewScreen from '@/screens/community/new';
 import ConsultRequestScreen from '@/screens/consult/[hospitalId]';
 import EventsScreen from '@/screens/events';
+import MyConsultRequestDetailScreen from '@/screens/me/consult-requests/[id]';
+import MyConsultRequestsScreen from '@/screens/me/consult-requests/index';
 import LocationTermsScreen from '@/screens/legal/location';
 import PrivacyScreen from '@/screens/legal/privacy';
 import TermsScreen from '@/screens/legal/terms';
@@ -94,6 +96,20 @@ const ROUTES: AppRoute[] = [
     path: '/consult/:hospitalId',
     element: <ConsultRequestScreen />,
     options: { title: '상담 신청' },
+    guard: 'auth',
+  },
+  // 마이페이지·로그인 화면이 안내해 온 "상담 신청 내역" 화면. 예전에는 안내만 있고
+  // 화면이 없었다 (`docs/features/known-issues.md`).
+  {
+    path: '/me/consult-requests',
+    element: <MyConsultRequestsScreen />,
+    options: { title: '상담 신청 내역' },
+    guard: 'auth',
+  },
+  {
+    path: '/me/consult-requests/:id',
+    element: <MyConsultRequestDetailScreen />,
+    options: { title: '상담 상세' },
     guard: 'auth',
   },
   { path: '/auth/login', element: <LoginScreen />, options: { title: '로그인' } },

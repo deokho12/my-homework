@@ -1,5 +1,4 @@
 import { router, Stack } from '@/navigation';
-import { useMemo } from 'react';
 import { FlatList, Pressable, Text, View, cx } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
 
@@ -7,14 +6,13 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { QueryState } from '@/components/QueryState';
 import { CONTAINER_PADDING } from '@/components/layout/Container';
 import { useSession } from '@/features/auth/hooks/useSession';
+import { useConsultSummary } from '@/features/consult';
 import { useManagedHospitals } from '@/features/hospital';
-import { useConsultStore } from '@/store/useConsultStore';
-import { useNotificationStore } from '@/store/useNotificationStore';
+import { useUnreadNotificationCount } from '@/features/notification';
 
 function AdminBell() {
-  const unreadCount = useNotificationStore(
-    (state) => state.notifications.filter((n) => n.audience === 'admin' && !n.isRead).length
-  );
+  const { data } = useUnreadNotificationCount('admin');
+  const unreadCount = data?.unreadCount ?? 0;
 
   return (
     <Pressable onPress={() => router.push('/admin/notifications')} hitSlop={8} style={{ position: 'relative' }}>
@@ -47,29 +45,15 @@ function emptyTitleForScope(scope: 'managed' | 'all'): string {
 
 export default function AdminHomePage() {
   const { isOperator } = useSession();
-  const consultRequests = useConsultStore((state) => state.requests);
   const { data, isLoading, isError, isFetching, refetch } = useManagedHospitals();
-
-  const { newThisMonthCount, pendingCount } = useMemo(() => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth();
-
-    let newThisMonth = 0;
-    let pending = 0;
-
-    for (const request of consultRequests) {
-      const createdAt = new Date(request.createdAt);
-      if (createdAt.getFullYear() === year && createdAt.getMonth() === month) {
-        newThisMonth += 1;
-      }
-      if (request.status === 'new') {
-        pending += 1;
-      }
-    }
-
-    return { newThisMonthCount: newThisMonth, pendingCount: pending };
-  }, [consultRequests]);
+  /**
+   * 숫자 두 개를 **서버가 센다.** 예전에는 화면이 기기 시계로 "이번 달" 을 판정했는데,
+   * 그 경계는 한국 달력이어야 하고(서버는 UTC 로 돈다) 세는 대상도 담당 병원 범위로
+   * 좁혀져야 한다. 서버가 `Asia/Seoul` 로 계산해 내려준다.
+   */
+  const { data: summary } = useConsultSummary();
+  const newThisMonthCount = summary?.newThisMonth ?? 0;
+  const pendingCount = summary?.pending ?? 0;
 
   return (
     <SafeAreaView className="flex-1 bg-neutral-50" edges={['bottom']}>

@@ -5,40 +5,16 @@ import { FlatList, Pressable, Text, View, cx } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
 
 import { CONTAINER_PADDING } from '@/components/layout/Container';
-import { useHospital } from '@/features/hospital';
+import { useFavorites } from '@/features/favorite';
 import { HospitalCard } from '@/features/hospital/components/HospitalCard';
+import { useUnreadNotificationCount } from '@/features/notification';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { useSession } from '@/features/auth/hooks/useSession';
 import { useAuthStore } from '@/store/useAuthStore';
-import { useFavoritesStore } from '@/store/useFavoritesStore';
-import { useNotificationStore } from '@/store/useNotificationStore';
 import { useScrollShadowStore } from '@/store/useScrollShadowStore';
 import { showAlert } from '@/utils/alert';
 
 const SCROLL_SHADOW_THRESHOLD = 8;
-
-/**
- * 찜한 병원 하나를 조회해 렌더한다 — 공개 목록 API 는 id 배열로 한 번에 묻는 필터가 없어
- * 항목마다 `useHospital` 을 부른다. 로딩 중에는 자리만 비우고(스켈레톤), 조회가 끝났는데도
- * 없으면(삭제된 병원 등) 조용히 걷어낸다 — 예전 `getHospitalById()` 필터링과 같은 동작이다.
- */
-function FavoriteHospitalCard({ hospitalId }: { hospitalId: string }) {
-  const { data: hospital, isLoading } = useHospital(hospitalId);
-
-  if (isLoading) {
-    return (
-      <View
-        className="mb-4 h-40 w-full animate-pulse rounded-2xl bg-neutral-100"
-        role="status"
-        accessibilityLabel="찜한 병원 정보를 불러오는 중이에요"
-      />
-    );
-  }
-
-  if (!hospital) return null;
-
-  return <HospitalCard hospital={hospital} />;
-}
 
 function AuthCard() {
   const user = useAuthStore((state) => state.user);
@@ -95,9 +71,9 @@ function AuthCard() {
 }
 
 function NotificationLinkRow() {
-  const unreadCount = useNotificationStore(
-    (state) => state.notifications.filter((n) => n.audience === 'user' && !n.isRead).length
-  );
+  // 배지 전용 엔드포인트를 쓴다 — 숫자 하나 때문에 알림 목록 전체를 받아오지 않는다.
+  const { data } = useUnreadNotificationCount('user');
+  const unreadCount = data?.unreadCount ?? 0;
 
   return (
     <Pressable
@@ -120,9 +96,32 @@ function NotificationLinkRow() {
   );
 }
 
+/**
+ * 상담 신청 내역 진입점.
+ *
+ * 이 화면과 로그인 화면이 "상담 신청 내역을 확인할 수 있어요" 라고 안내해 왔는데
+ * **가는 길이 없었다** (`docs/features/known-issues.md` 🟠). 이제 있다.
+ */
+function ConsultHistoryLinkRow() {
+  return (
+    <Pressable
+      onPress={() => router.push('/me/consult-requests')}
+      className="mb-6 flex-row items-center justify-between rounded-2xl border border-neutral-100 bg-white p-4"
+    >
+      <View className="flex-row items-center gap-2">
+        <Text className="text-lg">📋</Text>
+        <Text className="text-sm font-semibold text-neutral-800">상담 신청 내역</Text>
+      </View>
+      <Text className="text-neutral-300">›</Text>
+    </Pressable>
+  );
+}
+
 export default function MyPageScreen() {
   const { user, isHospitalAdmin } = useSession();
-  const hospitalIds = useFavoritesStore((state) => state.hospitalIds);
+  // `expand=hospital` 로 병원 본문까지 한 번에 받는다. 예전에는 id 마다 병원을 따로
+  // 조회해 항목 수만큼 요청이 나갔다.
+  const { data: favorites, isPending: favoritesPending } = useFavorites('hospital');
   const setScrolled = useScrollShadowStore((state) => state.setScrolled);
   const scrollOffsetRef = useRef(0);
 
@@ -141,9 +140,9 @@ export default function MyPageScreen() {
   return (
     <SafeAreaView className="flex-1 bg-neutral-50" edges={['top']}>
       <FlatList
-        data={user ? hospitalIds : []}
-        keyExtractor={(id) => id}
-        renderItem={({ item }) => <FavoriteHospitalCard hospitalId={item} />}
+        data={user ? (favorites?.hospitals ?? []) : []}
+        keyExtractor={(hospital) => hospital.id}
+        renderItem={({ item }) => <HospitalCard hospital={item} />}
         contentContainerClassName={cx(CONTAINER_PADDING, 'pb-8 pt-3')}
         onScroll={handleScroll}
         scrollEventThrottle={16}
@@ -152,17 +151,28 @@ export default function MyPageScreen() {
             <Text className="mb-4 text-2xl font-extrabold text-neutral-900">마이페이지</Text>
             <AuthCard />
             {user ? <NotificationLinkRow /> : null}
+            {user ? <ConsultHistoryLinkRow /> : null}
             {user ? <Text className="mb-3 text-lg font-bold text-neutral-900">찜한 병원</Text> : null}
           </View>
         }
         ListEmptyComponent={
           user ? (
-            <View className="items-center px-8 py-12">
-              <Text className="mb-2 text-4xl">🤍</Text>
-              <Text className="text-center text-sm text-neutral-500">
-                아직 찜한 병원이 없어요{'\n'}병원 카드의 하트를 눌러 찜해보세요
-              </Text>
-            </View>
+            // 로딩 중에 "없어요" 를 단정하지 않는다 — 조회가 끝나기 전 빈 배열은
+            // "찜이 없다" 가 아니라 "아직 모른다" 이다.
+            favoritesPending ? (
+              <View
+                className="mb-4 h-40 w-full animate-pulse rounded-2xl bg-neutral-100"
+                role="status"
+                accessibilityLabel="찜한 병원 정보를 불러오는 중이에요"
+              />
+            ) : (
+              <View className="items-center px-8 py-12">
+                <Text className="mb-2 text-4xl">🤍</Text>
+                <Text className="text-center text-sm text-neutral-500">
+                  아직 찜한 병원이 없어요{'\n'}병원 카드의 하트를 눌러 찜해보세요
+                </Text>
+              </View>
+            )
           ) : null
         }
         ListFooterComponent={

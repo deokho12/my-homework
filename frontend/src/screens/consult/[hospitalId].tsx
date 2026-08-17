@@ -7,10 +7,10 @@ import { Chip } from '@/components/Chip';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { QueryState } from '@/components/QueryState';
 import { containerClass } from '@/components/layout/Container';
+import { useCreateConsultRequest } from '@/features/consult';
 import { useHospital } from '@/features/hospital';
 import { useProcedureMap } from '@/features/procedure';
 import { isApiError } from '@/lib/apiClient';
-import { useConsultStore } from '@/store/useConsultStore';
 import type { Hospital, ProcedureId } from '@/types/domain';
 import { showAlert } from '@/utils/alert';
 
@@ -20,7 +20,7 @@ const TIME_SLOTS = ['평일 오전', '평일 오후', '주말'];
  * 콜백이라 그 안에서 훅을 호출할 수 없어 별도 컴포넌트로 뺐다 (`HospitalDetailPage` 와 같은 이유). */
 function ConsultRequestForm({ hospital }: { hospital: Hospital }) {
   const procedureMap = useProcedureMap();
-  const addRequest = useConsultStore((state) => state.addRequest);
+  const { mutate: submitRequest, isPending, error } = useCreateConsultRequest();
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -28,14 +28,33 @@ function ConsultRequestForm({ hospital }: { hospital: Hospital }) {
   const [preferredTime, setPreferredTime] = useState(TIME_SLOTS[0]);
   const [message, setMessage] = useState('');
 
-  const canSubmit = name.trim().length > 0 && phone.trim().length > 0;
+  const canSubmit = name.trim().length > 0 && phone.trim().length > 0 && !isPending;
 
+  /**
+   * 서버가 상담 마감·전문의 소속·취급 시술·연락처 형식을 검사한다. 실패 문구는 서버가
+   * 내려준 한국어를 그대로 쓴다 — 화면이 코드별 문구 사전을 다시 만들지 않는다.
+   */
   const handleSubmit = () => {
-    addRequest({ hospitalId: hospital.id, procedureId, name: name.trim(), phone: phone.trim(), preferredTime, message: message.trim() });
-    showAlert('상담 신청이 접수되었어요', `${hospital.name}에서 확인 후 연락드릴게요.`, [
-      { text: '확인', onPress: () => router.back() },
-    ]);
+    submitRequest(
+      {
+        hospitalId: hospital.id,
+        procedureId,
+        name: name.trim(),
+        phone: phone.trim(),
+        preferredTime,
+        message: message.trim(),
+      },
+      {
+        onSuccess: () => {
+          showAlert('상담 신청이 접수되었어요', `${hospital.name}에서 확인 후 연락드릴게요.`, [
+            { text: '확인', onPress: () => router.back() },
+          ]);
+        },
+      }
+    );
   };
+
+  const errorMessage = error === null ? null : isApiError(error) ? error.message : '잠시 후 다시 시도해주세요';
 
   return (
     <SafeAreaView className="flex-1 bg-white" edges={['bottom']}>
@@ -104,7 +123,15 @@ function ConsultRequestForm({ hospital }: { hospital: Hospital }) {
           style={{ minHeight: 96 }}
         />
 
-        <PrimaryButton label="상담 신청하기" onPress={handleSubmit} disabled={!canSubmit} />
+        {errorMessage === null ? null : (
+          <Text className="mb-3 text-sm text-rose-600">{errorMessage}</Text>
+        )}
+
+        <PrimaryButton
+          label={isPending ? '접수 중…' : '상담 신청하기'}
+          onPress={handleSubmit}
+          disabled={!canSubmit}
+        />
       </ScrollView>
     </SafeAreaView>
   );

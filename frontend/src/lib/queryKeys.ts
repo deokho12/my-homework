@@ -29,7 +29,19 @@ export const queryKeys = {
   },
   consultRequests: {
     all: ['consultRequests'] as const,
+    /** 관리자 목록. `all` 로 시작하므로 상태 변경·메모가 목록·상세를 함께 깬다. */
+    list: (filters: object = {}) => ['consultRequests', 'list', filters] as const,
     detail: (id: string) => ['consultRequests', id] as const,
+    /** 관리자 홈 숫자 카드. 상태가 바뀌면 `pending` 이 달라지므로 같은 접두사 아래 둔다. */
+    summary: ['consultRequests', 'summary'] as const,
+    /** 내 상담 내역. 신청자 시야라 관리자 목록과 캐시를 나눈다(응답 모양이 다르다). */
+    mine: (filters: object = {}) => ['consultRequests', 'mine', filters] as const,
+    mineDetail: (id: string) => ['consultRequests', 'mine', id] as const,
+  },
+  favorites: {
+    /** 내 찜. 계정에 묶이므로 로그아웃 시 캐시째 비운다. */
+    all: ['favorites'] as const,
+    list: (expand: 'hospital' | null = null) => ['favorites', { expand }] as const,
   },
   communityPosts: {
     all: ['communityPosts'] as const,

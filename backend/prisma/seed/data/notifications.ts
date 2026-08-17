@@ -1,9 +1,37 @@
-import type { AppNotification } from '@/types/domain';
+/**
+ * 알림 시드 데이터. 조각 2 에서 `frontend/src/mocks/fixtures/notifications.ts` 에서
+ * 옮겨왔다 — 알림이 서버로 이관되면서 DB 가 원본이 됐다.
+ *
+ * **프론트의 `AppNotification` 타입을 쓰지 않는다.** 그 타입은 이제 *응답* 모양이라
+ * `isRead`(수신자별 계산 필드)와 `relatedResource`(서버가 `related_type` 에서 투영)를
+ * 포함한다. 시드는 *저장* 모양이다.
+ *
+ * `isRead` 는 여기 남는다 — 시드가 이 값으로 `notification_recipients.read_at` 을
+ * 채운다. 읽음은 알림이 아니라 **수신자**에 달려 있어서, 같은 알림을 받은 담당자
+ * 셋의 읽음 상태가 각자 간다.
+ *
+ * `relatedType` 은 여기 없다. 시드가 `relatedId` 가 상담 id 인지 보고 유도한다
+ * (`prisma/seed.ts` §11) — fixture 에 적으면 두 곳이 갈릴 수 있다.
+ */
 
-// Seed notifications, mixed audience/type/isRead so both the user and admin notification screens
-// (and their bell-icon unread badges) have something meaningful to show out of the box.
-// consult-status entries' relatedId point at seed requests in src/data/consultRequests.ts.
-export const notifications: AppNotification[] = [
+export interface NotificationSeedRow {
+  id: string;
+  /** 역할이 아니라 알림함이다. 화면이 둘뿐이라 값도 둘이다. */
+  audience: 'user' | 'admin';
+  type: 'consult-status' | 'event' | 'system';
+  /** 짧은 명사구. */
+  title: string;
+  /** 구체적 사실을 담은 한 문장. 마침표를 붙이지 않는다. */
+  message: string;
+  isRead: boolean;
+  createdAt: string;
+  /** 상담 id 이면 시드가 `related_type='consult_request'` 를 함께 넣는다. */
+  relatedId: string | null;
+}
+
+// 사용자·관리자 알림함과 배지가 처음부터 의미 있는 상태를 보이도록 audience/type/isRead 를
+// 섞어 두었다. `consult-status` 의 `relatedId` 는 `./consult-requests.ts` 의 상담을 가리킨다.
+export const notifications: NotificationSeedRow[] = [
   {
     id: 'notif1',
     audience: 'user',

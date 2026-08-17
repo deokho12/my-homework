@@ -1,8 +1,8 @@
 import { router, usePathname } from '@/navigation';
 import { Pressable, Text, View } from '@/primitives';
 
+import { useUnreadNotificationCount } from '@/features/notification';
 import { useAuthStore } from '@/store/useAuthStore';
-import { useNotificationStore } from '@/store/useNotificationStore';
 import { useScrollShadowStore } from '@/store/useScrollShadowStore';
 
 const MENU = [
@@ -25,9 +25,9 @@ export function TopNavBar() {
   const pathname = usePathname();
   const user = useAuthStore((state) => state.user);
   const scrolled = useScrollShadowStore((state) => state.scrolled);
-  const unreadCount = useNotificationStore(
-    (state) => state.notifications.filter((n) => n.audience === 'user' && !n.isRead).length
-  );
+  // 배지 전용 엔드포인트. 마이페이지·상단바·관리자 홈이 같은 숫자를 보여야 한다.
+  const { data: unread } = useUnreadNotificationCount('user');
+  const unreadCount = unread?.unreadCount ?? 0;
 
   return (
     <View

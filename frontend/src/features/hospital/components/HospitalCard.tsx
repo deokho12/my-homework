@@ -5,8 +5,8 @@ import { Badge } from '@/components/Badge';
 import { StockImage } from '@/components/StockImage';
 import { useProcedureMap } from '@/features/procedure';
 import { getPromotionByHospital } from '@/mocks/fixtures/promotions';
+import { useFavoriteToggle } from '@/features/favorite';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
-import { useFavoritesStore } from '@/store/useFavoritesStore';
 import type { Hospital } from '@/types/domain';
 import { calcDiscountRate, formatPriceRange, formatWon } from '@/utils/format';
 
@@ -15,8 +15,7 @@ interface HospitalCardProps {
 }
 
 export function HospitalCard({ hospital }: HospitalCardProps) {
-  const isFavorite = useFavoritesStore((state) => state.isFavorite(hospital.id));
-  const toggleFavorite = useFavoritesStore((state) => state.toggleFavorite);
+  const { isFavorite, toggle } = useFavoriteToggle(hospital.id);
   const requireAuth = useRequireAuth();
   const procedureMap = useProcedureMap();
   const promotion = getPromotionByHospital(hospital.id);
@@ -41,7 +40,7 @@ export function HospitalCard({ hospital }: HospitalCardProps) {
         <Pressable
           onPress={(e) => {
             e.stopPropagation();
-            requireAuth(() => toggleFavorite(hospital.id));
+            requireAuth(toggle);
           }}
           hitSlop={8}
           className="absolute right-3 top-3 h-8 w-8 items-center justify-center rounded-full bg-white/90"

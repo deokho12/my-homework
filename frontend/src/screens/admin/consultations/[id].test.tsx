@@ -1,105 +1,124 @@
 import { screen, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import * as hospitalApi from '@/features/hospital/api/hospitalApi';
-import * as procedureApi from '@/features/procedure/api/procedureApi';
-import { procedures } from '@/mocks/fixtures/procedures';
+import * as consultApi from '@/features/consult/api/consultApi';
 import AdminConsultationDetailScreen from '@/screens/admin/consultations/[id]';
-import { useConsultStore } from '@/store/useConsultStore';
+import { useAuthStore } from '@/store/useAuthStore';
+import { baseConsultRequest } from '@/test/consultFixture';
 import { renderWithProviders } from '@/test/renderWithProviders';
-import type { ConsultRequest, Hospital } from '@/types/domain';
+import type { User } from '@/types/domain';
 
-function baseRequest(overrides: Partial<ConsultRequest> = {}): ConsultRequest {
+vi.mock('@/navigation', async () => {
+  const actual = await vi.importActual<Record<string, unknown>>('@/navigation');
+
+  return { ...actual, useLocalSearchParams: () => ({ id: 'cr1' }) };
+});
+
+function userWithRole(role: User['role']): User {
   return {
-    id: 'c1',
-    hospitalId: 'h1',
-    procedureId: null,
-    name: '홍길동',
-    phone: '01012345678',
-    preferredTime: '',
-    message: '',
-    createdAt: new Date().toISOString(),
-    status: 'new',
-    statusHistory: [],
-    memos: [],
-    ...overrides,
+    id: role === 'operator' ? 'u-operator' : 'u-admin-h1',
+    email: `${role}@molarmolar.example`,
+    name: '테스트',
+    provider: 'email',
+    role,
+    managedHospitalIds: role === 'operator' ? [] : ['h1'],
   };
 }
 
-function baseHospital(overrides: Partial<Hospital> = {}): Hospital {
-  return {
-    id: 'h1',
-    name: '강남 스마일 치과',
-    specialty: '',
-    region: '서울 강남구',
-    latitude: 37.5,
-    longitude: 127.0,
-    thumbnail: '',
-    images: [],
-    procedureIds: [],
-    priceRange: { min: 0, max: 0 },
-    rating: 4.8,
-    reviewCount: 0,
-    consultCount: 0,
-    consultAvailable: true,
-    businessHours: [],
-    directions: '',
-    features: {
-      coordinator: false,
-      painlessAnesthesia: false,
-      digitalCare: false,
-      parking: false,
-      nightConsult: false,
-      cctv: false,
-    },
-    isOneDay: false,
-    isRecommended: false,
-    isSponsored: false,
-    sponsoredCategories: [],
-    sponsoredRank: null,
-    sponsoredStartDate: null,
-    sponsoredEndDate: null,
-    tags: [],
-    address: '',
-    introduction: '',
-    events: [],
-    sponsorship: { isActive: false, isPlacementEligible: false },
-    representativeSpecialty: null,
-    ...overrides,
-  };
-}
-
-function renderScreen(id: string) {
-  return renderWithProviders(<AdminConsultationDetailScreen />, {
-    route: `/admin/consultations/${id}`,
-    path: '/admin/consultations/:id',
+/**
+ * 관리자 상담 상세.
+ *
+ * 지키는 것 셋: 서버가 준 이름들을 그대로 그리는가, 마스킹 상태를 알려주는가,
+ * **운영자에게 처리 수단을 열지 않는가**(서버도 403 이지만 누를 수 없는 버튼을
+ * 보여주는 편이 낫다).
+ */
+describe('AdminConsultationDetailScreen', () => {
+  beforeEach(() => {
+    useAuthStore.setState({ user: userWithRole('hospital_admin'), status: 'ready' });
   });
-}
 
-describe('AdminConsultationDetailScreen — 병원 이름 조회', () => {
   afterEach(() => {
     vi.restoreAllMocks();
-    useConsultStore.setState({ requests: [] });
+    useAuthStore.setState({ user: null, status: 'ready' });
   });
 
-  it('병원 조회가 끝나기 전에는 "알 수 없는 병원" 이라고 단정하지 않는다', async () => {
-    useConsultStore.setState({ requests: [baseRequest()] });
-    vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue(procedures);
-    vi.spyOn(hospitalApi, 'fetchHospitalById').mockReturnValue(new Promise(() => {}));
+  it('메모에 작성자 이름과 시각이 함께 보인다', async () => {
+    vi.spyOn(consultApi, 'fetchConsultRequest').mockResolvedValue(
+      baseConsultRequest({
+        memos: [
+          {
+            id: 'm1',
+            content: '전화 연결 시도, 부재중',
+            createdAt: '2026-08-16T01:00:00.000Z',
+            authorName: '김담당',
+          },
+        ],
+      })
+    );
 
-    renderScreen('c1');
+    renderWithProviders(<AdminConsultationDetailScreen />);
 
-    await waitFor(() => expect(screen.getByText('연락처')).toBeInTheDocument());
-    expect(screen.queryByText('알 수 없는 병원')).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('전화 연결 시도, 부재중')).toBeInTheDocument());
+    expect(screen.getByText(/김담당/)).toBeInTheDocument();
   });
 
-  it('병원 조회가 끝나면 병원 이름을 보여준다', async () => {
-    useConsultStore.setState({ requests: [baseRequest()] });
-    vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue(procedures);
-    vi.spyOn(hospitalApi, 'fetchHospitalById').mockResolvedValue(baseHospital());
+  it('상태 이력에 처리자 이름이 보인다', async () => {
+    vi.spyOn(consultApi, 'fetchConsultRequest').mockResolvedValue(
+      baseConsultRequest({
+        status: 'contacted',
+        statusHistory: [
+          { status: 'new', changedAt: '2026-08-16T00:00:00.000Z', changedByName: null },
+          { status: 'contacted', changedAt: '2026-08-16T02:00:00.000Z', changedByName: '김담당' },
+        ],
+      })
+    );
 
-    renderScreen('c1');
+    renderWithProviders(<AdminConsultationDetailScreen />);
 
-    await waitFor(() => expect(screen.getByText('강남 스마일 치과')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/연락중 · 김담당/)).toBeInTheDocument());
+  });
+
+  it('★ 마스킹된 응답에는 이유를 함께 보여준다', async () => {
+    useAuthStore.setState({ user: userWithRole('operator'), status: 'ready' });
+    vi.spyOn(consultApi, 'fetchConsultRequest').mockResolvedValue(
+      baseConsultRequest({ name: '박*영', phone: '010-****-5678', piiMasked: true })
+    );
+
+    renderWithProviders(<AdminConsultationDetailScreen />);
+
+    await waitFor(() =>
+      expect(screen.getByText(/담당 병원에서만 전체를 확인할 수 있어요/)).toBeInTheDocument()
+    );
+  });
+
+  it('★ 운영자에게는 상태 변경·메모 작성 수단을 열지 않는다 (읽기 전용)', async () => {
+    useAuthStore.setState({ user: userWithRole('operator'), status: 'ready' });
+    vi.spyOn(consultApi, 'fetchConsultRequest').mockResolvedValue(baseConsultRequest());
+
+    renderWithProviders(<AdminConsultationDetailScreen />);
+
+    await waitFor(() => expect(screen.getByText(/상태 변경은 담당 병원에서 할 수 있어요/)).toBeInTheDocument());
+    expect(screen.getByText(/메모는 담당 병원에서 남길 수 있어요/)).toBeInTheDocument();
+    expect(screen.queryByText('메모 추가')).not.toBeInTheDocument();
+  });
+
+  it('담당 병원 담당자에게는 상태 변경과 메모 작성이 열려 있다', async () => {
+    vi.spyOn(consultApi, 'fetchConsultRequest').mockResolvedValue(baseConsultRequest());
+
+    renderWithProviders(<AdminConsultationDetailScreen />);
+
+    await waitFor(() => expect(screen.getByText('메모 추가')).toBeInTheDocument());
+    expect(screen.queryByText(/상태 변경은 담당 병원에서/)).not.toBeInTheDocument();
+  });
+
+  it('지목한 전문의가 있으면 보여준다', async () => {
+    vi.spyOn(consultApi, 'fetchConsultRequest').mockResolvedValue(
+      baseConsultRequest({ doctorId: 'd1', doctorName: '김민준' })
+    );
+
+    renderWithProviders(<AdminConsultationDetailScreen />);
+
+    await waitFor(() => expect(screen.getByText('지목 전문의')).toBeInTheDocument());
+    expect(screen.getByText('김민준')).toBeInTheDocument();
   });
 });
