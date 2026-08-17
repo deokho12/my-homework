@@ -1499,7 +1499,7 @@ paths:
         같은 URL 에 대해 역할별로 다른 본문이 나오므로 공유 캐시가 섞이면 유출이 된다.
         (같은 이유로 `Vary: Authorization` 을 함께 보낸다)
       x-screens: [admin-consultations.md]
-      x-screen-status: "🟡"
+      x-screen-status: "✅"
       x-role: [hospital_admin, operator]
       security:
         - bearerAuth: []
@@ -1589,7 +1589,7 @@ paths:
         스코프는 `GET /consult-requests` 와 동일하다 (`hospital_admin` = 담당 병원, `operator` = 전체).
         **개인정보를 담지 않으므로 마스킹 대상이 아니다** — 숫자 두 개뿐이다. 운영자 홈에서도 그대로 쓸 수 있다.
       x-screens: [admin-home.md]
-      x-screen-status: "🟡"
+      x-screen-status: "✅"
       x-role: [hospital_admin, operator]
       security:
         - bearerAuth: []
@@ -1633,7 +1633,7 @@ paths:
         상세는 건별 열람 기록으로** 다루는 것이 실무적인 타협이다. 목록에서 대량 반출이 우려되면
         `pageSize` 상한(100)과 요청 한도가 1차 방어선이고, 엑셀 내려받기가 생기면 그때는 필수로 남긴다.
       x-screens: [admin-consultation-detail.md, admin-notifications.md]
-      x-screen-status: "🟡"
+      x-screen-status: "✅"
       x-role: [hospital_admin, operator]
       security:
         - bearerAuth: []
@@ -1811,7 +1811,7 @@ paths:
 
         최신순.
       x-screens: [mypage.md, login.md, notifications.md]
-      x-screen-status: "🚧"
+      x-screen-status: "✅"
       x-role: user
       security:
         - bearerAuth: []
@@ -1858,7 +1858,7 @@ paths:
 
         본인 상담이 아니면 `404` (남의 상담 존재 여부를 흘리지 않는다).
       x-screens: [mypage.md, notifications.md]
-      x-screen-status: "🚧"
+      x-screen-status: "✅"
       x-role: user
       security:
         - bearerAuth: []
@@ -1990,7 +1990,7 @@ paths:
         최신순. 알림을 생성하는 공개 엔드포인트는 **없다** — 알림은 상담 접수·상태 변경·인증 검수의
         부수효과로만 생긴다. 프론트엔드의 `notifyUser`/`notifyAdmin` 헬퍼는 서버로 이동해 사라진다.
       x-screens: [notifications.md, admin-notifications.md, mypage.md, admin-home.md]
-      x-screen-status: "✅ 🟡"
+      x-screen-status: "✅"
       security:
         - bearerAuth: []
       parameters:

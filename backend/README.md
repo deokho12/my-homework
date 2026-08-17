@@ -1,11 +1,20 @@
 # 몰라몰라 백엔드 (NestJS + Prisma + SQLite)
 
-현재 상태: **인증·인가에 이어 병원·전문의 도메인 API 까지 구현되어 있습니다**
-(`2026-08-13-hospital-doctor-domain-api` 조각 1 — 시술 목록, 병원 조회·등록·수정, 전문의
-조회·수정·삭제·인증 검수, 병원 후기 조회. 총 15개 오퍼레이션. `docs/api/openapi.yaml` 의
-`x-screen-status` 참고). 그 밖의 도메인(상담 신청·찜·알림, 커뮤니티·콘텐츠·검색)은 아직
-없습니다 — 아래 [아직 없는 것](#아직-없는-것-다음-task-로-넘김) 절과 [다음 조각](#다음-조각)
-참고.
+현재 상태: **인증·인가 → 병원·전문의 → 상담·찜·알림까지 구현되어 있습니다.**
+
+| 조각 | 내용 | 오퍼레이션 |
+|---|---|---|
+| 기반 | 인증·인가 3층·감사 로그 | auth 5 |
+| 1 | 시술, 병원 조회·등록·수정, 전문의 조회·수정·삭제·인증 검수, 병원 후기 | 15 |
+| 2 | 찜, 알림, 상담 접수·내 내역·관리자 처리 | 15 |
+
+남은 도메인(커뮤니티·콘텐츠·검색, 입점 문의, 병원 담당자 지정)은 아직 없습니다 —
+아래 [아직 없는 것](#아직-없는-것-다음-task-로-넘김) 절과 [다음 조각](#다음-조각) 참고.
+
+> **`x-screen-status` 로 남은 일을 세지 마세요.** 그 값은 `✅동작 / 🟡샘플 데이터 /
+> 🚧껍데기` 로 **화면**의 상태를 나타냅니다. 브라우저 저장으로 도는 화면도 ✅ 라서,
+> API 구현 여부와는 다릅니다. 서버에 무엇이 있는지는 이 표와 `src/*/**.controller.ts` 가
+> 권위입니다.
 
 `GET /health`, `POST|GET /api/v1/auth/*` 5개, 그 위에 얹을 가드 3층, 감사 로그·
 리프레시 토큰 정리 배치가 인증·인가 기반입니다.
@@ -135,12 +144,15 @@ backend/
 │   ├── hospital/              # 병원 조회·등록·수정 + 관리자 로스터 + 스폰서 계산 + 거리 계산
 │   ├── doctor/                # 전문의 조회·로스터 교체·수정·삭제 + 인증 검수
 │   ├── review/                # 병원 후기 조회 (작성 엔드포인트 없음 — 화면에 없다)
+│   ├── favorite/              # 내 찜 (추가·삭제 멱등, expand=hospital)
+│   ├── notification/          # 알림 조회 4개 + notification.write.ts (부수효과가 쓰는 공용 헬퍼)
+│   ├── consult/               # 상담 접수·내 내역·관리자 처리 + 개인정보 마스킹(순수 함수)
 │   ├── scripts/
 │   │   ├── operator-role.ts   # 운영자 승격·회수 CLI (HTTP 경로 없음 — 결정 4)
 │   │   └── tokens-cleanup.ts  # refresh_tokens 수동 정리 CLI
 │   ├── prisma/                # PrismaService (전역 모듈, lifecycle hook)
 │   └── health/                # GET /health
-└── test/                      # 26 파일 / 289 테스트 (auth·인가 기반 + 병원·전문의 도메인)
+└── test/                      # 33 파일 / 405 테스트 (auth·인가 기반 + 병원·전문의 + 상담·찜·알림)
     ├── support/
     │   ├── app.ts                   # 테스트 앱 + 시드 계정 로그인 헬퍼
     │   ├── guard-test.module.ts      # ★ 인가 테스트 전용 보호 라우트 (src 에 두지 않습니다)
@@ -333,15 +345,20 @@ npm run operator:revoke -- someone@example.com --actor=me@molarmolar.example --f
 
 ### 다음 조각
 
-이 저장소는 `hospital-doctor-domain-api` 조각 1(Task 1~21) 까지 끝났습니다. 남은 도메인은
-`.superpowers/sdd/2026-08-13-hospital-doctor-domain-api/task-21-brief.md` 의 "다음 조각" 표
-기준으로 이렇게 나뉩니다:
+조각 1(병원·전문의)과 조각 2(상담·찜·알림)가 끝났습니다. 조각 2 는 원래 문서가 나눠 둔
+"찜·상담접수·알림"과 "관리자 상담 처리"를 **합쳤습니다** — `useConsultStore` 하나를 사용자
+화면과 관리자 화면이 함께 써서, 한쪽만 옮기면 서버에 접수된 상담이 다른 쪽에 보이지 않기
+때문입니다 (설계: `docs/superpowers/specs/2026-08-16-consults-favorites-notifications-design.md`).
 
-| 조각 | 내용 |
-|---|---|
-| 2 | 찜·상담접수·알림 (검수가 이미 만들고 있는 알림 행을 읽는 API 포함) |
-| 3 | 관리자 상담 처리 (`@HospitalScope({ resource: 'consultRequest' })` 는 이미 준비됨) |
-| 4 | 커뮤니티·콘텐츠·검색 (`frontend/src/mocks/db.ts` 의 남은 테이블 3개: `consultRequests`·`communityPosts`·`notifications`) |
+남은 것:
+
+| 조각 | 내용 | 오퍼레이션 |
+|---|---|---|
+| 4 | 커뮤니티·콘텐츠·검색·주소검색 | 14 |
+| — | 병원 담당자 지정 3 · 입점 문의 4 · 소셜 로그인 1 | 8 |
+
+프론트에서 아직 브라우저 저장을 쓰는 것은 **커뮤니티(`qaPosts`)뿐**입니다. 찜·상담·알림
+스토어와 고아가 된 `mocks/db.ts` 는 조각 2 에서 지워졌습니다.
 
 ## 개발용 계정
 
