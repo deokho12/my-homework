@@ -1,13 +1,14 @@
 import { screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import * as consultApi from '@/features/consult/api/consultApi';
 import * as hospitalApi from '@/features/hospital/api/hospitalApi';
 import * as procedureApi from '@/features/procedure/api/procedureApi';
 import { procedures } from '@/mocks/fixtures/procedures';
 import AdminConsultationsScreen from '@/screens/admin/consultations/index';
-import { useConsultStore } from '@/store/useConsultStore';
 import { renderWithProviders } from '@/test/renderWithProviders';
-import type { ConsultRequest, Hospital } from '@/types/domain';
+import type { ConsultRequest, Hospital, Paged } from '@/types/domain';
 
 function baseRequest(overrides: Partial<ConsultRequest> = {}): ConsultRequest {
   return {
@@ -69,14 +70,20 @@ function baseHospital(overrides: Partial<Hospital> = {}): Hospital {
   };
 }
 
+function pageOf(requests: ConsultRequest[]): Paged<ConsultRequest> {
+  return {
+    items: requests,
+    meta: { page: 1, pageSize: 100, totalItems: requests.length, totalPages: 1 },
+  };
+}
+
 describe('AdminConsultationsScreen — 병원 이름 조회', () => {
   afterEach(() => {
     vi.restoreAllMocks();
-    useConsultStore.setState({ requests: [] });
   });
 
   it('병원 조회가 끝나기 전에는 "알 수 없는 병원" 이라고 단정하지 않는다', async () => {
-    useConsultStore.setState({ requests: [baseRequest()] });
+    vi.spyOn(consultApi, 'fetchConsultRequests').mockResolvedValue(pageOf([baseRequest()]));
     vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue(procedures);
     vi.spyOn(hospitalApi, 'fetchHospitalById').mockReturnValue(new Promise(() => {}));
 
@@ -87,12 +94,56 @@ describe('AdminConsultationsScreen — 병원 이름 조회', () => {
   });
 
   it('병원 조회가 끝나면 병원 이름을 보여준다', async () => {
-    useConsultStore.setState({ requests: [baseRequest()] });
+    vi.spyOn(consultApi, 'fetchConsultRequests').mockResolvedValue(pageOf([baseRequest()]));
     vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue(procedures);
     vi.spyOn(hospitalApi, 'fetchHospitalById').mockResolvedValue(baseHospital());
 
     renderWithProviders(<AdminConsultationsScreen />);
 
     await waitFor(() => expect(screen.getByText(/강남 스마일 치과/)).toBeInTheDocument());
+  });
+});
+
+describe('AdminConsultationsScreen — 조회 상태', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('로딩 중에는 "없어요" 문구를 보여주지 않는다', () => {
+    vi.spyOn(consultApi, 'fetchConsultRequests').mockReturnValue(new Promise(() => {}));
+
+    renderWithProviders(<AdminConsultationsScreen />);
+
+    expect(screen.queryByText(/없어요/)).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toBeInTheDocument();
+  });
+
+  it('0건이면 기존 빈 상태 문구를 보여준다', async () => {
+    vi.spyOn(consultApi, 'fetchConsultRequests').mockResolvedValue(pageOf([]));
+
+    renderWithProviders(<AdminConsultationsScreen />);
+
+    await waitFor(() => expect(screen.getByText('접수된 상담 신청이 없어요')).toBeInTheDocument());
+  });
+
+  it('상태 칩을 고르면 그 상태로 서버에 다시 묻는다', async () => {
+    const fetchSpy = vi.spyOn(consultApi, 'fetchConsultRequests').mockResolvedValue(pageOf([]));
+
+    renderWithProviders(<AdminConsultationsScreen />);
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith({ pageSize: 100, status: undefined }));
+
+    await userEvent.click(screen.getByText('예약완료'));
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith({ pageSize: 100, status: 'booked' }));
+  });
+
+  it('조회에 실패하면 다시 시도할 수 있게 안내한다', async () => {
+    vi.spyOn(consultApi, 'fetchConsultRequests').mockRejectedValue(new Error('boom'));
+
+    renderWithProviders(<AdminConsultationsScreen />);
+
+    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: /다시 시도/ })).toBeInTheDocument();
   });
 });

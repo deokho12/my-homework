@@ -1,5 +1,4 @@
 import { router, Stack } from '@/navigation';
-import { useMemo } from 'react';
 import { FlatList, Pressable, Text, View, cx } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
 
@@ -7,14 +6,15 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { QueryState } from '@/components/QueryState';
 import { CONTAINER_PADDING } from '@/components/layout/Container';
 import { useSession } from '@/features/auth/hooks/useSession';
+import { useConsultSummary } from '@/features/consult';
 import { useManagedHospitals } from '@/features/hospital';
-import { useConsultStore } from '@/store/useConsultStore';
-import { useNotificationStore } from '@/store/useNotificationStore';
+import { useUnreadNotificationCount } from '@/features/notification';
 
 function AdminBell() {
-  const unreadCount = useNotificationStore(
-    (state) => state.notifications.filter((n) => n.audience === 'admin' && !n.isRead).length
-  );
+  // 배지는 "안 읽은 알림이 있다"만 말한다. 아직 모르는 동안(로딩·실패)은 0 으로 두고
+  // 그리지 않는다 — 숫자를 지어내는 것보다 잠시 비어 있는 편이 낫다.
+  const { data: unread } = useUnreadNotificationCount('admin');
+  const unreadCount = unread?.unreadCount ?? 0;
 
   return (
     <Pressable onPress={() => router.push('/admin/notifications')} hitSlop={8} style={{ position: 'relative' }}>
@@ -31,11 +31,15 @@ function AdminBell() {
   );
 }
 
-function StatCard({ label, value }: { label: string; value: number }) {
+/**
+ * 숫자를 아직 모르는 동안(요약 조회 로딩·실패)에는 `0` 대신 `—` 를 쓴다.
+ * `0` 은 "상담이 없다"는 **사실 주장**이라, 모르는 상태에 쓰면 관리자가 잘못 읽는다.
+ */
+function StatCard({ label, value }: { label: string; value: number | undefined }) {
   return (
     <View className="flex-1 rounded-2xl border border-neutral-100 bg-white p-4">
       <Text className="mb-1 text-xs font-medium text-neutral-500">{label}</Text>
-      <Text className="text-2xl font-extrabold text-neutral-900">{value}</Text>
+      <Text className="text-2xl font-extrabold text-neutral-900">{value ?? '—'}</Text>
     </View>
   );
 }
@@ -47,29 +51,10 @@ function emptyTitleForScope(scope: 'managed' | 'all'): string {
 
 export default function AdminHomePage() {
   const { isOperator } = useSession();
-  const consultRequests = useConsultStore((state) => state.requests);
+  // 숫자 두 개를 보려고 고객 실명·전화번호가 실린 상담 목록을 통째로 받아오지 않는다.
+  // `이번 달` 의 기준도 기기 시계가 아니라 서버(`Asia/Seoul`) 달력이다.
+  const { data: summary } = useConsultSummary();
   const { data, isLoading, isError, isFetching, refetch } = useManagedHospitals();
-
-  const { newThisMonthCount, pendingCount } = useMemo(() => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth();
-
-    let newThisMonth = 0;
-    let pending = 0;
-
-    for (const request of consultRequests) {
-      const createdAt = new Date(request.createdAt);
-      if (createdAt.getFullYear() === year && createdAt.getMonth() === month) {
-        newThisMonth += 1;
-      }
-      if (request.status === 'new') {
-        pending += 1;
-      }
-    }
-
-    return { newThisMonthCount: newThisMonth, pendingCount: pending };
-  }, [consultRequests]);
 
   return (
     <SafeAreaView className="flex-1 bg-neutral-50" edges={['bottom']}>
@@ -84,8 +69,8 @@ export default function AdminHomePage() {
         </Text>
 
         <View className="mb-3 flex-row gap-2">
-          <StatCard label="이번 달 신규 상담" value={newThisMonthCount} />
-          <StatCard label="처리 대기 중인 상담" value={pendingCount} />
+          <StatCard label="이번 달 신규 상담" value={summary?.newThisMonth} />
+          <StatCard label="처리 대기 중인 상담" value={summary?.pending} />
         </View>
 
         <View className="mb-2">

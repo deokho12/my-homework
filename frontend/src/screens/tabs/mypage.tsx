@@ -9,9 +9,9 @@ import { useHospital } from '@/features/hospital';
 import { HospitalCard } from '@/features/hospital/components/HospitalCard';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { useSession } from '@/features/auth/hooks/useSession';
+import { useFavorites } from '@/features/favorite';
+import { useUnreadNotificationCount } from '@/features/notification';
 import { useAuthStore } from '@/store/useAuthStore';
-import { useFavoritesStore } from '@/store/useFavoritesStore';
-import { useNotificationStore } from '@/store/useNotificationStore';
 import { useScrollShadowStore } from '@/store/useScrollShadowStore';
 import { showAlert } from '@/utils/alert';
 
@@ -95,9 +95,9 @@ function AuthCard() {
 }
 
 function NotificationLinkRow() {
-  const unreadCount = useNotificationStore(
-    (state) => state.notifications.filter((n) => n.audience === 'user' && !n.isRead).length
-  );
+  // 아직 모르는 동안(로딩·실패)에는 배지를 그리지 않는다 — 숫자를 지어내지 않는다.
+  const { data: unread } = useUnreadNotificationCount('user');
+  const unreadCount = unread?.unreadCount ?? 0;
 
   return (
     <Pressable
@@ -122,7 +122,8 @@ function NotificationLinkRow() {
 
 export default function MyPageScreen() {
   const { user, isHospitalAdmin } = useSession();
-  const hospitalIds = useFavoritesStore((state) => state.hospitalIds);
+  const { data: favorites, isLoading: isFavoritesLoading } = useFavorites();
+  const hospitalIds = favorites?.hospitalIds ?? [];
   const setScrolled = useScrollShadowStore((state) => state.setScrolled);
   const scrollOffsetRef = useRef(0);
 
@@ -156,7 +157,8 @@ export default function MyPageScreen() {
           </View>
         }
         ListEmptyComponent={
-          user ? (
+          // 조회가 끝나기 전에는 "찜한 병원이 없다"고 단정하지 않는다 — 아직 모르는 것이다.
+          user && !isFavoritesLoading ? (
             <View className="items-center px-8 py-12">
               <Text className="mb-2 text-4xl">🤍</Text>
               <Text className="text-center text-sm text-neutral-500">

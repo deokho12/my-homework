@@ -10,7 +10,8 @@ export const queryKeys = {
     all: ['hospitals'] as const,
     /** 필터별로 캐시를 가른다. `all` 은 무효화 접두사로 남긴다 — mutation 이 목록·상세를 한 번에 깬다. */
     list: (filters: object = {}) => ['hospitals', 'list', filters] as const,
-    detail: (id: string) => ['hospitals', id] as const,
+    /** 상세. 형제 키(`'list'`·`'managed'`)와 섞이지 않도록 `detail` 을 낀다 — 네 리소스가 같은 모양이다. */
+    detail: (id: string) => ['hospitals', 'detail', id] as const,
     /** `GET /admin/hospitals`. `all` 로 시작하므로 병원 mutation 이 함께 무효화한다. */
     managed: (filters: object = {}) => ['hospitals', 'managed', filters] as const,
   },
@@ -18,7 +19,8 @@ export const queryKeys = {
     all: ['doctors'] as const,
     /** 필터별로 캐시를 가른다. `all` 은 무효화 접두사로 남긴다 — mutation 이 목록·상세를 한 번에 깬다. */
     list: (filters: object = {}) => ['doctors', 'list', filters] as const,
-    detail: (id: string) => ['doctors', id] as const,
+    /** 상세. 형제 키(`'list'`·`'byHospital'`·`'verification-queue'`)와 섞이지 않도록 `detail` 을 낀다. */
+    detail: (id: string) => ['doctors', 'detail', id] as const,
     byHospital: (hospitalId: string) => ['doctors', 'byHospital', hospitalId] as const,
     /** `GET /doctors/verification-queue`. `all` 로 시작하므로 전문의 mutation 이 함께 무효화한다. */
     verificationQueue: (filters: object = {}) => ['doctors', 'verification-queue', filters] as const,
@@ -29,15 +31,39 @@ export const queryKeys = {
   },
   consultRequests: {
     all: ['consultRequests'] as const,
-    detail: (id: string) => ['consultRequests', id] as const,
+    /** `GET /consult-requests` (관리자 목록). 상태 필터별로 캐시를 가른다. */
+    list: (filters: object = {}) => ['consultRequests', 'list', filters] as const,
+    /** `GET /consult-requests/summary`. 상태 변경이 이 숫자를 바꾸므로 `all` 무효화에 함께 걸린다. */
+    summary: ['consultRequests', 'summary'] as const,
+    /** `GET /me/consult-requests`. 관리자 목록과 투영이 달라 캐시도 따로 둔다. */
+    mine: (filters: object = {}) => ['consultRequests', 'mine', filters] as const,
+    /**
+     * 상세. **`'list'`·`'summary'`·`'mine'` 같은 형제 키와 섞이지 않도록 `detail` 을 낀다** —
+     * `['consultRequests', id]` 형태였을 때는 id 가 `'summary'` 이기만 하면 두 캐시가 같은 키였다.
+     */
+    detail: (id: string) => ['consultRequests', 'detail', id] as const,
   },
   communityPosts: {
     all: ['communityPosts'] as const,
-    detail: (id: string) => ['communityPosts', id] as const,
+    list: (filters: object = {}) => ['communityPosts', 'list', filters] as const,
+    /** 형제 키(`'list'`)와 섞이지 않도록 `detail` 을 낀다. `consultRequests.detail` 과 같은 이유다. */
+    detail: (id: string) => ['communityPosts', 'detail', id] as const,
   },
   notifications: {
     all: ['notifications'] as const,
-    byAudience: (audience: NotificationAudience) => ['notifications', audience] as const,
+    /** 알림함(mailbox)별로 캐시를 가른다 — `모두 읽음` 이 한쪽만 처리해야 하는 것과 같은 단위다. */
+    byAudience: (audience: NotificationAudience, filters: object = {}) =>
+      ['notifications', audience, 'list', filters] as const,
+    /**
+     * `GET /notifications/unread-count`. 목록과 다른 키인 이유: 배지(마이페이지·상단바·관리자 홈)는
+     * 목록 없이 숫자만 필요하다. 접두사가 `['notifications', audience]` 라 알림함 단위 무효화에 함께 걸린다.
+     */
+    unreadCount: (audience: NotificationAudience) => ['notifications', audience, 'unread-count'] as const,
+  },
+  favorites: {
+    all: ['favorites'] as const,
+    /** `GET /me/favorites`. 계정에 딸린 목록이라 로그아웃 시 캐시째 사라져야 한다. */
+    mine: ['favorites', 'mine'] as const,
   },
   legalDocuments: {
     /** 회원가입 동의에 실을 현재 약관 버전 3개. */

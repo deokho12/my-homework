@@ -1,14 +1,15 @@
 import { router, Stack } from '@/navigation';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { FlatList, Pressable, Text, View, cx } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
 
 import { Badge } from '@/components/Badge';
 import { Chip } from '@/components/Chip';
+import { QueryState } from '@/components/QueryState';
 import { CONTAINER_PADDING } from '@/components/layout/Container';
+import { useConsultRequests, useUpdateConsultStatus } from '@/features/consult';
 import { useHospital } from '@/features/hospital';
 import { useProcedureMap, useProcedures } from '@/features/procedure';
-import { useConsultStore } from '@/store/useConsultStore';
 import { CONSULT_STATUS_LABEL, CONSULT_STATUSES, type ConsultRequest, type ConsultStatus } from '@/types/domain';
 
 type FilterKey = 'all' | ConsultStatus;
@@ -17,6 +18,17 @@ const FILTERS: { key: FilterKey; label: string }[] = [
   { key: 'all', label: '전체' },
   ...CONSULT_STATUSES.map((status) => ({ key: status, label: CONSULT_STATUS_LABEL[status] })),
 ];
+
+/**
+ * 이 화면에는 페이지네이션 UI 가 없다. 계약이 허용하는 상한(`pageSize` 최대 100)까지
+ * 한 번에 받아 예전처럼 전부 그린다. 페이지 이동 UI 가 생기면 이 상수는 사라진다.
+ */
+const LIST_PAGE_SIZE = 100;
+
+/** 빈 목록 문구. 아래 두 곳(QueryState 설정과 FlatList 의 빈 상태)이 같은 값을 쓰게 한 곳에 둔다. */
+function emptyMessage(filter: FilterKey): string {
+  return filter === 'all' ? '접수된 상담 신청이 없어요' : '해당 상태의 상담 신청이 없어요';
+}
 
 // Small inline status buttons for changing status directly from the list card. Deliberately not
 // the shared <Chip> here — it doesn't forward the press event, and we need stopPropagation so
@@ -46,7 +58,7 @@ function QuickStatusButton({
 }
 
 function ConsultCard({ request }: { request: ConsultRequest }) {
-  const updateStatus = useConsultStore((state) => state.updateStatus);
+  const updateStatus = useUpdateConsultStatus();
   const procedureMap = useProcedureMap();
   const { isPending: proceduresPending } = useProcedures();
   const { data: hospital, isLoading: isHospitalLoading } = useHospital(request.hospitalId);
@@ -87,7 +99,9 @@ function ConsultCard({ request }: { request: ConsultRequest }) {
             key={status}
             label={CONSULT_STATUS_LABEL[status]}
             selected={request.status === status}
-            onPress={() => updateStatus(request.id, status)}
+            // 같은 상태를 다시 눌러도 서버가 no-op 으로 처리한다(이력·알림이 늘지 않는다).
+            // 그래서 화면에서 따로 막지 않는다 — 같은 판정을 두 곳에 두지 않기 위해서다.
+            onPress={() => updateStatus.mutate({ id: request.id, status })}
           />
         ))}
       </View>
@@ -96,16 +110,12 @@ function ConsultCard({ request }: { request: ConsultRequest }) {
 }
 
 export default function AdminConsultationsScreen() {
-  const requests = useConsultStore((state) => state.requests);
   const [filter, setFilter] = useState<FilterKey>('all');
-
-  const filtered = useMemo(() => {
-    const sorted = [...requests].sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
-    if (filter === 'all') return sorted;
-    return sorted.filter((request) => request.status === filter);
-  }, [requests, filter]);
+  // 상태 칩은 서버 필터다 — 전체를 받아 화면에서 거르면 페이지네이션과 어긋난다.
+  const { data, isLoading, isError, isFetching, refetch } = useConsultRequests({
+    pageSize: LIST_PAGE_SIZE,
+    status: filter === 'all' ? undefined : filter,
+  });
 
   return (
     <SafeAreaView className="flex-1 bg-neutral-50" edges={['bottom']}>
@@ -120,20 +130,34 @@ export default function AdminConsultationsScreen() {
         </View>
       </View>
 
-      <FlatList
-        data={filtered}
-        keyExtractor={(item) => item.id}
-        contentContainerClassName={cx(CONTAINER_PADDING, 'py-2')}
-        renderItem={({ item }) => <ConsultCard request={item} />}
-        ListEmptyComponent={
-          <View className="items-center px-8 py-16">
-            <Text className="mb-2 text-4xl">📭</Text>
-            <Text className="text-center text-sm text-neutral-500">
-              {filter === 'all' ? '접수된 상담 신청이 없어요' : '해당 상태의 상담 신청이 없어요'}
-            </Text>
-          </View>
-        }
-      />
+      <QueryState
+        isLoading={isLoading}
+        isError={isError}
+        data={data}
+        onRetry={() => {
+          void refetch();
+        }}
+        isRetrying={isError && isFetching}
+        // 0건은 아래 FlatList 의 기존 빈 상태(📭)가 그대로 맡는다. 여기서 가로채면
+        // 이 화면이 원래 쓰던 모양과 문구가 공용 EmptyState 로 바뀌어 버린다.
+        isEmpty={() => false}
+        emptyState={{ title: emptyMessage(filter) }}
+      >
+        {(page) => (
+          <FlatList
+            data={page.items}
+            keyExtractor={(item) => item.id}
+            contentContainerClassName={cx(CONTAINER_PADDING, 'py-2')}
+            renderItem={({ item }) => <ConsultCard request={item} />}
+            ListEmptyComponent={
+              <View className="items-center px-8 py-16">
+                <Text className="mb-2 text-4xl">📭</Text>
+                <Text className="text-center text-sm text-neutral-500">{emptyMessage(filter)}</Text>
+              </View>
+            }
+          />
+        )}
+      </QueryState>
     </SafeAreaView>
   );
 }

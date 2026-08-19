@@ -1,8 +1,8 @@
 import { router, usePathname } from '@/navigation';
 import { Pressable, Text, View } from '@/primitives';
 
+import { useUnreadNotificationCount } from '@/features/notification';
 import { useAuthStore } from '@/store/useAuthStore';
-import { useNotificationStore } from '@/store/useNotificationStore';
 import { useScrollShadowStore } from '@/store/useScrollShadowStore';
 
 const MENU = [
@@ -25,9 +25,10 @@ export function TopNavBar() {
   const pathname = usePathname();
   const user = useAuthStore((state) => state.user);
   const scrolled = useScrollShadowStore((state) => state.scrolled);
-  const unreadCount = useNotificationStore(
-    (state) => state.notifications.filter((n) => n.audience === 'user' && !n.isRead).length
-  );
+  // 조회 실패·로딩 중에는 0 으로 둔다 — 배지는 "안 읽은 알림이 있다"만 말하는 자리이고,
+  // 모르는 상태에서 숫자를 지어내는 것보다 잠시 표시하지 않는 편이 낫다.
+  const { data: unread } = useUnreadNotificationCount('user');
+  const unreadCount = unread?.unreadCount ?? 0;
 
   return (
     <View

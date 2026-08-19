@@ -2,8 +2,8 @@ import type { ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 /**
- * 모듈 수준 인스턴스로 두는 이유: services/notifications.ts 처럼 훅 밖에서
- * 실행되는 코드도 캐시를 무효화해야 한다 (useQueryClient 를 쓸 수 없는 위치).
+ * 모듈 수준 인스턴스로 두는 이유: `useAuthStore` 의 `clearAccountScopedState()` 처럼
+ * 훅 밖에서 실행되는 코드도 캐시를 비워야 한다 (useQueryClient 를 쓸 수 없는 위치).
  */
 export const queryClient = new QueryClient({
   defaultOptions: {

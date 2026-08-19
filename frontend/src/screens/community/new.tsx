@@ -1,29 +1,53 @@
 import { router, Stack } from '@/navigation';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { ScrollView, Text, TextInput, View } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
 
 import { Chip } from '@/components/Chip';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { containerClass } from '@/components/layout/Container';
+import { useCreateCommunityPost } from '@/features/community';
 import { useProcedures } from '@/features/procedure';
-import { useCommunityStore } from '@/store/useCommunityStore';
+import { isApiError } from '@/lib/apiClient';
 import type { ProcedureId } from '@/types/domain';
+import { showAlert } from '@/utils/alert';
 
 export default function NewCommunityPostScreen() {
   const { data: procedures = [] } = useProcedures();
-  const addPost = useCommunityStore((state) => state.addPost);
+  const createPost = useCreateCommunityPost();
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   // 'implant' 은 서버가 고정한 시술 목록의 첫 항목이다 — 목록이 아직 로딩 중이어도
   // 안전한 기본값이다.
   const [procedureId, setProcedureId] = useState<ProcedureId>('implant');
 
-  const canSubmit = title.trim().length > 0 && content.trim().length > 0;
+  const canSubmit = title.trim().length > 0 && content.trim().length > 0 && !createPost.isPending;
+
+  // `createPost.isPending` 만으로는 부족하다 — 로컬 구현은 같은 tick 에 끝나서 두 번째
+  // 클릭 전에 이미 `false` 로 돌아온다(연타하면 글이 두 개 등록된다). 서버로 바뀌면
+  // `isPending` 이 실제로 열려 있게 되지만, 그때까지도 이 가드가 진실을 지킨다.
+  const submittingRef = useRef(false);
 
   const handleSubmit = () => {
-    addPost({ title: title.trim(), content: content.trim(), procedureId, authorName: '익명' });
-    router.back();
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+
+    // `authorName` 을 보내지 않는다 — 작성자는 서버가 토큰 주체에서 정한다(위조 방지).
+    createPost.mutate(
+      { title: title.trim(), content: content.trim(), procedureId },
+      {
+        // 저장이 끝난 뒤에 돌아간다. 먼저 돌아가면 실패한 글도 등록된 것처럼 보인다.
+        onSuccess: () => router.back(),
+        onError: (error) => {
+          // 실패는 다시 시도할 수 있어야 한다. 성공 시엔 화면을 떠나므로 풀지 않는다.
+          submittingRef.current = false;
+          showAlert(
+            '질문을 등록하지 못했어요',
+            isApiError(error) ? error.message : '잠시 후 다시 시도해주세요'
+          );
+        },
+      }
+    );
   };
 
   return (

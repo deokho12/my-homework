@@ -1,25 +1,56 @@
+import { useQueryClient } from '@tanstack/react-query';
+import { useCallback, useMemo } from 'react';
+
 import { router, Stack } from '@/navigation';
-import { useMemo } from 'react';
 import { FlatList, Pressable, Text, View, cx } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
 
+import { QueryState } from '@/components/QueryState';
 import { CONTAINER_PADDING } from '@/components/layout/Container';
-import { useConsultStore } from '@/store/useConsultStore';
-import { useNotificationStore } from '@/store/useNotificationStore';
+import { fetchMyConsultRequests, useMyConsultRequests } from '@/features/consult';
+import { useMarkAllNotificationsAsRead, useMarkNotificationAsRead, useNotifications } from '@/features/notification';
+import { queryKeys } from '@/lib/queryKeys';
 import type { AppNotification } from '@/types/domain';
 
-function NotificationRow({ notification }: { notification: AppNotification }) {
-  const markAsRead = useNotificationStore((state) => state.markAsRead);
-  const consultRequests = useConsultStore((state) => state.requests);
+/**
+ * 이 화면에는 페이지네이션 UI 가 없다. 계약이 허용하는 상한(`pageSize` 최대 100)까지
+ * 한 번에 받아 예전처럼 전부 그린다. 페이지 이동 UI 가 생기면 이 상수는 사라진다.
+ *
+ * ⚠ **알림은 상담 접수·상태 변경마다 늘어나기만 하는 컬렉션이라 언젠가 100건을 넘는다.**
+ * 그때 101번째부터는 화면에서 조용히 사라진다 (안 읽은 개수 배지는 전체를 세므로 목록에
+ * 없는 알림이 숫자에만 남는다). 페이지 이동 UI 나 무한 스크롤이 그 시점의 숙제다.
+ */
+const LIST_PAGE_SIZE = 100;
+
+const EMPTY_TITLE = '아직 도착한 알림이 없어요';
+
+function NotificationRow({
+  notification,
+  hospitalIdForConsult,
+}: {
+  notification: AppNotification;
+  /**
+   * `상담 상태 변경` 알림이 어느 병원으로 가야 하는지.
+   *
+   * **동기 조회가 아니라 Promise 다.** 알림 목록과 상담 내역은 별개의 쿼리라 알림이 먼저
+   * 도착할 수 있고, 그때 동기로 캐시만 보면 매핑이 비어 있어 탭이 조용히 죽는다. 로컬
+   * 구현은 같은 tick 에 끝나서 드러나지 않지만, api 본문이 `apiRequest` 로 바뀌는 순간
+   * 네트워크 왕복만큼 그 창이 열린다 — 이 리팩터가 대비하려는 바로 그 시점이다.
+   */
+  hospitalIdForConsult: (consultId: string) => Promise<string | undefined>;
+}) {
+  const markAsRead = useMarkNotificationAsRead();
 
   const handlePress = () => {
-    markAsRead(notification.id);
+    // 읽음 처리는 이동을 막지 않는다 — 실패해도 알림을 열지 못할 이유가 없다.
+    markAsRead.mutate(notification.id);
 
     if (notification.type === 'consult-status' && notification.relatedId) {
-      const request = consultRequests.find((item) => item.id === notification.relatedId);
-      if (request) {
-        router.push(`/hospital/${request.hospitalId}`);
-      }
+      void hospitalIdForConsult(notification.relatedId).then((hospitalId) => {
+        // 못 찾는 경우: 내역 100건 상한 밖이거나(아래 LIST_PAGE_SIZE 주석) 조회가 실패했다.
+        // 둘 다 이동할 곳이 없으므로 읽음 처리만 남긴다.
+        if (hospitalId) router.push(`/hospital/${hospitalId}`);
+      });
       return;
     }
 
@@ -64,15 +95,34 @@ function NotificationRow({ notification }: { notification: AppNotification }) {
 }
 
 export default function NotificationsScreen() {
-  const notifications = useNotificationStore((state) => state.notifications);
-  const markAllAsRead = useNotificationStore((state) => state.markAllAsRead);
+  const { data, isLoading, isError, isFetching, refetch } = useNotifications('user', { pageSize: LIST_PAGE_SIZE });
+  const markAllAsRead = useMarkAllNotificationsAsRead();
+  // 알림에는 상담 id 만 실려 있다. 병원 상세로 보내려면 그 상담이 어느 병원 것인지 알아야 하고,
+  // 그건 사용자 시야의 내역(`GET /me/consult-requests`)이 답할 수 있는 질문이다.
+  // 미리 받아두면 탭이 즉시 이동하지만, 아직이면 아래 resolver 가 기다렸다 이동한다.
+  useMyConsultRequests({ pageSize: LIST_PAGE_SIZE });
 
-  const userNotifications = useMemo(
-    () =>
-      notifications
-        .filter((n) => n.audience === 'user')
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
-    [notifications]
+  const queryClient = useQueryClient();
+  const myConsultsFilters = useMemo(() => ({ pageSize: LIST_PAGE_SIZE }), []);
+
+  /**
+   * 캐시에 있으면 즉시, 없으면 조회가 끝날 때까지 기다렸다가 병원 id 를 돌려준다.
+   * `ensureQueryData` 라서 이미 진행 중인 조회가 있으면 거기에 합류한다 (중복 요청 없음).
+   */
+  const resolveHospitalId = useCallback(
+    async (consultId: string) => {
+      try {
+        const page = await queryClient.ensureQueryData({
+          queryKey: queryKeys.consultRequests.mine(myConsultsFilters),
+          queryFn: () => fetchMyConsultRequests(myConsultsFilters),
+        });
+        return page.items.find((request) => request.id === consultId)?.hospitalId;
+      } catch {
+        // 조회 실패는 이동만 포기한다 — 알림함 자체는 계속 쓸 수 있어야 한다.
+        return undefined;
+      }
+    },
+    [queryClient, myConsultsFilters]
   );
 
   return (
@@ -80,23 +130,43 @@ export default function NotificationsScreen() {
       <Stack.Screen options={{ title: '알림' }} />
       <View className={cx(CONTAINER_PADDING, 'flex-row items-center justify-between pb-2 pt-4')}>
         <Text className="text-lg font-bold text-neutral-900">알림함</Text>
-        <Pressable onPress={() => markAllAsRead('user')} hitSlop={8}>
+        <Pressable onPress={() => markAllAsRead.mutate('user')} hitSlop={8}>
           <Text className="text-sm font-semibold text-brand-700">모두 읽음</Text>
         </Pressable>
       </View>
 
-      <FlatList
-        data={userNotifications}
-        keyExtractor={(item) => item.id}
-        contentContainerClassName={cx(CONTAINER_PADDING, 'py-2')}
-        renderItem={({ item }) => <NotificationRow notification={item} />}
-        ListEmptyComponent={
-          <View className="items-center px-8 py-16">
-            <Text className="mb-2 text-4xl">🔔</Text>
-            <Text className="text-center text-sm text-neutral-500">아직 도착한 알림이 없어요</Text>
-          </View>
-        }
-      />
+      <QueryState
+        isLoading={isLoading}
+        isError={isError}
+        data={data}
+        onRetry={() => {
+          void refetch();
+        }}
+        isRetrying={isError && isFetching}
+        // 0건은 아래 FlatList 의 기존 빈 상태(🔔)가 그대로 맡는다.
+        isEmpty={() => false}
+        emptyState={{ title: EMPTY_TITLE }}
+      >
+        {(page) => (
+          <FlatList
+            data={page.items}
+            keyExtractor={(item) => item.id}
+            contentContainerClassName={cx(CONTAINER_PADDING, 'py-2')}
+            renderItem={({ item }) => (
+              <NotificationRow
+                notification={item}
+                hospitalIdForConsult={resolveHospitalId}
+              />
+            )}
+            ListEmptyComponent={
+              <View className="items-center px-8 py-16">
+                <Text className="mb-2 text-4xl">🔔</Text>
+                <Text className="text-center text-sm text-neutral-500">{EMPTY_TITLE}</Text>
+              </View>
+            }
+          />
+        )}
+      </QueryState>
     </SafeAreaView>
   );
 }

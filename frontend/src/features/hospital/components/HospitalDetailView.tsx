@@ -12,11 +12,11 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { QueryState } from '@/components/QueryState';
 import { StockImage } from '@/components/StockImage';
 import { useHospitalDoctors } from '@/features/doctor';
+import { useIsFavorite, useToggleFavorite } from '@/features/favorite';
 import { useProcedureMap } from '@/features/procedure';
 import { useHospitalReviews } from '@/features/review';
 import { getPromotionByHospital } from '@/mocks/fixtures/promotions';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
-import { useFavoritesStore } from '@/store/useFavoritesStore';
 import type { Hospital, HospitalFeatures } from '@/types/domain';
 import { showAlert } from '@/utils/alert';
 import { calcDiscountRate, formatPriceRange, formatWon } from '@/utils/format';
@@ -46,8 +46,8 @@ export function HospitalDetailView({ hospital }: { hospital: Hospital }) {
   const reviewsQuery = useHospitalReviews(hospital.id);
   const procedureMap = useProcedureMap();
   const promotion = getPromotionByHospital(hospital.id);
-  const isFavorite = useFavoritesStore((state) => state.isFavorite(hospital.id));
-  const toggleFavorite = useFavoritesStore((state) => state.toggleFavorite);
+  const isFavorite = useIsFavorite(hospital.id);
+  const toggleFavorite = useToggleFavorite();
   const requireAuth = useRequireAuth();
 
   const [hoursExpanded, setHoursExpanded] = useState(false);
@@ -340,7 +340,7 @@ export function HospitalDetailView({ hospital }: { hospital: Hospital }) {
       <SafeAreaView edges={['bottom']} className={cx(CONTAINER_PADDING, 'border-t border-neutral-100 bg-white pt-3')}>
         <View className="flex-row items-center gap-2 pb-3">
           <Pressable
-            onPress={() => requireAuth(() => toggleFavorite(hospital.id))}
+            onPress={() => requireAuth(() => toggleFavorite.mutate({ hospitalId: hospital.id, isFavorite }))}
             className="h-14 w-14 items-center justify-center rounded-xl border border-neutral-200"
           >
             <Text className="text-xl">{isFavorite ? '❤️' : '🤍'}</Text>

@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { addFavorite, fetchMyFavorites } from '@/features/favorite';
 import { LEGACY_MOCK_AUTH_KEY, readTokens, writeTokens } from '@/lib/authTokens';
+import { clearCollection } from '@/lib/localCollection';
 import { useAuthStore } from '@/store/useAuthStore';
-import { useFavoritesStore } from '@/store/useFavoritesStore';
 
 interface StubCall {
   path: string;
@@ -62,8 +63,12 @@ const SESSION = {
 
 beforeEach(() => {
   useAuthStore.setState({ user: null, status: 'ready' });
-  useFavoritesStore.setState({ hospitalIds: [] });
+  clearCollection('favoriteHospitalIds');
 });
+
+async function favoriteIds(): Promise<string[]> {
+  return (await fetchMyFavorites()).hospitalIds;
+}
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -137,12 +142,13 @@ describe('useAuthStore — 로그인', () => {
   });
 
   it('다른 계정으로 로그인하면 앞 계정의 찜을 비운다', async () => {
-    useFavoritesStore.setState({ hospitalIds: ['h1', 'h2'] });
+    await addFavorite('h1');
+    await addFavorite('h2');
     stubFetch({ '/auth/login': () => json(200, SESSION) });
 
     await useAuthStore.getState().logIn({ email: 'seed-2@molarmolar.example', password: 'pw' });
 
-    expect(useFavoritesStore.getState().hospitalIds).toEqual([]);
+    expect(await favoriteIds()).toEqual([]);
   });
 });
 
@@ -170,17 +176,18 @@ describe('useAuthStore — 로그아웃', () => {
   it('찜 목록을 비운다', async () => {
     // 비우지 않으면 다음에 로그인한 계정에 앞 사람의 찜이 그대로 보인다.
     writeTokens({ accessToken: 'access-1', refreshToken: 'refresh-1' });
-    useFavoritesStore.setState({ hospitalIds: ['h1', 'h3'] });
+    await addFavorite('h1');
+    await addFavorite('h3');
     stubFetch({ '/auth/logout': () => new Response(null, { status: 204 }) });
 
     await useAuthStore.getState().logOut();
 
-    expect(useFavoritesStore.getState().hospitalIds).toEqual([]);
+    expect(await favoriteIds()).toEqual([]);
   });
 
   it('서버 폐기가 실패해도 로컬은 비운다', async () => {
     writeTokens({ accessToken: 'access-1', refreshToken: 'refresh-1' });
-    useFavoritesStore.setState({ hospitalIds: ['h1'] });
+    await addFavorite('h1');
     stubFetch({
       '/auth/logout': () =>
         json(500, { error: { code: 'INTERNAL_ERROR', message: '일시적인 문제가 발생했어요', requestId: 'r' } }),
@@ -190,7 +197,7 @@ describe('useAuthStore — 로그아웃', () => {
 
     expect(useAuthStore.getState().user).toBeNull();
     expect(readTokens()).toBeNull();
-    expect(useFavoritesStore.getState().hospitalIds).toEqual([]);
+    expect(await favoriteIds()).toEqual([]);
   });
 });
 

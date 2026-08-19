@@ -1,5 +1,5 @@
 import { Stack, router, useLocalSearchParams } from '@/navigation';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { ScrollView, Text, TextInput, View } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
 
@@ -7,10 +7,10 @@ import { Chip } from '@/components/Chip';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { QueryState } from '@/components/QueryState';
 import { containerClass } from '@/components/layout/Container';
+import { useCreateConsultRequest } from '@/features/consult';
 import { useHospital } from '@/features/hospital';
 import { useProcedureMap } from '@/features/procedure';
 import { isApiError } from '@/lib/apiClient';
-import { useConsultStore } from '@/store/useConsultStore';
 import type { Hospital, ProcedureId } from '@/types/domain';
 import { showAlert } from '@/utils/alert';
 
@@ -20,7 +20,7 @@ const TIME_SLOTS = ['평일 오전', '평일 오후', '주말'];
  * 콜백이라 그 안에서 훅을 호출할 수 없어 별도 컴포넌트로 뺐다 (`HospitalDetailPage` 와 같은 이유). */
 function ConsultRequestForm({ hospital }: { hospital: Hospital }) {
   const procedureMap = useProcedureMap();
-  const addRequest = useConsultStore((state) => state.addRequest);
+  const createRequest = useCreateConsultRequest();
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -28,13 +28,44 @@ function ConsultRequestForm({ hospital }: { hospital: Hospital }) {
   const [preferredTime, setPreferredTime] = useState(TIME_SLOTS[0]);
   const [message, setMessage] = useState('');
 
-  const canSubmit = name.trim().length > 0 && phone.trim().length > 0;
+  const canSubmit = name.trim().length > 0 && phone.trim().length > 0 && !createRequest.isPending;
+
+  // `createRequest.isPending` 만으로는 부족하다 — 로컬 구현은 같은 tick 에 끝나서 연타하면
+  // 신청이 두 건 접수된다. 서버로 바뀌어도 이 가드는 그대로 유효하다.
+  const submittingRef = useRef(false);
 
   const handleSubmit = () => {
-    addRequest({ hospitalId: hospital.id, procedureId, name: name.trim(), phone: phone.trim(), preferredTime, message: message.trim() });
-    showAlert('상담 신청이 접수되었어요', `${hospital.name}에서 확인 후 연락드릴게요.`, [
-      { text: '확인', onPress: () => router.back() },
-    ]);
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+
+    createRequest.mutate(
+      {
+        hospitalId: hospital.id,
+        procedureId,
+        name: name.trim(),
+        phone: phone.trim(),
+        preferredTime,
+        message: message.trim(),
+      },
+      {
+        // 접수 확인은 **저장이 끝난 뒤에만** 띄운다. 예전처럼 먼저 띄우면 실패한 신청도
+        // "접수되었어요" 로 보인다.
+        onSuccess: () => {
+          showAlert('상담 신청이 접수되었어요', `${hospital.name}에서 확인 후 연락드릴게요.`, [
+            { text: '확인', onPress: () => router.back() },
+          ]);
+        },
+        // 서버 문구(`ApiError.message`)를 그대로 보여준다 — 화면이 코드별 문구 사전을 따로 두지 않는다.
+        onError: (error) => {
+          // 실패는 다시 시도할 수 있어야 한다. 성공 시엔 화면을 떠나므로 풀지 않는다.
+          submittingRef.current = false;
+          showAlert(
+            '상담 신청을 접수하지 못했어요',
+            isApiError(error) ? error.message : '잠시 후 다시 시도해주세요'
+          );
+        },
+      }
+    );
   };
 
   return (

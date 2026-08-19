@@ -4,37 +4,20 @@ import { ScrollView, Text, View } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
 
 import { Badge } from '@/components/Badge';
+import { QueryState } from '@/components/QueryState';
 import { containerClass } from '@/components/layout/Container';
+import { useCommunityPost, useRecordPostView } from '@/features/community';
 import { useProcedureMap } from '@/features/procedure';
-import { useCommunityStore } from '@/store/useCommunityStore';
+import { isApiError } from '@/lib/apiClient';
+import type { QAPost } from '@/types/domain';
 
-export default function CommunityPostScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const post = useCommunityStore((state) => state.posts.find((p) => p.id === id));
-  const incrementView = useCommunityStore((state) => state.incrementView);
+/** 조회가 끝난 글 하나를 렌더한다 — `QueryState` 의 children 은 콜백이라 훅을 부를 수 없다. */
+function CommunityPostView({ post }: { post: QAPost }) {
   const procedureMap = useProcedureMap();
-  const hasCountedView = useRef(false);
-
-  useEffect(() => {
-    if (id && !hasCountedView.current) {
-      hasCountedView.current = true;
-      incrementView(id);
-    }
-  }, [id, incrementView]);
-
-  if (!post) {
-    return (
-      <SafeAreaView className="flex-1 items-center justify-center bg-white">
-        <Text className="text-sm text-neutral-500">질문을 찾을 수 없어요</Text>
-      </SafeAreaView>
-    );
-  }
-
   const procedure = procedureMap.get(post.procedureId);
 
   return (
     <SafeAreaView className="flex-1 bg-white" edges={['bottom']}>
-      <Stack.Screen options={{ title: '질문 상세' }} />
       <ScrollView contentContainerClassName={containerClass('prose', 'pb-8 pt-4')}>
         <View className="mb-2 flex-row items-center gap-1.5">
           {procedure ? <Badge label={procedure.name} tone="brand" /> : null}
@@ -71,5 +54,44 @@ export default function CommunityPostScreen() {
         )}
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+export default function CommunityPostScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const { data: post, error, isLoading, isError, isFetching, refetch } = useCommunityPost(id);
+  const recordView = useRecordPostView();
+  const hasCountedView = useRef(false);
+
+  useEffect(() => {
+    // 화면을 한 번 열 때 한 번만 센다. 조회수 집계는 `GET` 이 아니라 별도 호출이라
+    // (캐시·프리페치·재시도가 조회수를 부풀리지 않는다) 여기서 명시적으로 부른다.
+    // 실패는 삼킨다 — 집계가 안 됐다고 글을 못 읽게 만들 이유가 없다.
+    if (id && !hasCountedView.current) {
+      hasCountedView.current = true;
+      recordView.mutate(id);
+    }
+  }, [id, recordView]);
+
+  // 없는 글은 서버가 404 POST_NOT_FOUND 를 준다 — "다시 시도" 를 권할 에러가 아니라 빈 상태다.
+  const notFound = isError && isApiError(error) && error.code === 'POST_NOT_FOUND';
+
+  return (
+    <>
+      <Stack.Screen options={{ title: '질문 상세' }} />
+      <QueryState
+        isLoading={isLoading}
+        isError={notFound ? false : isError}
+        data={notFound ? null : post}
+        onRetry={() => {
+          void refetch();
+        }}
+        isRetrying={isError && isFetching}
+        emptyState={{ title: '질문을 찾을 수 없어요' }}
+        className="flex-1 bg-white"
+      >
+        {(loaded) => <CommunityPostView post={loaded} />}
+      </QueryState>
+    </>
   );
 }

@@ -12,7 +12,7 @@ import {
   readTokens,
   writeTokens,
 } from '@/lib/authTokens';
-import { useFavoritesStore } from '@/store/useFavoritesStore';
+import { clearCollection } from '@/lib/localCollection';
 import type { User } from '@/types/domain';
 
 /**
@@ -72,14 +72,15 @@ function toErrorInfo(error: unknown): AuthErrorInfo {
 /**
  * 계정에 딸린 클라이언트 상태를 비운다.
  *
- * ⚠ **임시 조치다.** 찜 목록은 원래 서버(`GET/PUT/DELETE /me/favorites`)로 가야 하지만
- * favorites API 가 아직 없다. 그때까지는 로그아웃 때 비워서 계정 간 유출만 막는다 —
- * 지금은 A 계정으로 찜하고 로그아웃한 뒤 B 계정으로 들어가면 A 의 찜이 그대로 보인다
- * (`docs/features/known-issues.md` 🔴 "다른 사람의 찜 목록이 보입니다").
- * favorites API 가 생기면 이 줄을 지우고 서버 목록으로 바꾼다.
+ * ⚠ **찜 비우기(`clearCollection('favoriteHospitalIds')`)는 임시 조치다.** 찜은 원래 계정 스코프
+ * 서버 자원(`GET/PUT/DELETE /me/favorites`)이지만 지금 구현은 브라우저에 목록 하나를 둔다.
+ * 비우지 않으면 A 계정으로 찜하고 로그아웃한 뒤 B 계정으로 들어갔을 때 A 의 찜이 그대로
+ * 보인다 (`docs/features/known-issues.md` 🔴 "다른 사람의 찜 목록이 보입니다").
+ * 서버가 토큰 주체로 목록을 스코프하기 시작하면 이 한 줄만 지우면 된다 —
+ * 그때는 아래 캐시 비우기(계정별 서버 상태 잔상 제거)로 충분하다.
  */
 function clearAccountScopedState(): void {
-  useFavoritesStore.getState().clear();
+  clearCollection('favoriteHospitalIds');
 
   // 계정별·역할별 서버 상태의 잔상도 유출이다 (`docs/api/README.md` §1).
   queryClient.clear();

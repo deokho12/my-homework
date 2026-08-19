@@ -3,10 +3,10 @@ import { Pressable, Text, View } from '@/primitives';
 
 import { Badge } from '@/components/Badge';
 import { StockImage } from '@/components/StockImage';
+import { useIsFavorite, useToggleFavorite } from '@/features/favorite';
 import { useProcedureMap } from '@/features/procedure';
 import { getPromotionByHospital } from '@/mocks/fixtures/promotions';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
-import { useFavoritesStore } from '@/store/useFavoritesStore';
 import type { Hospital } from '@/types/domain';
 import { calcDiscountRate, formatPriceRange, formatWon } from '@/utils/format';
 
@@ -15,8 +15,8 @@ interface HospitalCardProps {
 }
 
 export function HospitalCard({ hospital }: HospitalCardProps) {
-  const isFavorite = useFavoritesStore((state) => state.isFavorite(hospital.id));
-  const toggleFavorite = useFavoritesStore((state) => state.toggleFavorite);
+  const isFavorite = useIsFavorite(hospital.id);
+  const toggleFavorite = useToggleFavorite();
   const requireAuth = useRequireAuth();
   const procedureMap = useProcedureMap();
   const promotion = getPromotionByHospital(hospital.id);
@@ -41,7 +41,7 @@ export function HospitalCard({ hospital }: HospitalCardProps) {
         <Pressable
           onPress={(e) => {
             e.stopPropagation();
-            requireAuth(() => toggleFavorite(hospital.id));
+            requireAuth(() => toggleFavorite.mutate({ hospitalId: hospital.id, isFavorite }));
           }}
           hitSlop={8}
           className="absolute right-3 top-3 h-8 w-8 items-center justify-center rounded-full bg-white/90"

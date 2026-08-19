@@ -5,15 +5,21 @@ import { FlatList, Pressable, Text, View, cx } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
 
 import { Badge } from '@/components/Badge';
+import { QueryState } from '@/components/QueryState';
 import { CONTAINER_PADDING } from '@/components/layout/Container';
+import { useCommunityPosts, type QAPostSummary } from '@/features/community';
 import { useProcedureMap } from '@/features/procedure';
-import { useCommunityStore } from '@/store/useCommunityStore';
 import { useScrollShadowStore } from '@/store/useScrollShadowStore';
-import type { QAPost } from '@/types/domain';
 
 const SCROLL_SHADOW_THRESHOLD = 8;
 
-function PostRow({ post }: { post: QAPost }) {
+/**
+ * 이 화면에는 페이지네이션 UI 가 없다. 계약이 허용하는 상한(`pageSize` 최대 100)까지
+ * 한 번에 받아 예전처럼 전부 그린다. 페이지 이동 UI 가 생기면 이 상수는 사라진다.
+ */
+const LIST_PAGE_SIZE = 100;
+
+function PostRow({ post }: { post: QAPostSummary }) {
   const procedureMap = useProcedureMap();
   const procedure = procedureMap.get(post.procedureId);
 
@@ -33,7 +39,7 @@ function PostRow({ post }: { post: QAPost }) {
         {post.content}
       </Text>
       <View className="flex-row gap-3">
-        <Text className="text-xs text-neutral-400">답변 {post.answers.length}</Text>
+        <Text className="text-xs text-neutral-400">답변 {post.answerCount}</Text>
         <Text className="text-xs text-neutral-400">조회 {post.viewCount}</Text>
       </View>
     </Pressable>
@@ -41,7 +47,7 @@ function PostRow({ post }: { post: QAPost }) {
 }
 
 export default function CommunityScreen() {
-  const posts = useCommunityStore((state) => state.posts);
+  const { data, isLoading, isError, isFetching, refetch } = useCommunityPosts({ pageSize: LIST_PAGE_SIZE });
   const setScrolled = useScrollShadowStore((state) => state.setScrolled);
   const scrollOffsetRef = useRef(0);
 
@@ -72,14 +78,28 @@ export default function CommunityScreen() {
         </Pressable>
       </View>
 
-      <FlatList
-        data={posts}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => <PostRow post={item} />}
-        contentContainerClassName={cx(CONTAINER_PADDING, 'pb-8 pt-3')}
-        onScroll={handleScroll}
-        scrollEventThrottle={16}
-      />
+      <QueryState
+        isLoading={isLoading}
+        isError={isError}
+        data={data}
+        onRetry={() => {
+          void refetch();
+        }}
+        isRetrying={isError && isFetching}
+        isEmpty={(page) => page.items.length === 0}
+        emptyState={{ title: '아직 등록된 질문이 없어요', description: '첫 질문을 남겨보세요' }}
+      >
+        {(page) => (
+          <FlatList
+            data={page.items}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => <PostRow post={item} />}
+            contentContainerClassName={cx(CONTAINER_PADDING, 'pb-8 pt-3')}
+            onScroll={handleScroll}
+            scrollEventThrottle={16}
+          />
+        )}
+      </QueryState>
     </SafeAreaView>
   );
 }
