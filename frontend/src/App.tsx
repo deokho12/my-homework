@@ -19,6 +19,7 @@ import AdminHomePage from '@/pages/admin/AdminHomePage';
 import AdminHospitalEditPage from '@/pages/admin/AdminHospitalEditPage';
 import AdminHospitalNewPage from '@/pages/admin/AdminHospitalNewPage';
 import AdminSpecialistsPage from '@/pages/admin/AdminSpecialistsPage';
+import CategoryPage from '@/pages/CategoryPage';
 import DoctorDetailPage from '@/pages/DoctorDetailPage';
 import ExplorePage from '@/pages/ExplorePage';
 import HospitalDetailPage from '@/pages/HospitalDetailPage';
@@ -82,6 +83,8 @@ const ROUTES: AppRoute[] = [
   { path: '/community', element: <CommunityTabScreen />, options: { headerShown: false }, isTab: true },
   { path: '/mypage', element: <MyPageScreen />, options: { headerShown: false }, isTab: true },
 
+  // 공개 라우트, 탭 아님. 화면이 자체 헤더(뒤로 + 대분류 이름)를 그린다.
+  { path: '/category/:categoryId', element: <CategoryPage />, options: { headerShown: false } },
   { path: '/hospital/:id', element: <HospitalDetailPage />, options: { title: '' } },
   { path: '/doctor/:id', element: <DoctorDetailPage />, options: { title: '' } },
   { path: '/tips/:id', element: <TipDetailScreen />, options: { title: '' } },

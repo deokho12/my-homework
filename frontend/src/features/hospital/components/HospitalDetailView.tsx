@@ -13,7 +13,7 @@ import { QueryState } from '@/components/QueryState';
 import { StockImage } from '@/components/StockImage';
 import { useHospitalDoctors } from '@/features/doctor';
 import { useIsFavorite, useToggleFavorite } from '@/features/favorite';
-import { useProcedureMap } from '@/features/procedure';
+import { groupLegacyIdsByCategory } from '@/features/procedure';
 import { useHospitalReviews } from '@/features/review';
 import { getPromotionByHospital } from '@/mocks/fixtures/promotions';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
@@ -44,7 +44,7 @@ const EMPTY_FEATURES: HospitalFeatures = {
 export function HospitalDetailView({ hospital }: { hospital: Hospital }) {
   const doctorsQuery = useHospitalDoctors(hospital.id);
   const reviewsQuery = useHospitalReviews(hospital.id);
-  const procedureMap = useProcedureMap();
+  const procedureGroups = groupLegacyIdsByCategory(hospital.procedureIds);
   const promotion = getPromotionByHospital(hospital.id);
   const isFavorite = useIsFavorite(hospital.id);
   const toggleFavorite = useToggleFavorite();
@@ -138,12 +138,29 @@ export function HospitalDetailView({ hospital }: { hospital: Hospital }) {
           )}
 
           <Text className="mb-2 text-base font-bold text-neutral-900">대표 시술</Text>
-          <View className="mb-4 flex-row flex-wrap gap-1.5">
-            {hospital.procedureIds.map((procedureId) => {
-              const procedure = procedureMap.get(procedureId);
-              return procedure ? <Badge key={procedureId} label={procedure.name} tone="brand" /> : null;
-            })}
-          </View>
+          {/*
+            평면 배지 줄이면 "임플란트·라미네이트·보톡스" 가 한 뭉치로 보여 이 병원의 **진료
+            범위**가 안 드러난다. 대분류로 묶으면 세 분야를 한다는 사실이 먼저 읽힌다.
+            모르는 서버 id 는 `groupLegacyIdsByCategory` 가 조용히 빼므로, 전부 모르는
+            id 거나 `procedureIds: []` 면 그룹이 0개다 — 그때 아무것도 안 그리면 섹션
+            제목만 덩그러니 남는다.
+          */}
+          {procedureGroups.length === 0 ? (
+            <Text className="mb-4 text-sm text-neutral-400">등록된 시술 정보가 없어요</Text>
+          ) : (
+            <View className="mb-4">
+              {procedureGroups.map(({ category, subs }) => (
+                <View key={category.id} className="mb-2.5">
+                  <Text className="mb-1.5 text-xs font-semibold text-neutral-500">{category.name}</Text>
+                  <View className="flex-row flex-wrap gap-1.5">
+                    {subs.map((sub) => (
+                      <Badge key={sub.id} label={sub.name} tone="brand" />
+                    ))}
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
 
           <Text className="mb-2 text-base font-bold text-neutral-900">진료시간</Text>
           <View className="mb-4 rounded-2xl border border-neutral-100 p-4">

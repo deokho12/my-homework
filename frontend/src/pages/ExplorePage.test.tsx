@@ -5,7 +5,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as doctorApi from '@/features/doctor/api/doctorApi';
 import * as hospitalApi from '@/features/hospital/api/hospitalApi';
 import * as procedureApi from '@/features/procedure/api/procedureApi';
-import { procedures } from '@/mocks/fixtures/procedures';
 import ExplorePage from '@/pages/ExplorePage';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import type { Doctor, Hospital, Paged } from '@/types/domain';
@@ -95,7 +94,6 @@ describe('ExplorePage', () => {
   });
 
   it('조건 칩을 누르면 목록이 실제로 바뀐다', async () => {
-    vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue(procedures);
     const fetchHospitalsSpy = vi.spyOn(hospitalApi, 'fetchHospitals').mockImplementation(async (filters = {}) => {
       if (filters.hasVerifiedSpecialist === true) {
         return pagedHospitals([baseHospital({ id: 'h1' })], 1);
@@ -115,7 +113,6 @@ describe('ExplorePage', () => {
   });
 
   it('모드를 의사로 바꾸면 선택한 조건이 유지된 채 다시 적용된다', async () => {
-    vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue(procedures);
     vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(pagedHospitals([baseHospital()]));
     const fetchDoctorsSpy = vi.spyOn(doctorApi, 'fetchDoctors').mockResolvedValue(pagedDoctors([baseDoctor()]));
     vi.spyOn(hospitalApi, 'fetchHospitalById').mockResolvedValue(baseHospital());
@@ -132,7 +129,6 @@ describe('ExplorePage', () => {
   });
 
   it('이름이 다른 파라미터를 정확히 매핑한다 — 진료시간→nightConsult, 경력→minDoctorYearsOfExperience', async () => {
-    vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue(procedures);
     const fetchHospitalsSpy = vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(pagedHospitals([baseHospital()]));
 
     renderWithProviders(<ExplorePage />);
@@ -152,7 +148,6 @@ describe('ExplorePage', () => {
   });
 
   it('의사 모드의 전문의·경력 칩은 verifiedSpecialist·minYearsOfExperience 를 쓴다', async () => {
-    vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue(procedures);
     vi.spyOn(hospitalApi, 'fetchHospitalById').mockResolvedValue(baseHospital());
     const fetchDoctorsSpy = vi.spyOn(doctorApi, 'fetchDoctors').mockResolvedValue(pagedDoctors([baseDoctor()]));
 
@@ -171,28 +166,88 @@ describe('ExplorePage', () => {
     );
   });
 
-  it('시술 칩은 procedureId 로, "기타" 칩은 아무 필터도 보내지 않는다', async () => {
-    vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue(procedures);
+  it('첫 화면은 "추천" 탭이다 — recommended=true 로 묻는다', async () => {
     const fetchHospitalsSpy = vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(pagedHospitals([baseHospital()]));
 
     renderWithProviders(<ExplorePage />);
-    await waitFor(() => expect(screen.getByRole('button', { name: '임플란트' })).toBeInTheDocument());
 
+    await waitFor(() => expect(screen.getByText('“추천” 병원')).toBeInTheDocument());
+    expect(fetchHospitalsSpy).toHaveBeenCalledWith(expect.objectContaining({ recommended: true }));
+  });
+
+  /**
+   * 서버 시술 **하나**에만 걸리는 대분류(임플란트)는 서버 필터로 끝난다 — 광고 우선 노출이
+   * 유지되는 쪽이다 (`resolveCategoryFilter`).
+   */
+  it('서버 시술 하나짜리 대분류 탭은 procedureId 로 묻는다', async () => {
+    const fetchHospitalsSpy = vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(pagedHospitals([baseHospital()]));
+
+    renderWithProviders(<ExplorePage />);
     await userEvent.click(screen.getByRole('button', { name: '임플란트' }));
+
     await waitFor(() =>
       expect(fetchHospitalsSpy).toHaveBeenLastCalledWith(expect.objectContaining({ procedureId: 'implant' }))
     );
+  });
 
-    await userEvent.click(screen.getByRole('button', { name: '기타' }));
-    await waitFor(() => {
-      const lastCall = fetchHospitalsSpy.mock.calls.at(-1)?.[0] ?? {};
-      expect(lastCall.procedureId).toBeUndefined();
-      expect(lastCall.recommended).toBeUndefined();
-    });
+  /**
+   * 서버 시술 **여럿**에 걸리는 대분류(충치치료 = cavity+inlay+crown)는 `procedureId` 한 값으로
+   * 못 옮긴다 — 넉넉히 받아 클라이언트가 교집합으로 거르고 "총 N곳" 도 거른 뒤의 수다.
+   */
+  it('서버 시술 여러 개짜리 대분류 탭은 넉넉히 받아 클라이언트가 거른다', async () => {
+    const fetchHospitalsSpy = vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(
+      pagedHospitals([
+        baseHospital({ id: 'h1', name: '임플란트병원', procedureIds: ['implant'] }),
+        baseHospital({ id: 'h7', name: '크라운병원', procedureIds: ['crown'] }),
+        baseHospital({ id: 'h3', name: '충치병원', procedureIds: ['cavity', 'gum-disease'] }),
+      ])
+    );
+
+    renderWithProviders(<ExplorePage />);
+    await userEvent.click(screen.getByRole('button', { name: '충치치료' }));
+
+    await waitFor(() => expect(screen.getByText('“충치치료” 병원')).toBeInTheDocument());
+    const lastCall = fetchHospitalsSpy.mock.calls.at(-1)?.[0] ?? {};
+    expect(lastCall).not.toHaveProperty('procedureId');
+    expect(lastCall.pageSize).toBe(100);
+    expect(screen.getByText('총 2곳')).toBeInTheDocument();
+    expect(screen.queryByText('임플란트병원')).not.toBeInTheDocument();
+  });
+
+  it('세부가 전부 준비중인 대분류 탭은 요청하지 않고 전용 빈 상태를 보여준다', async () => {
+    const fetchHospitalsSpy = vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(pagedHospitals([baseHospital()]));
+
+    renderWithProviders(<ExplorePage />);
+    await waitFor(() => expect(screen.getByText(/총 \d+곳/)).toBeInTheDocument());
+    const callsBefore = fetchHospitalsSpy.mock.calls.length;
+
+    await userEvent.click(screen.getByRole('button', { name: '스케일링·예방 · 준비중' }));
+
+    expect(await screen.findByText('등록된 병원이 아직 없어요')).toBeInTheDocument();
+    expect(fetchHospitalsSpy.mock.calls).toHaveLength(callsBefore);
+  });
+
+  it('의사 모드도 같은 대분류 규칙을 쓴다 — 넉넉히 받아 거른 수를 보여준다', async () => {
+    vi.spyOn(hospitalApi, 'fetchHospitalById').mockResolvedValue(baseHospital());
+    const fetchDoctorsSpy = vi.spyOn(doctorApi, 'fetchDoctors').mockResolvedValue(
+      pagedDoctors([
+        baseDoctor({ id: 'd1', procedureIds: ['implant'] }),
+        baseDoctor({ id: 'd2', name: '이서연', procedureIds: ['inlay'] }),
+      ])
+    );
+
+    renderWithProviders(<ExplorePage />);
+    await userEvent.click(screen.getByRole('button', { name: '충치치료' }));
+    await userEvent.click(screen.getByRole('button', { name: '의사' }));
+
+    await waitFor(() => expect(screen.getByText('“충치치료” 의사')).toBeInTheDocument());
+    const lastCall = fetchDoctorsSpy.mock.calls.at(-1)?.[0] ?? {};
+    expect(lastCall).not.toHaveProperty('procedureId');
+    expect(lastCall.pageSize).toBe(100);
+    expect(screen.getByText('총 1명')).toBeInTheDocument();
   });
 
   it('"총 N곳" 은 meta.totalItems 를 쓴다 — 페이지네이션으로 배열이 잘려도 정확하다', async () => {
-    vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue(procedures);
     vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(pagedHospitals([baseHospital()], 37));
 
     renderWithProviders(<ExplorePage />);
@@ -201,7 +256,6 @@ describe('ExplorePage', () => {
   });
 
   it('로딩 중에는 "없어요" 문구를 보여주지 않는다', async () => {
-    vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue(procedures);
     vi.spyOn(hospitalApi, 'fetchHospitals').mockReturnValue(new Promise(() => {}));
 
     renderWithProviders(<ExplorePage />);
@@ -211,7 +265,6 @@ describe('ExplorePage', () => {
   });
 
   it('응답이 비어 있으면 "조건에 맞는 병원이 없어요" 를 보여준다', async () => {
-    vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue(procedures);
     vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(pagedHospitals([], 0));
 
     renderWithProviders(<ExplorePage />);
@@ -220,7 +273,6 @@ describe('ExplorePage', () => {
   });
 
   it('"광고" 배지는 hospital.sponsorship.isActive 로만 판정한다', async () => {
-    vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue(procedures);
     vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(
       pagedHospitals([
         baseHospital({ id: 'h1', name: '광고병원', sponsorship: { isActive: true, isPlacementEligible: true } }),
@@ -237,33 +289,30 @@ describe('ExplorePage', () => {
   });
 
   /**
-   * `/explore?category=implant` 콜드 로드에서 시술 목록이 아직 없으면 헤더가 다른 카테고리
-   * ("추천")를 사실처럼 주장하면 안 된다 — `screens/tabs/explore.test.tsx` 에 있던 회귀 고정을
-   * 이 페이지로 옮긴다.
+   * 예전에는 `/explore?category=implant` 콜드 로드가 서버 시술 목록을 기다리느라 카테고리
+   * 이름 자리에 스켈레톤을 그렸다(그 사이 "추천"이라고 잘못 주장하지 않으려고). 이제 분류는
+   * 정적 taxonomy 라 **기다릴 것이 없다** — 서버에 시술을 **묻지도 않는다**.
    */
-  it('/explore?category=implant 콜드 로드에서 시술 목록이 아직 없으면 "추천" 이라고 주장하지 않는다', async () => {
-    let resolveProcedures!: (value: typeof procedures) => void;
-    vi.spyOn(procedureApi, 'fetchProcedures').mockReturnValue(
-      new Promise((resolve) => {
-        resolveProcedures = resolve;
-      })
-    );
+  it('/explore?category=implant 콜드 로드는 시술 목록을 묻지 않고 바로 그 카테고리 이름을 그린다', async () => {
+    const fetchProceduresSpy = vi.spyOn(procedureApi, 'fetchProcedures');
     vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(pagedHospitals([baseHospital()]));
 
     renderWithProviders(<ExplorePage />, { route: '/explore?category=implant' });
 
-    // 병원 목록은 먼저 도착하지만(시술 목록은 아직) 이 순간에도 "추천" 이라고 잘못
-    // 주장하면 안 된다 — 카테고리 이름 자리는 스켈레톤으로 비워 둔다.
-    await waitFor(() =>
-      expect(screen.getByRole('status', { name: '카테고리 이름을 불러오는 중이에요' })).toBeInTheDocument()
-    );
-    expect(screen.queryByText('“추천” 병원')).not.toBeInTheDocument();
-    expect(screen.getByRole('status', { name: '시술 카테고리를 불러오는 중이에요' })).toBeInTheDocument();
-
-    resolveProcedures(procedures);
-
     await waitFor(() => expect(screen.getByText('“임플란트” 병원')).toBeInTheDocument());
     expect(screen.queryByText('“추천” 병원')).not.toBeInTheDocument();
+    expect(fetchProceduresSpy).not.toHaveBeenCalled();
+  });
+
+  /** 옛 시술 id 북마크(`?category=crown`)는 그 시술이 속한 대분류 화면이 된다. */
+  it('/explore?category=crown 은 "충치치료" 탭으로 열린다', async () => {
+    vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(
+      pagedHospitals([baseHospital({ procedureIds: ['crown'] })])
+    );
+
+    renderWithProviders(<ExplorePage />, { route: '/explore?category=crown' });
+
+    await waitFor(() => expect(screen.getByText('“충치치료” 병원')).toBeInTheDocument());
   });
 
   /**
@@ -273,7 +322,6 @@ describe('ExplorePage', () => {
    * 빈 안내는 지도 위 오버레이로(전체 화면 대체가 아니라) 보여야 한다.
    */
   it('지도 보기에서 반경 검색이 0건이어도 반경 칩이 계속 렌더되고 조작할 수 있다', async () => {
-    vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue(procedures);
     const fetchHospitalsSpy = vi.spyOn(hospitalApi, 'fetchHospitals').mockImplementation(async (filters = {}) => {
       // 리스트 보기(좌표 없음)는 결과가 있다 — 지도 보기로 전환한 뒤 기본 반경(3km)
       // 검색만 0건으로 만들어 빈 지도 시나리오를 재현한다.

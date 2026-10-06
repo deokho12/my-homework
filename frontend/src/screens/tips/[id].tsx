@@ -9,7 +9,7 @@ import { useHospital } from '@/features/hospital';
 import { HospitalCard } from '@/features/hospital/components/HospitalCard';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { StockImage } from '@/components/StockImage';
-import { useProcedureMap } from '@/features/procedure';
+import { categoryPathForLegacy, displayNameForLegacy } from '@/features/procedure';
 import { guides } from '@/mocks/fixtures/guides';
 
 /** 관련 병원 하나를 조회해 렌더한다. 아직 안 왔거나 없는 병원이면 아무것도 그리지 않는다. */
@@ -21,7 +21,6 @@ function RelatedHospitalCard({ hospitalId }: { hospitalId: string }) {
 
 export default function TipDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const procedureMap = useProcedureMap();
   const guide = guides.find((item) => item.id === id);
 
   if (!guide) {
@@ -33,7 +32,9 @@ export default function TipDetailScreen() {
     );
   }
 
-  const procedure = procedureMap.get(guide.procedureId);
+  // 배지는 세부 시술 이름이다 — 아래 CTA 가 보내는 카테고리 화면의 칩 이름과 같은 말이어야
+  // 사용자가 "그 시술" 을 쫓아갈 수 있다. 모르는 id 면 배지를 건너뛴다.
+  const procedureName = displayNameForLegacy(guide.procedureId);
   const paragraphs = guide.content.split('\n\n');
   const relatedHospitalIds = guide.relatedHospitals ?? [];
 
@@ -63,9 +64,9 @@ export default function TipDetailScreen() {
         </View>
 
         <View className={cx(CONTAINER_PADDING, 'pt-5')}>
-          {procedure ? (
+          {procedureName ? (
             <View className="mb-3 flex-row">
-              <Badge label={procedure.name} tone="brand" />
+              <Badge label={procedureName} tone="brand" />
             </View>
           ) : null}
 
@@ -100,12 +101,9 @@ export default function TipDetailScreen() {
         <View className="pb-3">
           <PrimaryButton
             label="관련 시술 병원 상담받기"
-            onPress={() =>
-              router.push({
-                pathname: '/(tabs)/explore',
-                params: { mode: 'hospital', category: guide.procedureId },
-              })
-            }
+            // 꿀팁은 서버 시술 id 를 들고 있다 — 그 시술이 선택된 카테고리 화면으로 보낸다.
+            // taxonomy 가 모르는 id(미래에 서버가 추가한 시술)면 탐색으로 떨어뜨린다.
+            onPress={() => router.push(categoryPathForLegacy(guide.procedureId) ?? '/(tabs)/explore')}
           />
         </View>
       </SafeAreaView>

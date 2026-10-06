@@ -1,6 +1,6 @@
 import { useFocusEffect } from '@/navigation';
-import { Ellipsis, Sparkles } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Star } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { NativeScrollEvent, NativeSyntheticEvent } from '@/primitives';
 import { Pressable, ScrollView, Text, View, cx } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
@@ -9,29 +9,44 @@ import { CardGrid } from '@/components/layout/CardGrid';
 import { Chip } from '@/components/Chip';
 import { CONTAINER_CLASS, CONTAINER_PADDING } from '@/components/layout/Container';
 import { QueryState } from '@/components/QueryState';
-import { useDoctors } from '@/features/doctor';
 import { DoctorCard } from '@/features/doctor/components/DoctorCard';
-import { useHospital, useHospitals } from '@/features/hospital';
+import { useDoctorsByCategory } from '@/features/doctor/hooks/useDoctorsByCategory';
+import { useHospital } from '@/features/hospital';
 import { HospitalExploreCard } from '@/features/hospital/components/HospitalExploreCard';
 import { HospitalMapView } from '@/features/hospital/components/HospitalMapView';
 import { PriceCompareTable } from '@/features/hospital/components/PriceCompareTable';
-import { SORT_OPTIONS, useExploreFilters } from '@/features/hospital/hooks/useExploreFilters';
-import { useProcedures } from '@/features/procedure';
+import { ResultsHeader } from '@/features/hospital/components/ResultsHeader';
+import { useHospitalsByCategory } from '@/features/hospital/hooks/useHospitalsByCategory';
+import {
+  SORT_OPTIONS,
+  useExploreFilters,
+  type ExploreCategory,
+} from '@/features/hospital/hooks/useExploreFilters';
+import { CATEGORIES, getCategory, getLegacyIdsOf } from '@/features/procedure/taxonomy';
 import { useScrollShadowStore } from '@/store/useScrollShadowStore';
-import type { Doctor, ProcedureId } from '@/types/domain';
-import { PROCEDURE_ICONS, type IconComponent } from '@/utils/procedureIcons';
+import type { Doctor } from '@/types/domain';
+import { CATEGORY_ICONS, type IconComponent } from '@/utils/procedureIcons';
 
 const SCROLL_SHADOW_THRESHOLD = 8;
 
-type Category = 'recommended' | 'all' | ProcedureId;
-
-// All 13 procedure-category icons now live in src/utils/procedureIcons.ts (shared with the home screen's
-// "시술로 찾기" grid) — only the two non-procedure special tabs (추천/기타) are defined here.
-const CATEGORY_ICONS: Record<Category, IconComponent> = {
-  recommended: Sparkles,
-  all: Ellipsis,
-  ...PROCEDURE_ICONS,
+/** 대분류 9개 아이콘은 `utils/procedureIcons.ts` 가 소유한다 — 여기서 더하는 건 "추천" 탭뿐이다. */
+const TAB_ICONS: Record<ExploreCategory, IconComponent> = {
+  recommended: Star,
+  ...CATEGORY_ICONS,
 };
+
+/**
+ * 탭 목록은 정적이다 — 서버 시술 목록을 기다리던 스켈레톤이 사라진 이유다.
+ * 서버가 아는 시술이 하나도 없는 대분류는 라벨에 "· 준비중" 을 달되 탭에서 빼지 않는다
+ * (`SubProcedureChips`·홈 격자와 같은 판단).
+ */
+const CATEGORY_TABS: { key: ExploreCategory; label: string }[] = [
+  { key: 'recommended', label: '추천' },
+  ...CATEGORIES.map((category) => ({
+    key: category.id,
+    label: getLegacyIdsOf(category.id).length === 0 ? `${category.name} · 준비중` : category.name,
+  })),
+];
 
 /** 의사 모드 카드가 필요한 소속 병원을 개별 조회한다 — 공개 `GET /doctors` 응답에는 병원 정보가 없다. */
 function ExploreDoctorCard({ doctor }: { doctor: Doctor }) {
@@ -39,53 +54,7 @@ function ExploreDoctorCard({ doctor }: { doctor: Doctor }) {
   return <DoctorCard doctor={doctor} hospital={hospital} />;
 }
 
-interface ResultsHeaderProps {
-  /** `null` 이면 시술 목록이 아직 로딩 중이다 — 다른 카테고리 이름을 잘못 주장하지 않고 스켈레톤을 그린다. */
-  selectedCategoryLabel: string | null;
-  modeLabel: '병원' | '의사';
-  totalCountLabel: string;
-  action?: ReactNode;
-}
-
-/** 병원·의사 모드가 공유하는 카테고리 라벨 + 총 개수(+선택 액션) 헤더. */
-function ResultsHeader({ selectedCategoryLabel, modeLabel, totalCountLabel, action }: ResultsHeaderProps) {
-  return (
-    <>
-      {selectedCategoryLabel ? (
-        <Text className="mb-2 text-base font-bold text-neutral-900">
-          &ldquo;{selectedCategoryLabel}&rdquo; {modeLabel}
-        </Text>
-      ) : (
-        // 카테고리 라벨이 아직 없다(로딩 중) — "추천" 이라고 잘못 주장하지 않고 자리를 비운다.
-        <View
-          className="mb-2 h-5 w-32 animate-pulse rounded bg-neutral-100"
-          role="status"
-          accessibilityLabel="카테고리 이름을 불러오는 중이에요"
-        />
-      )}
-      <View className="mb-3 flex-row items-center justify-between">
-        <Text className="text-sm text-neutral-500">{totalCountLabel}</Text>
-        {action ?? null}
-      </View>
-    </>
-  );
-}
-
 export default function ExplorePage() {
-  const { data: procedures = [], isPending: proceduresPending } = useProcedures();
-  // Order matches the product spec exactly: 추천 first, then every procedure in the server's
-  // fixed order (implant→orthodontics→laminate→inlay→crown→whitening→wisdom-tooth→cavity→
-  // gum-disease→splint→snoring-device→tmj→botox), then 기타 (was "전체" — same "no filter"
-  // behavior, renamed + moved last). Empty while `procedures` is still loading.
-  const categoryTabs = useMemo<{ key: Category; label: string }[]>(
-    () => [
-      { key: 'recommended', label: '추천' },
-      ...procedures.map((procedure) => ({ key: procedure.id as Category, label: procedure.name })),
-      { key: 'all', label: '기타' },
-    ],
-    [procedures]
-  );
-
   const {
     mode,
     setMode,
@@ -108,6 +77,7 @@ export default function ExplorePage() {
     radiusKm,
     setRadiusKm,
     userLocation,
+    selection,
     hospitalFilters,
     doctorFilters,
   } = useExploreFilters();
@@ -142,20 +112,17 @@ export default function ExplorePage() {
   );
 
   // 모드별로 조회를 하나만 켠다 — 병원 모드에서 의사 목록을(또는 반대로) 미리 부르지 않는다.
-  // ★ 클라이언트 정렬·필터를 하지 않는다. 서버가 스폰서 우선 노출까지 이미 적용한 배열을 준다.
-  const hospitalsQuery = useHospitals(hospitalFilters, { enabled: mode === 'hospital' });
-  const doctorsQuery = useDoctors(doctorFilters, { enabled: mode === 'doctor' });
+  // ★ 정렬은 클라이언트가 하지 않는다. 대분류가 서버 시술 여러 개에 걸릴 때만 받아서 거르고,
+  //   그 판정은 `resolveCategoryFilter` 한 곳에 있다(카테고리 화면과 공유).
+  const hospitalsQuery = useHospitalsByCategory(selection, hospitalFilters, {
+    enabled: mode === 'hospital',
+  });
+  const doctorsQuery = useDoctorsByCategory(selection, doctorFilters, { enabled: mode === 'doctor' });
 
-  const matchedCategoryTab = categoryTabs.find((tab) => tab.key === selectedCategory);
-  const isProcedureCategory = selectedCategory !== 'recommended' && selectedCategory !== 'all';
-  // "못 찾음" 이 두 가지 다른 이유일 수 있다: (1) 시술 목록이 아직 로딩 중이라 안 왔거나,
-  // (2) 데이터가 다 왔는데도 정말 그런 카테고리가 없다. 전자를 "추천" 이라고 잘못
-  // 단정하면 안 된다. `null` 이면 아래에서 스켈레톤을 그린다.
-  const selectedCategoryLabel = matchedCategoryTab
-    ? matchedCategoryTab.label
-    : isProcedureCategory && proceduresPending
-      ? null
-      : '추천';
+  // 탭 라벨("충치치료 · 준비중")이 아니라 카테고리 이름을 쓴다 — 헤더는 목록을 가리키지
+  // 탭을 가리키지 않는다.
+  const selectedCategoryLabel =
+    selectedCategory === 'recommended' ? '추천' : getCategory(selectedCategory).name;
 
   const isMapMode = mode === 'hospital' && hospitalView === 'map';
 
@@ -207,29 +174,15 @@ export default function ExplorePage() {
       <View className="flex-1">
         <View className="border-b border-neutral-100 bg-white py-3">
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName={CONTAINER_PADDING}>
-            {proceduresPending ? (
-              // `categoryTabs` 는 로딩 중엔 [추천, 기타] 뿐이다 — 이걸 그대로 그리면 진짜
-              // 13종 목록인 것처럼 보여 "기타"(=전체)를 누르도록 유도한다. 로딩 표시로 대신한다.
-              <View
-                className="flex-row gap-2"
-                role="status"
-                accessibilityLabel="시술 카테고리를 불러오는 중이에요"
-              >
-                {Array.from({ length: 6 }).map((_, index) => (
-                  <View key={index} className="h-8 w-16 animate-pulse rounded-full bg-neutral-100" />
-                ))}
-              </View>
-            ) : (
-              categoryTabs.map((tab) => (
-                <Chip
-                  key={tab.key}
-                  label={tab.label}
-                  icon={CATEGORY_ICONS[tab.key]}
-                  selected={selectedCategory === tab.key}
-                  onPress={() => setSelectedCategory(tab.key)}
-                />
-              ))
-            )}
+            {CATEGORY_TABS.map((tab) => (
+              <Chip
+                key={tab.key}
+                label={tab.label}
+                icon={TAB_ICONS[tab.key]}
+                selected={selectedCategory === tab.key}
+                onPress={() => setSelectedCategory(tab.key)}
+              />
+            ))}
           </ScrollView>
         </View>
 
@@ -282,7 +235,14 @@ export default function ExplorePage() {
             // `HospitalMapView` 를 그대로 마운트하고, 빈 안내는 그 안에서 지도 위 오버레이로
             // 보여준다(반경 칩은 계속 보이고 눌린다).
             isEmpty={(data) => !isMapMode && data.items.length === 0}
-            emptyState={{ title: '조건에 맞는 병원이 없어요' }}
+            emptyState={{
+              // 0건의 이유가 둘이다: 서버에 물어볼 시술이 아예 없거나(준비중 대분류),
+              // 물었는데 없거나. 전자에 "조건에 맞는" 이라고 하면 필터를 풀면 나올 것처럼 보인다.
+              title:
+                hospitalsQuery.plan.mode === 'empty'
+                  ? '등록된 병원이 아직 없어요'
+                  : '조건에 맞는 병원이 없어요',
+            }}
           >
             {(data) =>
               isMapMode ? (
@@ -301,9 +261,9 @@ export default function ExplorePage() {
                   scrollEventThrottle={16}
                 >
                   <ResultsHeader
-                    selectedCategoryLabel={selectedCategoryLabel}
+                    label={selectedCategoryLabel}
                     modeLabel="병원"
-                    totalCountLabel={`총 ${data.meta.totalItems}곳`}
+                    totalCount={data.meta.totalItems}
                     action={
                       <Pressable onPress={() => setShowPriceTable((value) => !value)}>
                         <Text className="text-sm font-semibold text-brand-700">
@@ -321,11 +281,7 @@ export default function ExplorePage() {
                         <HospitalExploreCard
                           key={hospital.id}
                           hospital={hospital}
-                          activeCategory={
-                            selectedCategory !== 'all' && selectedCategory !== 'recommended'
-                              ? selectedCategory
-                              : undefined
-                          }
+                          activeCategory={selectedCategory !== 'recommended' ? selectedCategory : undefined}
                         />
                       ))}
                     </CardGrid>
@@ -344,7 +300,12 @@ export default function ExplorePage() {
             }}
             isRetrying={doctorsQuery.isError && doctorsQuery.isFetching}
             isEmpty={(data) => data.items.length === 0}
-            emptyState={{ title: '조건에 맞는 의사가 없어요' }}
+            emptyState={{
+              title:
+                doctorsQuery.plan.mode === 'empty'
+                  ? '등록된 의사가 아직 없어요'
+                  : '조건에 맞는 의사가 없어요',
+            }}
           >
             {(data) => (
               <ScrollView
@@ -353,11 +314,7 @@ export default function ExplorePage() {
                 onScroll={handleScroll}
                 scrollEventThrottle={16}
               >
-                <ResultsHeader
-                  selectedCategoryLabel={selectedCategoryLabel}
-                  modeLabel="의사"
-                  totalCountLabel={`총 ${data.meta.totalItems}명`}
-                />
+                <ResultsHeader label={selectedCategoryLabel} modeLabel="의사" totalCount={data.meta.totalItems} />
 
                 <CardGrid columns="wide">
                   {data.items.map((doctor) => (

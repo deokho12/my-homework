@@ -2,7 +2,6 @@ import { screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { DoctorCard } from '@/features/doctor/components/DoctorCard';
-import * as procedureApi from '@/features/procedure/api/procedureApi';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import type { Doctor } from '@/types/domain';
 
@@ -40,8 +39,6 @@ describe('DoctorCard', () => {
   });
 
   it('서버가 isVerifiedSpecialist: true 를 주면 "전문의" 배지를 그린다', () => {
-    vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue([]);
-
     renderWithProviders(<DoctorCard doctor={baseDoctor()} />);
 
     expect(screen.getByText('전문의')).toBeInTheDocument();
@@ -55,8 +52,6 @@ describe('DoctorCard', () => {
    * `verificationStatus === 'approved'` 만 보고 배지를 그리면 이 결함이 재발한다.
    */
   it('승인됐지만 verifiedSpecialty 와 다른 전문의는 배지·전공 어느 것도 그리지 않는다', () => {
-    vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue([]);
-
     renderWithProviders(
       baseDoctorCard({ verificationStatus: 'approved', isVerifiedSpecialist: false, visibleSpecialty: null })
     );
@@ -66,16 +61,12 @@ describe('DoctorCard', () => {
   });
 
   it('rating 이 null 이면(비로그인) 잠금 문구를 보여준다 — 0으로 덮지 않는다', () => {
-    vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue([]);
-
     renderWithProviders(<DoctorCard doctor={baseDoctor({ rating: null })} />);
 
     expect(screen.getByText('★ 비공개')).toBeInTheDocument();
   });
 
   it('rating 이 숫자면 그 숫자를 보여준다', () => {
-    vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue([]);
-
     renderWithProviders(<DoctorCard doctor={baseDoctor({ rating: 4.9 })} />);
 
     expect(screen.getByText('★ 4.9')).toBeInTheDocument();

@@ -6,7 +6,7 @@ import { Chip } from '@/components/Chip';
 import { KakaoMap } from '@/components/map/KakaoMap';
 import { CONTAINER_PADDING } from '@/components/layout/Container';
 import { formatRadiusLabel, MAP_RADIUS_OPTIONS_KM } from '@/features/hospital/hooks/useExploreFilters';
-import { useProcedureMap } from '@/features/procedure';
+import { displayNameForLegacy } from '@/features/procedure';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 import type { LocationStatus } from '@/hooks/useUserLocation';
 import type { Hospital } from '@/types/domain';
@@ -33,7 +33,6 @@ export function HospitalMapView({
 }: HospitalMapViewProps) {
   const [selectedHospitalId, setSelectedHospitalId] = useState<string | null>(null);
   const requireAuth = useRequireAuth();
-  const procedureMap = useProcedureMap();
 
   const selected = hospitals.find((hospital) => hospital.id === selectedHospitalId);
 
@@ -87,7 +86,8 @@ export function HospitalMapView({
                 {selected.name}
               </Text>
               <Text className="mb-1 text-xs text-neutral-500" numberOfLines={1}>
-                {procedureMap.get(selected.procedureIds[0])?.name}
+                {/* 시술이 없거나(`procedureIds: []`) taxonomy 가 모르는 id 면 이름 자리를 비운다. */}
+                {selected.procedureIds[0] ? displayNameForLegacy(selected.procedureIds[0]) : null}
                 {selected.distanceKm !== undefined ? ` · ${formatDistance(selected.distanceKm)}` : ''} · 후기{' '}
                 {selected.reviewCount}
               </Text>

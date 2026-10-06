@@ -5,15 +5,15 @@ import { Pressable, ScrollView, Text, View, cx } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
 
 import { CardGrid } from '@/components/layout/CardGrid';
+import { CategoryCard } from '@/components/CategoryCard';
 import { Footer } from '@/components/Footer';
 import { GuideCard } from '@/components/GuideCard';
 import { HeroBanner } from '@/components/HeroBanner';
-import { ProcedureCategoryCard } from '@/components/ProcedureCategoryCard';
 import { PromotionCard } from '@/components/PromotionCard';
 import { SearchBar } from '@/components/SearchBar';
 import { SectionHeader } from '@/components/SectionHeader';
 import { CONTAINER_CLASS } from '@/components/layout/Container';
-import { useProcedures } from '@/features/procedure';
+import { CATEGORIES } from '@/features/procedure/taxonomy';
 import { guides } from '@/mocks/fixtures/guides';
 import { promotions } from '@/mocks/fixtures/promotions';
 import { TRENDING_SEARCHES } from '@/mocks/fixtures/trendingSearches';
@@ -26,7 +26,6 @@ const SCROLL_SHADOW_THRESHOLD = 8;
 const HOME_TRENDING_TAGS = TRENDING_SEARCHES.all.slice(0, 6).map((item) => item.term);
 
 export default function HomeScreen() {
-  const { data: procedures = [] } = useProcedures();
   const setScrolled = useScrollShadowStore((state) => state.setScrolled);
   const scrollOffsetRef = useRef(0);
 
@@ -97,15 +96,23 @@ export default function HomeScreen() {
           </View>
         ) : null}
 
-        <View className="mb-8 rounded-2xl bg-white p-4">
+        {/*
+          인기검색어 pill 에도 "임플란트" 같은 같은 이름의 버튼이 있다 — 이 구역에 이름을
+          붙여 두면 스크린리더 사용자도, 테스트도 둘을 구분할 수 있다.
+        */}
+        <View className="mb-8 rounded-2xl bg-white p-4" role="region" accessibilityLabel="시술로 찾기">
           <SectionHeader
             title="시술로 찾기"
             actionLabel="전체보기"
             onPressAction={() => router.push('/(tabs)/explore')}
           />
-          <CardGrid columns="compact">
-            {procedures.map((procedure) => (
-              <ProcedureCategoryCard key={procedure.id} procedure={procedure} />
+          {/*
+            시술 목록은 정적 taxonomy 다 — 서버 응답을 기다리지 않으므로 이 격자는 첫
+            페인트에 완성된 9칸으로 나온다(예전에는 `useProcedures()` 가 올 때까지 빈 칸이었다).
+          */}
+          <CardGrid columns="categories">
+            {CATEGORIES.map((category) => (
+              <CategoryCard key={category.id} category={category} />
             ))}
           </CardGrid>
         </View>

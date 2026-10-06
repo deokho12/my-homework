@@ -1,3 +1,31 @@
 export { fetchProcedures } from '@/features/procedure/api/procedureApi';
 export { useProcedureMap } from '@/features/procedure/hooks/useProcedureMap';
 export { useProcedures } from '@/features/procedure/hooks/useProcedures';
+export {
+  CATEGORIES,
+  CATEGORY_IDS,
+  LEGACY_TO_SUB,
+  PROCEDURE_IDS,
+  SUB_PROCEDURES,
+  SUB_PROCEDURE_IDS,
+  categoryFromLegacy,
+  categoryPath,
+  categoryPathForLegacy,
+  displayNameForLegacy,
+  getCategory,
+  getLegacyIdsOf,
+  getSubProcedure,
+  getSubProceduresOf,
+  groupLegacyIdsByCategory,
+  isCategoryId,
+  isProcedureId,
+  isSubProcedureId,
+  searchTaxonomy,
+  subFromLegacy,
+  type CategoryId,
+  type LegacyCategoryGroup,
+  type ProcedureCategory,
+  type SubProcedure,
+  type SubProcedureId,
+  type TaxonomyMatch,
+} from '@/features/procedure/taxonomy';

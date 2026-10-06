@@ -3,25 +3,27 @@ import { Pressable, Text, View, type StyleProp, type ViewStyle } from '@/primiti
 
 import { Badge } from '@/components/Badge';
 import { StockImage } from '@/components/StockImage';
-import { useProcedureMap } from '@/features/procedure';
+import { displayNameForLegacy } from '@/features/procedure';
+import type { CategoryId } from '@/features/procedure/taxonomy';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
-import type { Hospital, ProcedureId } from '@/types/domain';
-import { getSpecialtyForProcedure } from '@/utils/specialty';
+import type { Hospital } from '@/types/domain';
+import { isSpecialtyForCategory } from '@/utils/specialty';
 
 interface HospitalExploreCardProps {
   hospital: Hospital;
-  /** Currently selected procedure category, if any — used to emphasize a matching specialist tag. */
-  activeCategory?: ProcedureId;
+  /** 지금 보고 있는 시술 대분류. 그 대분류와 맞는 전공이면 "상주" 배지를 강조한다. */
+  activeCategory?: CategoryId;
   style?: StyleProp<ViewStyle>;
 }
 
 export function HospitalExploreCard({ hospital, activeCategory, style }: HospitalExploreCardProps) {
   const requireAuth = useRequireAuth();
-  const procedureMap = useProcedureMap();
+  // 대분류 하나에 전공이 여럿일 수 있다(충치치료 = 보철·통합치의학) — 판정은
+  // `utils/specialty.ts` 한 곳에 두고 전문의 목록 배지와 공유한다.
   const matchesActiveCategory =
     !!hospital.representativeSpecialty &&
     !!activeCategory &&
-    hospital.representativeSpecialty === getSpecialtyForProcedure(activeCategory);
+    isSpecialtyForCategory(activeCategory, hospital.representativeSpecialty);
 
   return (
     <Pressable
@@ -64,8 +66,9 @@ export function HospitalExploreCard({ hospital, activeCategory, style }: Hospita
             />
           ) : null}
           {hospital.procedureIds.slice(0, 3).map((procedureId) => {
-            const procedure = procedureMap.get(procedureId);
-            return procedure ? <Badge key={procedureId} label={procedure.name} /> : null;
+            // 세부 시술 이름(`cavity` → "레진"). 모르는 id 는 배지를 건너뛴다.
+            const name = displayNameForLegacy(procedureId);
+            return name ? <Badge key={procedureId} label={name} /> : null;
           })}
         </View>
 

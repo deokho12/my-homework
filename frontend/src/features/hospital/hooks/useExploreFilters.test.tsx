@@ -100,28 +100,40 @@ describe('useExploreFilters — 화면 상태 → 서버 필터 매핑', () => {
     expect(result.current.doctorFilters.minYearsOfExperience).toBe(10);
   });
 
-  it('시술 칩은 procedureId 로, 추천 칩은 recommended=true 로, 기타 칩은 아무것도 보내지 않는다', () => {
+  /**
+   * 카테고리 탭은 **선택(`selection`)만** 내려준다. 그 선택이 `procedureId` 가 될지
+   * `pageSize=100` + 클라이언트 필터가 될지는 `useHospitalsByCategory.test` 가 고정한다 —
+   * 대분류 하나가 서버 시술 여러 개에 걸릴 수 있어 여기서 한 값으로 옮길 수 없다.
+   */
+  it('카테고리 탭은 서버 필터가 아니라 대분류 선택으로 내려간다', () => {
+    const { result } = renderHook(() => useExploreFilters(), { wrapper });
+
+    act(() => {
+      result.current.setSelectedCategory('cavity');
+    });
+    expect(result.current.selection).toEqual({
+      kind: 'category',
+      categoryId: 'cavity',
+      subProcedureId: null,
+    });
+
+    act(() => {
+      result.current.setSelectedCategory('recommended');
+    });
+    expect(result.current.selection).toEqual({ kind: 'recommended' });
+  });
+
+  it('hospitalFilters·doctorFilters 에는 procedureId·recommended 키가 아예 없다', () => {
     const { result } = renderHook(() => useExploreFilters(), { wrapper });
 
     act(() => {
       result.current.setSelectedCategory('implant');
     });
-    expect(result.current.hospitalFilters.procedureId).toBe('implant');
-    expect(result.current.doctorFilters.procedureId).toBe('implant');
 
-    act(() => {
-      result.current.setSelectedCategory('recommended');
-    });
-    expect(result.current.hospitalFilters.recommended).toBe(true);
-    expect(result.current.hospitalFilters.procedureId).toBeUndefined();
-
-    act(() => {
-      result.current.setSelectedCategory('all');
-    });
-    expect(result.current.hospitalFilters.procedureId).toBeUndefined();
-    expect(result.current.hospitalFilters.recommended).toBeUndefined();
-    expect(result.current.doctorFilters.procedureId).toBeUndefined();
-    expect(result.current.doctorFilters.recommended).toBeUndefined();
+    expect(result.current.hospitalFilters).not.toHaveProperty('procedureId');
+    expect(result.current.hospitalFilters).not.toHaveProperty('recommended');
+    expect(result.current.doctorFilters).not.toHaveProperty('procedureId');
+    expect(result.current.doctorFilters).not.toHaveProperty('recommended');
   });
 
   it('정렬 칩은 popular→rating, reviews→reviewCount, consults→consultCount 로 옮긴다', () => {
@@ -171,24 +183,39 @@ describe('useExploreFilters — 화면 상태 → 서버 필터 매핑', () => {
 
   /**
    * [Important 1 리뷰 수정] `/explore?category=bogus` 처럼 인식 못 할 값이 URL 에 오면
-   * `procedureId=bogus` 를 서버로 보내면 안 된다 — 서버는 문자열 존재만 검사하므로 그대로
-   * 통과시켜 "설명 없는 빈 목록" 을 만든다. 알려진 시술 id 집합으로 검증하고, 아니면
-   * `'all'`(필터 없음) 로 떨어뜨린다.
+   * 그 값을 서버로 흘려보내면 안 된다 — 서버는 문자열 존재만 검사하므로 그대로 통과시켜
+   * "설명 없는 빈 목록" 을 만든다. 모르는 값은 추천으로 떨어뜨린다.
+   *
+   * `'all'` 은 옛 "기타" 탭의 북마크다. 탭이 사라졌으므로 같은 자리로 보낸다.
    */
-  it('/explore?category=bogus 처럼 알 수 없는 값이 오면 procedureId 를 보내지 않고 all 로 떨어진다', () => {
-    const { result } = renderHook(() => useExploreFilters(), { wrapper: wrapperWithRoute('/explore?category=bogus') });
+  it.each([
+    ['/explore?category=bogus', 'recommended'],
+    ['/explore?category=all', 'recommended'],
+    ['/explore?category=recommended', 'recommended'],
+    ['/explore?category=implant', 'implant'],
+    ['/explore?category=crown', 'cavity'],
+    ['/explore?category=gum-disease', 'gum'],
+    ['/explore', 'recommended'],
+  ])('%s → 카테고리 탭 %s', (route, expected) => {
+    const { result } = renderHook(() => useExploreFilters(), { wrapper: wrapperWithRoute(route) });
 
-    expect(result.current.selectedCategory).toBe('all');
-    expect(result.current.hospitalFilters.procedureId).toBeUndefined();
-    expect(result.current.hospitalFilters.recommended).toBeUndefined();
+    expect(result.current.selectedCategory).toBe(expected);
   });
 
-  it('/explore?category=implant 처럼 알려진 시술 id 는 그대로 procedureId 가 된다', () => {
-    const { result } = renderHook(() => useExploreFilters(), {
-      wrapper: wrapperWithRoute('/explore?category=implant'),
-    });
+  it('/explore?category=bogus 는 모르는 값을 서버 필터로 흘려보내지 않는다', () => {
+    const { result } = renderHook(() => useExploreFilters(), { wrapper: wrapperWithRoute('/explore?category=bogus') });
 
-    expect(result.current.selectedCategory).toBe('implant');
-    expect(result.current.hospitalFilters.procedureId).toBe('implant');
+    expect(result.current.selection).toEqual({ kind: 'recommended' });
+    expect(result.current.hospitalFilters).not.toHaveProperty('procedureId');
+  });
+
+  it('/explore?category=crown 같은 옛 시술 id 는 그 시술이 속한 대분류 선택이 된다', () => {
+    const { result } = renderHook(() => useExploreFilters(), { wrapper: wrapperWithRoute('/explore?category=crown') });
+
+    expect(result.current.selection).toEqual({
+      kind: 'category',
+      categoryId: 'cavity',
+      subProcedureId: null,
+    });
   });
 });

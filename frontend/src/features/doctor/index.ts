@@ -18,6 +18,10 @@ export { useDecideVerification } from '@/features/doctor/hooks/useDecideVerifica
 export { useDeleteDoctor } from '@/features/doctor/hooks/useDeleteDoctor';
 export { useDoctor } from '@/features/doctor/hooks/useDoctor';
 export { useDoctors } from '@/features/doctor/hooks/useDoctors';
+export {
+  useDoctorsByCategory,
+  type DoctorCategoryBaseFilters,
+} from '@/features/doctor/hooks/useDoctorsByCategory';
 export { useHospitalDoctors } from '@/features/doctor/hooks/useHospitalDoctors';
 export { useReplaceHospitalDoctors } from '@/features/doctor/hooks/useReplaceHospitalDoctors';
 export { useUpdateDoctor } from '@/features/doctor/hooks/useUpdateDoctor';

@@ -3,9 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { HospitalForm, type RosterSaveAction } from '@/components/admin/HospitalForm';
-import * as procedureApi from '@/features/procedure/api/procedureApi';
 import * as geocoding from '@/services/geocoding';
-import { procedures } from '@/mocks/fixtures/procedures';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import type { Doctor, Hospital } from '@/types/domain';
 
@@ -82,7 +80,6 @@ describe('HospitalForm — split 모드 (수정 화면)', () => {
   });
 
   it('병원 필드 저장은 로스터 상태와 무관하다 — "병원 정보 저장" 버튼은 항상 활성이다', async () => {
-    vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue(procedures);
     const onSaveHospital = vi.fn();
 
     renderWithProviders(
@@ -109,7 +106,6 @@ describe('HospitalForm — split 모드 (수정 화면)', () => {
   });
 
   it('★ 함정1 — 기존 전문의만 수정(신규 추가 없음)해 저장하면 PATCH 경로(patch)로 가고, 자격증을 안 건드리면 키가 없다', async () => {
-    vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue(procedures);
     const onSaveRoster = vi.fn();
 
     renderWithProviders(
@@ -136,7 +132,6 @@ describe('HospitalForm — split 모드 (수정 화면)', () => {
   });
 
   it('자격증 칸에 실제로 입력하면 PATCH 본문에 그 값이 실린다', async () => {
-    vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue(procedures);
     const onSaveRoster = vi.fn();
 
     renderWithProviders(
@@ -163,7 +158,6 @@ describe('HospitalForm — split 모드 (수정 화면)', () => {
   });
 
   it('★ 함정2 — 전공이 감춰진 기존 전문의를 "일반의" 로 지어내지 않는다. 새 전문의를 안 더하면 PATCH 로 저장되고 specialty 는 생략된다', async () => {
-    vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue(procedures);
     const onSaveRoster = vi.fn();
 
     renderWithProviders(
@@ -196,7 +190,6 @@ describe('HospitalForm — split 모드 (수정 화면)', () => {
   });
 
   it('새 전문의를 추가할 때만 — 감춰진 전공의 기존 전문의가 있으면 저장이 막히고 이유가 표시된다', async () => {
-    vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue(procedures);
     const onSaveRoster = vi.fn();
 
     renderWithProviders(
@@ -235,7 +228,6 @@ describe('HospitalForm — split 모드 (수정 화면)', () => {
   });
 
   it('전문의를 제거만 하면(신규 없음) DELETE 대상으로 patch 액션에 실린다', async () => {
-    vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue(procedures);
     const onSaveRoster = vi.fn();
 
     renderWithProviders(
@@ -261,7 +253,6 @@ describe('HospitalForm — split 모드 (수정 화면)', () => {
   });
 
   it('기존 전문의 이름을 지우면 저장이 막히고 DELETE 로 가지 않는다 (조용한 삭제 방지)', async () => {
-    vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue(procedures);
     const onSaveRoster = vi.fn();
 
     renderWithProviders(
@@ -287,7 +278,6 @@ describe('HospitalForm — split 모드 (수정 화면)', () => {
   });
 
   it('새로 추가한 빈 이름 행은 조용히 빠지고 저장을 막지 않는다', async () => {
-    vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue(procedures);
     const onSaveRoster = vi.fn();
 
     renderWithProviders(
@@ -318,7 +308,6 @@ describe('HospitalForm — split 모드 (수정 화면)', () => {
   });
 
   it('canEditRecommended=false 면 추천 병원 체크박스를 숨기고 현재 상태만 읽기 전용으로 보여준다', async () => {
-    vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue(procedures);
 
     renderWithProviders(
       <HospitalForm
@@ -342,7 +331,6 @@ describe('HospitalForm — combined 모드 (등록 화면)', () => {
   });
 
   it('canEditRecommended=true 면 체크박스를 보여주고 켜면 isRecommended 를 함께 보낸다', async () => {
-    vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue(procedures);
     vi.spyOn(geocoding, 'searchAddress').mockResolvedValue([
       { id: 'a1', addressName: '서울 강남구 테스트로 1', latitude: 37.1, longitude: 127.1 },
     ]);
@@ -357,7 +345,7 @@ describe('HospitalForm — combined 모드 (등록 화면)', () => {
     await userEvent.type(screen.getByPlaceholderText('도로명 또는 지번 주소를 입력해주세요'), '테스트로');
     await waitFor(() => expect(screen.getByText('서울 강남구 테스트로 1')).toBeInTheDocument());
     await userEvent.click(screen.getByText('서울 강남구 테스트로 1'));
-    await userEvent.click(screen.getByRole('button', { name: '임플란트' }));
+    await userEvent.click(screen.getByRole('button', { name: '일반 임플란트' }));
     await userEvent.type(screen.getByPlaceholderText('최소'), '100000');
     await userEvent.type(screen.getByPlaceholderText('최대'), '200000');
 
@@ -370,7 +358,6 @@ describe('HospitalForm — combined 모드 (등록 화면)', () => {
   });
 
   it('등록 시 대표 이미지가 캐러셀 images 로도 함께 전송된다', async () => {
-    vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue(procedures);
     vi.spyOn(geocoding, 'searchAddress').mockResolvedValue([
       { id: 'a1', addressName: '서울 강남구 테스트로 1', latitude: 37.1, longitude: 127.1 },
     ]);
@@ -385,7 +372,7 @@ describe('HospitalForm — combined 모드 (등록 화면)', () => {
     await userEvent.type(screen.getByPlaceholderText('도로명 또는 지번 주소를 입력해주세요'), '테스트로');
     await waitFor(() => expect(screen.getByText('서울 강남구 테스트로 1')).toBeInTheDocument());
     await userEvent.click(screen.getByText('서울 강남구 테스트로 1'));
-    await userEvent.click(screen.getByRole('button', { name: '임플란트' }));
+    await userEvent.click(screen.getByRole('button', { name: '일반 임플란트' }));
     await userEvent.type(screen.getByPlaceholderText('최소'), '100000');
     await userEvent.type(screen.getByPlaceholderText('최대'), '200000');
     await userEvent.type(screen.getByPlaceholderText('https://...'), 'https://example.com/my-thumb.jpg');
@@ -399,7 +386,6 @@ describe('HospitalForm — combined 모드 (등록 화면)', () => {
   });
 
   it('대표 이미지를 비워두고 등록하면 플레이스홀더 이미지가 images 에도 그대로 들어간다', async () => {
-    vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue(procedures);
     vi.spyOn(geocoding, 'searchAddress').mockResolvedValue([
       { id: 'a1', addressName: '서울 강남구 테스트로 1', latitude: 37.1, longitude: 127.1 },
     ]);
@@ -414,7 +400,7 @@ describe('HospitalForm — combined 모드 (등록 화면)', () => {
     await userEvent.type(screen.getByPlaceholderText('도로명 또는 지번 주소를 입력해주세요'), '테스트로');
     await waitFor(() => expect(screen.getByText('서울 강남구 테스트로 1')).toBeInTheDocument());
     await userEvent.click(screen.getByText('서울 강남구 테스트로 1'));
-    await userEvent.click(screen.getByRole('button', { name: '임플란트' }));
+    await userEvent.click(screen.getByRole('button', { name: '일반 임플란트' }));
     await userEvent.type(screen.getByPlaceholderText('최소'), '100000');
     await userEvent.type(screen.getByPlaceholderText('최대'), '200000');
     // 대표 이미지는 선택 입력이라 비워둔다.
@@ -428,7 +414,6 @@ describe('HospitalForm — combined 모드 (등록 화면)', () => {
   });
 
   it('새로 추가하는 전문의는 항상 기본 전공이 선택돼 있어 등록이 막히지 않는다', async () => {
-    vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue(procedures);
     vi.spyOn(geocoding, 'searchAddress').mockResolvedValue([
       { id: 'a1', addressName: '서울 강남구 테스트로 1', latitude: 37.1, longitude: 127.1 },
     ]);
@@ -441,7 +426,7 @@ describe('HospitalForm — combined 모드 (등록 화면)', () => {
     await userEvent.type(screen.getByPlaceholderText('도로명 또는 지번 주소를 입력해주세요'), '테스트로');
     await waitFor(() => expect(screen.getByText('서울 강남구 테스트로 1')).toBeInTheDocument());
     await userEvent.click(screen.getByText('서울 강남구 테스트로 1'));
-    await userEvent.click(screen.getByRole('button', { name: '임플란트' }));
+    await userEvent.click(screen.getByRole('button', { name: '일반 임플란트' }));
     await userEvent.type(screen.getByPlaceholderText('최소'), '100000');
     await userEvent.type(screen.getByPlaceholderText('최대'), '200000');
 
@@ -453,5 +438,151 @@ describe('HospitalForm — combined 모드 (등록 화면)', () => {
 
     const [, doctors] = onSubmit.mock.calls[0];
     expect(doctors[0]).toMatchObject({ name: '김민준' });
+  });
+});
+
+/**
+ * 취급 시술은 화면에서 **세부 시술**(31개)로 고르고, 서버에는 그 세부가 가리키는
+ * **서버 시술 13종**으로만 보낸다 (`features/procedure/taxonomy.ts`). 서버가 모르는 세부
+ * 18개는 보이되 비활성이고, 서버만 아는 id 는 화면을 거쳐도 사라지지 않아야 한다.
+ */
+describe('HospitalForm — 취급 시술 (대분류 → 세부 시술)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('기존 procedureIds 는 세부 시술 체크로 되살아나고, 그 대분류 섹션이 펼쳐져 있다', async () => {
+    renderWithProviders(
+      <HospitalForm
+        mode="split"
+        initial={baseHospital({ procedureIds: ['implant', 'crown'] })}
+        doctors={[]}
+        canEditRecommended={false}
+        onSaveHospital={vi.fn()}
+        onSaveRoster={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: '일반 임플란트' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: '크라운' })).toHaveAttribute('aria-pressed', 'true');
+    // 같은 섹션의 다른 세부는 펼쳐져 있되 꺼져 있다 — 섹션이 실제로 열렸다는 증거다.
+    expect(screen.getByRole('button', { name: '인레이' })).toHaveAttribute('aria-pressed', 'false');
+    // 선택이 없는 대분류(교정)는 접혀 있다.
+    expect(screen.queryByRole('button', { name: '투명교정' })).not.toBeInTheDocument();
+  });
+
+  it('준비중 세부 시술(신경치료)은 눌러도 선택되지 않는다', async () => {
+    renderWithProviders(
+      <HospitalForm
+        mode="split"
+        initial={baseHospital({ procedureIds: ['crown'] })}
+        doctors={[]}
+        canEditRecommended={false}
+        onSaveHospital={vi.fn()}
+        onSaveRoster={vi.fn()}
+      />
+    );
+
+    const rootCanal = screen.getByRole('button', { name: '신경치료' });
+    expect(rootCanal).toHaveAttribute('aria-disabled', 'true');
+    expect(rootCanal).toHaveAttribute('aria-pressed', 'false');
+
+    await userEvent.click(rootCanal);
+
+    expect(screen.getByRole('button', { name: '신경치료' })).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('세부 시술(레진)을 고르면 저장 payload 에는 서버 id(cavity)만 실린다', async () => {
+    const onSaveHospital = vi.fn();
+
+    renderWithProviders(
+      <HospitalForm
+        mode="split"
+        initial={baseHospital({ procedureIds: [] })}
+        doctors={[]}
+        canEditRecommended={false}
+        onSaveHospital={onSaveHospital}
+        onSaveRoster={vi.fn()}
+      />
+    );
+
+    // 선택이 없으면 모든 섹션이 접혀 있다 — 충치치료를 펼쳐야 레진이 보인다.
+    await userEvent.click(screen.getByRole('button', { name: '충치치료 펼치기' }));
+    // 펼친 뒤에는 같은 버튼이 "접기" 로 읽히고, 열린 상태가 aria-pressed 로 드러난다.
+    expect(screen.getByRole('button', { name: '충치치료 접기' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByRole('button', { name: '충치치료 펼치기' })).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: '레진' }));
+    await userEvent.click(screen.getByRole('button', { name: '병원 정보 저장' }));
+
+    expect(onSaveHospital).toHaveBeenCalledTimes(1);
+    const data = onSaveHospital.mock.calls[0][0];
+    expect(data.procedureIds).toEqual(['cavity']);
+    // 화면 전용 세부 id 는 절대 서버로 가지 않는다 — 서버는 DB 행 존재로 검증해 422 를 낸다.
+    expect(data.procedureIds).not.toContain('resin');
+  });
+
+  it('취급 시술을 전부 해제하면 저장할 수 없다', async () => {
+    renderWithProviders(
+      <HospitalForm
+        mode="split"
+        initial={baseHospital({ procedureIds: ['implant'] })}
+        doctors={[]}
+        canEditRecommended={false}
+        onSaveHospital={vi.fn()}
+        onSaveRoster={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: '병원 정보 저장' })).not.toHaveAttribute('aria-disabled', 'true');
+
+    await userEvent.click(screen.getByRole('button', { name: '일반 임플란트' }));
+
+    expect(screen.getByRole('button', { name: '일반 임플란트' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: '병원 정보 저장' })).toHaveAttribute('aria-disabled', 'true');
+  });
+
+  it('모르는 서버 id 만 있어도 "1개 이상" 을 만족해 저장할 수 있다', async () => {
+    renderWithProviders(
+      <HospitalForm
+        mode="split"
+        // 알려진 시술은 0개다 — 그래도 이 병원은 "취급 시술이 없는 병원" 이 아니다.
+        initial={baseHospital({ procedureIds: ['future-id' as never] })}
+        doctors={[]}
+        canEditRecommended={false}
+        onSaveHospital={vi.fn()}
+        onSaveRoster={vi.fn()}
+      />
+    );
+
+    // 알려진 세부 시술 선택은 0개다 — 어느 섹션 헤더에도 "N개 선택" 이 없고, 선택이 있는
+    // 섹션만 펼치는 규칙에 따라 세부 체크박스 자체가 화면에 없다.
+    expect(screen.queryByText(/개 선택/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '일반 임플란트' })).not.toBeInTheDocument();
+    expect(screen.getByText('화면에 없는 시술 1개는 저장 시 그대로 유지돼요')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '병원 정보 저장' })).not.toHaveAttribute('aria-disabled', 'true');
+  });
+
+  it('taxonomy 가 모르는 서버 id 는 화면에 없어도 저장 시 그대로 보존된다', async () => {
+    const onSaveHospital = vi.fn();
+
+    renderWithProviders(
+      <HospitalForm
+        mode="split"
+        // 백엔드가 나중에 추가한 시술을 재현한다 — 이 화면을 거쳤다고 사라지면 안 된다.
+        initial={baseHospital({ procedureIds: ['implant', 'future-id' as never] })}
+        doctors={[]}
+        canEditRecommended={false}
+        onSaveHospital={onSaveHospital}
+        onSaveRoster={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('화면에 없는 시술 1개는 저장 시 그대로 유지돼요')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: '병원 정보 저장' }));
+
+    const data = onSaveHospital.mock.calls[0][0];
+    expect(data.procedureIds).toEqual(['implant', 'future-id']);
   });
 });

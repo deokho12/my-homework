@@ -1,14 +1,26 @@
-import { useState } from 'react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from '@/primitives';
 
 import { AddressSearchInput } from '@/components/admin/AddressSearchInput';
+import { Badge } from '@/components/Badge';
 import { Chip } from '@/components/Chip';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { containerClass } from '@/components/layout/Container';
 import type { DoctorUpdateInput, DoctorUpsertInput } from '@/features/doctor/api/doctorApi';
 import type { HospitalWriteInput } from '@/features/hospital/api/hospitalApi';
 import type { HospitalFieldErrors } from '@/features/hospital/lib/hospitalFieldErrors';
-import { useProcedures } from '@/features/procedure';
+import {
+  CATEGORIES,
+  LEGACY_TO_SUB,
+  getLegacyIdsOf,
+  getSubProcedure,
+  getSubProceduresOf,
+  isProcedureId,
+  type CategoryId,
+  type ProcedureCategory,
+  type SubProcedureId,
+} from '@/features/procedure';
 import {
   DENTAL_SPECIALTIES,
   type BusinessHourEntry,
@@ -19,6 +31,7 @@ import {
   type HospitalFeatures,
   type ProcedureId,
 } from '@/types/domain';
+import { CATEGORY_ICONS } from '@/utils/procedureIcons';
 
 // Sensible defaults for a hospital being registered for the first time — a typical weekday/Saturday
 // schedule with Sunday closed. All editable afterward via the per-day text inputs below.
@@ -140,6 +153,111 @@ function CheckboxRow({ label, checked, onPress }: { label: string; checked: bool
   );
 }
 
+/** brand-600. lucide 아이콘은 Tailwind 클래스가 아니라 색 값을 받는다. */
+const CATEGORY_ICON_COLOR = '#17847a';
+
+/**
+ * 세부 시술 한 줄. `CheckboxRow` 와 같은 글리프(☑️/⬜️)를 쓰되, 서버가 모르는 세부 시술은
+ * **지우지 않고 비활성 + "준비중" 배지**로 둔다 — 목록에서 빼면 관리자는 "우리 병원이 하는
+ * 그 시술을 이 서비스는 아예 안 다룬다"고 읽고 떠난다. 준비중이라는 사실 자체가 정보다.
+ *
+ * `memo` 인 이유: 이 폼은 단일 `useState` 덩어리라 병원명 한 글자마다 전체가 리렌더된다.
+ * 체크박스는 최대 31행이고 아무 글자와도 무관하므로, props 를 전부 **원시값 + 안정 콜백**
+ * (`onToggle` 은 `useCallback`, 대상은 `id` 인자로 전달)으로 두고 리렌더에서 제외한다.
+ */
+const SubProcedureCheckbox = memo(function SubProcedureCheckbox({
+  id,
+  name,
+  checked,
+  disabled,
+  onToggle,
+}: {
+  id: SubProcedureId;
+  name: string;
+  checked: boolean;
+  /** 서버가 모르는 세부 시술(= 준비중)이면 true. */
+  disabled: boolean;
+  onToggle: (id: SubProcedureId) => void;
+}) {
+  return (
+    <Pressable
+      onPress={() => onToggle(id)}
+      pressed={checked}
+      disabled={disabled}
+      accessibilityLabel={name}
+      className="mb-3 flex-row items-center gap-2.5"
+    >
+      <Text className="text-lg">{checked ? '☑️' : '⬜️'}</Text>
+      <Text className={`text-sm font-medium ${disabled ? 'text-neutral-300' : 'text-neutral-700'}`}>{name}</Text>
+      {disabled ? <Badge label="준비중" /> : null}
+    </Pressable>
+  );
+});
+
+/**
+ * 대분류 하나의 접기/펼치기 섹션. 체크박스와 같은 이유로 `memo` 다 — 특히 헤더의 lucide
+ * 아이콘은 렌더마다 새 SVG 엘리먼트를 만들어서, 9개 × 타이핑 글자 수만큼 쌓인다.
+ *
+ * `selectedSubIds` 만 참조형 prop 인데, 호출부가 `useMemo` 로 고정해서 **선택이 바뀔 때만**
+ * 새 Set 이 된다 — 그때는 실제로 다시 그려야 하는 때다.
+ */
+const CategorySection = memo(function CategorySection({
+  category,
+  isOpen,
+  selectedSubIds,
+  onToggleSection,
+  onToggleSub,
+}: {
+  category: ProcedureCategory;
+  isOpen: boolean;
+  selectedSubIds: ReadonlySet<SubProcedureId>;
+  onToggleSection: (categoryId: CategoryId) => void;
+  onToggleSub: (id: SubProcedureId) => void;
+}) {
+  const subs = getSubProceduresOf(category.id);
+  const selectedCount = subs.filter((sub) => selectedSubIds.has(sub.id)).length;
+  // 세부 시술이 전부 준비중인 대분류(스케일링·예방)는 헤더에서부터 그렇다고 말한다 —
+  // 펼쳐서 네 줄을 다 읽고 나서야 알게 하지 않는다.
+  const allUnavailable = getLegacyIdsOf(category.id).length === 0;
+  const Icon = CATEGORY_ICONS[category.id];
+
+  return (
+    <View className="border-b border-neutral-100 last:border-b-0">
+      <Pressable
+        onPress={() => onToggleSection(category.id)}
+        pressed={isOpen}
+        // 펼친 뒤에도 "펼치기" 라고 읽히면 스크린리더 사용자는 상태를 알 수 없다.
+        accessibilityLabel={isOpen ? `${category.name} 접기` : `${category.name} 펼치기`}
+        className="flex-row items-center gap-2 px-3 py-3"
+      >
+        <Icon size={18} color={CATEGORY_ICON_COLOR} />
+        <Text className="text-sm font-semibold text-neutral-800">{category.name}</Text>
+        {selectedCount > 0 ? (
+          <Text className="text-xs font-semibold text-brand-700">{selectedCount}개 선택</Text>
+        ) : null}
+        {allUnavailable ? <Badge label="준비중" /> : null}
+        <View className="flex-1" />
+        {isOpen ? <ChevronUp size={16} color="#737373" /> : <ChevronDown size={16} color="#737373" />}
+      </Pressable>
+
+      {isOpen ? (
+        <View className="px-3 pb-1 pl-10">
+          {subs.map((sub) => (
+            <SubProcedureCheckbox
+              key={sub.id}
+              id={sub.id}
+              name={sub.name}
+              checked={selectedSubIds.has(sub.id)}
+              disabled={sub.legacyProcedureId === null}
+              onToggle={onToggleSub}
+            />
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+});
+
 function FieldError({ message }: { message?: string }) {
   if (!message) return null;
   return (
@@ -190,7 +308,6 @@ function buildDoctorUpdate(entry: SpecialistFormEntry): DoctorUpdateInput {
 
 export function HospitalForm(props: HospitalFormProps) {
   const { initial, doctors = [], canEditRecommended, fieldErrors } = props;
-  const { data: procedures = [] } = useProcedures();
   const [name, setName] = useState(initial?.name ?? '');
   const [specialty, setSpecialty] = useState(initial?.specialty ?? '');
   const [region, setRegion] = useState(initial?.region ?? '');
@@ -205,7 +322,27 @@ export function HospitalForm(props: HospitalFormProps) {
   const [priceMin, setPriceMin] = useState(initial ? String(initial.priceRange.min) : '');
   const [priceMax, setPriceMax] = useState(initial ? String(initial.priceRange.max) : '');
   const [tagsText, setTagsText] = useState(initial?.tags.join(', ') ?? '');
-  const [procedureIds, setProcedureIds] = useState<ProcedureId[]>(initial?.procedureIds ?? []);
+  // 화면은 **세부 시술**로 고르고, 저장할 때 서버 13종으로 되돌린다. 초기값은 그 역방향 —
+  // 서버가 준 `procedureIds` 를 `LEGACY_TO_SUB` 로 세부 시술 id 로 바꾼다.
+  const [selectedSubs, setSelectedSubs] = useState<SubProcedureId[]>(() =>
+    (initial?.procedureIds ?? []).filter(isProcedureId).map((id) => LEGACY_TO_SUB[id])
+  );
+  // taxonomy 가 모르는 서버 id(백엔드가 나중에 추가한 시술)를 들고만 있다가 저장 때 그대로
+  // 돌려보낸다. 안 그러면 이 화면을 한 번 저장하는 것만으로 그 시술이 조용히 사라진다 —
+  // 관리자는 건드린 적도 없는 값이다. 상태로 두는 건 마운트 시점 값을 얼리기 위해서다.
+  const [passthroughLegacyIds] = useState<string[]>(() =>
+    (initial?.procedureIds ?? []).filter((id) => !isProcedureId(id))
+  );
+  // 기본 펼침: 신규 등록은 전부(고를 게 없으면 화면이 비어 보인다), 수정은 선택이 있는 섹션만.
+  const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
+    const initialSubs = new Set((initial?.procedureIds ?? []).filter(isProcedureId).map((id) => LEGACY_TO_SUB[id]));
+    const state: Record<string, boolean> = {};
+    for (const category of CATEGORIES) {
+      state[category.id] =
+        props.mode === 'combined' || getSubProceduresOf(category.id).some((sub) => initialSubs.has(sub.id));
+    }
+    return state;
+  });
   const [consultAvailable, setConsultAvailable] = useState(initial?.consultAvailable ?? true);
   const [isOneDay, setIsOneDay] = useState(initial?.isOneDay ?? false);
   const [isRecommended, setIsRecommended] = useState(initial?.isRecommended ?? false);
@@ -219,9 +356,27 @@ export function HospitalForm(props: HospitalFormProps) {
   // 시점의 서버 상태를 얼려 둔다 — `specialists` 도 그 시점부터 로컬로만 편집되므로 짝이 맞는다.
   const [initialDoctorsById] = useState<Map<string, Doctor>>(() => new Map(doctors.map((doctor) => [doctor.id, doctor])));
 
-  const toggleProcedure = (id: ProcedureId) => {
-    setProcedureIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
-  };
+  // 두 콜백 모두 `memo` 된 섹션·체크박스의 prop 이다 — 인라인으로 두면 리렌더마다 새
+  // 참조가 되어 memo 가 통째로 무력해진다. 그래서 상태 갱신은 전부 updater 형태로 쓴다.
+  const toggleSubProcedure = useCallback((id: SubProcedureId) => {
+    setSelectedSubs((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
+  }, []);
+
+  const toggleSection = useCallback((categoryId: CategoryId) => {
+    setExpanded((prev) => ({ ...prev, [categoryId]: !prev[categoryId] }));
+  }, []);
+
+  const selectedSubSet = useMemo(() => new Set(selectedSubs), [selectedSubs]);
+  // 세부 시술 → 서버 id. 여러 세부가 같은 서버 id 를 쓰는 일은 지금 없지만(`taxonomy.test`
+  // 가 고정한다), 중복 제거는 해 둔다 — 서버는 같은 id 가 두 번 오면 422 를 낼 수 있다.
+  const selectedLegacyIds = [
+    ...new Set(
+      selectedSubs
+        .map((id) => getSubProcedure(id).legacyProcedureId)
+        .filter((id): id is ProcedureId => id !== null)
+    ),
+  ];
+  const procedureIds = [...selectedLegacyIds, ...passthroughLegacyIds] as ProcedureId[]; // passthrough 는 서버만 아는 id — `ProcedureId` 유니온 밖이지만 서버 계약상 같은 자리다.
 
   const addSpecialist = () => {
     setSpecialists((prev) => [
@@ -251,7 +406,8 @@ export function HospitalForm(props: HospitalFormProps) {
   const canSubmitHospital =
     name.trim().length > 0 &&
     region.trim().length > 0 &&
-    procedureIds.length > 0 &&
+    // passthrough 만 있어도 "취급 시술이 하나도 없는 병원"은 아니다 — 화면에 안 보일 뿐이다.
+    selectedLegacyIds.length + passthroughLegacyIds.length > 0 &&
     priceMin.length > 0 &&
     priceMax.length > 0 &&
     latitude !== null &&
@@ -443,16 +599,23 @@ export function HospitalForm(props: HospitalFormProps) {
       <FieldError message={fieldErrors?.tags} />
 
       <Text className="mb-2 text-sm font-semibold text-neutral-700">취급 시술 (1개 이상 선택)</Text>
-      <View className="mb-2 flex-row flex-wrap">
-        {procedures.map((procedure) => (
-          <Chip
-            key={procedure.id}
-            label={procedure.name}
-            selected={procedureIds.includes(procedure.id)}
-            onPress={() => toggleProcedure(procedure.id)}
+      <View className="mb-2 rounded-xl border border-neutral-200">
+        {CATEGORIES.map((category) => (
+          <CategorySection
+            key={category.id}
+            category={category}
+            isOpen={expanded[category.id] ?? false}
+            selectedSubIds={selectedSubSet}
+            onToggleSection={toggleSection}
+            onToggleSub={toggleSubProcedure}
           />
         ))}
       </View>
+      {passthroughLegacyIds.length > 0 ? (
+        <Text className="mb-2 text-xs text-neutral-400">
+          화면에 없는 시술 {passthroughLegacyIds.length}개는 저장 시 그대로 유지돼요
+        </Text>
+      ) : null}
       <FieldError message={fieldErrors?.procedureIds} />
 
       <View className="mb-2 mt-4">

@@ -10,7 +10,7 @@ import { StockImage } from '@/components/StockImage';
 import { CONTAINER_PADDING } from '@/components/layout/Container';
 import { useDoctor } from '@/features/doctor';
 import { useHospital } from '@/features/hospital';
-import { useProcedureMap } from '@/features/procedure';
+import { displayNameForLegacy } from '@/features/procedure';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { isApiError } from '@/lib/apiClient';
 import { useAuthStore } from '@/store/useAuthStore';
@@ -25,7 +25,6 @@ export default function DoctorDetailPage() {
   const { data: hospital, isLoading: isHospitalLoading } = useHospital(doctor?.hospitalId);
   const user = useAuthStore((state) => state.user);
   const requireAuth = useRequireAuth();
-  const procedureMap = useProcedureMap();
 
   // 없는 전문의는 서버가 404 DOCTOR_NOT_FOUND 를 준다 (ApiError로 던져진다) — "다시 시도"
   // 를 권할 에러가 아니라 빈 상태다. 그 외 에러(네트워크 오류 등)는 재시도 가능한 에러로 둔다.
@@ -86,8 +85,9 @@ export default function DoctorDetailPage() {
               <Text className="mb-2 text-base font-bold text-neutral-900">주요 진료 분야</Text>
               <View className="mb-5 flex-row flex-wrap gap-1.5">
                 {doctor.procedureIds.map((procedureId) => {
-                  const procedure = procedureMap.get(procedureId);
-                  return procedure ? <Badge key={procedureId} label={procedure.name} tone="brand" /> : null;
+                  // 세부 시술 이름(`cavity` → "레진"). 모르는 id 는 배지를 건너뛴다.
+                  const name = displayNameForLegacy(procedureId);
+                  return name ? <Badge key={procedureId} label={name} tone="brand" /> : null;
                 })}
               </View>
 
@@ -145,8 +145,8 @@ export default function DoctorDetailPage() {
                     </Text>
                     <View className="mb-1.5 flex-row flex-wrap gap-1">
                       {hospital.procedureIds.slice(0, 3).map((procedureId) => {
-                        const procedure = procedureMap.get(procedureId);
-                        return procedure ? <Badge key={procedureId} label={procedure.name} /> : null;
+                        const name = displayNameForLegacy(procedureId);
+                        return name ? <Badge key={procedureId} label={name} /> : null;
                       })}
                     </View>
                     <View className="flex-row items-center gap-3">

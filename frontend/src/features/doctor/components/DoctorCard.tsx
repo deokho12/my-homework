@@ -3,7 +3,7 @@ import { Pressable, Text, View, type StyleProp, type ViewStyle } from '@/primiti
 
 import { Badge } from '@/components/Badge';
 import { StockImage } from '@/components/StockImage';
-import { useProcedureMap } from '@/features/procedure';
+import { displayNameForLegacy } from '@/features/procedure';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 import type { Doctor, Hospital } from '@/types/domain';
 
@@ -19,7 +19,6 @@ interface DoctorCardProps {
 
 export function DoctorCard({ doctor, hospital, style }: DoctorCardProps) {
   const requireAuth = useRequireAuth();
-  const procedureMap = useProcedureMap();
 
   return (
     <Pressable
@@ -56,8 +55,9 @@ export function DoctorCard({ doctor, hospital, style }: DoctorCardProps) {
         {doctor.isRecommended ? <Badge label="🌟 추천" tone="brand" /> : null}
         {doctor.isVerifiedSpecialist ? <Badge label="전문의" tone="brand" /> : null}
         {doctor.procedureIds.slice(0, 3).map((procedureId) => {
-          const procedure = procedureMap.get(procedureId);
-          return procedure ? <Badge key={procedureId} label={procedure.name} /> : null;
+          // 세부 시술 이름(`cavity` → "레진"). 모르는 id 는 배지를 건너뛴다.
+          const name = displayNameForLegacy(procedureId);
+          return name ? <Badge key={procedureId} label={name} /> : null;
         })}
       </View>
 

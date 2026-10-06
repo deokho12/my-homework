@@ -3,8 +3,6 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import * as hospitalApi from '@/features/hospital/api/hospitalApi';
-import * as procedureApi from '@/features/procedure/api/procedureApi';
-import { procedures } from '@/mocks/fixtures/procedures';
 import { RouterBridge } from '@/navigation';
 import AdminHospitalNewPage from '@/pages/admin/AdminHospitalNewPage';
 import * as geocoding from '@/services/geocoding';
@@ -25,7 +23,7 @@ async function fillMinimumRequiredFields() {
   await userEvent.type(screen.getByPlaceholderText('도로명 또는 지번 주소를 입력해주세요'), '테스트로');
   await waitFor(() => expect(screen.getByText('서울 강남구 테스트로 1')).toBeInTheDocument());
   await userEvent.click(screen.getByText('서울 강남구 테스트로 1'));
-  await userEvent.click(screen.getByRole('button', { name: '임플란트' }));
+  await userEvent.click(screen.getByRole('button', { name: '일반 임플란트' }));
   await userEvent.type(screen.getByPlaceholderText('최소'), '100000');
   await userEvent.type(screen.getByPlaceholderText('최대'), '200000');
 }
@@ -36,7 +34,6 @@ describe('AdminHospitalNewPage', () => {
   });
 
   it('전문의를 함께 입력하면 POST /hospitals 한 번에 doctors 를 실어 원자적으로 등록한다', async () => {
-    vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue(procedures);
     vi.spyOn(geocoding, 'searchAddress').mockResolvedValue([
       { id: 'a1', addressName: '서울 강남구 테스트로 1', latitude: 37.1, longitude: 127.1 },
     ]);
@@ -57,7 +54,6 @@ describe('AdminHospitalNewPage', () => {
   });
 
   it('422 FIELD_NOT_WRITABLE 응답은 해당 입력 칸 아래에 표시된다', async () => {
-    vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue(procedures);
     vi.spyOn(geocoding, 'searchAddress').mockResolvedValue([
       { id: 'a1', addressName: '서울 강남구 테스트로 1', latitude: 37.1, longitude: 127.1 },
     ]);

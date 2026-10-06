@@ -119,4 +119,50 @@ describe('HospitalDetailPage', () => {
     expect(screen.getByText('등록된 병원 특징이 없어요')).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
+
+  it('대표 시술을 대분류별로 묶어 보여준다 — 라벨 아래에 세부 시술 이름', async () => {
+    // `cavity` 는 화면에서 "레진", `implant` 는 "일반 임플란트" 다 (서버 이름과 다르다).
+    const target = baseHospital({ procedureIds: ['cavity', 'implant'] });
+    vi.spyOn(hospitalApi, 'fetchHospitalById').mockResolvedValue(target);
+
+    renderWithProviders(<HospitalDetailPage />, {
+      route: `/hospital/${target.id}`,
+      path: '/hospital/:id',
+    });
+
+    await waitFor(() => expect(screen.getByText('대표 시술')).toBeInTheDocument());
+    // 대분류 라벨은 `CATEGORIES` 순서대로 — 임플란트가 충치치료보다 먼저다.
+    expect(screen.getByText('충치치료')).toBeInTheDocument();
+    expect(screen.getByText('레진')).toBeInTheDocument();
+    expect(screen.getByText('일반 임플란트')).toBeInTheDocument();
+  });
+
+  it('시술이 하나도 없는 병원은 대표 시술 자리에 안내 문구를 보여준다', async () => {
+    const target = baseHospital({ procedureIds: [] });
+    vi.spyOn(hospitalApi, 'fetchHospitalById').mockResolvedValue(target);
+
+    renderWithProviders(<HospitalDetailPage />, {
+      route: `/hospital/${target.id}`,
+      path: '/hospital/:id',
+    });
+
+    await waitFor(() => expect(screen.getByText('등록된 시술 정보가 없어요')).toBeInTheDocument());
+  });
+
+  /**
+   * 서버가 taxonomy 가 모르는 시술만 내려주는 경우(백엔드가 시술을 추가했는데 프론트 분류가
+   * 아직 못 따라간 상태). 그릴 그룹이 하나도 없으니 빈 목록과 **같은** 안내를 보여야 한다 —
+   * 라벨 없는 빈 상자가 남으면 "대표 시술" 제목만 덩그러니 뜬다.
+   */
+  it('모르는 시술 id 만 있는 병원도 같은 안내 문구를 보여준다', async () => {
+    const target = baseHospital({ procedureIds: ['future-id' as never] });
+    vi.spyOn(hospitalApi, 'fetchHospitalById').mockResolvedValue(target);
+
+    renderWithProviders(<HospitalDetailPage />, {
+      route: `/hospital/${target.id}`,
+      path: '/hospital/:id',
+    });
+
+    await waitFor(() => expect(screen.getByText('등록된 시술 정보가 없어요')).toBeInTheDocument());
+  });
 });

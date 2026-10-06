@@ -6,7 +6,6 @@ import * as doctorApi from '@/features/doctor/api/doctorApi';
 import * as hospitalApi from '@/features/hospital/api/hospitalApi';
 import * as procedureApi from '@/features/procedure/api/procedureApi';
 import { RouterBridge, router } from '@/navigation';
-import { procedures } from '@/mocks/fixtures/procedures';
 import SearchScreen from '@/screens/search';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import type { Doctor, Hospital, Paged } from '@/types/domain';
@@ -17,8 +16,8 @@ function pagedHospitals(items: Hospital[]): Paged<Hospital> {
 
 /**
  * `router.push` 는 `RouterBridge` 가 마운트돼 있어야 동작한다(`src/navigation/index.tsx`).
- * `fetchProcedures` 를 스파이해 응답 시점을 직접 제어한다 — `?q=` 로 들어온 검색이
- * 시술 목록 로딩과 경합할 때의 동작을 검증하기 위해서다.
+ * 시술 매칭은 정적 분류 체계(`searchTaxonomy`)가 동기로 끝내므로 이 화면은 `fetchProcedures`
+ * 를 아예 부르지 않는다 — 그래서 스파이는 "한 번도 부르지 않는다" 를 단언하는 한 곳에만 둔다.
  *
  * `fetchDoctors` 는 각 테스트가 필요에 맞게 스텁한다 — 전역 `beforeEach` 로 항상 `[]` 를
  * 주면 이름 검색 경로가 실제로 서버 `q` 필터를 타는지 검증할 수 없다(리뷰에서 지적된
@@ -113,7 +112,6 @@ describe('검색 화면 — 이름으로 전문의를 찾는 검색 (서버 q �
    * 항상 서버가 찾는다).
    */
   it('입력한 이름으로 서버 q 필터를 불러 찾아낸 전문의의 소속 병원으로 이동한다', async () => {
-    vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue(procedures);
     vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(pagedHospitals([]));
     const fetchDoctorsSpy = vi.spyOn(doctorApi, 'fetchDoctors').mockImplementation(async (filters = {}) => {
       if (filters.q === '김민준') {
@@ -142,7 +140,6 @@ describe('검색 화면 — 이름으로 전문의를 찾는 검색 (서버 q �
    * 붙어서) 1차 조회로는 못 찾는다 — 마지막 낱말을 뗀 2차 조회로 찾아내야 한다.
    */
   it('직함이 붙은 검색어("김민준 원장")도 이름만 뗀 재조회로 찾아낸다', async () => {
-    vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue(procedures);
     vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(pagedHospitals([]));
     const fetchDoctorsSpy = vi.spyOn(doctorApi, 'fetchDoctors').mockImplementation(async (filters = {}) => {
       if (filters.q === '김민준') {
@@ -163,7 +160,6 @@ describe('검색 화면 — 이름으로 전문의를 찾는 검색 (서버 q �
   });
 
   it('일치하는 시술·병원·전문의가 전혀 없으면 결과 없음 안내를 보여준다', async () => {
-    vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue(procedures);
     vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(pagedHospitals([]));
     vi.spyOn(doctorApi, 'fetchDoctors').mockResolvedValue({
       items: [],
@@ -189,7 +185,6 @@ describe('검색 화면 — 병원명 검색 (서버 q 필터)', () => {
    * 페이지를 뒤지지 않는다. 예전에는 `useHospitalStore.getState().hospitals` 를 훑었다.
    */
   it('입력한 병원명으로 서버 q 필터를 불러 찾아낸 병원으로 이동한다', async () => {
-    vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue(procedures);
     const fetchHospitalsSpy = vi.spyOn(hospitalApi, 'fetchHospitals').mockImplementation(async (filters = {}) => {
       if (filters.q === '강남 스마일 치과') return pagedHospitals([baseHospital()]);
       return pagedHospitals([]);
@@ -219,8 +214,6 @@ describe('검색 화면 — 제출 순서 보장(경쟁 조건)', () => {
    * 마지막 제출(두 번째)의 결과만 반영되는지 고정한다.
    */
   it('먼저 제출한 검색의 응답이 나중에 도착해도, 마지막 제출의 결과만 반영된다', async () => {
-    vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue(procedures);
-
     const resolvers = new Map<string, (value: Awaited<ReturnType<typeof hospitalApi.fetchHospitals>>) => void>();
     vi.spyOn(hospitalApi, 'fetchHospitals').mockImplementation(
       (filters = {}) =>
@@ -261,50 +254,87 @@ describe('검색 화면 — 제출 순서 보장(경쟁 조건)', () => {
   });
 });
 
-describe('검색 화면 — q 로 들어온 자동 검색과 시술 목록 로딩의 경합', () => {
+describe('검색 화면 — 시술 검색은 정적 분류 체계로 끝난다', () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it('시술 목록이 아직 로딩 중이면 거짓 "결과 없음" 을 보이지 않고, 도착 후 올바른 시술로 이동한다', async () => {
-    let resolveProcedures!: (value: typeof procedures) => void;
-    vi.spyOn(procedureApi, 'fetchProcedures').mockReturnValue(
-      new Promise((resolve) => {
-        resolveProcedures = resolve;
-      })
-    );
+  /**
+   * 예전에는 시술 매칭이 `useProcedures()`(서버 13종) 응답을 기다렸다 — 그래서 `?q=` 자동
+   * 검색이 로딩과 경합해 거짓 "결과 없음" 을 띄우지 않도록 게이트가 필요했다. 지금은
+   * 분류 체계가 정적이라 **서버에 시술을 묻지 않고** 바로 이동한다.
+   */
+  it('시술 목록을 한 번도 부르지 않고 카테고리 화면으로 바로 보낸다', async () => {
+    const fetchProceduresSpy = vi.spyOn(procedureApi, 'fetchProcedures');
     const pushSpy = vi.spyOn(router, 'push');
 
     renderSearch(`/search?q=${encodeURIComponent('임플란트')}`);
 
-    // 시술 목록이 아직 안 왔다 — 빈 배열을 근거로 "결과 없음" 이라고 단정하면 안 된다.
-    expect(screen.queryByText(/검색 결과가 없어요/)).not.toBeInTheDocument();
-    expect(pushSpy).not.toHaveBeenCalled();
-
-    resolveProcedures(procedures);
-
-    await waitFor(() =>
-      expect(pushSpy).toHaveBeenCalledWith({
-        pathname: '/(tabs)/explore',
-        params: { mode: 'hospital', category: 'implant' },
-      })
-    );
-    // 도착 후에도 거짓 "결과 없음" 문구가 남아있지 않아야 한다.
+    await waitFor(() => expect(pushSpy).toHaveBeenCalledWith('/category/implant'));
+    expect(fetchProceduresSpy).not.toHaveBeenCalled();
     expect(screen.queryByText(/검색 결과가 없어요/)).not.toBeInTheDocument();
   });
 
-  it('시술 목록 로딩이 끝난 뒤에는(캐시 적중) 바로 올바른 결과로 이동한다', async () => {
-    vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue(procedures);
+  it('세부 시술 이름·키워드는 그 세부가 선택된 카테고리 화면으로 보낸다', async () => {
     const pushSpy = vi.spyOn(router, 'push');
 
-    renderSearch(`/search?q=${encodeURIComponent('임플란트')}`);
+    renderSearch(`/search?q=${encodeURIComponent('근관치료')}`);
 
-    await waitFor(() =>
-      expect(pushSpy).toHaveBeenCalledWith({
-        pathname: '/(tabs)/explore',
-        params: { mode: 'hospital', category: 'implant' },
-      })
-    );
-    expect(screen.queryByText(/검색 결과가 없어요/)).not.toBeInTheDocument();
+    // "근관치료" 는 신경치료(준비중)의 키워드다 — 카테고리 화면이 준비중 안내를 맡는다.
+    await waitFor(() => expect(pushSpy).toHaveBeenCalledWith('/category/cavity?sub=root-canal'));
+  });
+
+  it('크라운 → 충치치료 > 크라운', async () => {
+    const pushSpy = vi.spyOn(router, 'push');
+
+    renderSearch(`/search?q=${encodeURIComponent('크라운')}`);
+
+    await waitFor(() => expect(pushSpy).toHaveBeenCalledWith('/category/cavity?sub=crown'));
+  });
+
+  /**
+   * 병원 이름에 시술 이름이 들어 있어도 카테고리로 납치되면 안 된다 — `searchTaxonomy` 의
+   * 매칭 방향(`후보.includes(검색어)`)이 지키는 경계이고, 화면에서도 병원 `q` 폴백이 돈다.
+   */
+  it('"연세 바른교정치과" 는 카테고리가 아니라 병원 q 폴백으로 간다', async () => {
+    const fetchHospitalsSpy = vi.spyOn(hospitalApi, 'fetchHospitals').mockImplementation(async (filters = {}) => {
+      if (filters.q === '연세 바른교정치과') return pagedHospitals([baseHospital({ id: 'h2' })]);
+      return pagedHospitals([]);
+    });
+    const pushSpy = vi.spyOn(router, 'push');
+
+    renderSearch(`/search?q=${encodeURIComponent('연세 바른교정치과')}`);
+
+    await waitFor(() => expect(pushSpy).toHaveBeenCalledWith('/hospital/h2'));
+    expect(fetchHospitalsSpy).toHaveBeenCalledWith(expect.objectContaining({ q: '연세 바른교정치과' }));
+  });
+
+  it('인기검색어의 시술 항목도 카테고리 화면으로 간다', async () => {
+    const pushSpy = vi.spyOn(router, 'push');
+
+    renderSearch('/search');
+
+    // 행의 문구("라미네이트")를 `searchTaxonomy` 에 태운 결과다 — 세부 시술 이름이라 그
+    // 세부가 선택된 채로 열린다.
+    await userEvent.click(screen.getByText('라미네이트'));
+
+    expect(pushSpy).toHaveBeenCalledWith('/category/aesthetic?sub=laminate');
+  });
+
+  /**
+   * 같은 글자가 경로에 따라 다른 목록을 열면 안 된다. "충치치료" 를 **타이핑**하면 대분류
+   * 전체(`/category/cavity`, 3곳)가 열리는데, 인기검색어 **행**을 누를 때만 서버 id `cavity`
+   * 가 레진으로 번역돼 `?sub=resin`(1곳)이 열리던 결함을 고정한다.
+   */
+  it('인기검색어 행도 타이핑과 같은 목록을 연다 — "충치치료" 는 sub 없이 대분류 전체', async () => {
+    const pushSpy = vi.spyOn(router, 'push');
+
+    renderSearch('/search');
+
+    // "충치치료" 는 `시술` 탭에만 있다(`all` 탭 목록에는 없다).
+    await userEvent.click(screen.getByText('시술'));
+    await userEvent.click(screen.getByText('충치치료'));
+
+    expect(pushSpy).toHaveBeenCalledWith('/category/cavity');
   });
 });

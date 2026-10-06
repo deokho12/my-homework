@@ -3,14 +3,20 @@ import type { ReactNode } from 'react';
 import { View, cx } from '@/primitives';
 
 /**
- * 카드 목록의 열 수 규칙. 화면마다 브레이크포인트를 다시 고르지 않도록 두 가지로 고정했다.
+ * 카드 목록의 열 수 규칙. 화면마다 브레이크포인트를 다시 고르지 않도록 세 가지로 고정했다.
  *
  * 클래스를 문자열 상수로 통째로 적어 두는 건 Tailwind 때문이다. JIT 은 소스에 그대로
  * 등장하는 클래스만 생성하므로 `grid-cols-${n}` 처럼 조립하면 CSS 가 안 나온다.
  */
 const PRESETS = {
-  /** 아이콘 + 한 줄 이름처럼 작은 카드 (시술 카테고리) */
+  /** 아이콘 + 한 줄 이름처럼 작은 카드 */
   compact: 'grid-cols-2 xs:grid-cols-3 md:grid-cols-4 lg:grid-cols-6',
+  /**
+   * 시술 대분류 9칸. 넓은 화면에서도 3열을 넘기지 않아 정확히 3×3 이 된다 —
+   * `compact` 로 두면 6열에서 9개가 6+3 으로 끊겨 마지막 줄이 반만 찬다.
+   * 480px 미만만 2열(긴 이름 "턱관절·스플린트" 가 들어갈 폭을 확보한다).
+   */
+  categories: 'grid-cols-2 xs:grid-cols-3',
   /** 이미지·설명·태그가 들어가는 큰 카드 (병원, 전문의) */
   wide: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3',
 } as const;

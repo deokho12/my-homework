@@ -38,6 +38,7 @@
 |---|---|---|
 | 홈 | `/` | [home.md](home.md) |
 | 병원 탐색 | `/explore` | [explore.md](explore.md) |
+| 시술 카테고리 | `/category/:categoryId` | [category.md](category.md) |
 | 커뮤니티 | `/community` | [community.md](community.md) |
 | 마이페이지 | `/mypage` | [mypage.md](mypage.md) |
 | 검색 | `/search` | [search.md](search.md) |

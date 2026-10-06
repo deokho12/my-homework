@@ -7,7 +7,7 @@ import { queryClient } from '@/app/providers';
 import { CONTAINER_PADDING } from '@/components/layout/Container';
 import { fetchDoctorById, fetchDoctors } from '@/features/doctor';
 import { fetchHospitals } from '@/features/hospital';
-import { useProcedures } from '@/features/procedure';
+import { categoryPath, categoryPathForLegacy, searchTaxonomy } from '@/features/procedure';
 import { queryKeys } from '@/lib/queryKeys';
 import {
   SPONSORED_SEARCH_SUGGESTIONS,
@@ -19,6 +19,17 @@ import {
 } from '@/mocks/fixtures/trendingSearches';
 import type { Doctor } from '@/types/domain';
 
+/**
+ * 검색 화면.
+ *
+ * 매칭 순서는 **시술 → 병원 이름 → 전문의 이름**이고, 첫 번째만 네트워크가 없다 —
+ * 시술 매칭은 정적 분류 체계(`searchTaxonomy`)가 동기로 끝낸다. 예전에는 `useProcedures()`
+ * (서버 13종)를 기다려야 해서, 로딩 중에 들어온 `?q=` 자동검색이 빈 배열을 근거로 거짓
+ * "결과 없음" 을 띄우지 않도록 게이트를 따로 두어야 했다. 그 게이트는 이제 없다.
+ *
+ * 시술이 걸리면 `/category/:categoryId?sub=` 로 보낸다. 병원·전문의 이름은 서버 `q` 필터에
+ * 맡긴다(클라이언트가 목록을 훑지 않는다).
+ */
 const TABS: { key: SearchTab; label: string }[] = [
   { key: 'all', label: '전체' },
   { key: 'procedure', label: '시술' },
@@ -75,9 +86,22 @@ async function findMatchingDoctor(trimmed: string): Promise<Doctor | undefined> 
   return fallback.items.find((doctor) => trimmed.startsWith(doctor.name));
 }
 
-async function navigateToTarget(target: SearchTarget) {
+/**
+ * `term` 은 사용자가 **읽은 글자**다(인기검색어 행의 문구). 시술 항목은 그 글자를 먼저
+ * `searchTaxonomy` 에 태운다 — 같은 "충치치료" 를 직접 타이핑하면 대분류 전체(`/category/cavity`)가
+ * 열리는데, 행을 누를 때만 서버 id `cavity` 로 번역돼 레진만(`?sub=resin`) 열리면 같은 글자가
+ * 경로에 따라 다른 개수를 보여준다. 글자가 없거나(=해석 불가) 안 걸릴 때만 서버 id 로 폴백한다.
+ */
+async function navigateToTarget(target: SearchTarget, term?: string) {
   if (target.kind === 'procedure') {
-    router.push({ pathname: '/(tabs)/explore', params: { mode: 'hospital', category: target.procedureId } });
+    const match = term ? searchTaxonomy(term) : null;
+    if (match) {
+      router.push(categoryPath(match.category.id, match.sub?.id ?? null));
+      return;
+    }
+    // 인기검색어는 서버 시술 id 도 들고 있다 — 글자가 분류에 안 걸리면 그 id 로 보낸다.
+    // 서버가 미래에 taxonomy 가 모르는 id 를 내려주면 탐색으로 떨어뜨린다.
+    router.push(categoryPathForLegacy(target.procedureId) ?? '/(tabs)/explore');
     return;
   }
   if (target.kind === 'hospital') {
@@ -110,10 +134,16 @@ function TrendBadge({ trend }: { trend: SearchTrend }) {
   return <Text className="text-xs text-neutral-300">－</Text>;
 }
 
-function SearchRow({ item, onSelect }: { item: TrendingSearchTerm; onSelect: (target: SearchTarget) => void }) {
+function SearchRow({
+  item,
+  onSelect,
+}: {
+  item: TrendingSearchTerm;
+  onSelect: (target: SearchTarget, term: string) => void;
+}) {
   return (
     <Pressable
-      onPress={() => onSelect(item.target)}
+      onPress={() => onSelect(item.target, item.term)}
       className="flex-row items-center justify-between border-b border-neutral-50 py-3"
     >
       <View className="flex-row items-center gap-4">
@@ -134,11 +164,6 @@ function formatNowLabel(): string {
 
 export default function SearchScreen() {
   const { q } = useLocalSearchParams<{ q?: string }>();
-  // 시술 매칭이 이 조회에 의존한다. 로딩 중에 검색을 돌리면 `procedures` 가 아직 빈
-  // 배열이라 실제로 있는 시술을 "결과 없음" 으로 잘못 단정하게 된다 — `proceduresPending`
-  // 을 아래에서 게이트로 쓴다. 전문의 매칭은 `findMatchingDoctor` 가 제출 시점에 서버
-  // `q` 필터로 직접 조회하므로 여기서 전체 목록을 미리 불러 둘 필요가 없다.
-  const { data: procedures = [], isPending: proceduresPending } = useProcedures();
   const inputRef = useRef<TextInput>(null);
   const [query, setQuery] = useState(q ?? '');
   const [tab, setTab] = useState<SearchTab>('all');
@@ -155,8 +180,7 @@ export default function SearchScreen() {
     return () => clearTimeout(timeout);
   }, []);
 
-  // `procedures` 가 바뀔 때만 새로 만든다 — 아래 자동검색 effect 가 이 함수를 의존성으로
-  // 쓸 수 있게(그리고 매 렌더마다 다시 실행되지 않게) 안정된 참조로 유지한다.
+  // 의존성이 없는 안정된 참조다 — 아래 자동검색 effect 가 이 함수를 의존성으로 쓴다.
   const runSearch = useCallback(
     async (trimmed: string) => {
       if (!trimmed) return;
@@ -164,10 +188,11 @@ export default function SearchScreen() {
       const seq = ++searchSeqRef.current;
       const isStale = () => seq !== searchSeqRef.current;
 
-      const matchedProcedure = procedures.find((procedure) => procedure.name.includes(trimmed));
-      if (matchedProcedure) {
+      // 시술 매칭은 정적 taxonomy 라 네트워크가 없다 — 가장 먼저, 동기로 끝난다.
+      const match = searchTaxonomy(trimmed);
+      if (match) {
         setNotice(null);
-        await navigateToTarget({ kind: 'procedure', procedureId: matchedProcedure.id });
+        router.push(categoryPath(match.category.id, match.sub?.id ?? null));
         return;
       }
 
@@ -189,7 +214,7 @@ export default function SearchScreen() {
 
       setNotice(`"${trimmed}"에 대한 검색 결과가 없어요. 아래 인기 검색어를 살펴보세요`);
     },
-    [procedures]
+    []
   );
 
   const handleSubmit = () => {
@@ -198,13 +223,10 @@ export default function SearchScreen() {
 
   // Prefills and auto-runs the search when arriving from a trending-tag link (e.g. the home screen's
   // popular-search pills), which navigate here with a `q` param instead of typing into the input.
-  // 시술 목록이 아직 로딩 중이면 실행을 미룬다(빈 배열을 근거로 "결과 없음" 을 단정하지
-  // 않기 위해) — 로딩이 끝나 `runSearch` 가 최신 `procedures` 를 담은 새 참조로 바뀌면
-  // 이 effect 가 다시 돌아 그때 한 번 검색한다.
   useEffect(() => {
-    if (!q || proceduresPending) return;
+    if (!q) return;
     void runSearch(q.trim());
-  }, [q, proceduresPending, runSearch]);
+  }, [q, runSearch]);
 
   return (
     <SafeAreaView className="flex-1 bg-white" edges={['top', 'bottom']}>
@@ -284,8 +306,8 @@ export default function SearchScreen() {
             <SearchRow
               key={`${tab}-${item.rank}`}
               item={item}
-              onSelect={(target) => {
-                void navigateToTarget(target);
+              onSelect={(target, term) => {
+                void navigateToTarget(target, term);
               }}
             />
           ))}
