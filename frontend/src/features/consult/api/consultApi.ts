@@ -1,10 +1,23 @@
+import {
+  CONSULT_PHONE_PATTERN,
+  INVALID_PHONE_MESSAGE,
+} from '@/features/consult/schemas/consultRequestSchema';
 import { ApiError } from '@/lib/apiClient';
-import { nextLocalId, pageLocalRows, readCollection, writeCollection } from '@/lib/localCollection';
+import {
+  nextLocalId,
+  pageLocalRows,
+  readCollection,
+  writeCollection,
+  type StoredConsultRequest,
+} from '@/lib/localCollection';
+import { useAuthStore } from '@/store/useAuthStore';
 import {
   CONSULT_STATUS_LABEL,
   type AppNotification,
+  type ConsultPreferredTime,
   type ConsultRequest,
   type ConsultStatus,
+  type ConsultThirdPartyConsent,
   type Paged,
   type ProcedureId,
 } from '@/types/domain';
@@ -30,8 +43,10 @@ import {
  *
  * **로컬 구현이 계약과 다른 점:**
  * - 인가·스코프가 없다. `hospital_admin` 담당 병원 필터도, `operator` 개인정보 마스킹도 없다.
- * - `userId` 가 없어 `fetchMyConsultRequests` 가 전체를 돌려준다.
- * - `phone` 형식·`procedureId` 취급 여부 검사가 없다 (서버가 `422` 로 막을 몫).
+ *   예외가 하나 있다 — `fetchMyConsultRequests` 는 **계정별로 가른다** (아래 `currentUserId`).
+ * - `procedureId` 를 그 병원이 취급하는지 보지 않는다 (서버가 `422 PROCEDURE_NOT_OFFERED` 로
+ *   막을 몫). `phone` 형식과 제3자 제공 동의는 계약과 같은 `422` 로 여기서도 막는다 —
+ *   동의 없는 접수가 저장되면 화면 버그 하나로 개인정보가 병원에 넘어간다.
  * - **`doctorId` 를 입력으로 받지만 저장하지 않는다.** `ConsultRequestCreateInput` 에는 자리가
  *   있으나 도메인 타입 `ConsultRequest` 에 필드가 없어, 화면이 값을 채워 보내도 `createConsultRequest`
  *   가 조용히 버린다. 계약(`POST /consult-requests` 의 `doctorId`)은 이 필드를 "전문의 지정 상담이
@@ -59,21 +74,33 @@ export interface ConsultRequestCreateInput {
   doctorId?: string | null;
   procedureId: ProcedureId | null;
   name: string;
+  /** 하이픈은 있어도 없어도 된다. 저장 전에 `010-1234-5678` 형태로 정규화된다. */
   phone: string;
-  preferredTime: string;
+  preferredTime: ConsultPreferredTime;
   message: string;
+  /**
+   * `[필수] 개인정보 제3자 제공 동의` (`ConsultThirdPartyConsentInput`).
+   * 동의 시각은 보내지 않는다 — 서버(여기서는 이 함수)가 자기 시계로 찍는다.
+   */
+  thirdPartyConsent: { agreed: boolean; noticeVersion: string };
 }
 
 /**
  * 신청자 시야 투영(openapi `MyConsultRequest`). 관리자용 `ConsultRequest` 와 달리
  * 내부 메모(`memos`)를 담지 않는다 — 구조가 다르기 때문에 별도 타입이다.
  */
-export interface MyConsultRequest extends Omit<ConsultRequest, 'memos'> {
+export interface MyConsultRequest extends Omit<ConsultRequest, 'memos' | 'thirdPartyConsent'> {
   /**
    * 계약에서는 필수 문자열이지만 **로컬 구현은 항상 `null` 이다.** 병원은 이미 서버
    * 리소스라 로컬 저장소에 이름이 없다. 서버 전환과 함께 값이 채워진다.
    */
   hospitalName: string | null;
+  /**
+   * 계약과 같이 **키는 항상 있고 값만 `null` 일 수 있다** (`null` = 동의 절차 도입 이전 접수).
+   * 도메인 `ConsultRequest` 에서 선택 필드인 것은 fixture 보존 때문이고, 응답 투영인
+   * 여기서는 그럴 이유가 없다.
+   */
+  thirdPartyConsent: ConsultThirdPartyConsent | null;
 }
 
 export interface ConsultRequestFilters {
@@ -125,11 +152,43 @@ function consultNotFound(): ApiError {
   });
 }
 
-/** 관리자용 저장 구조에서 신청자 시야만 떼어낸다. */
-function toMyConsultRequest(request: ConsultRequest): MyConsultRequest {
-  const { memos: _memos, ...rest } = request;
+// 서버 전환 시 삭제: "내 것" 판정은 서버가 토큰 주체로 한다
+//
+// 로컬 저장소는 한 브라우저를 여러 계정이 함께 쓴다. 행에 주인을 적어 두지 않으면
+// A 계정으로 신청한 번호가 B 계정의 상담 신청 화면에 자동으로 채워진다. 토큰을 읽을
+// 서버가 없으니 그 자리에 스토어의 현재 사용자를 끼운다 — **이 파일에서만 쓴다.**
+function currentUserId(): string | null {
+  return useAuthStore.getState().user?.id ?? null;
+}
 
-  return { ...rest, hospitalName: null };
+/**
+ * 저장 구조 → 계약의 `ConsultRequest`.
+ *
+ * 두 가지를 맞춘다: **로컬 전용 필드(`ownerUserId`)를 떼고**, 계약에서 필수 + nullable 인
+ * `thirdPartyConsent` 의 **키를 항상 채운다** (동의 절차 도입 이전 행은 `null`).
+ * 키가 없는 것과 `null` 인 것이 섞이면 "기록이 없다" 와 "아직 안 내려준다" 를 구분할 수 없다.
+ */
+function toConsultRequest(stored: StoredConsultRequest): ConsultRequest {
+  const { ownerUserId: _ownerUserId, ...rest } = stored;
+
+  return { ...rest, thirdPartyConsent: rest.thirdPartyConsent ?? null };
+}
+
+/** 관리자용 저장 구조에서 신청자 시야만 떼어낸다. */
+function toMyConsultRequest(request: StoredConsultRequest): MyConsultRequest {
+  const { memos: _memos, ...rest } = toConsultRequest(request);
+
+  return { ...rest, thirdPartyConsent: rest.thirdPartyConsent ?? null, hospitalName: null };
+}
+
+/** 표기 차이로 목록 검색·중복 대조가 어긋나지 않게 `010-1234-5678` 한 형태로 모은다. */
+function normalizePhone(phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+  const head = digits.slice(0, 3);
+  const tail = digits.slice(-4);
+  const middle = digits.slice(3, -4);
+
+  return `${head}-${middle}-${tail}`;
 }
 
 // 서버 전환 시 삭제: 알림 생성은 서버 몫
@@ -155,19 +214,43 @@ function createLocalNotification(input: Omit<AppNotification, 'id' | 'createdAt'
  * 결과를 화면에 쓰지 않지만, 계약이 정한 형태를 그대로 반환해 둔다.
  */
 export async function createConsultRequest(input: ConsultRequestCreateInput): Promise<MyConsultRequest> {
+  // 동의가 먼저다 — 동의 없는 접수는 **저장 자체가 성립하지 않는다**.
+  if (!input.thirdPartyConsent?.agreed) {
+    throw new ApiError({
+      status: 422,
+      code: 'THIRD_PARTY_CONSENT_REQUIRED',
+      message: '개인정보 제3자 제공에 동의해야 상담을 신청할 수 있어요',
+    });
+  }
+
+  const phone = input.phone.trim();
+
+  if (!CONSULT_PHONE_PATTERN.test(phone)) {
+    throw new ApiError({
+      status: 422,
+      code: 'VALIDATION_FAILED',
+      message: '입력값을 확인해주세요',
+      details: [{ field: 'phone', code: 'INVALID_PHONE_FORMAT', message: INVALID_PHONE_MESSAGE }],
+    });
+  }
+
   const now = new Date().toISOString();
-  const request: ConsultRequest = {
+  const request: StoredConsultRequest = {
     id: nextLocalId('consult'),
     hospitalId: input.hospitalId,
     procedureId: input.procedureId,
     name: input.name,
-    phone: input.phone,
+    phone: normalizePhone(phone),
     preferredTime: input.preferredTime,
     message: input.message,
     createdAt: now,
     status: 'new',
     statusHistory: [{ status: 'new', changedAt: now }],
+    // `agreedAt` 은 **받는 쪽 시계**다 (계약: 기기 시계는 증빙이 되지 않는다).
+    thirdPartyConsent: { agreedAt: now, noticeVersion: input.thirdPartyConsent.noticeVersion },
     memos: [],
+    // 서버 전환 시 삭제: 신청자는 서버가 토큰에서 알아낸다
+    ownerUserId: currentUserId() ?? undefined,
   };
 
   writeCollection('consultRequests', [request, ...readCollection('consultRequests')]);
@@ -188,7 +271,8 @@ export async function createConsultRequest(input: ConsultRequestCreateInput): Pr
 export async function fetchConsultRequests(filters: ConsultRequestFilters = {}): Promise<Paged<ConsultRequest>> {
   const rows = [...readCollection('consultRequests')]
     .sort(byCreatedAtDesc)
-    .filter((request) => (filters.status ? request.status === filters.status : true));
+    .filter((request) => (filters.status ? request.status === filters.status : true))
+    .map(toConsultRequest);
 
   return pageLocalRows(rows, filters.page, filters.pageSize);
 }
@@ -204,7 +288,7 @@ export async function fetchConsultRequestById(id: string): Promise<ConsultReques
 
   if (!found) throw consultNotFound();
 
-  return found;
+  return toConsultRequest(found);
 }
 
 /** `GET /consult-requests/summary`. 개인정보를 담지 않는 숫자 두 개뿐이다. */
@@ -224,11 +308,16 @@ export async function fetchConsultSummary(): Promise<ConsultSummary> {
 /**
  * `GET /me/consult-requests`. 최신순.
  *
- * **로컬 구현은 전체를 돌려준다** — 로컬 상담에는 `userId` 가 없어 "내 것"을 가려낼 근거가
- * 없다. 서버가 토큰 주체로 스코프하는 것이 이 엔드포인트가 생기는 이유다.
+ * **지금 로그인한 계정이 접수한 건만 돌려준다.** 로컬 저장소는 한 브라우저를 여러 계정이
+ * 함께 쓰는데, 가르지 않으면 남이 남긴 연락처가 내 상담 신청 화면에 자동으로 채워진다.
+ * 주인이 적혀 있지 않은 행(시드·예전 브라우저 데이터)은 **누구의 것도 아니다** — 주인을
+ * 추측해 누군가에게 붙이는 것보다 안 보이는 편이 안전하다. 비로그인이면 빈 목록이다
+ * (서버라면 토큰이 없어 `401` 인 자리).
  */
 export async function fetchMyConsultRequests(filters: ConsultRequestFilters = {}): Promise<Paged<MyConsultRequest>> {
-  const rows = [...readCollection('consultRequests')]
+  const userId = currentUserId();
+  const rows = (userId === null ? [] : [...readCollection('consultRequests')])
+    .filter((request) => request.ownerUserId === userId)
     .sort(byCreatedAtDesc)
     .filter((request) => (filters.status ? request.status === filters.status : true))
     .map(toMyConsultRequest);
@@ -248,10 +337,10 @@ export async function updateConsultStatus(id: string, status: ConsultStatus): Pr
   const target = rows.find((request) => request.id === id);
 
   if (!target) throw consultNotFound();
-  if (target.status === status) return target;
+  if (target.status === status) return toConsultRequest(target);
 
   const changedAt = new Date().toISOString();
-  const updated: ConsultRequest = {
+  const updated: StoredConsultRequest = {
     ...target,
     status,
     statusHistory: [...target.statusHistory, { status, changedAt }],
@@ -271,7 +360,7 @@ export async function updateConsultStatus(id: string, status: ConsultStatus): Pr
     relatedId: id,
   });
 
-  return updated;
+  return toConsultRequest(updated);
 }
 
 /** `POST /consult-requests/{consultRequestId}/memos`. 메모는 신청자에게 내려가지 않는다. */
@@ -281,7 +370,7 @@ export async function addConsultMemo(id: string, content: string): Promise<Consu
 
   if (!target) throw consultNotFound();
 
-  const updated: ConsultRequest = {
+  const updated: StoredConsultRequest = {
     ...target,
     memos: [...target.memos, { id: nextLocalId('memo'), content, createdAt: new Date().toISOString() }],
   };
@@ -291,5 +380,5 @@ export async function addConsultMemo(id: string, content: string): Promise<Consu
     rows.map((request) => (request.id === id ? updated : request))
   );
 
-  return updated;
+  return toConsultRequest(updated);
 }

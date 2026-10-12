@@ -19,8 +19,22 @@ import type { AppNotification, ConsultRequest, Paged, QAPost } from '@/types/dom
  * Zustand 도 같은 값을 붙들고 있으면 두 캐시가 조용히 어긋난다.
  */
 
+/**
+ * 저장된 상담 한 건. **도메인 타입이 아니다** — 서버라면 토큰에서 알아낼 "누가 신청했는가" 를
+ * 로컬에서는 행에 적어 두는 수밖에 없어서 붙인 저장 전용 필드가 하나 있다.
+ *
+ * 선택 필드인 이유: `mocks/fixtures/consultRequests.ts`(백엔드 seed 가 import 하는 파일)에는
+ * 이 값이 없고, 이 앱을 이미 쓴 브라우저에 남아 있는 행에도 없다.
+ * 주인이 없는 행은 **누구의 것도 아니다** (`fetchMyConsultRequests` 가 걸러낸다).
+ *
+ * 서버 전환 시 삭제: `userId` 는 서버가 토큰에서 채운다.
+ */
+export interface StoredConsultRequest extends ConsultRequest {
+  ownerUserId?: string;
+}
+
 interface LocalCollections {
-  consultRequests: ConsultRequest[];
+  consultRequests: StoredConsultRequest[];
   communityPosts: QAPost[];
   notifications: AppNotification[];
   /** 찜한 병원 id. 최근에 찜한 것이 앞이다 (`FavoriteList.hospitalIds` 와 같은 순서 규약). */

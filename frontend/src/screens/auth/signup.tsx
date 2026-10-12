@@ -7,7 +7,7 @@ import { ScrollView, Text } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
 
 import { containerClass } from '@/components/layout/Container';
-import { TextField } from '@/features/auth/components/TextField';
+import { TextField } from '@/components/TextField';
 import {
   AGREEMENT_LABEL,
   AGREEMENT_PATH,

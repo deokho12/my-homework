@@ -7,7 +7,7 @@ import { SafeAreaView } from '@/primitives';
 
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { containerClass } from '@/components/layout/Container';
-import { TextField } from '@/features/auth/components/TextField';
+import { TextField } from '@/components/TextField';
 import { applyServerFieldErrors, formErrorMessage } from '@/features/auth/lib/serverFieldErrors';
 import { loginSchema, type LoginInput } from '@/features/auth/schemas/authSchemas';
 import { useAuthStore } from '@/store/useAuthStore';

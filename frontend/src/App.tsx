@@ -20,6 +20,7 @@ import AdminHospitalEditPage from '@/pages/admin/AdminHospitalEditPage';
 import AdminHospitalNewPage from '@/pages/admin/AdminHospitalNewPage';
 import AdminSpecialistsPage from '@/pages/admin/AdminSpecialistsPage';
 import CategoryPage from '@/pages/CategoryPage';
+import ConsultRequestPage from '@/pages/ConsultRequestPage';
 import DoctorDetailPage from '@/pages/DoctorDetailPage';
 import ExplorePage from '@/pages/ExplorePage';
 import HospitalDetailPage from '@/pages/HospitalDetailPage';
@@ -31,7 +32,6 @@ import LoginScreen from '@/screens/auth/login';
 import SignupScreen from '@/screens/auth/signup';
 import CommunityPostScreen from '@/screens/community/[id]';
 import CommunityNewScreen from '@/screens/community/new';
-import ConsultRequestScreen from '@/screens/consult/[hospitalId]';
 import EventsScreen from '@/screens/events';
 import LocationTermsScreen from '@/screens/legal/location';
 import PrivacyScreen from '@/screens/legal/privacy';
@@ -95,7 +95,7 @@ const ROUTES: AppRoute[] = [
 
   {
     path: '/consult/:hospitalId',
-    element: <ConsultRequestScreen />,
+    element: <ConsultRequestPage />,
     options: { title: '상담 신청' },
     guard: 'auth',
   },

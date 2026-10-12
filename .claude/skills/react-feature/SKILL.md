@@ -79,7 +79,7 @@ frontend/src/
 
 ## 폼
 
-React Hook Form / Zod는 미설치다. 기존 폼(`src/screens/consult/[hospitalId].tsx`, `src/screens/auth/login.tsx`)의 `useState` + 수동 검증 패턴을 따른다.
+폼은 React Hook Form + Zod(`zodResolver`)로 만든다. 기준 예: `src/screens/auth/signup.tsx`, `src/features/consult/components/ConsultRequestForm.tsx` + `src/features/consult/schemas/consultRequestSchema.ts` (스키마는 `features/<이름>/schemas/` 에 두고, 서버 계약과 같은 규칙·문구를 쓴다).
 `package.json`에 `react-hook-form`과 `zod`가 추가된 뒤부터는 새 폼을 그것으로 만들고, 스키마는 화면 옆에 둔다.
 
 ## UI 상태

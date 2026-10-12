@@ -97,6 +97,9 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       const session = await authApi.signUp({ name, email, password, agreedTermsVersions });
 
       writeTokens(session.tokens);
+      // 가입 화면에는 비로그인 가드가 없어 로그인한 채로 새 계정을 만들 수 있다. 그때 앞 계정의
+      // 캐시가 남으면 새 계정의 상담 신청 화면이 앞 계정 전화번호로 자동 채워진다 (logIn 과 같은 이유).
+      clearAccountScopedState();
       set({ user: session.user, status: 'ready' });
 
       return { ok: true };

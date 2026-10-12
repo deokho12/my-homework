@@ -2,7 +2,9 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import * as doctorApi from '@/features/doctor/api/doctorApi';
 import * as hospitalApi from '@/features/hospital/api/hospitalApi';
+import * as reviewApi from '@/features/review/api/reviewApi';
 import { ApiError } from '@/lib/apiClient';
 import HospitalDetailPage from '@/pages/HospitalDetailPage';
 import { baseHospital } from '@/test/hospitalFixture';
@@ -84,6 +86,14 @@ describe('HospitalDetailPage', () => {
         new ApiError({ status: 0, code: 'NETWORK_ERROR', message: '연결에 문제가 있어요. 잠시 후 다시 시도해주세요' })
       )
       .mockResolvedValueOnce(target);
+    // 병원이 뜨면 상세 화면이 전문의·후기를 따로 조회한다. 스파이하지 않으면 실제 HTTP 로 나가
+    // 실패한 시점에 따라 그 영역의 `alert` 가 하나 둘 더 생긴다 — 아래 "에러를 치운다" 단언이
+    // 실행 순서에 따라 깨지던 원인이다 (다섯 번 중 두 번 실패).
+    vi.spyOn(doctorApi, 'fetchHospitalDoctors').mockResolvedValue([]);
+    vi.spyOn(reviewApi, 'fetchHospitalReviews').mockResolvedValue({
+      items: [],
+      meta: { page: 1, pageSize: 20, totalItems: 0, totalPages: 0 },
+    });
 
     renderWithProviders(<HospitalDetailPage />, {
       route: `/hospital/${target.id}`,

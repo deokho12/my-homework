@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { queryClient } from '@/app/providers';
 import { addFavorite, fetchMyFavorites } from '@/features/favorite';
 import { LEGACY_MOCK_AUTH_KEY, readTokens, writeTokens } from '@/lib/authTokens';
 import { clearCollection } from '@/lib/localCollection';
@@ -149,6 +150,26 @@ describe('useAuthStore — 로그인', () => {
     await useAuthStore.getState().logIn({ email: 'seed-2@molarmolar.example', password: 'pw' });
 
     expect(await favoriteIds()).toEqual([]);
+  });
+});
+
+describe('useAuthStore — 가입', () => {
+  /**
+   * 로그인한 채로 `/auth/signup` 에 들어가 새 계정을 만들 수 있다 (가입 화면에는 비로그인 가드가 없다).
+   * 그때 앞 계정의 캐시가 남으면 새 계정의 상담 신청 화면이 **앞 계정의 전화번호로 자동 채워진다**
+   * (`useMyConsultRequests` 의 쿼리 키는 계정을 모른다 — 계정 전환 때 캐시를 비우는 것이 그 전제다).
+   */
+  it('로그인한 채로 새 계정을 만들면 앞 계정의 찜과 서버 상태 캐시를 비운다', async () => {
+    await addFavorite('h1');
+    queryClient.setQueryData(['consultRequests', 'mine', { pageSize: 1 }], { items: [{ phone: '010-1111-2222' }] });
+    stubFetch({ '/auth/signup': () => json(201, SESSION) });
+
+    await useAuthStore
+      .getState()
+      .signUp({ name: '박지영', email: 'new@molarmolar.example', password: 'pw123456' });
+
+    expect(await favoriteIds()).toEqual([]);
+    expect(queryClient.getQueryCache().getAll()).toHaveLength(0);
   });
 });
 

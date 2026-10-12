@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   addConsultMemo,
@@ -11,7 +11,19 @@ import {
 } from '@/features/consult/api/consultApi';
 import { isApiError } from '@/lib/apiClient';
 import { readCollection, writeCollection } from '@/lib/localCollection';
-import type { ConsultRequest } from '@/types/domain';
+import { useAuthStore } from '@/store/useAuthStore';
+import type { ConsultRequest, User } from '@/types/domain';
+
+const CONSENT = { agreed: true, noticeVersion: '2026-10-12' };
+
+function signedInAs(id: string | null): void {
+  const user: User | null =
+    id === null
+      ? null
+      : { id, email: `${id}@molarmolar.example`, name: '테스트', provider: 'email', role: 'user', managedHospitalIds: [] };
+
+  useAuthStore.setState({ user, status: 'ready' });
+}
 
 /** 삭제된 `useConsultStore` 의 동작을 이 계층으로 옮겨 고정한다. */
 function seedRequest(overrides: Partial<ConsultRequest> = {}): ConsultRequest {
@@ -36,6 +48,10 @@ function seed(requests: ConsultRequest[]): void {
   writeCollection('notifications', []);
 }
 
+beforeEach(() => {
+  signedInAs('u-me');
+});
+
 describe('createConsultRequest', () => {
   it('신규 상담을 저장하고 신청자 시야로 돌려준다', async () => {
     seed([]);
@@ -47,6 +63,7 @@ describe('createConsultRequest', () => {
       phone: '010-1111-2222',
       preferredTime: '주말',
       message: '문의드려요',
+      thirdPartyConsent: CONSENT,
     });
 
     expect(created).toMatchObject({ hospitalId: 'h1', name: '김민준', status: 'new' });
@@ -65,6 +82,7 @@ describe('createConsultRequest', () => {
       phone: '010-0000-0000',
       preferredTime: '주말',
       message: '',
+      thirdPartyConsent: CONSENT,
     });
 
     const page = await fetchConsultRequests();
@@ -81,6 +99,7 @@ describe('createConsultRequest', () => {
       phone: '010-1111-2222',
       preferredTime: '주말',
       message: '',
+      thirdPartyConsent: CONSENT,
     });
 
     const notifications = readCollection('notifications');
@@ -231,11 +250,205 @@ describe('fetchConsultSummary', () => {
 
 describe('fetchMyConsultRequests', () => {
   it('내부 메모를 담지 않는다 (신청자 시야 투영)', async () => {
-    seed([seedRequest({ memos: [{ id: 'm1', content: '내부', createdAt: 'x' }] })]);
+    seed([]);
+    await createConsultRequest({
+      hospitalId: 'h1',
+      procedureId: 'implant',
+      name: '김민준',
+      phone: '010-1111-2222',
+      preferredTime: '평일 오전',
+      message: '',
+      thirdPartyConsent: CONSENT,
+    });
 
     const page = await fetchMyConsultRequests();
 
     expect(page.items[0]).not.toHaveProperty('memos');
     expect(page.items[0].hospitalId).toBe('h1');
+  });
+
+  it('같은 브라우저라도 다른 계정이 신청한 건은 돌려주지 않는다', async () => {
+    seed([]);
+
+    signedInAs('u-a');
+    await createConsultRequest({
+      hospitalId: 'h1',
+      procedureId: null,
+      name: 'A',
+      phone: '010-1111-1111',
+      preferredTime: '평일 오전',
+      message: '',
+      thirdPartyConsent: CONSENT,
+    });
+
+    signedInAs('u-b');
+    await createConsultRequest({
+      hospitalId: 'h2',
+      procedureId: null,
+      name: 'B',
+      phone: '010-2222-2222',
+      preferredTime: '주말',
+      message: '',
+      thirdPartyConsent: CONSENT,
+    });
+
+    expect((await fetchMyConsultRequests()).items.map((item) => item.name)).toEqual(['B']);
+
+    signedInAs('u-a');
+    expect((await fetchMyConsultRequests()).items.map((item) => item.name)).toEqual(['A']);
+  });
+
+  it('주인이 없는 시드 행은 누구의 것도 아니다', async () => {
+    seed([seedRequest()]);
+
+    expect((await fetchMyConsultRequests()).items).toHaveLength(0);
+  });
+
+  it('로그아웃 상태에서는 빈 목록이다 (서버라면 토큰이 없어 401 인 자리)', async () => {
+    seed([]);
+    await createConsultRequest({
+      hospitalId: 'h1',
+      procedureId: null,
+      name: '김민준',
+      phone: '010-1111-2222',
+      preferredTime: '평일 오전',
+      message: '',
+      thirdPartyConsent: CONSENT,
+    });
+
+    signedInAs(null);
+
+    expect((await fetchMyConsultRequests()).items).toHaveLength(0);
+  });
+
+  it('동의 절차 도입 이전 행은 thirdPartyConsent 가 null 로 내려온다 (키는 항상 있다)', async () => {
+    seed([]);
+    signedInAs('u-me');
+    await createConsultRequest({
+      hospitalId: 'h1',
+      procedureId: null,
+      name: '김민준',
+      phone: '010-1111-2222',
+      preferredTime: '평일 오전',
+      message: '',
+      thirdPartyConsent: CONSENT,
+    });
+    // 저장된 행에서 동의 기록만 지운다 = 절차 도입 전에 접수된 데이터.
+    const stored = readCollection('consultRequests');
+    writeCollection(
+      'consultRequests',
+      stored.map((row) => {
+        const { thirdPartyConsent: _dropped, ...rest } = row;
+
+        return rest;
+      })
+    );
+
+    const page = await fetchMyConsultRequests();
+
+    expect(page.items[0]).toHaveProperty('thirdPartyConsent');
+    expect(page.items[0].thirdPartyConsent).toBeNull();
+  });
+});
+
+describe('createConsultRequest — 계약이 422 로 막는 것', () => {
+  it('동의 없이 보내면 422 THIRD_PARTY_CONSENT_REQUIRED 다', async () => {
+    seed([]);
+
+    const error = await createConsultRequest({
+      hospitalId: 'h1',
+      procedureId: null,
+      name: '김민준',
+      phone: '010-1111-2222',
+      preferredTime: '평일 오전',
+      message: '',
+      thirdPartyConsent: { agreed: false, noticeVersion: '2026-10-12' },
+    }).catch((caught: unknown) => caught);
+
+    expect(isApiError(error) && error.status).toBe(422);
+    expect(isApiError(error) && error.code).toBe('THIRD_PARTY_CONSENT_REQUIRED');
+    expect(isApiError(error) && error.message).toBe('개인정보 제3자 제공에 동의해야 상담을 신청할 수 있어요');
+    // 동의하지 않은 상담은 저장되지 않는다.
+    expect(readCollection('consultRequests')).toHaveLength(0);
+  });
+
+  it('휴대폰 형식이 아니면 422 VALIDATION_FAILED + details[].INVALID_PHONE_FORMAT 다', async () => {
+    seed([]);
+
+    const error = await createConsultRequest({
+      hospitalId: 'h1',
+      procedureId: null,
+      name: '김민준',
+      phone: 'abc',
+      preferredTime: '평일 오전',
+      message: '',
+      thirdPartyConsent: CONSENT,
+    }).catch((caught: unknown) => caught);
+
+    expect(isApiError(error) && error.code).toBe('VALIDATION_FAILED');
+    expect(isApiError(error) && error.message).toBe('입력값을 확인해주세요');
+    expect(isApiError(error) && error.details).toEqual([
+      {
+        field: 'phone',
+        code: 'INVALID_PHONE_FORMAT',
+        message: '휴대폰 번호 형식이 아니에요. 010-1234-5678 처럼 입력해주세요',
+      },
+    ]);
+    expect(readCollection('consultRequests')).toHaveLength(0);
+  });
+});
+
+describe('createConsultRequest — 저장되는 모양', () => {
+  it('연락처를 010-1234-5678 형태로 정규화해 저장한다', async () => {
+    seed([]);
+
+    const created = await createConsultRequest({
+      hospitalId: 'h1',
+      procedureId: null,
+      name: '김민준',
+      phone: '01012345678',
+      preferredTime: '평일 저녁',
+      message: '',
+      thirdPartyConsent: CONSENT,
+    });
+
+    expect(created.phone).toBe('010-1234-5678');
+    expect(readCollection('consultRequests')[0].phone).toBe('010-1234-5678');
+  });
+
+  it('동의를 안내문 버전과 서버 시계로 기록한다 (클라이언트가 보낸 시각을 쓰지 않는다)', async () => {
+    seed([]);
+
+    const created = await createConsultRequest({
+      hospitalId: 'h1',
+      procedureId: null,
+      name: '김민준',
+      phone: '010-1234-5678',
+      preferredTime: '평일 오전',
+      message: '',
+      thirdPartyConsent: { agreed: true, noticeVersion: '2026-10-12' },
+    });
+
+    expect(created.thirdPartyConsent?.noticeVersion).toBe('2026-10-12');
+    expect(Number.isNaN(Date.parse(created.thirdPartyConsent?.agreedAt ?? ''))).toBe(false);
+    expect(readCollection('consultRequests')[0].thirdPartyConsent?.noticeVersion).toBe('2026-10-12');
+  });
+
+  it('신청자 시야 응답에는 로컬 전용 저장 필드(주인 id)가 새지 않는다', async () => {
+    seed([]);
+
+    const created = await createConsultRequest({
+      hospitalId: 'h1',
+      procedureId: null,
+      name: '김민준',
+      phone: '010-1234-5678',
+      preferredTime: '평일 오전',
+      message: '',
+      thirdPartyConsent: CONSENT,
+    });
+
+    expect(created).not.toHaveProperty('ownerUserId');
+    expect(await fetchConsultRequestById(created.id)).not.toHaveProperty('ownerUserId');
+    expect((await fetchConsultRequests()).items[0]).not.toHaveProperty('ownerUserId');
   });
 });

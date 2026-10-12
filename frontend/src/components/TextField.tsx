@@ -5,6 +5,11 @@ export interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElemen
   label: string;
   /** 있으면 입력 칸 아래에 빨간 글씨로 표시하고 `aria-invalid` 를 붙인다. */
   error?: string;
+  /**
+   * 입력 칸 아래 회색 안내 한 줄 (예: `계정 정보에서 자동으로 채웠어요`).
+   * **오류가 있으면 보여주지 않는다** — 한 자리에 두 줄이 겹치면 고쳐야 할 것이 흐려진다.
+   */
+  hint?: string;
 }
 
 /**
@@ -19,10 +24,12 @@ export interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElemen
  *    읽어 줄 수 없고, `aria-describedby` 로 오류를 연결할 수도 없다.
  */
 export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function TextField(
-  { id, label, error, ...inputProps },
+  { id, label, error, hint, ...inputProps },
   ref
 ) {
   const errorId = `${id}-error`;
+  const hintId = `${id}-hint`;
+  const showHint = !error && hint !== undefined && hint !== '';
 
   return (
     <div className="mb-4">
@@ -34,7 +41,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
         id={id}
         ref={ref}
         aria-invalid={error ? true : undefined}
-        aria-describedby={error ? errorId : undefined}
+        aria-describedby={error ? errorId : showHint ? hintId : undefined}
         className={`w-full rounded-xl border px-4 py-3 text-[15px] outline-none focus:border-brand-600 ${
           error ? 'border-rose-400' : 'border-neutral-200'
         }`}
@@ -42,6 +49,11 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
       {error ? (
         <p id={errorId} className="mt-1.5 text-sm text-rose-500">
           {error}
+        </p>
+      ) : null}
+      {showHint ? (
+        <p id={hintId} className="mt-1.5 text-sm text-neutral-400">
+          {hint}
         </p>
       ) : null}
     </div>

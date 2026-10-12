@@ -277,6 +277,28 @@ export const CONSULT_STATUS_LABEL: Record<ConsultStatus, string> = {
   cancelled: '취소',
 };
 
+/**
+ * 희망 연락 시간 (openapi `ConsultPreferredTime`). **값·순서가 곧 화면의 선택지다.**
+ *
+ * 세 곳(신청 폼 · 폼 스키마 · 계약)이 같은 목록을 써야 해서 `CONSULT_STATUSES` 처럼 한 곳에
+ * 모았다. 선택지를 복사해 두면 하나가 늘었을 때 한쪽만 고쳐져 신청 화면과 검증이 어긋난다
+ * (`평일 저녁` 추가가 그 경우였다).
+ */
+export const CONSULT_PREFERRED_TIMES = ['평일 오전', '평일 오후', '평일 저녁', '주말'] as const;
+
+export type ConsultPreferredTime = (typeof CONSULT_PREFERRED_TIMES)[number];
+
+/**
+ * 기록된 개인정보 제3자 제공 동의 (openapi `ConsultThirdPartyConsent`).
+ * 동의하지 않은 접수는 거절되므로 boolean 이 따로 없다 — **기록의 존재 자체가 동의다.**
+ */
+export interface ConsultThirdPartyConsent {
+  /** 접수를 받아들인 **서버 시계** 기준 시각. 기기 시계는 증빙이 되지 않는다. */
+  agreedAt: string;
+  /** 동의한 안내문의 버전 (`features/consult/content/thirdPartyConsentNotice.ts`). */
+  noticeVersion: string;
+}
+
 export interface ConsultStatusChange {
   status: ConsultStatus;
   changedAt: string;
@@ -294,11 +316,27 @@ export interface ConsultRequest {
   procedureId: ProcedureId | null;
   name: string;
   phone: string;
+  /**
+   * 계약은 `ConsultPreferredTime` 4지선다지만 여기서는 `string` 이다 —
+   * `mocks/fixtures/consultRequests.ts` 가 **백엔드 seed 가 그대로 import 하는 파일**이라
+   * 예전 3지선다 값이 문자열로 들어 있고, 그 파일은 바이트 단위로 보존해야 한다.
+   * 새로 접수되는 값은 폼 스키마(`consultRequestSchema`)가 4지선다로 좁힌다.
+   */
   preferredTime: string;
   message: string;
   createdAt: string;
   status: ConsultStatus;
   statusHistory: ConsultStatusChange[];
+  /**
+   * 이 건에 기록된 제3자 제공 동의. `null` 이면 **동의 절차 도입 이전에 접수된 건**이다
+   * (거절한 것이 아니다).
+   *
+   * 계약(`ConsultRequest.thirdPartyConsent`)에서는 **필수 + nullable** 인데 여기서는 선택이다 —
+   * 위 `preferredTime` 과 같은 이유로, 이 필드가 없는 fixture 를 그대로 둬야 하기 때문이다.
+   * **api 계층이 모든 응답에서 키를 채워 내보내므로**(`consultApi.ts` 의 `toConsultRequest`)
+   * 화면이 보는 값에는 키가 항상 있다.
+   */
+  thirdPartyConsent?: ConsultThirdPartyConsent | null;
   memos: ConsultMemo[];
 }
 
