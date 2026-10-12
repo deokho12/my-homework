@@ -16,6 +16,7 @@ import {
 import { Text, View } from '@/primitives';
 
 import AdminHomePage from '@/pages/admin/AdminHomePage';
+import AdminInquiriesPage from '@/pages/admin/AdminInquiriesPage';
 import AdminHospitalEditPage from '@/pages/admin/AdminHospitalEditPage';
 import AdminHospitalNewPage from '@/pages/admin/AdminHospitalNewPage';
 import AdminSpecialistsPage from '@/pages/admin/AdminSpecialistsPage';
@@ -24,6 +25,7 @@ import ConsultRequestPage from '@/pages/ConsultRequestPage';
 import DoctorDetailPage from '@/pages/DoctorDetailPage';
 import ExplorePage from '@/pages/ExplorePage';
 import HospitalDetailPage from '@/pages/HospitalDetailPage';
+import InquiryPage from '@/pages/InquiryPage';
 import MyPage from '@/pages/MyPage';
 import AboutScreen from '@/screens/about';
 import AdminConsultationDetailScreen from '@/screens/admin/consultations/[id]';
@@ -99,6 +101,12 @@ const ROUTES: AppRoute[] = [
     options: { title: '상담 신청' },
     guard: 'auth',
   },
+  {
+    path: '/inquiry/:hospitalId',
+    element: <InquiryPage />,
+    options: { title: '문의하기' },
+    guard: 'auth',
+  },
   { path: '/auth/login', element: <LoginScreen />, options: { title: '로그인' } },
   { path: '/auth/signup', element: <SignupScreen />, options: { title: '회원가입' } },
 
@@ -134,6 +142,19 @@ const ROUTES: AppRoute[] = [
     path: '/admin/consultations/:id',
     element: <AdminConsultationDetailScreen />,
     options: { title: '상담 상세' },
+    guard: 'admin',
+  },
+  // 목록과 상세가 같은 화면이다 — `:id` 는 선택된 문의를 뜻할 뿐이다.
+  {
+    path: '/admin/inquiries',
+    element: <AdminInquiriesPage />,
+    options: { title: '문의' },
+    guard: 'admin',
+  },
+  {
+    path: '/admin/inquiries/:id',
+    element: <AdminInquiriesPage />,
+    options: { title: '문의' },
     guard: 'admin',
   },
   {

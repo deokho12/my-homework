@@ -54,6 +54,13 @@ function NotificationRow({
       return;
     }
 
+    if (notification.type === 'inquiry-answer' && notification.relatedId) {
+      // 마이페이지 `내 문의` 의 그 문의를 펼친 채 연다. 병원 상세의 공개 Q/A 로 보내지 않는다 —
+      // 비공개로 물었거나 병원이 비공개로 답한 건은 그곳에 없고, 알림만 보고는 알 수 없다.
+      router.push(`/mypage?tab=inquiries&inquiry=${notification.relatedId}`);
+      return;
+    }
+
     if (notification.type === 'event') {
       router.push('/events');
       return;

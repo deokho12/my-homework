@@ -340,6 +340,76 @@ export interface ConsultRequest {
   memos: ConsultMemo[];
 }
 
+/* ------------------------------------------------------------------ 병원 문의 */
+
+/**
+ * 문의 주제. **기본값이 없다** — 고르지 않으면 접수되지 않는다 (계약 `InquiryTopic`).
+ * 칩 순서도 이 배열 순서다.
+ */
+export const INQUIRY_TOPICS = ['price', 'hours', 'parking', 'procedure', 'etc'] as const;
+
+export type InquiryTopic = (typeof INQUIRY_TOPICS)[number];
+
+/**
+ * 라벨 매핑은 **클라이언트가 들고 있는다** (계약은 코드만 주고받는다 — `주차·위치` 의
+ * 가운뎃점이 쿼리 파라미터로 오갈 때 깨지지 않게, 그리고 문구를 다듬어도 저장값이
+ * 그대로이게).
+ */
+export const INQUIRY_TOPIC_LABEL: Record<InquiryTopic, string> = {
+  price: '가격',
+  hours: '진료시간',
+  parking: '주차·위치',
+  procedure: '시술 방법',
+  etc: '기타',
+};
+
+export function isInquiryTopic(value: unknown): value is InquiryTopic {
+  return typeof value === 'string' && (INQUIRY_TOPICS as readonly string[]).includes(value);
+}
+
+/**
+ * 주제 라벨. **모르는 코드는 `기타` 로 떨어뜨린다** — 서버가 주제를 늘려도 화면이 빈 칸을
+ * 그리거나 터지지 않게 (`docs/api/README.md` §15 의 enum 방어 규칙).
+ */
+export function inquiryTopicLabel(topic: string): string {
+  return isInquiryTopic(topic) ? INQUIRY_TOPIC_LABEL[topic] : INQUIRY_TOPIC_LABEL.etc;
+}
+
+/**
+ * 문의 상태. **저장된 컬럼이 아니라 파생값이다** — 판정은 순수 함수 하나가 한다
+ * (`features/inquiry/inquiryVisibility.ts` 의 `inquiryStatus`).
+ */
+export const INQUIRY_STATUSES = ['unanswered', 'answered'] as const;
+
+export type InquiryStatus = (typeof INQUIRY_STATUSES)[number];
+
+/** 문의자(환자)에게 보여주는 상태 문구. */
+export const INQUIRY_STATUS_LABEL: Record<InquiryStatus, string> = {
+  unanswered: '답변 대기',
+  answered: '답변완료',
+};
+
+/**
+ * 관리자에게 보여주는 상태 문구. **같은 상태의 다른 호칭이다** — 환자는 기다리는 쪽,
+ * 관리자는 답해야 하는 쪽이라 말이 다르다. 색(`INQUIRY_STATUS_TONE`)과 판정은 공유한다.
+ */
+export const ADMIN_INQUIRY_STATUS_LABEL: Record<InquiryStatus, string> = {
+  unanswered: '미답변',
+  answered: '답변완료',
+};
+
+/**
+ * 등록된 답변. **문의 1건에 1건이고 수정이 없다** — 그래서 배열이 아니라 객체이고
+ * `id` 도 `updatedAt` 도 없다 (계약 `HospitalInquiryAnswer`).
+ */
+export interface HospitalInquiryAnswer {
+  content: string;
+  /** **병원이 답변 시점에 고른 공개 허용 여부.** 환자의 `isPublic` 과 둘 다 참이어야 공개된다. */
+  isPublic: boolean;
+  /** 답변 등록 시각. **상태 판정의 유일한 근거**이기도 하다. */
+  answeredAt: string;
+}
+
 /** Address search result from geocoding — see src/services/geocoding.ts. */
 export interface GeocodeResult {
   id: string;
@@ -349,7 +419,12 @@ export interface GeocodeResult {
   longitude: number;
 }
 
-export type NotificationType = 'consult-status' | 'event' | 'system';
+/**
+ * `inquiry-answer` 는 **병원 문의 답변 알림**이다 (계약 `NotificationType`, 2026-10-12 추가).
+ * `POST /hospital-inquiries/{id}/answer` 의 부수효과로만 생기고, 누르면 마이페이지
+ * `내 문의` 의 그 문의가 펼쳐진 채 열린다 (`relatedId` = 문의 id).
+ */
+export type NotificationType = 'consult-status' | 'inquiry-answer' | 'event' | 'system';
 export type NotificationAudience = 'user' | 'admin';
 
 export interface AppNotification {

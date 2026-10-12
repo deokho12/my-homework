@@ -16,6 +16,8 @@ export {
   NO_PROCEDURE_LABEL,
   consultProcedureLabel,
   consultScheduleLine,
+  /** 문의 화면도 환자 쪽 날짜(`10/7`)를 같은 함수로 적는다 — 새로 만들지 않는다. */
+  formatAppliedAt,
   procedurePairLabel,
 } from '@/features/consult/consultDisplay';
 export { useAddConsultMemo } from '@/features/consult/hooks/useAddConsultMemo';

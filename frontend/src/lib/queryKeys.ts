@@ -43,6 +43,20 @@ export const queryKeys = {
      */
     detail: (id: string) => ['consultRequests', 'detail', id] as const,
   },
+  inquiries: {
+    all: ['inquiries'] as const,
+    /** `GET /hospitals/{id}/inquiries` (공개 Q/A). 병원마다 캐시를 가른다. */
+    byHospital: (hospitalId: string, filters: object = {}) =>
+      ['inquiries', 'byHospital', hospitalId, filters] as const,
+    /** `GET /me/inquiries`. 관리자 목록과 투영이 달라 캐시도 따로 둔다. */
+    mine: (filters: object = {}) => ['inquiries', 'mine', filters] as const,
+    /** `GET /hospital-inquiries` (관리자 목록). 상태·병원 필터별로 캐시를 가른다. */
+    admin: (filters: object = {}) => ['inquiries', 'admin', filters] as const,
+    /** 상세. 형제 키와 섞이지 않도록 `detail` 을 낀다 (`consultRequests.detail` 과 같은 이유). */
+    detail: (id: string) => ['inquiries', 'detail', id] as const,
+    /** `GET /hospital-inquiries/summary`. 답변 등록이 이 숫자를 바꾸므로 `all` 무효화에 함께 걸린다. */
+    summary: (hospitalId?: string) => ['inquiries', 'summary', hospitalId ?? null] as const,
+  },
   communityPosts: {
     all: ['communityPosts'] as const,
     list: (filters: object = {}) => ['communityPosts', 'list', filters] as const,

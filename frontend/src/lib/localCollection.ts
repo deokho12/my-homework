@@ -1,7 +1,14 @@
 import { consultRequests as seedConsultRequests } from '@/mocks/fixtures/consultRequests';
 import { notifications as seedNotifications } from '@/mocks/fixtures/notifications';
 import { qaPosts as seedQaPosts } from '@/mocks/fixtures/qaPosts';
-import type { AppNotification, ConsultRequest, Paged, QAPost } from '@/types/domain';
+import type {
+  AppNotification,
+  ConsultRequest,
+  HospitalInquiryAnswer,
+  InquiryTopic,
+  Paged,
+  QAPost,
+} from '@/types/domain';
 
 /**
  * 아직 서버가 없는 도메인(상담·찜·알림·커뮤니티)의 **저장소 대역**이다.
@@ -33,10 +40,44 @@ export interface StoredConsultRequest extends ConsultRequest {
   ownerUserId?: string;
 }
 
+/**
+ * 저장된 병원 문의 한 건 (`docs/api/README.md` §14 `hospital_inquiries`).
+ *
+ * **상태(`status`)와 공개 노출 여부를 저장하지 않는다** — 둘 다 `answer` 에서 파생된다
+ * (`features/inquiry/inquiryVisibility.ts`). 저장하면 같은 사실의 복사본이 둘이 되고,
+ * 어긋날 때 **비공개 문의가 공개 목록에 뜬다.**
+ *
+ * 서버라면 조인으로 알아낼 값 셋이 로컬에서는 행에 적혀 있다 (서버 전환 시 삭제):
+ * `ownerUserId`(토큰 주체), `askerDisplayName`(`users.name`), `hospitalName`(`hospitals.name`).
+ */
+export interface StoredHospitalInquiry {
+  id: string;
+  hospitalId: string;
+  topic: InquiryTopic;
+  content: string;
+  /** **환자가 작성 시점에 고른 공개 여부** (계약 `is_public_by_user`, 기본 `true`). */
+  isPublic: boolean;
+  /** 미답변이면 `null`. 답변은 1건이고 수정이 없다. */
+  answer: HospitalInquiryAnswer | null;
+  createdAt: string;
+  /** 서버 전환 시 삭제: 문의자는 서버가 토큰에서 알아낸다. */
+  ownerUserId?: string;
+  /**
+   * 서버 전환 시 삭제: 서버는 `users.name` 을 조인해 마스킹한다 (**스냅샷 컬럼이 없다**).
+   * 로컬에는 사용자 테이블이 없어 작성 시점 이름을 적어 둔다 — 계정 이름이 바뀌어도
+   * 옛 이름의 마스킹이 남는 것이 계약과 다른 점이다.
+   */
+  askerDisplayName?: string;
+  /** 서버 전환 시 삭제: 서버는 `hospitals.name` 을 조인한다. */
+  hospitalName?: string;
+}
+
 interface LocalCollections {
   consultRequests: StoredConsultRequest[];
   communityPosts: QAPost[];
   notifications: AppNotification[];
+  /** 병원 문의. **시드가 없다** — 빈 목록에서 시작하는 것이 이 기능의 원래 상태다. */
+  inquiries: StoredHospitalInquiry[];
   /** 찜한 병원 id. 최근에 찜한 것이 앞이다 (`FavoriteList.hospitalIds` 와 같은 순서 규약). */
   favoriteHospitalIds: string[];
 }
@@ -51,14 +92,20 @@ const SEEDS: LocalCollections = {
   notifications: seedNotifications,
   // 찜은 목업 시드가 없다. 빈 목록에서 시작하는 것이 원래 동작이다.
   favoriteHospitalIds: [],
+  // 문의도 시드가 없다. `mocks/fixtures/` 는 백엔드 seed 가 import 하는 폴더라
+  // 아직 서버에 없는 테이블의 가짜 행을 거기 넣지 않는다.
+  inquiries: [],
 };
 
 /**
  * 이 앱을 이미 써 본 브라우저에는 zustand `persist` 가 만든 키에 사용자 데이터가 들어 있다.
  * 그대로 버리면 신청했던 상담·작성한 글·찜이 사라지므로 **최초 1회만** 흡수한다.
  * 키와 안쪽 필드 이름은 삭제된 각 스토어의 persist 설정에서 그대로 가져온 값이다.
+ *
+ * **새로 생긴 컬렉션은 여기 없다** (`inquiries`). 흡수할 과거 데이터가 없는데 키를 적어 두면
+ * 읽히지 않는 이름이 하나 남아, 다음 사람이 그 키를 진짜 있었던 것으로 읽는다.
  */
-const LEGACY_SOURCES: Record<LocalCollectionName, { key: string; field: string }> = {
+const LEGACY_SOURCES: Partial<Record<LocalCollectionName, { key: string; field: string }>> = {
   consultRequests: { key: 'molarmolar-consult-requests', field: 'requests' },
   communityPosts: { key: 'molarmolar-community-posts', field: 'posts' },
   notifications: { key: 'molarmolar-notifications', field: 'notifications' },
@@ -66,14 +113,15 @@ const LEGACY_SOURCES: Record<LocalCollectionName, { key: string; field: string }
 };
 
 function readLegacy<K extends LocalCollectionName>(name: K): LocalCollections[K] | null {
-  const { key, field } = LEGACY_SOURCES[name];
+  const source = LEGACY_SOURCES[name];
+  if (!source) return null;
 
-  const raw = safeGetItem(key);
+  const raw = safeGetItem(source.key);
   if (!raw) return null;
 
   try {
     const parsed = JSON.parse(raw) as { state?: Record<string, unknown> };
-    const rows = parsed.state?.[field];
+    const rows = parsed.state?.[source.field];
 
     return Array.isArray(rows) ? (rows as LocalCollections[K]) : null;
   } catch {

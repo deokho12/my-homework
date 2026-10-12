@@ -40,7 +40,8 @@
 
 리소스는 저장 테이블이 아니라 **도메인 개념** 단위로 잘랐다. `frontend/src/mocks/db.ts` 의 테이블은
 `hospitals` / `doctors` / `consultRequests` / `communityPosts` / `notifications` 5개뿐이고 후기·이벤트·꿀팁·시술은
-코드 안 고정 데이터인데, 화면은 그 넷을 독립적으로 읽는다. 그래서 리소스는 13개다.
+코드 안 고정 데이터인데, 화면은 그 넷을 독립적으로 읽는다. 그래서 리소스는 13개다
+(2026-10-12 `hospital-inquiries` 가 더해져 14개).
 
 | 리소스 | 경로 | 지원 화면 | 쓰기 주체 |
 |---|---|---|---|
@@ -52,6 +53,7 @@
 | **doctor-verification** (인증 검수) | `/doctors/verification-queue`, `/doctors/{id}/verification` | 전문의 인증 검수 | **`operator` 전용** |
 | **reviews** | `/hospitals/{id}/reviews` | 병원 상세 | 없음 (작성 화면이 없다) |
 | **consult-requests** | `/consult-requests`, `/me/consult-requests` | 상담 신청, 관리자 상담 관리/상세, 관리자 홈 숫자, (신설) 내 상담 내역 | `user`(접수) / 담당 `hospital_admin`(처리). `operator` 는 **조회만 + PII 마스킹** |
+| **hospital-inquiries** (병원 문의, 2026-10-12) | `/hospital-inquiries`, `/me/inquiries`, `/hospitals/{id}/inquiries` | 문의하기, 병원 상세 `문의`, 마이페이지 `내 문의`, 관리자 문의, 관리자 홈 숫자 | `user`(접수) / 담당 `hospital_admin`(답변). `operator` 는 **조회만** (§14) |
 | **favorites** | `/me/favorites` | 마이페이지, 병원 상세, 꿀팁 상세 | `user` |
 | **notifications** | `/notifications` | 사용자 알림함, 관리자 알림함, 마이페이지 배지, 관리자 홈 배지 | **없음 — 부수효과로만 생성** |
 | **community** (질문·답변) | `/community/posts` | 커뮤니티 목록, 글 상세, 글 작성 | `user` (답변은 신설) |
@@ -136,10 +138,11 @@ partnerInquiries.detail:   (id) => ['partnerInquiries', id]
 | | | 지도 자체는 카카오맵 JS SDK (클라이언트). 반경 필터는 `GET /hospitals?latitude&longitude&radiusKm` | 🚧 🟡 |
 | 검색 | `search.md` | `GET /search/resolve?q=` (현재 동작 유지)<br>`GET /search/trending?tab=`<br>`GET /search/suggestions`<br>`GET /search` (결과 목록 화면이 생기면) | ✅ 🟡 |
 | 커뮤니티 | `community.md` | `GET /community/posts` | 🟡 |
-| 마이페이지 | `mypage.md` | `GET /auth/me`<br>`POST /auth/logout`<br>`GET /notifications/unread-count?audience=user`<br>`GET /me/favorites?expand=hospital`<br>`DELETE /me/favorites/{hospitalId}`<br>`GET /me/consult-requests` (신설) | ✅ 🔒 🚧 |
-| 병원 상세 | `hospital-detail.md` | `GET /hospitals/{id}`<br>`GET /hospitals/{id}/doctors`<br>`GET /hospitals/{id}/reviews`<br>`GET /promotions?hospitalId=`<br>`PUT`/`DELETE /me/favorites/{id}` | ✅ 🟡 🔒 |
+| 마이페이지 | `mypage.md` | `GET /auth/me`<br>`POST /auth/logout`<br>`GET /notifications/unread-count?audience=user`<br>`GET /me/favorites?expand=hospital`<br>`DELETE /me/favorites/{hospitalId}`<br>`GET /me/consult-requests` (신설)<br>`GET /me/inquiries` (신설, 🚧 서버 미구현) | ✅ 🔒 🚧 |
+| 병원 상세 | `hospital-detail.md` | `GET /hospitals/{id}`<br>`GET /hospitals/{id}/doctors`<br>`GET /hospitals/{id}/reviews`<br>`GET /hospitals/{id}/inquiries` (공개 Q/A, 🚧 서버 미구현)<br>`GET /promotions?hospitalId=`<br>`PUT`/`DELETE /me/favorites/{id}` | ✅ 🟡 🔒 |
 | 전문의 상세 | `doctor-detail.md` | `GET /doctors/{id}`<br>`GET /hospitals/{hospitalId}` (소속 병원 카드) | ✅ 🟡 🔒 |
 | 상담 신청 | `consult-request.md` | `GET /hospitals/{id}` (병원명·시술 목록)<br>`POST /consult-requests` | ✅ 🔒 |
+| 문의하기 (2026-10-12) | `inquiry.md` | `GET /hospitals/{id}` (병원명·주소)<br>`POST /hospital-inquiries` (🚧 서버 미구현) | ✅ 🔒 🚧 |
 | 커뮤니티 글 상세 | `community-post.md` | `GET /community/posts/{id}`<br>`POST /community/posts/{id}/views`<br>`POST /community/posts/{id}/answers` (신설) | ✅ 🟡 🚧 |
 | 커뮤니티 글 작성 | `community-new.md` | `GET /procedures`<br>`POST /community/posts` | ✅ |
 | 시술 꿀팁 상세 | `tip-detail.md` | `GET /guides/{id}`<br>`GET /hospitals/{id}` (관련 병원 카드)<br>`PUT`/`DELETE /me/favorites/{id}` | ✅ 🟡 🔒 |
@@ -155,7 +158,7 @@ partnerInquiries.detail:   (id) => ['partnerInquiries', id]
 
 | 화면 | 문서 | 접근 역할 | 엔드포인트 | 상태 |
 |---|---|---|---|---|
-| 관리자 홈 | `admin-home.md` | `hospital_admin`(담당만)<br>`operator`(전체) | `GET /consult-requests/summary`<br>`GET /admin/hospitals` (`scope` 로 범위 구분)<br>`GET /notifications/unread-count?audience=admin` | ✅ 🟡 |
+| 관리자 홈 | `admin-home.md` | `hospital_admin`(담당만)<br>`operator`(전체) | `GET /consult-requests/summary`<br>`GET /hospital-inquiries/summary` (`문의 N` — `operator` 에게는 숫자를 붙이지 않는다, §14)<br>`GET /admin/hospitals` (`scope` 로 범위 구분)<br>`GET /notifications/unread-count?audience=admin` | ✅ 🟡 |
 | | | | 병원 삭제 — **엔드포인트 없음** (🚧). §19 참고 | 🚧 |
 | 병원 등록 | `admin-hospital-new.md` | **`operator` 전용** | `POST /hospitals` (전문의·담당자 동시 지정)<br>`GET /geo/address-search`<br>`GET /procedures` | ✅ 🟡 |
 | 병원 정보 수정 | `admin-hospital-edit.md` | `hospital_admin`(담당만)<br>`operator`(전체) | `GET /hospitals/{id}`<br>`PATCH /hospitals/{id}`<br>`GET /hospitals/{id}/doctors`<br>`PUT /hospitals/{id}/doctors`<br>`GET /geo/address-search` | ✅ 🟡 |
@@ -163,6 +166,7 @@ partnerInquiries.detail:   (id) => ['partnerInquiries', id]
 | 전문의 인증 검수 | `admin-specialists.md` | **`operator` 전용** | `GET /doctors/verification-queue`<br>`PUT /doctors/{id}/verification` | ✅ 🟡 |
 | 상담 관리 | `admin-consultations.md` | `hospital_admin`(담당만, 전체 PII)<br>`operator`(전체, 마스킹) | `GET /consult-requests`<br>`PATCH /consult-requests/{id}/status` (**`hospital_admin` 만**) | ✅ 🟡 |
 | 상담 상세 | `admin-consultation-detail.md` | 위와 같음 | `GET /consult-requests/{id}` (**열람 로그 남음**)<br>`PATCH /consult-requests/{id}/status` (`hospital_admin` 만)<br>`POST /consult-requests/{id}/memos` (`hospital_admin` 만) | ✅ |
+| 관리자 문의 (2026-10-12) | `admin-inquiries.md` | `hospital_admin`(담당만, 답변 가능)<br>`operator`(전체, **답변 불가**) — 문의자 이름은 **둘 다 마스킹**(§4) | `GET /hospital-inquiries` (`status`, `hospitalId`)<br>`GET /hospital-inquiries/summary`<br>`GET /hospital-inquiries/{id}`<br>`POST /hospital-inquiries/{id}/answer` (**`hospital_admin` 만**) — 🚧 서버 미구현 | ✅ 🚧 |
 | 관리자 알림 | `admin-notifications.md` | `hospital_admin`, `operator` | `GET /notifications?audience=admin`<br>`PATCH /notifications/{id}/read`<br>`POST /notifications/read-all` | ✅ 🟡 |
 
 `operator` 의 관리자 알림함은 **정상적으로 비어 있다** — 새 상담 알림과 검수 결과 알림 둘 다 담당자에게만 간다.
@@ -241,13 +245,17 @@ partnerInquiries.detail:   (id) => ['partnerInquiries', id]
 
 | 역할 | 할 수 있는 것 |
 |---|---|
-| (비로그인) | 병원·전문의·후기·이벤트·꿀팁·커뮤니티·시술·검색·약관 조회, 입점 문의 접수. 전문의 `rating` 은 `null` 로 가려짐 |
-| `user` | 위 + 상담 신청, 내 상담 내역, 찜, 사용자 알림함, 커뮤니티 작성·답변 |
-| `hospital_admin` | 위 + **담당 병원**의 정보·전문의 수정, 담당 병원 상담의 조회·상태 변경·메모(**전체 PII**), 관리자 알림함, 주소 검색 |
-| `operator` | 위 + **병원 생성**, **담당자 지정·해제**, **전문의 인증 검수**, **입점 문의 심사**, 전 병원 정보 수정, 전 상담 **조회**(**PII 마스킹**) |
+| (비로그인) | 병원·전문의·후기·이벤트·꿀팁·커뮤니티·시술·검색·약관 조회, **병원 공개 문의(Q/A) 조회**, 입점 문의 접수. 전문의 `rating` 은 `null` 로 가려짐 |
+| `user` | 위 + 상담 신청, 내 상담 내역, 찜, 사용자 알림함, 커뮤니티 작성·답변, **병원 문의 작성·내 문의 조회** |
+| `hospital_admin` | 위 + **담당 병원**의 정보·전문의 수정, 담당 병원 상담의 조회·상태 변경·메모(**전체 PII**), **담당 병원 문의의 조회·답변**(문의자 이름은 **항상 마스킹**), 관리자 알림함, 주소 검색 |
+| `operator` | 위 + **병원 생성**, **담당자 지정·해제**, **전문의 인증 검수**, **입점 문의 심사**, 전 병원 정보 수정, 전 상담 **조회**(**PII 마스킹**), 전 병원 문의 **조회**(이름 마스킹, **답변 불가**) |
 
 `hospital_admin` 이 **할 수 없는** 것 — 전문의 인증 검수, 병원 생성, 담당자 지정, `isRecommended`(에디터 추천) 설정.
-`operator` 가 **할 수 없는** 것 — 상담 상태 변경, 상담 메모 작성, 고객 연락처 전체 열람.
+`operator` 가 **할 수 없는** 것 — 상담 상태 변경, 상담 메모 작성, 고객 연락처 전체 열람, 문의 답변 등록.
+
+**`operator` 가 문의에 답할 수 없는 이유는 상담과 같다.** 답변은 그 병원의 진료시간·가격을 말하는
+행위이고, 등록 즉시 환자에게 알림이 가고 공개 Q/A 로 노출될 수 있다. 운영자가 대신 답하면
+그 병원이 하지 않은 말이 병원 이름으로 남는다.
 
 **`operator` 가 상담을 조회만 할 수 있게 한 이유:** 상담 처리는 병원이 고객에게 연락하는 일이다.
 운영자가 상태를 `예약완료` 로 바꾸면 고객에게 알림이 가는데 실제로 예약을 잡은 병원은 모르는 상태가 된다.
@@ -278,6 +286,7 @@ partnerInquiries.detail:   (id) => ['partnerInquiries', id]
 | **전문의** (`PATCH`/`DELETE /doctors/{id}`) | `403 HOSPITAL_NOT_MANAGED` | 위와 같다. `GET /doctors/{id}` 가 공개다 |
 | **상담** (`GET`/`PATCH`/`POST` on `/consult-requests/{id}`) | **`404 CONSULT_REQUEST_NOT_FOUND`** | 상담은 공개 자원이 아니고 **상담 id 가 고객 개인정보와 1:1로 대응**한다. `403` 을 주면 id 를 순차 대입해 "이 id 의 상담이 존재한다" 를 알아낼 수 있고, 그것만으로도 건수·활동량이 새는 열거(enumeration) 경로가 된다 |
 | **입점 문의** (`/partner-inquiries/{id}`) | **`404 PARTNER_INQUIRY_NOT_FOUND`** | 위와 같다. 병원명·담당자 실명·연락처가 담긴다 |
+| **병원 문의** (`/hospital-inquiries/{id}`, `.../answer`) | **`404 HOSPITAL_INQUIRY_NOT_FOUND`** | 문의 id 는 **공개 Q/A 로 노출되지 않는 건까지 포함**하므로 공개 자원이 아니다. `403` 을 주면 id 대입으로 "이 병원에 비공개 문의가 몇 건 있다" 가 새고, 그것이 §14 가 카운트에서 막은 바로 그 정보다. 비공개 문의 본문에는 환자가 자기 증상·예산을 적는다 |
 | **내 상담** (`/me/consult-requests/{id}`) | **`404`** | 남의 상담 존재 여부를 흘리지 않는다 |
 | **알림** (`/notifications/{id}/read`) | **`404`** | 남의 알림 id 존재 여부를 흘리지 않는다 |
 
@@ -296,8 +305,13 @@ partnerInquiries.detail:   (id) => ['partnerInquiries', id]
 - `/notifications?audience=user` — 본인에게 발송된 것만 (세 역할 모두 조회 가능)
 - `/notifications?audience=admin` — 요청자를 수신자로 지정한 알림만 (`hospital_admin`/`operator`)
 - `/admin/hospitals` — `hospital_admin` 은 담당 병원만, `operator` 는 전체. 응답의 `scope` 로 구분
+- `/me/inquiries` — 문의자 본인의 것만 (공개·비공개, 미답변·답변완료 전부). 마이페이지 `내 문의`
+- `/hospital-inquiries` — `hospital_admin` 은 담당 병원에 들어온 것만, `operator` 는 전체. `scope` 로 구분
+- `/hospitals/{id}/inquiries` — **인증 불필요.** 공개 Q/A 만 (§14 의 `isPubliclyVisible`).
+  경로가 `/me`·`/admin` 어디에도 속하지 않는 것이 "이것은 누구나 보는 목록" 이라는 표시다
 
-`GET /consult-requests` 와 `GET /admin/hospitals` 는 **같은 경로에서 역할별로 범위가 달라지는** 두 곳이다.
+`GET /consult-requests` 와 `GET /admin/hospitals` 는 **같은 경로에서 역할별로 범위가 달라지는** 곳이고,
+`GET /hospital-inquiries` 가 세 번째로 같은 모양이다.
 그래서 응답에 `scope: managed | all` 을 넣었다. 화면이 "내 병원" 과 "전체" 를 구분해야 하고,
 목록이 0건일 때 "담당 병원이 아직 지정되지 않았어요" 와 "등록된 병원이 없어요" 를 구분해야 한다
 (지금은 둘 다 그냥 빈 화면이다 — 확인된 결함).
@@ -392,6 +406,39 @@ partnerInquiries.detail:   (id) => ['partnerInquiries', id]
 | `ConsultSummary` | 숫자 두 개뿐이다 |
 | `Review.authorName` | 이미 저장 시점에 마스킹돼 있다 (`김**`). 역할과 무관하게 항상 마스킹 |
 
+### 병원 문의의 문의자 이름 — 역할과 무관하게 항상 마스킹
+
+`hospital_inquiries` (§14) 는 상담과 **반대**다. 아무도 원본 이름을 보지 않는다.
+
+| 보는 사람 | 문의자 이름 | 연락처 |
+|---|---|---|
+| `hospital_admin` (담당 병원) | `김*준` | **컬럼 자체가 없다** |
+| `operator` | `김*준` | 〃 |
+| 공개 Q/A (비로그인 포함) | **필드를 내려주지 않는다** | 〃 |
+| 문의자 본인 (`/me/inquiries`) | 자기 이름이라 해당 없음 | 〃 |
+
+마스킹 알고리즘은 위 상담과 **같은 함수**다 (`김민준` → `김*준`, 두 글자면 `박*`, 네 글자 이상은 `남**수`).
+같은 판정을 두 곳에 두지 않는다 — 마스킹 함수는 하나이고 호출하는 투영이 둘이다.
+
+**담당 병원에까지 마스킹하는 이유.** §4 의 마스킹은 "연락해야 하는 사람만 원본을 본다" 는 규칙인데,
+문의에는 **연락해야 하는 사람이 아무도 없다.** 문의는 연락처 없이 앱 안에서 답을 받는 창구이고
+(그것이 상담 신청과의 차이다), 답변도 같은 화면에서 끝난다. 전화번호 컬럼을 두지 않은 것이 같은 판단이다.
+
+**`piiMasked` 플래그는 쓰지 않는다.** 그 플래그는 같은 스키마의 값이 역할에 따라 갈릴 때 필요했다.
+문의는 분기가 없으므로 플래그가 가리킬 차이가 없다 — `Review.authorName` 과 같은 경우다.
+
+**이름 스냅샷 컬럼도 두지 않는다.** `consult_requests.name` 은 **폼에 입력된 값**이라 계정 이름과
+다를 수 있어서 별도 컬럼이었다. 문의 화면에는 이름 입력칸이 없으므로 `users.name` 을 조인해 마스킹한다.
+계정 이름이 바뀌면 바뀐 이름의 마스킹이 보이는 것이 맞다.
+
+**공개 Q/A 에는 작성자 필드를 아예 내려주지 않는다.** 빈 문자열이나 `익명` 을 채우면 언젠가 채워질
+자리가 되고, 그 자리에 무엇이 들어가도 "공개 Q/A 에 작성자 표기 없음" 이라는 결정이 조용히 풀린다.
+
+> ⚠️ 요청서(`docs/features/requests/2026-10-12-03-문의-기능-신규.md`)의 작성 화면 안내 문구는
+> `공개해도 닉네임만 보임` 인데, 검토 결과는 **공개 Q/A 에 작성자 표기 없음**이다. 게다가 `users` 에
+> 닉네임 컬럼이 없다. **화면 문구를 결정에 맞춰 고쳐야 한다** — 문구가 약속하는 것과 응답이 다르면
+> 사용자는 자기 이름이 어딘가 보인다고 믿는다.
+
 ### 알림 문구도 마스킹 경계다
 
 `새로운 상담 신청` 알림 내용은 `김민준님이 상담을 신청했어요` 로 **고객 이름이 문구에 박힌다.**
@@ -429,6 +476,26 @@ partnerInquiries.detail:   (id) => ['partnerInquiries', id]
 
 목록에서의 대량 반출에 대한 1차 방어선은 `pageSize` 상한(100)과 요청 한도다.
 **엑셀 내려받기(`GET /consult-requests/export`)가 생기면 그때는 필수로 기록한다** — 그건 명백한 대량 반출이다.
+
+#### 병원 문의는 열람도 답변도 기록하지 않는다
+
+`hospital_inquiries` (§14) 는 감사 대상에 넣지 **않는다.**
+
+감사가 답해야 하는 질문은 `pii_masked = false` — **누가 마스킹되지 않은 개인정보를 봤는가**다.
+문의 응답에는 전화번호가 없고 이름은 누구에게나 마스킹된다(위). 그 질문에 해당하는 행이 한 건도
+생기지 않으므로, 기록해도 `pii_masked = true` 행만 쌓여 **진짜 질의를 오염시킨다.**
+관리자 문의 화면은 목록과 상세를 번갈아 여는 작업 화면이라 양도 상담 상세와 비교가 안 된다 —
+바로 위 "목록 조회는 기록하지 않는다" 와 같은 실무 판단이다.
+
+**답변 등록도 별도 감사 행을 만들지 않는다.** 상담 상태 변경·메모를 기록한 이유는 그 행위가
+개인정보가 모인 화면 안에서 일어나고 행위자가 화면에 노출되기 때문인데, 문의는 행위자와 시각이
+`answered_by_user_id` / `answered_at` 으로 **원본 테이블 그 자리에** 남고 답변은 수정·삭제가 없다(§14).
+"언제 누가 무엇으로 바꿨나" 라는 질문이 아직 생기지 않는다.
+
+**뒤집히는 조건은 하나다 — 답변 수정이 허용되는 순간.** 그때 `audit_logs.action` 에
+`hospital_inquiry.answer_update` 를 추가하고 `before_value`/`after_value` 를 쓴다.
+`action` 허용값 9개는 `backend/prisma/schema.prisma` 의 `AuditLog` 주석에도 박혀 있으므로
+**두 곳을 함께 고쳐야 한다.** 지금 이 기능으로는 그 목록이 **한 줄도 바뀌지 않는다.**
 
 #### 필요한 테이블 요구사항 (db-master 전달용)
 
@@ -723,6 +790,7 @@ sort=rating | reviewCount | consultCount
 | **새 상담 알림** | `POST /consult-requests` | `audience=admin`, `type=consult-status`, 제목 `새로운 상담 신청`, 내용 `{name}님이 상담을 신청했어요`, `relatedResource=consultRequest`, `relatedId={상담 id}`. **수신자는 그 병원의 관리자** |
 | **상담 상태 변경 알림** | `PATCH /consult-requests/{id}/status` | `audience=user`, 제목 `상담 상태 변경`, 내용 `상담 상태가 '{라벨}'(으)로 변경되었어요`. **수신자는 그 상담의 `userId`** |
 | 상태 이력 한 줄 | `PATCH /consult-requests/{id}/status` | `statusHistory` 에 `{ status, changedAt, changedByName }` 추가 |
+| **문의 답변 알림** | `POST /hospital-inquiries/{id}/answer` (§14, 경로 확정 — `openapi.yaml`) | `audience=user`, `type=inquiry-answer`(**신규 값**), 제목 `문의에 답변이 왔어요`, 내용 `{병원명} · {답변 앞 60자}`, `relatedResource=hospitalInquiry`(**신규 값**), `relatedId={문의 id}`. **수신자는 그 문의의 `userId` 한 명.** 새 문의가 들어올 때 **관리자 알림은 만들지 않는다**(§14 — 배지는 미답변 수다) |
 | **전문의 검수 결과 알림** | `PUT /doctors/{id}/verification` | `audience=admin`, `type=system`, `relatedResource=doctor`. **수신자는 그 전문의 소속 병원의 관리자.** 지금은 아무 알림도 생기지 않아 병원이 결과를 알 방법이 없다 |
 | 검수 감사 로그 | `PUT /doctors/{id}/verification` | 누가·언제·어떤 결정을 했는지. 지금은 반려 사유만 남고 승인하면 그것도 지워진다 |
 | 재검수 복귀 | `PUT /hospitals/{id}/doctors`, `PATCH /doctors/{id}` | `specialty` 또는 `certificateUrl` 이 바뀌면 `verificationStatus` → `pending`. 지금은 승인이 유지되어 검수 없이 다른 과 배지가 노출된다 |
@@ -775,8 +843,15 @@ sort=rating | reviewCount | consultCount
 ### `relatedResource` 를 새로 추가했다
 
 지금 관리자 알림함은 `relatedId` 만 보고 **무조건 상담 상세로** 보낸다(`admin/notifications.tsx:14`).
-전문의 검수 알림이 생기면 잘못된 곳으로 이동한다. `relatedResource`(`consultRequest`|`hospital`|`doctor`|`promotion`|`null`)를
+전문의 검수 알림이 생기면 잘못된 곳으로 이동한다. `relatedResource`(`consultRequest`|`hospital`|`doctor`|`promotion`|`hospitalInquiry`|`null`)를
 함께 내려주어 이동 대상을 종류로 판단하게 한다.
+
+**`hospitalInquiry` 알림은 마이페이지 `내 문의` 의 그 문의(`relatedId`)를 펼친 채 연다.** 병원 상세의 공개 Q/A 로
+보내지 않는다 — 비공개로 물었거나 병원이 비공개로 답한 건은 그곳에 없고, 알림만으로는 공개 여부를 알 수 없다.
+그래서 알림에 `hospitalId` 를 싣지 않고, **알림 행에 컬럼도 더하지 않는다.** (2026-10-12 화면 설계에서 확정.
+처음 설계는 `hospital_inquiries` 조인으로 `hospitalId` 를 내려주는 것이었으나 그 값을 쓰는 화면이 없어 뺐다.)
+`notifications.hospital_id` 는 `audience='admin'` 알림함이 "어느 병원의 알림함인가" 로 쓰는 필터 키이므로
+사용자 알림에 채우지 않는다.
 
 ---
 
@@ -939,6 +1014,18 @@ JS 키는 origin 제한이 가능하고 **애초에 클라이언트 노출을 �
 | `DOCTOR_NOT_AT_HOSPITAL` | 422 | 이 병원에 소속된 전문의가 아니에요 |
 | `THIRD_PARTY_CONSENT_REQUIRED` | 422 | 개인정보 제3자 제공에 동의해야 상담을 신청할 수 있어요 |
 | `INVALID_PHONE_FORMAT` | 422 (detail) | 휴대폰 번호 형식이 아니에요. 010-1234-5678 처럼 입력해주세요 |
+
+**병원 문의** (2026-10-12)
+
+| 코드 | HTTP | 문구 |
+|---|---|---|
+| `HOSPITAL_INQUIRY_NOT_FOUND` | 404 | 문의를 찾을 수 없어요 (없는 문의 **와** 담당·본인 범위 밖 문의 모두 — §3) |
+| `OPERATOR_CANNOT_ANSWER` | 403 | 운영자는 병원을 대신해 답변할 수 없어요 |
+| `INQUIRY_ALREADY_ANSWERED` | 409 | 이미 답변한 문의예요. 답변 수정은 아직 지원하지 않아요 |
+| `TOPIC_REQUIRED` | 422 (detail) | 문의 주제를 선택해주세요 |
+| `CONTENT_TOO_SHORT` | 422 (detail) | 문의 내용을 5자 이상 입력해주세요 / 답변 내용을 5자 이상 입력해주세요 |
+| `CONTENT_TOO_LONG` | 422 (detail) | 문의 내용은 1000자까지 쓸 수 있어요 |
+| `ANSWER_PUBLIC_REQUIRED` | 422 (detail) | 이 답변을 공개할지 선택해주세요 |
 
 **커뮤니티 / 콘텐츠 / geo**
 
@@ -1208,6 +1295,121 @@ user_agreements
 §4 의 "필요한 테이블 요구사항" 에 전체 정의가 있다. 역할·PII 결정에 딸려오는 필수 테이블이며,
 `docs/database/README.md` 의 "제안 8" 이 이것을 받는다.
 
+#### `hospital_inquiries` (2026-10-12 추가)
+
+`docs/features/requests/2026-10-12-03-문의-기능-신규.md` 가 요구하는 **새 도메인**이다.
+위 셋과 달리 초안에 없던 기능이라 이 절 제목의 "4개" 밖에 있다 — 2026-08-12 시점의 수를 보존하려고
+제목은 그대로 두고 여기에 덧붙인다. 받는 곳은 `docs/database/` 의 새 테이블과
+`backend/prisma/schema.prisma` 다 (백엔드는 협업자 영역이라 **요구사항만 전달한다**).
+
+읽는 화면은 셋이고 **테이블은 하나다.** 병원 상세 `문의` 탭(공개 Q/A), 사용자 `문의하기`·마이페이지
+`내 문의`, 병원 관리자 `문의` 화면.
+
+```
+hospital_inquiries
+  id                   pk
+  hospital_id          fk → hospitals.id, not null, Restrict   -- 문의 대상 병원
+  user_id              fk → users.id, not null, Restrict       -- 문의자. 작성 화면이 로그인을 강제한다
+  topic                varchar, not null       -- price | hours | parking | procedure | etc
+                                               -- 화면 라벨(가격 / 진료시간 / 주차·위치 / 시술 방법 / 기타)은
+                                               -- 앱이 붙인다. **기본값 없음** — 고르지 않으면 제출 불가
+  content              text, not null          -- 5~1000자 (trim 후, 앱 검증)
+
+  is_public_by_user    boolean, not null, default true
+                                               -- 작성 화면의 '다른 사람도 볼 수 있게 공개' (기본 켜짐)
+
+  answer_content       text, null              -- 5~1000자. 미답변이면 null
+  answer_public        boolean, null           -- ☆ 답변 시점에 **병원**이 고른 공개 허용 여부.
+                                               --   미답변이면 null (아래 '왜 nullable 인가')
+  answered_by_user_id  fk → users.id, null, Restrict  -- 답변을 등록한 담당자
+  answered_at          timestamp, null         -- ★ 상태 판정의 유일한 근거
+
+  created_at           timestamp, not null
+
+  Indexes
+    (hospital_id, answered_at)   -- 관리자 탭 카운트 · 미답변 배지 · 공개 Q/A 목록(answered_at DESC)
+    (hospital_id, created_at)    -- 관리자 '전체' 탭 최신순
+    (user_id, created_at)        -- 마이페이지 '내 문의'
+    (created_at)                 -- operator 의 전 병원 목록 (병원 필터가 없는 유일한 질의)
+```
+
+**파생 규칙은 순수 함수 두 개이고 파일 하나에 있다** (`hospital/inquiry-visibility.ts` 정도).
+카운트 질의·목록 질의·상세 투영이 **전부 이 둘을 쓴다.** 병원 카드 배지가 두 곳에서 갈렸던 전례
+(AGENTS.md)가 여기서 더 위험하다 — 한쪽만 틀리면 **비공개 문의가 공개 목록에 뜬다.**
+
+```ts
+// 상태: 저장하지 않고 파생한다
+inquiryStatus(i) = i.answeredAt === null ? 'unanswered' : 'answered'
+
+// 공개 Q/A 노출: 환자·병원 둘 다 동의 + 답변완료
+isPubliclyVisible(i) =
+  i.isPublicByUser === true &&
+  i.answerPublic === true &&
+  inquiryStatus(i) === 'answered'
+```
+
+마지막 조건은 `answerPublic` 이 null 이 아닌 것과 사실상 같지만 **그대로 남긴다.** 읽는 사람이
+"답변 전에도 공개될 수 있나" 를 함수 본문에서 바로 확인할 수 있어야 하고, `answerPublic` 의
+nullable 규칙이 나중에 바뀌어도 노출 조건은 그대로여야 한다.
+
+**상태를 컬럼으로 두지 않는 이유.** `doctors.verification_status` 는 **다른 테이블의 최신 행**을
+캐시한 것이라 컬럼이 값을 한다. 여기서는 근거(`answered_at`)가 **같은 행**에 있다 —
+컬럼을 더하면 같은 사실의 복사본이 두 개가 되고, 둘이 어긋날 때 무엇이 맞는지 정할 방법이 없다.
+`WHERE answered_at IS NULL` 은 `(hospital_id, answered_at)` 인덱스가 그대로 받는다.
+
+**`answer_public` 이 nullable 인 이유.** `not null default false` 로 두면 **"아직 안 물어봤다"** 와
+**"병원이 비공개를 골랐다"** 가 같은 값이 된다. `audit_logs.pii_masked` 를 nullable 로 둔 것과 같은
+판단이다. 미답변 행의 이 값은 존재하지 않는 사실이다.
+
+**답변을 자식 테이블로 빼지 않은 이유.** 문의 1건에 답변 1건이고 수정이 없다. 자식 테이블은
+조인 하나와 "0 또는 1행" 이라는 애플리케이션 불변식을 추가로 만들 뿐이다.
+**답변 수정이 허용되면 그때 `hospital_inquiry_answers` 로 분리해 이력을 남긴다** (§4 감사 절도 같은
+조건을 건다). 그 전까지 `POST .../answer` 는 `answered_at IS NULL` 조건부 쓰기라서,
+동시 요청 두 개 중 하나만 성공하고 알림도 한 번만 나간다.
+
+**이번 버전에서 답변 수정은 허용하지 않는다.** 공개 Q/A 는 환자가 읽는 의료광고 성격 문구이고,
+"답변이 왔어요" 알림을 받고 본 내용이 나중에 조용히 바뀌면 그 알림이 거짓이 된다.
+
+**없는 컬럼과 그 이유:**
+
+| 두지 않은 것 | 왜 |
+|---|---|
+| `title` | 화면이 **본문 첫 줄**을 제목으로 쓴다. 입력칸이 없는 값을 저장하면 두 값이 어긋난다 |
+| `status` | 위 — `answered_at` 에서 파생 |
+| `updated_at` | 행이 바뀌는 사건이 '답변 등록' 하나뿐이고 그 시각은 `answered_at` 이 이미 들고 있다. `updated_at` 을 두면 "갱신될 수 있는 행" 이라는 틀린 신호가 스키마에 남는다 |
+| `deleted_at` | 문의·답변을 지우는 화면이 없다. 신고·삭제가 생기면 그때 추가한다 |
+| `read_at` / 관리자 읽음 상태 | 요청서의 `안 읽은 수` 배지를 **미답변 수**로 해석했다. 읽음을 따로 저장하려면 (관리자 × 문의) 테이블이 필요한데, 담당자가 여럿일 때 누구 기준인지 화면이 정의하지 않았다. 미답변 수는 담당자가 누구든 같은 숫자다 |
+| `name` / `phone` | §4 — 문의는 연락처 없는 창구다. 이름은 `users` 조인 + 항상 마스킹 |
+
+**FK 정책:** `hospital_id`·`user_id` 는 `Restrict` (`consult_requests` 와 같다 — 둘 다 soft delete 대상이라
+물리 삭제가 일어나지 않고, 일어난다면 막아야 한다). `answered_by_user_id` 도 `Restrict`
+(`doctor_verifications.reviewed_by_user_id` 와 같은 정책 — "이 결정을 누가 했는가" 필드의 FK 정책이
+테이블마다 다르면 감사 때 한쪽만 행위자가 사라진다).
+
+**카운트 세 벌 — 모집단이 서로 다르다. 이것이 이 설계에서 가장 틀리기 쉬운 곳이다.**
+
+| 화면 | 숫자 | 모집단 |
+|---|---|---|
+| 병원 상세 `문의 N건 · 답변 N` | `문의 N` = `is_public_by_user = true` 인 문의 수<br>`답변 N` = 그중 `isPubliclyVisible` 인 수 | **환자가 공개로 남긴 문의만** |
+| 관리자 탭 `미답변 N · 답변완료 N · 전체 N` | `answered_at IS NULL` / `IS NOT NULL` / 전체 | 담당 병원의 **모든** 문의 (공개 여부 무관) |
+| 관리자 홈 배지 | `answered_at IS NULL` 인 수 | `managedHospitalIds` 전체 합. **`operator` 에게는 숫자를 붙이지 않는다** — 답할 수 없는 역할에게 "할 일 N건" 을 보여주는 셈이라서다(`summary.scope === 'all'` 이면 화면이 숫자를 생략) |
+
+**공개 카운트가 전체 건수가 아닌 이유.** 전체를 세면 비공개 문의 볼륨이 샌다 — "이 병원에 문의가
+40건인데 Q/A 는 3개" 는 비공개 37건을 말해 준다. 모집단을 공개 문의로 좁히면 그 수가 새지 않으면서도
+`문의 N − 답변 N` 이 **"공개로 물었는데 아직 답이 없는 건수"** 라는 쓸모 있는 응답성 신호로 남는다.
+
+**병원이 비공개로 답한 건을 `답변 N` 에 세지 않는 이유.** 세면 `답변 N` 과 목록에 실제로 보이는 Q/A
+개수가 어긋난다. `답변 N` 은 항상 **아래 목록의 길이**여야 한다. 대가로 비공개 답변은 그 병원에
+불리하게 집계되는데, 환자 시야에서는 "공개로 물었지만 아직 볼 수 없는 문의" 가 맞다.
+
+**정하지 않은 것 (기능 구현 전에 필요해지면 그때):**
+
+- **도배 방지.** 같은 사용자가 같은 병원에 연속으로 문의하는 것을 막는 규칙이 없다. 1차 방어선은
+  §16 의 요청 한도다. 테이블은 `(user_id, created_at)` 인덱스로 "최근 N분 내 내 문의 수" 를 받을 수 있다
+- **보존 기간.** 문의에는 연락처가 없지만 본문에 환자가 증상·예산을 적는다. 탈퇴(soft delete) 계정의
+  **공개 Q/A 를 계속 노출할지**가 미결이다 (작성자 표기가 없어 식별 위험은 낮은 쪽이다)
+- **신고·숨김.** 부적절한 문의/답변을 내리는 경로가 없다. 생기면 `deleted_at` 과 운영자 권한이 함께 온다
+
 ---
 
 ## 15. 버전 관리 방침
@@ -1289,8 +1491,9 @@ Zod 스키마를 쓸 때 `.strict()` 를 쓰지 않는다 — 필드 하나 추�
 | `GET /promotions` | `public, max-age=300` | 할인 정보. 너무 길면 종료된 할인이 남는다 |
 | `GET /search/trending`, `/search/suggestions` | `public, max-age=300` | 집계·광고 지면 |
 | `GET /hospitals`, `/hospitals/{id}`, `/doctors*` | `public, max-age=60` + ETag | 관리자 수정이 반영되어야 한다. ETag 로 304 를 노린다 |
+| `GET /hospitals/{id}/inquiries` | `public, max-age=60` | 공개 Q/A 뿐이고 작성자 필드가 없다. 답변 직후 최대 1분 늦게 보일 수 있다 |
 | `GET /geo/address-search` | `private, max-age=600` | 개인화되지 않지만 인증이 필요하다. 서버 내부 캐시가 본체 |
-| `/me/*`, `/consult-requests*`, `/notifications*`, `/admin/*`, `/doctors/verification-queue`, `/partner-inquiries*`, `/hospitals/{id}/admins*` | **`no-store`** + `Vary: Authorization` | 개인정보(실명·전화번호·자격증)와 계정별·역할별 데이터. 중간 캐시에 남으면 안 된다 |
+| `/me/*`, `/consult-requests*`, `/hospital-inquiries*`, `/notifications*`, `/admin/*`, `/doctors/verification-queue`, `/partner-inquiries*`, `/hospitals/{id}/admins*` | **`no-store`** + `Vary: Authorization` | 개인정보(실명·전화번호·자격증)와 계정별·역할별 데이터. 중간 캐시에 남으면 안 된다 |
 
 **`Vary: Authorization` 이 특히 중요해진 지점:** `GET /consult-requests`, `GET /consult-requests/{id}`,
 `GET /admin/hospitals` 는 **같은 URL 에 대해 역할별로 다른 본문**을 반환한다 (PII 마스킹, `scope`).
@@ -1308,6 +1511,7 @@ Zod 스키마를 쓸 때 `.strict()` 를 쓰지 않는다 — 필드 하나 추�
 | `GET /geo/address-search` | 계정당 **30회/분** | 카카오 할당량 보호. 폼이 0.3초 디바운스로 호출한다 |
 | `POST /hospitals/{id}/admins` | 계정당 **20회/시간** | 권한 부여다. 이메일 대입으로 계정 존재를 열거하는 것을 늦춘다 (`operator` 전용이라 위험은 낮지만 계정 탈취 대비) |
 | `POST /consult-requests` | 계정당 **10회/시간** | 중복 신청을 막지는 않지만 스팸은 막는다 |
+| `POST /hospital-inquiries` | 계정당 **10회/시간** | 도배 방지의 1차 방어선 (§14 미결 — 도배 규칙 자체는 아직 없다) |
 | `POST /community/posts`, `.../answers` | 계정당 **20회/시간** | 스팸 |
 | `POST /community/posts/{id}/views` | IP 당 **60회/분** | 조회수 조작 |
 | `POST /partner-inquiries` | IP 당 **3회/분** | 인증이 없는 공개 폼 |

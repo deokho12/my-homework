@@ -8,6 +8,7 @@ import { CONTAINER_PADDING } from '@/components/layout/Container';
 import { useSession } from '@/features/auth/hooks/useSession';
 import { useConsultSummary } from '@/features/consult';
 import { useManagedHospitals } from '@/features/hospital';
+import { useInquirySummary } from '@/features/inquiry';
 import { useUnreadNotificationCount } from '@/features/notification';
 
 function AdminBell() {
@@ -54,7 +55,19 @@ export default function AdminHomePage() {
   // 숫자 두 개를 보려고 고객 실명·전화번호가 실린 상담 목록을 통째로 받아오지 않는다.
   // `이번 달` 의 기준도 기기 시계가 아니라 서버(`Asia/Seoul`) 달력이다.
   const { data: summary } = useConsultSummary();
+  const { data: inquirySummary } = useInquirySummary();
   const { data, isLoading, isError, isFetching, refetch } = useManagedHospitals();
+
+  /**
+   * `문의 N` 의 N 은 **미답변 수**다 (안 읽은 수가 아니다 — 담당자가 여럿일 때 누구 기준인지
+   * 정의되지 않아서다).
+   *
+   * **운영자에게는 숫자를 붙이지 않는다.** 운영자는 답변할 수 없으므로
+   * (`403 OPERATOR_CANNOT_ANSWER`) 전 병원의 미답변 수는 그의 할 일 수가 아니다.
+   * 아직 모르는 동안(로딩·실패)에도 숫자를 그리지 않는다.
+   */
+  const inquiryEntryLabel =
+    inquirySummary === undefined || inquirySummary.scope === 'all' ? '문의' : `문의 ${inquirySummary.unanswered}`;
 
   return (
     <SafeAreaView className="flex-1 bg-neutral-50" edges={['bottom']}>
@@ -73,12 +86,17 @@ export default function AdminHomePage() {
           <StatCard label="처리 대기 중인 상담" value={summary?.pending} />
         </View>
 
-        <View className="mb-2">
-          <PrimaryButton
-            label="상담 관리"
-            variant="outline"
-            onPress={() => router.push('/admin/consultations')}
-          />
+        <View className="mb-2 flex-row gap-2">
+          <View className="flex-1">
+            <PrimaryButton
+              label="상담 관리"
+              variant="outline"
+              onPress={() => router.push('/admin/consultations')}
+            />
+          </View>
+          <View className="flex-1">
+            <PrimaryButton label={inquiryEntryLabel} variant="outline" onPress={() => router.push('/admin/inquiries')} />
+          </View>
         </View>
 
         <View className="flex-row gap-2">

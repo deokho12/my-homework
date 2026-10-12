@@ -1,5 +1,5 @@
 import { ChevronRight, ClipboardList, Heart, MessageCircleQuestion } from 'lucide-react';
-import { useCallback, useRef, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
 import { router, useFocusEffect } from '@/navigation';
@@ -20,6 +20,7 @@ import {
   type MyConsultRequest,
 } from '@/features/consult';
 import { useFavorites } from '@/features/favorite';
+import { MyInquiryRow, useMyInquiries } from '@/features/inquiry';
 import { useHospital, useHospitalName } from '@/features/hospital';
 import { HospitalCard } from '@/features/hospital/components/HospitalCard';
 import { useUnreadNotificationCount } from '@/features/notification';
@@ -36,8 +37,8 @@ const SCROLL_SHADOW_THRESHOLD = 8;
  */
 const MY_CONSULTS_PAGE_SIZE = 100;
 
-/** 문의 기능은 요청서 `2026-10-12-03` 의 몫이라 데이터 소스가 아직 없다. */
-const INQUIRY_COUNT = 0;
+/** 내 문의도 같은 상한을 쓴다 — 페이지네이션 UI 가 없어 한 번에 받는다. */
+const MY_INQUIRIES_PAGE_SIZE = 100;
 
 const TABS = [
   { key: 'consults', label: '상담 내역' },
@@ -146,6 +147,80 @@ function ConsultsPanel({ query }: { query: ReturnType<typeof useMyConsultRequest
           {page.items.map((request, index) => (
             <li key={request.id}>
               <ConsultRow request={request} isLast={index === page.items.length - 1} />
+            </li>
+          ))}
+        </ul>
+      )}
+    </QueryState>
+  );
+}
+
+/* ------------------------------------------------------------------ 내 문의 패널 */
+
+/**
+ * 내 문의 목록. **행을 펼쳐 답변을 읽는다** — 비공개로 물은 문의의 답변을 읽을 수 있는
+ * 유일한 자리라, 목록 밖으로 내보내지 않는다 (계약에 단건 조회 경로도 없다).
+ *
+ * `deepLinkId` 는 답변 알림이 들고 온 문의 id 다 (`/mypage?tab=inquiries&inquiry=...`).
+ */
+function InquiriesPanel({
+  query,
+  deepLinkId,
+  onDeepLinkHandled,
+}: {
+  query: ReturnType<typeof useMyInquiries>;
+  deepLinkId: string | null;
+  onDeepLinkHandled: () => void;
+}) {
+  // 딥링크로 들어왔으면 **처음부터** 그 행이 펼쳐진 상태로 시작한다 — 렌더 뒤에 열면
+  // 한 프레임 접혀 있다가 펴지고, 그 setState 가 사용자가 접어 둔 행을 되살릴 수도 있다.
+  const [openId, setOpenId] = useState<string | null>(deepLinkId);
+  const rowRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+
+  // 목록이 도착해야 그 행에 포커스를 줄 수 있다. 목록에 없는 id(상한 밖·남의 문의)면
+  // 아무 일도 일어나지 않고 주소만 정리된다.
+  const loaded = query.data !== undefined;
+
+  useEffect(() => {
+    if (deepLinkId === null || !loaded) return;
+
+    rowRefs.current[deepLinkId]?.focus();
+    // 파라미터는 한 번 쓰고 지운다 — 새로고침·뒤로 가기에서 같은 행이 다시 열리지 않게.
+    onDeepLinkHandled();
+  }, [deepLinkId, loaded, onDeepLinkHandled]);
+
+  return (
+    <QueryState
+      isLoading={query.isLoading}
+      isError={query.isError}
+      data={query.data}
+      onRetry={() => {
+        void query.refetch();
+      }}
+      isRetrying={query.isError && query.isFetching}
+      isEmpty={(page) => page.items.length === 0}
+      className="min-h-[200px] justify-center"
+      emptyState={{
+        icon: MessageCircleQuestion,
+        title: '아직 남긴 문의가 없어요',
+        description: '병원 상세에서 궁금한 점을 물어보세요',
+        actionLabel: '병원 찾아보기',
+        onAction: () => router.push('/explore'),
+      }}
+    >
+      {(page) => (
+        <ul className="min-h-[200px] justify-center">
+          {page.items.map((inquiry, index) => (
+            <li key={inquiry.id}>
+              <MyInquiryRow
+                ref={(node) => {
+                  rowRefs.current[inquiry.id] = node;
+                }}
+                inquiry={inquiry}
+                isLast={index === page.items.length - 1}
+                open={openId === inquiry.id}
+                onToggle={() => setOpenId(openId === inquiry.id ? null : inquiry.id)}
+              />
             </li>
           ))}
         </ul>
@@ -274,14 +349,28 @@ function SignedInView({ user, isHospitalAdmin }: { user: User; isHospitalAdmin: 
   const tabRefs = useRef<Partial<Record<TabKey, HTMLButtonElement | null>>>({});
 
   const myConsults = useMyConsultRequests({ pageSize: MY_CONSULTS_PAGE_SIZE });
+  const myInquiries = useMyInquiries({ pageSize: MY_INQUIRIES_PAGE_SIZE });
   const favorites = useFavorites();
 
   // 모르는 동안(로딩·실패)에는 숫자를 그리지 않는다 — 라벨만 남는다.
   const counts: Record<TabKey, number | null> = {
     consults: myConsults.data?.meta.totalItems ?? null,
-    inquiries: INQUIRY_COUNT,
+    inquiries: myInquiries.data?.meta.totalItems ?? null,
     favorites: favorites.data?.hospitalIds.length ?? null,
   };
+
+  // 답변 알림이 들고 온 문의 id. 한 번 쓰고 주소에서 지운다 (`replace` — 이력을 쌓지 않는다).
+  const deepLinkInquiryId = searchParams.get('inquiry');
+  const clearInquiryParam = useCallback(() => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete('inquiry');
+        return next;
+      },
+      { replace: true }
+    );
+  }, [setSearchParams]);
 
   const selectTab = (key: TabKey) => {
     setSearchParams(
@@ -375,11 +464,10 @@ function SignedInView({ user, isHospitalAdmin }: { user: User; isHospitalAdmin: 
         >
           {tab === 'consults' ? <ConsultsPanel query={myConsults} /> : null}
           {tab === 'inquiries' ? (
-            <EmptyState
-              icon={MessageCircleQuestion}
-              title="아직 남긴 문의가 없어요"
-              description="문의 기능은 준비중이에요"
-              className="min-h-[200px]"
+            <InquiriesPanel
+              query={myInquiries}
+              deepLinkId={deepLinkInquiryId}
+              onDeepLinkHandled={clearInquiryParam}
             />
           ) : null}
           {tab === 'favorites' ? <FavoritesPanel query={favorites} /> : null}

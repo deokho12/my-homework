@@ -45,6 +45,7 @@
 | 병원 상세 | `/hospital/:id` | [hospital-detail.md](hospital-detail.md) |
 | 전문의 상세 | `/doctor/:id` | [doctor-detail.md](doctor-detail.md) |
 | 상담 신청 | `/consult/:hospitalId` | [consult-request.md](consult-request.md) |
+| 문의하기 | `/inquiry/:hospitalId` | [inquiry.md](inquiry.md) |
 | 커뮤니티 글 상세 | `/community/:id` | [community-post.md](community-post.md) |
 | 커뮤니티 글 작성 | `/community/new` | [community-new.md](community-new.md) |
 | 시술 꿀팁 상세 | `/tips/:id` | [tip-detail.md](tip-detail.md) |
@@ -65,6 +66,7 @@
 | 전문의 인증 검수 | `/admin/specialists` | [admin-specialists.md](admin-specialists.md) |
 | 상담 관리 | `/admin/consultations` | [admin-consultations.md](admin-consultations.md) |
 | 상담 상세 | `/admin/consultations/:id` | [admin-consultation-detail.md](admin-consultation-detail.md) |
+| 문의 | `/admin/inquiries` (+ `/:id`) | [admin-inquiries.md](admin-inquiries.md) |
 | 관리자 알림 | `/admin/notifications` | [admin-notifications.md](admin-notifications.md) |
 
 ### 안내 화면

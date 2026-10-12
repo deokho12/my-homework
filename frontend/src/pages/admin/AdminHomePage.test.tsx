@@ -1,7 +1,8 @@
 import { screen, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import * as hospitalApi from '@/features/hospital/api/hospitalApi';
+import { writeCollection } from '@/lib/localCollection';
 import AdminHomePage from '@/pages/admin/AdminHomePage';
 import { useAuthStore } from '@/store/useAuthStore';
 import { renderWithProviders } from '@/test/renderWithProviders';
@@ -76,5 +77,77 @@ describe('AdminHomePage', () => {
 
     await waitFor(() => expect(screen.getByText('전문의 인증 검수')).toBeInTheDocument());
     expect(screen.getByText('새 병원 등록')).toBeInTheDocument();
+  });
+});
+
+/** 문의 입구 (요청서 `2026-10-12-03`). 숫자는 요약의 **미답변 수**이지 안 읽은 수가 아니다. */
+describe('AdminHomePage — 문의 입구', () => {
+  beforeEach(() => {
+    writeCollection('inquiries', []);
+    writeCollection('consultRequests', []);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    useAuthStore.setState({ user: null, status: 'ready' });
+  });
+
+  it('병원 담당자에게는 담당 병원의 미답변 수를 붙여 보여준다', async () => {
+    writeCollection('inquiries', [
+      {
+        id: 'hi1',
+        hospitalId: 'h1',
+        hospitalName: 'A치과',
+        topic: 'price',
+        content: '비용이 궁금해요',
+        isPublic: true,
+        answer: null,
+        createdAt: '2026-10-01T00:00:00.000Z',
+        ownerUserId: 'u-me',
+        askerDisplayName: '김민준',
+      },
+      {
+        id: 'hi2',
+        hospitalId: 'h2',
+        hospitalName: 'B치과',
+        topic: 'price',
+        content: '다른 병원 질문',
+        isPublic: true,
+        answer: null,
+        createdAt: '2026-10-02T00:00:00.000Z',
+        ownerUserId: 'u-me',
+        askerDisplayName: '김민준',
+      },
+    ]);
+    useAuthStore.setState({ user: userWithRole('hospital_admin'), status: 'ready' });
+    vi.spyOn(hospitalApi, 'fetchManagedHospitals').mockResolvedValue(emptyManaged('managed'));
+
+    renderWithProviders(<AdminHomePage />);
+
+    expect(await screen.findByText('문의 1')).toBeInTheDocument();
+  });
+
+  it('운영자에게는 숫자 없이 `문의` 만 보여준다 — 운영자는 답변할 수 없어 할 일 수가 아니다', async () => {
+    writeCollection('inquiries', [
+      {
+        id: 'hi1',
+        hospitalId: 'h1',
+        hospitalName: 'A치과',
+        topic: 'price',
+        content: '비용이 궁금해요',
+        isPublic: true,
+        answer: null,
+        createdAt: '2026-10-01T00:00:00.000Z',
+        ownerUserId: 'u-me',
+        askerDisplayName: '김민준',
+      },
+    ]);
+    useAuthStore.setState({ user: userWithRole('operator'), status: 'ready' });
+    vi.spyOn(hospitalApi, 'fetchManagedHospitals').mockResolvedValue(emptyManaged('all'));
+
+    renderWithProviders(<AdminHomePage />);
+
+    expect(await screen.findByText('문의')).toBeInTheDocument();
+    expect(screen.queryByText(/^문의 \d+$/)).not.toBeInTheDocument();
   });
 });

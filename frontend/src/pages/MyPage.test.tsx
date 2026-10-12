@@ -6,7 +6,7 @@ import { useLocation, useNavigationType } from 'react-router-dom';
 import { createConsultRequest, type ConsultRequestCreateInput } from '@/features/consult';
 import { addFavorite } from '@/features/favorite';
 import * as hospitalApi from '@/features/hospital/api/hospitalApi';
-import { writeCollection } from '@/lib/localCollection';
+import { writeCollection, type StoredHospitalInquiry } from '@/lib/localCollection';
 import { RouterBridge, router } from '@/navigation';
 import MyPage from '@/pages/MyPage';
 import { useAuthStore } from '@/store/useAuthStore';
@@ -457,5 +457,162 @@ describe('MyPage — 관리자 입구', () => {
     await userEvent.click(screen.getByRole('button', { name: /병원 관리자 페이지/ }));
 
     expect(pushSpy).toHaveBeenCalledWith('/admin');
+  });
+});
+
+/**
+ * 내 문의 탭 (요청서 `2026-10-12-03`).
+ *
+ * 문의도 상담과 같이 **api 를 목하지 않고 실제 저장소에 넣는다** — "내 것만 보인다" 는
+ * 계정 스코프 판정이 api 계층(`fetchMyInquiries`)에 있다.
+ */
+describe('MyPage — 내 문의 탭', () => {
+  function seedInquiries(rows: Partial<StoredHospitalInquiry>[]): void {
+    writeCollection(
+      'inquiries',
+      rows.map((row, index) => ({
+        id: `hi${index + 1}`,
+        hospitalId: 'h1',
+        hospitalName: 'A치과의원',
+        topic: 'price' as const,
+        content: `질문 ${index + 1}`,
+        isPublic: true,
+        answer: null,
+        createdAt: `2026-10-0${index + 1}T00:00:00.000Z`,
+        ownerUserId: 'u-me',
+        askerDisplayName: '김민준',
+        ...row,
+      }))
+    );
+  }
+
+  beforeEach(() => {
+    writeCollection('consultRequests', []);
+    writeCollection('notifications', []);
+    writeCollection('inquiries', []);
+    signIn();
+    vi.spyOn(hospitalApi, 'fetchHospitalById').mockImplementation(async (id: string) =>
+      baseHospital({ id, name: HOSPITAL_NAMES[id] ?? `${id} 치과` })
+    );
+  });
+
+  afterEach(() => {
+    act(() => {
+      useAuthStore.setState({ user: null, status: 'ready' });
+    });
+    vi.restoreAllMocks();
+  });
+
+  it('탭 숫자가 실제 내 문의 수다 (더 이상 0 으로 고정되어 있지 않다)', async () => {
+    seedInquiries([{}, { id: 'hi2' }]);
+
+    renderMyPage('/mypage?tab=inquiries');
+
+    await waitFor(() => expect(tab(/내 문의/)).toHaveTextContent('내 문의 2'));
+  });
+
+  it('다른 계정이 남긴 문의는 보이지 않는다', async () => {
+    seedInquiries([
+      { id: 'hi-mine', content: '내가 남긴 질문' },
+      { id: 'hi-other', content: '남이 남긴 질문', ownerUserId: 'u-other' },
+    ]);
+
+    renderMyPage('/mypage?tab=inquiries');
+
+    expect(await screen.findByRole('button', { name: /내가 남긴 질문/ })).toBeInTheDocument();
+    expect(screen.queryByText('남이 남긴 질문')).not.toBeInTheDocument();
+  });
+
+  it('행에 제목·병원·공개 여부·상태가 보이고, 펼치면 본문과 답변을 읽을 수 있다', async () => {
+    seedInquiries([
+      {
+        id: 'hi-answered',
+        content: '임플란트 비용이 궁금해요\n뼈이식도 필요할까요?',
+        answer: { content: '90만원부터 시작합니다', isPublic: true, answeredAt: '2026-10-08T00:00:00.000Z' },
+      },
+    ]);
+
+    renderMyPage('/mypage?tab=inquiries');
+
+    const row = await screen.findByRole('button', { name: /임플란트 비용이 궁금해요/ });
+    expect(row).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByText('A치과의원 · 공개')).toBeInTheDocument();
+    expect(screen.getByText('답변완료')).toBeInTheDocument();
+    // 펼치기 전에는 답변이 읽히지 않는다 (패널이 hidden 이다).
+    expect(screen.getByText('90만원부터 시작합니다')).not.toBeVisible();
+
+    await userEvent.click(row);
+
+    expect(row).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText('90만원부터 시작합니다')).toBeVisible();
+    expect(screen.getByText('뼈이식도 필요할까요?', { exact: false })).toBeVisible();
+  });
+
+  it('공개로 물었어도 병원이 비공개로 답했으면 비공개라고 말하고, 병원 상세의 문의로 보내지 않는다', async () => {
+    seedInquiries([
+      {
+        id: 'hi-private-answer',
+        content: '스케일링 보험 되나요?',
+        isPublic: true,
+        answer: { content: '연 1회 적용돼요', isPublic: false, answeredAt: '2026-10-08T00:00:00.000Z' },
+      },
+    ]);
+
+    renderMyPage('/mypage?tab=inquiries');
+
+    const row = await screen.findByRole('button', { name: /스케일링 보험 되나요\?/ });
+    // 공개 Q/A 에 실제로 올라가 있지 않으므로 '공개' 라고 말하면 거짓이다.
+    expect(screen.getByText('A치과의원 · 비공개')).toBeInTheDocument();
+
+    await userEvent.click(row);
+    expect(screen.getByText(/비공개 · 나만 볼 수 있어요/)).toBeVisible();
+
+    await userEvent.click(screen.getByRole('button', { name: '병원 상세 보기 ›' }));
+    // 문의 섹션으로 점프하는 `?section=inquiry` 가 붙지 않는다 — 그곳에 이 글이 없다.
+    await waitFor(() => expect(probe()).toBe('|PUSH'));
+  });
+
+  it('아직 답이 없으면 기다리는 중이라고 적는다', async () => {
+    seedInquiries([{ id: 'hi-waiting', content: '주차 되나요?', isPublic: false }]);
+
+    renderMyPage('/mypage?tab=inquiries');
+
+    await userEvent.click(await screen.findByRole('button', { name: /주차 되나요\?/ }));
+
+    expect(screen.getByText('A치과의원 · 비공개')).toBeInTheDocument();
+    expect(screen.getByText('답변 대기')).toBeInTheDocument();
+    expect(screen.getByText('아직 답변을 기다리는 중이에요')).toBeVisible();
+  });
+
+  it('알림에서 온 `?inquiry=` 는 그 행을 펼친 채 열고, 쓰고 나면 주소에서 지운다', async () => {
+    seedInquiries([
+      { id: 'hi1', content: '첫 질문' },
+      {
+        id: 'hi2',
+        content: '둘째 질문',
+        createdAt: '2026-10-05T00:00:00.000Z',
+        answer: { content: '둘째 답변입니다', isPublic: false, answeredAt: '2026-10-06T00:00:00.000Z' },
+      },
+    ]);
+
+    renderMyPage('/mypage?tab=inquiries&inquiry=hi2');
+
+    const row = await screen.findByRole('button', { name: /둘째 질문/ });
+    await waitFor(() => expect(row).toHaveAttribute('aria-expanded', 'true'));
+    expect(screen.getByText('둘째 답변입니다')).toBeVisible();
+    expect(row).toHaveFocus();
+    // 첫 행은 접힌 채다 — 딥링크는 한 건만 연다.
+    expect(screen.getByRole('button', { name: /첫 질문/ })).toHaveAttribute('aria-expanded', 'false');
+
+    // 한 번 쓰고 지운다. 새로고침·뒤로 가기에서 같은 행이 다시 열리지 않게.
+    await waitFor(() => expect(probe()).toBe('?tab=inquiries|REPLACE'));
+  });
+
+  it('문의가 없으면 병원 찾기로 보내는 빈 상태를 보여준다', async () => {
+    renderMyPage('/mypage?tab=inquiries');
+
+    expect(await screen.findByText('아직 남긴 문의가 없어요')).toBeInTheDocument();
+    expect(screen.getByText('병원 상세에서 궁금한 점을 물어보세요')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '병원 찾아보기' })).toBeInTheDocument();
   });
 });
