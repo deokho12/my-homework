@@ -10,7 +10,10 @@ import { useSession } from '@/features/auth';
 import {
   ConsultRequestComplete,
   ConsultRequestForm,
+  NO_PROCEDURE_LABEL,
   THIRD_PARTY_CONSENT_NOTICE_VERSION,
+  consultProcedureLabel,
+  procedurePairLabel,
   useCreateConsultRequest,
   useMyConsultRequests,
   type CompletedConsult,
@@ -23,21 +26,21 @@ import { isApiError } from '@/lib/apiClient';
 import { CONSULT_STATUS_LABEL, type Hospital } from '@/types/domain';
 import { showAlert } from '@/utils/alert';
 
-const NO_PROCEDURE_LABEL = '시술 미지정';
-
 /**
  * 병원이 취급하는 시술 → `{대분류} · {세부시술}` 칩 목록.
  *
- * 라벨을 taxonomy 의 순수 데이터에서 만든다 — 중복 제거·순서 고정·모르는 id 제거를
- * `groupLegacyIdsByCategory` 가 이미 하므로 화면이 다시 정하지 않는다.
+ * 중복 제거·순서 고정·모르는 id 제거는 `groupLegacyIdsByCategory` 가 이미 하고, **라벨 문구는
+ * `procedurePairLabel` 하나가 정한다** — 마이페이지 상담 내역이 같은 규칙으로 적는다.
  */
 function procedureChoicesOf(hospital: Hospital): ProcedureChoice[] {
   return groupLegacyIdsByCategory(hospital.procedureIds).flatMap((group) =>
-    group.subs.map((sub) => ({
+    group.subs.flatMap((sub) => {
       // 서버 id 에서 역변환된 세부 시술이라 `legacyProcedureId` 는 반드시 있다.
-      id: sub.legacyProcedureId as ProcedureChoice['id'],
-      label: `${group.category.name} · ${sub.name}`,
-    }))
+      const id = sub.legacyProcedureId;
+      const label = id ? procedurePairLabel(id) : null;
+
+      return id && label ? [{ id, label }] : [];
+    })
   );
 }
 
@@ -82,9 +85,10 @@ function ConsultRequestFlow({ hospital }: { hospital: Hospital }) {
           setCompleted({
             // 로컬 응답의 `hospitalName` 은 아직 `null` 이라 조회한 병원 이름을 쓴다.
             hospitalName: hospital.name,
-            procedureLabel:
-              procedureChoices.find((choice) => choice.id === values.procedureId)?.label ?? NO_PROCEDURE_LABEL,
+            // 칩 라벨과 같은 함수로 짓는다 — 완료 화면만 다른 문구를 쓰지 않게.
+            procedureLabel: consultProcedureLabel(values.procedureId) ?? NO_PROCEDURE_LABEL,
             preferredTime: values.preferredTime,
+            status: created.status,
             statusLabel: CONSULT_STATUS_LABEL[created.status],
           });
         },

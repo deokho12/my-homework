@@ -10,6 +10,7 @@ export {
 } from '@/features/hospital/api/hospitalApi';
 export { useCreateHospital } from '@/features/hospital/hooks/useCreateHospital';
 export { useHospital } from '@/features/hospital/hooks/useHospital';
+export { useHospitalName } from '@/features/hospital/hooks/useHospitalName';
 export { useHospitals } from '@/features/hospital/hooks/useHospitals';
 export {
   useHospitalsByCategory,

@@ -11,6 +11,13 @@ export {
   type ConsultSummary,
   type MyConsultRequest,
 } from '@/features/consult/api/consultApi';
+export {
+  CONSULT_STATUS_TONE,
+  NO_PROCEDURE_LABEL,
+  consultProcedureLabel,
+  consultScheduleLine,
+  procedurePairLabel,
+} from '@/features/consult/consultDisplay';
 export { useAddConsultMemo } from '@/features/consult/hooks/useAddConsultMemo';
 export { useConsultRequest } from '@/features/consult/hooks/useConsultRequest';
 export { useConsultRequests } from '@/features/consult/hooks/useConsultRequests';

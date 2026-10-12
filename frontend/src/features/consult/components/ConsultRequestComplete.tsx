@@ -3,12 +3,16 @@ import { useEffect, useRef } from 'react';
 
 import { Badge } from '@/components/Badge';
 import { PrimaryButton } from '@/components/PrimaryButton';
+import { CONSULT_STATUS_TONE } from '@/features/consult/consultDisplay';
+import type { ConsultStatus } from '@/types/domain';
 
 export interface CompletedConsult {
   hospitalName: string;
   /** 제출 시점의 칩 라벨. 고르지 않았으면 `시술 미지정`. */
   procedureLabel: string;
   preferredTime: string;
+  /** 칩 색을 고르는 근거. 마이페이지·관리자 목록과 같은 색표(`CONSULT_STATUS_TONE`)를 쓴다. */
+  status: ConsultStatus;
   /** `CONSULT_STATUS_LABEL[created.status]` — 상태 문구를 여기서 다시 짓지 않는다. */
   statusLabel: string;
 }
@@ -67,7 +71,7 @@ export function ConsultRequestComplete({ consult, onViewHistory }: ConsultReques
         <div className="flex items-start justify-between gap-4 border-b border-neutral-100 py-3 last:border-b-0">
           <dt className="shrink-0 text-sm text-neutral-500">상태</dt>
           <dd className="flex min-w-0 flex-1 flex-row justify-end">
-            <Badge tone="brand" label={consult.statusLabel} />
+            <Badge tone={CONSULT_STATUS_TONE[consult.status]} label={consult.statusLabel} />
           </dd>
         </div>
       </dl>

@@ -12,6 +12,8 @@ import ConsultRequestPage from '@/pages/ConsultRequestPage';
 import { useAuthStore } from '@/store/useAuthStore';
 import { baseHospital } from '@/test/hospitalFixture';
 import { renderWithProviders } from '@/test/renderWithProviders';
+import { CONSULT_STATUS_TONE } from '@/features/consult';
+import { CONSULT_STATUS_LABEL } from '@/types/domain';
 import type { Hospital, Paged, User } from '@/types/domain';
 
 const CONSENT = { agreed: true, noticeVersion: '2026-10-12' };
@@ -389,6 +391,19 @@ describe('ConsultRequestPage', () => {
       expect(screen.getByText('평일 오전')).toBeInTheDocument();
       expect(screen.getByText('상태')).toBeInTheDocument();
       expect(screen.getByText('신규')).toBeInTheDocument();
+    });
+
+    it('상태 칩은 마이페이지·관리자 목록과 같은 색표를 쓴다 (한 번 누르면 가는 화면끼리 색이 갈리지 않게)', async () => {
+      vi.spyOn(consultApi, 'createConsultRequest').mockResolvedValue(createdConsult());
+      await renderLoadedForm();
+
+      await fillValidForm();
+      await userEvent.click(submitButton());
+
+      const label = await screen.findByText(CONSULT_STATUS_LABEL.new);
+      // `Badge` 는 라벨 텍스트를 감싼 알약에 톤 클래스를 붙인다. `new` 의 공용 톤은 `info`(sky).
+      expect(CONSULT_STATUS_TONE.new).toBe('info');
+      expect(label.parentElement?.className).toContain('bg-sky-50');
     });
 
     it('내 상담 내역 보기 는 마이페이지로 바꿔 이동한다 (뒤로 눌러도 폼으로 돌아오지 않게)', async () => {

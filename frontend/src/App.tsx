@@ -24,6 +24,7 @@ import ConsultRequestPage from '@/pages/ConsultRequestPage';
 import DoctorDetailPage from '@/pages/DoctorDetailPage';
 import ExplorePage from '@/pages/ExplorePage';
 import HospitalDetailPage from '@/pages/HospitalDetailPage';
+import MyPage from '@/pages/MyPage';
 import AboutScreen from '@/screens/about';
 import AdminConsultationDetailScreen from '@/screens/admin/consultations/[id]';
 import AdminConsultationsScreen from '@/screens/admin/consultations/index';
@@ -41,7 +42,6 @@ import PartnerInquiryScreen from '@/screens/partner-inquiry';
 import SearchScreen from '@/screens/search';
 import CommunityTabScreen from '@/screens/tabs/community';
 import HomeScreen from '@/screens/tabs/index';
-import MyPageScreen from '@/screens/tabs/mypage';
 import TipDetailScreen from '@/screens/tips/[id]';
 
 /**
@@ -81,7 +81,7 @@ const ROUTES: AppRoute[] = [
   { path: '/', element: <HomeScreen />, options: { headerShown: false }, isTab: true },
   { path: '/explore', element: <ExplorePage />, options: { headerShown: false }, isTab: true },
   { path: '/community', element: <CommunityTabScreen />, options: { headerShown: false }, isTab: true },
-  { path: '/mypage', element: <MyPageScreen />, options: { headerShown: false }, isTab: true },
+  { path: '/mypage', element: <MyPage />, options: { headerShown: false }, isTab: true },
 
   // 공개 라우트, 탭 아님. 화면이 자체 헤더(뒤로 + 대분류 이름)를 그린다.
   { path: '/category/:categoryId', element: <CategoryPage />, options: { headerShown: false } },

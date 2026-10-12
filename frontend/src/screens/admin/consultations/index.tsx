@@ -7,8 +7,8 @@ import { Badge } from '@/components/Badge';
 import { Chip } from '@/components/Chip';
 import { QueryState } from '@/components/QueryState';
 import { CONTAINER_PADDING } from '@/components/layout/Container';
-import { useConsultRequests, useUpdateConsultStatus } from '@/features/consult';
-import { useHospital } from '@/features/hospital';
+import { CONSULT_STATUS_TONE, useConsultRequests, useUpdateConsultStatus } from '@/features/consult';
+import { useHospitalName } from '@/features/hospital';
 import { useProcedureMap, useProcedures } from '@/features/procedure';
 import { CONSULT_STATUS_LABEL, CONSULT_STATUSES, type ConsultRequest, type ConsultStatus } from '@/types/domain';
 
@@ -61,14 +61,13 @@ function ConsultCard({ request }: { request: ConsultRequest }) {
   const updateStatus = useUpdateConsultStatus();
   const procedureMap = useProcedureMap();
   const { isPending: proceduresPending } = useProcedures();
-  const { data: hospital, isLoading: isHospitalLoading } = useHospital(request.hospitalId);
+  // 병원 이름 판정(로딩 중 `—`, 없으면 `알 수 없는 병원`)은 마이페이지 상담 내역과 같은 훅이다.
+  const hospitalLabel = useHospitalName(request.hospitalId);
   const procedure = request.procedureId ? procedureMap.get(request.procedureId) : undefined;
   // "시술 미지정" 은 `request.procedureId` 가 정말 `null` 일 때만 맞는 말이다. id 는
   // 있는데 맵에 아직 없는 것은 시술 목록이 로딩 중이라는 뜻일 수 있어, "지정 안 됨" 이라고
   // 잘못 단정하지 않고 중립 표시(—)를 쓴다.
   const procedureLabel = procedure ? procedure.name : request.procedureId && proceduresPending ? '—' : '시술 미지정';
-  // 병원 이름도 같은 규칙이다 — 조회가 끝나기 전의 "없음"은 "아직 모름"이지 "알 수 없는 병원"이 아니다.
-  const hospitalLabel = isHospitalLoading ? '—' : (hospital?.name ?? '알 수 없는 병원');
 
   return (
     <Pressable
@@ -82,10 +81,7 @@ function ConsultCard({ request }: { request: ConsultRequest }) {
             {hospitalLabel} · {procedureLabel}
           </Text>
         </View>
-        <Badge
-          label={CONSULT_STATUS_LABEL[request.status]}
-          tone={request.status === 'booked' ? 'brand' : 'neutral'}
-        />
+        <Badge label={CONSULT_STATUS_LABEL[request.status]} tone={CONSULT_STATUS_TONE[request.status]} />
       </View>
 
       <Text className="mb-0.5 text-xs text-neutral-400">
