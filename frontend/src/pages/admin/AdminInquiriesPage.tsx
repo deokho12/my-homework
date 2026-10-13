@@ -1,5 +1,5 @@
 import { MessageCircleQuestion } from 'lucide-react';
-import { useRef, useState, type KeyboardEvent } from 'react';
+import { useRef, useState } from 'react';
 
 import { Stack, router, useLocalSearchParams } from '@/navigation';
 import { SafeAreaView, ScrollView, cx } from '@/primitives';
@@ -17,6 +17,7 @@ import {
   useInquirySummary,
   type HospitalInquiryAnswerInput,
 } from '@/features/inquiry';
+import { useRovingTabs } from '@/hooks/useRovingTabs';
 import { isApiError } from '@/lib/apiClient';
 import { ADMIN_INQUIRY_STATUS_LABEL, type InquiryStatus } from '@/types/domain';
 import { showAlert } from '@/utils/alert';
@@ -56,7 +57,6 @@ export default function AdminInquiriesPage() {
   const { isOperator } = useSession();
 
   const tab: TabKey = isTabKey(statusParam) ? statusParam : 'unanswered';
-  const tabRefs = useRef<Partial<Record<TabKey, HTMLButtonElement | null>>>({});
 
   const summary = useInquirySummary();
   const list = useHospitalInquiries({
@@ -109,27 +109,11 @@ export default function AdminInquiriesPage() {
     leaveDraft(() => goTo(`/admin/inquiries/${id}${statusQuery}`));
   };
 
-  // APG 탭 패턴: 화살표는 순환하고, 이동과 동시에 그 탭이 열린다.
-  const handleTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
-    const last = TABS.length - 1;
-    const nextIndex =
-      event.key === 'ArrowRight'
-        ? (index + 1) % TABS.length
-        : event.key === 'ArrowLeft'
-          ? (index + last) % TABS.length
-          : event.key === 'Home'
-            ? 0
-            : event.key === 'End'
-              ? last
-              : null;
-
-    if (nextIndex === null) return;
-
-    event.preventDefault();
-    const nextKey = TABS[nextIndex].key;
-    selectTab(nextKey);
-    tabRefs.current[nextKey]?.focus();
-  };
+  // APG 탭 패턴(화살표 순환·Home/End·이동과 동시에 열림)은 상담 예약 화면과 같은 훅을 쓴다.
+  const { setRef, onKeyDown } = useRovingTabs(
+    TABS.map((item) => item.key),
+    selectTab
+  );
 
   const handleAnswer = (id: string, input: HospitalInquiryAnswerInput) => {
     if (submittingRef.current) return;
@@ -180,11 +164,9 @@ export default function AdminInquiriesPage() {
                 aria-selected={selected}
                 aria-controls="inq-list"
                 tabIndex={selected ? 0 : -1}
-                ref={(node) => {
-                  tabRefs.current[item.key] = node;
-                }}
+                ref={setRef(item.key)}
                 onClick={() => selectTab(item.key)}
-                onKeyDown={(event) => handleTabKeyDown(event, index)}
+                onKeyDown={(event) => onKeyDown(event, index)}
                 className={cx(
                   'mb-2 mr-2 min-h-[40px] rounded-full border px-3.5 py-2 text-sm font-medium',
                   selected ? 'border-brand-600 bg-brand-600 text-white' : 'border-neutral-200 bg-white text-neutral-600'

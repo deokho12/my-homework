@@ -1,4 +1,16 @@
 import {
+  formatVisitAtLong,
+} from '@/features/consult/consultDisplay';
+import {
+  cancelReasonOf,
+  classifyEvent,
+  nextVisitAt,
+  periodRange,
+  requiredInputs,
+  truncateToMinute,
+  type ConsultPeriod,
+} from '@/features/consult/lib/transition';
+import {
   CONSULT_PHONE_PATTERN,
   INVALID_PHONE_MESSAGE,
 } from '@/features/consult/schemas/consultRequestSchema';
@@ -9,11 +21,16 @@ import {
   readCollection,
   writeCollection,
   type StoredConsultRequest,
+  type StoredConsultStatusChange,
 } from '@/lib/localCollection';
 import { useAuthStore } from '@/store/useAuthStore';
 import {
+  CONSULT_STATUSES,
   CONSULT_STATUS_LABEL,
+  isConsultCancelReason,
   type AppNotification,
+  type ConsultCancelReason,
+  type ConsultEvent,
   type ConsultPreferredTime,
   type ConsultRequest,
   type ConsultStatus,
@@ -21,6 +38,7 @@ import {
   type Paged,
   type ProcedureId,
 } from '@/types/domain';
+import { maskPersonName, maskPhoneMiddle } from '@/utils/pii';
 
 /**
  * 상담 신청·조회·상태 변경.
@@ -38,28 +56,31 @@ import {
  * | `addConsultMemo` | `POST /consult-requests/{consultRequestId}/memos` |
  * | `fetchMyConsultRequests` | `GET /me/consult-requests` |
  *
- * 에러는 서버가 쓸 코드·문구를 그대로 던진다 (`CONSULT_REQUEST_NOT_FOUND`). 화면은
+ * 에러는 서버가 쓸 코드·문구를 그대로 던진다 (`CONSULT_REQUEST_NOT_FOUND`,
+ * `PERIOD_FILTER_CONFLICT`, `VALIDATION_FAILED` + `details[]`). 화면은
  * `isApiError(error) && error.code === '...'` 로 분기하므로 서버 전환 뒤에도 그대로 동작한다.
  *
+ * **판정 규칙은 여기 없다.** 필수 입력·결과 일시·이벤트 종류·기간 경계·파생 취소 사유는
+ * 순수 모듈(`features/consult/lib/transition.ts`)에 있고, 화면의 상태 폼도 같은 함수를 부른다 —
+ * 폼이 "저장할 수 있다" 고 판정한 요청을 api 가 `422` 로 막으면 안 된다.
+ *
  * **로컬 구현이 계약과 다른 점:**
- * - 인가·스코프가 없다. `hospital_admin` 담당 병원 필터도, `operator` 개인정보 마스킹도 없다.
- *   예외가 하나 있다 — `fetchMyConsultRequests` 는 **계정별로 가른다** (아래 `currentUserId`).
- * - `procedureId` 를 그 병원이 취급하는지 보지 않는다 (서버가 `422 PROCEDURE_NOT_OFFERED` 로
- *   막을 몫). `phone` 형식과 제3자 제공 동의는 계약과 같은 `422` 로 여기서도 막는다 —
- *   동의 없는 접수가 저장되면 화면 버그 하나로 개인정보가 병원에 넘어간다.
- * - **`doctorId` 를 입력으로 받지만 저장하지 않는다.** `ConsultRequestCreateInput` 에는 자리가
- *   있으나 도메인 타입 `ConsultRequest` 에 필드가 없어, 화면이 값을 채워 보내도 `createConsultRequest`
- *   가 조용히 버린다. 계약(`POST /consult-requests` 의 `doctorId`)은 이 필드를 "전문의 지정 상담이
- *   전달되지 않는다" 결함의 해결책으로 지목하고 있으므로, **서버가 생기기 전에 이 값을 보내도
- *   결함은 그대로다** (`docs/features/known-issues.md` 🟠 "'전문의 상담신청'인데 어느 전문의인지
- *   저장되지 않습니다"). 해결하려면 `ConsultRequest` 에 `doctorId` 를 먼저 추가해야 한다.
- * - **관리자 목록 응답에 계약의 필수 필드 `scope`·`hospitalName`·`piiMasked` 가 없다.**
- *   - `scope` 는 인가가 없어 정할 근거가 없다 (담당 병원만 vs 전체를 가르는 값이다).
- *   - `hospitalName` 대신 화면이 행마다 `useHospital(request.hospitalId)` 로 따로 조회한다
- *     (`screens/admin/consultations/index.tsx`) — **목록 길이만큼 병원 조회가 나간다.** 서버가
- *     이름을 함께 내려주면 그 조회는 사라진다.
- *   - `piiMasked` 가 없어 "연락처는 담당 병원에서만 확인할 수 있어요" 안내나 전화 걸기·복사 잠금
- *     UI 도 없다. 마스킹 자체가 서버 몫이라 로컬에서는 판정할 값이 없다.
+ * - **인가가 진짜가 아니다.** 역할·담당 병원은 토큰이 아니라 스토어의 현재 사용자에서 온다
+ *   (`currentUser()`). 스코프 판정 자체는 계약대로 흉내 낸다 — `hospital_admin` 은
+ *   `managedHospitalIds`, `operator` 는 전체(읽기만), 범위 밖 단건은 `404`,
+ *   운영자의 상태 변경·메모는 `403`. 브라우저에서 스토어를 고치면 뚫리지만 그것은 서버가
+ *   생겨야 닫히는 구멍이다 (`docs/features/known-issues.md`).
+ * - **감사 로그가 없다.** 계약은 상세 열람마다 감사 행 1건(`X-Audit-Logged`)을 남기는데,
+ *   로컬에는 그 테이블도 서버 시계도 없다. 전체 번호를 본 횟수가 기록되지 않는 것이 차이다.
+ * - **`hospitalName` 이 응답에 없다.** 계약은 `ConsultRequest.hospitalName` 을 필수로 요구하지만
+ *   병원은 **이미 서버 리소스**라 이 저장소에 이름이 없고, 여기서 채우려면 로컬 api 안에서
+ *   병원 조회를 또 해야 한다. 그래서 화면이 병원 id 로 이름을 따로 묻는다
+ *   (`features/hospital/useHospitalName` — 마이페이지 상담 내역과 같은 훅, 병원 id 로 캐시 공유).
+ *   서버가 이름을 함께 내려주면 그 훅 호출이 사라진다 (`docs/features/known-issues.md`).
+ * - **`doctorId` 를 입력으로 받지만 저장하지 않는다** (`ConsultRequest` 에 자리가 없다).
+ * - **알림에 수신자가 없다.** 상태 변경 알림은 `audience: 'user'` 로만 저장되고 로컬 알림함은
+ *   계정을 가르지 않아 관리자 자신의 알림함에도 보인다 (계약도 현재 결함으로 적어 둔 것이다).
+ * - 페이지네이션·정렬은 로컬 배열에서 흉내 낸다 (`pageLocalRows`).
  */
 
 /** `ConsultRequestCreateRequest`. `userId` 는 서버가 토큰에서 채우므로 본문에 없다. */
@@ -68,8 +89,7 @@ export interface ConsultRequestCreateInput {
   /**
    * `전문의 상담신청` 으로 들어온 경우 그 전문의 id.
    *
-   * ⚠ **로컬 구현은 이 값을 저장하지 않는다** (`ConsultRequest` 에 자리가 없다). 위 "계약과
-   * 다른 점" 참고 — 여기에 값을 채워 보내도 지금은 조용히 사라진다.
+   * ⚠ **로컬 구현은 이 값을 저장하지 않는다** (`ConsultRequest` 에 자리가 없다).
    */
   doctorId?: string | null;
   procedureId: ProcedureId | null;
@@ -85,28 +105,100 @@ export interface ConsultRequestCreateInput {
   thirdPartyConsent: { agreed: boolean; noticeVersion: string };
 }
 
+/** 처리 이력 한 줄의 **관리자 투영** (`ConsultStatusChange`). 모든 키가 항상 있다. */
+export interface ConsultStatusChangeView {
+  event: ConsultEvent;
+  status: ConsultStatus;
+  changedAt: string;
+  changedByName: string | null;
+  /** 이 이벤트 **직후**의 확정 일시 스냅샷. 현재 값이 아니다. */
+  visitAt: string | null;
+  cancelReason: ConsultCancelReason | null;
+  notified: boolean;
+}
+
+/**
+ * 관리자 시야(`ConsultRequest`). 목록과 상세가 **같은 스키마**이고 `name`·`phone` 의 값과
+ * `piiMasked` 만 갈린다 — 마스킹은 값 변환이지 구조 변화가 아니다.
+ */
+export interface AdminConsultRequest
+  extends Omit<ConsultRequest, 'statusHistory' | 'visitAt' | 'thirdPartyConsent'> {
+  /**
+   * **이 응답에 마스킹된 개인정보 필드가 있는가.** `false` 는 담당 `hospital_admin` 의 상세
+   * 응답 하나뿐이다 — 목록은 두 역할 모두 `true` 다. 화면은 역할로 다시 계산하지 않는다.
+   */
+  piiMasked: boolean;
+  visitAt: string | null;
+  /** 현재 상태가 `cancelled` 일 때 **가장 최근 취소 이벤트**의 사유. 저장된 컬럼이 아니다. */
+  cancelReason: ConsultCancelReason | null;
+  statusHistory: ConsultStatusChangeView[];
+  thirdPartyConsent: ConsultThirdPartyConsent | null;
+}
+
+/** 신청자 이력 한 줄. 관리자 이력과 달리 `event`·`changedByName`·`cancelReason`·`notified` 가 없다. */
+export interface MyConsultStatusChange {
+  status: ConsultStatus;
+  changedAt: string;
+  visitAt: string | null;
+}
+
 /**
  * 신청자 시야 투영(openapi `MyConsultRequest`). 관리자용 `ConsultRequest` 와 달리
- * 내부 메모(`memos`)를 담지 않는다 — 구조가 다르기 때문에 별도 타입이다.
+ * 내부 메모(`memos`)·취소 사유·알림 여부를 담지 않는다 — 구조가 달라 별도 타입이다.
  */
-export interface MyConsultRequest extends Omit<ConsultRequest, 'memos' | 'thirdPartyConsent'> {
+export interface MyConsultRequest
+  extends Omit<ConsultRequest, 'memos' | 'statusHistory' | 'visitAt' | 'thirdPartyConsent'> {
   /**
    * 계약에서는 필수 문자열이지만 **로컬 구현은 항상 `null` 이다.** 병원은 이미 서버
    * 리소스라 로컬 저장소에 이름이 없다. 서버 전환과 함께 값이 채워진다.
    */
   hospitalName: string | null;
-  /**
-   * 계약과 같이 **키는 항상 있고 값만 `null` 일 수 있다** (`null` = 동의 절차 도입 이전 접수).
-   * 도메인 `ConsultRequest` 에서 선택 필드인 것은 fixture 보존 때문이고, 응답 투영인
-   * 여기서는 그럴 이유가 없다.
-   */
+  visitAt: string | null;
+  /** `status_change` 행만 담는다 — 일시 변경 행은 신청자에게 `예약확정` 중복으로 보인다. */
+  statusHistory: MyConsultStatusChange[];
+  /** 계약과 같이 **키는 항상 있고 값만 `null` 일 수 있다** (`null` = 동의 절차 도입 이전 접수). */
   thirdPartyConsent: ConsultThirdPartyConsent | null;
 }
+
+/** `managed` = 담당 병원만, `all` = 전체 (`operator`). */
+export type ConsultScope = 'managed' | 'all';
+
+/** 상태 탭 건수. 모집단은 **지금 걸린 필터에서 `status` 만 뺀 범위**다. */
+export type ConsultStatusCounts = Record<ConsultStatus, number> & { total: number };
 
 export interface ConsultRequestFilters {
   page?: number;
   pageSize?: number;
   status?: ConsultStatus;
+  hospitalId?: string;
+  period?: ConsultPeriod;
+  createdFrom?: string;
+  createdTo?: string;
+  /** 반복 파라미터. 같은 것끼리는 OR, 다른 필터와는 AND. 9개 대분류는 화면이 풀어서 보낸다. */
+  procedureId?: ProcedureId[];
+  /** 이름 부분일치 **또는** 연락처 숫자. 운영자의 숫자 검색은 뒤 4자리 접미 일치뿐이다. */
+  q?: string;
+}
+
+/** `GET /consult-requests` 응답. 목록과 탭 숫자가 **같은 질의**에서 나온다. */
+export interface ConsultRequestList extends Paged<AdminConsultRequest> {
+  scope: ConsultScope;
+  statusCounts: ConsultStatusCounts;
+}
+
+export interface MyConsultRequestFilters {
+  page?: number;
+  pageSize?: number;
+  status?: ConsultStatus;
+}
+
+/** `PATCH /consult-requests/{id}/status` 본문. */
+export interface ConsultStatusUpdateInput {
+  status: ConsultStatus;
+  /** `booked` 일 때 필수 — 없으면 현재 행의 값을 쓴다. 다른 상태로 갈 때 보낸 값은 무시한다. */
+  visitAt?: string | null;
+  /** `cancelled` 일 때 필수. 다른 상태로 갈 때 보낸 값은 무시한다. */
+  cancelReason?: ConsultCancelReason | null;
 }
 
 /** `GET /consult-requests/summary`. 관리자 홈의 숫자 카드 2개. */
@@ -152,33 +244,138 @@ function consultNotFound(): ApiError {
   });
 }
 
-// 서버 전환 시 삭제: "내 것" 판정은 서버가 토큰 주체로 한다
+function unauthenticated(): ApiError {
+  return new ApiError({ status: 401, code: 'UNAUTHENTICATED', message: '로그인이 필요해요' });
+}
+
+function forbidden(): ApiError {
+  return new ApiError({ status: 403, code: 'FORBIDDEN', message: '이 작업을 수행할 권한이 없어요' });
+}
+
+function validationFailed(field: string, code: string, message: string): ApiError {
+  return new ApiError({
+    status: 422,
+    code: 'VALIDATION_FAILED',
+    message: '입력값을 확인해주세요',
+    details: [{ field, code, message }],
+  });
+}
+
+// 서버 전환 시 삭제: 역할·담당 병원·"내 것" 판정은 서버가 토큰 주체로 한다
 //
-// 로컬 저장소는 한 브라우저를 여러 계정이 함께 쓴다. 행에 주인을 적어 두지 않으면
-// A 계정으로 신청한 번호가 B 계정의 상담 신청 화면에 자동으로 채워진다. 토큰을 읽을
-// 서버가 없으니 그 자리에 스토어의 현재 사용자를 끼운다 — **이 파일에서만 쓴다.**
+// 로컬 저장소는 한 브라우저를 여러 계정이 함께 쓴다. 토큰을 읽을 서버가 없으니 그 자리에
+// 스토어의 현재 사용자를 끼운다 — **이 파일에서만 쓴다.**
+function currentUser() {
+  return useAuthStore.getState().user;
+}
+
 function currentUserId(): string | null {
-  return useAuthStore.getState().user?.id ?? null;
+  return currentUser()?.id ?? null;
+}
+
+/**
+ * 관리자 스코프. 역할에 따라 **보이는 모집단과 `scope` 가 함께** 정해진다
+ * (`GET /hospital-inquiries` 와 같은 모양).
+ */
+function adminScopedRows(hospitalId?: string): { rows: StoredConsultRequest[]; scope: ConsultScope } {
+  const user = currentUser();
+
+  if (!user) throw unauthenticated();
+  if (user.role !== 'hospital_admin' && user.role !== 'operator') throw forbidden();
+
+  const all = readCollection('consultRequests');
+
+  if (user.role === 'operator') {
+    return { rows: hospitalId ? all.filter((row) => row.hospitalId === hospitalId) : all, scope: 'all' };
+  }
+
+  // 담당 병원 밖을 물으면 `403 HOSPITAL_NOT_MANAGED` 다 — **병원 존재는 공개 정보라 숨기지 않는다.**
+  // 상담 단건(`/{id}`)이 `404` 인 것과 이유가 다르다 (상담 id 는 고객 개인정보와 1:1 이다).
+  if (hospitalId !== undefined && !user.managedHospitalIds.includes(hospitalId)) {
+    throw new ApiError({ status: 403, code: 'HOSPITAL_NOT_MANAGED', message: '담당하지 않는 병원이에요' });
+  }
+
+  const managed = all.filter((row) =>
+    hospitalId === undefined ? user.managedHospitalIds.includes(row.hospitalId) : row.hospitalId === hospitalId
+  );
+
+  return { rows: managed, scope: 'managed' };
+}
+
+/** 상태를 바꾸거나 메모를 쓸 수 있는 주체 — **담당 병원 관리자뿐이다** (운영자는 `403`). */
+function writableRow(id: string): { rows: StoredConsultRequest[]; target: StoredConsultRequest } {
+  const user = currentUser();
+
+  if (!user) throw unauthenticated();
+  // 운영자가 상태를 바꾸면 고객에게 `예약확정` 알림이 가는데 실제로 예약한 병원은 모르는 상태가 된다.
+  if (user.role !== 'hospital_admin') throw forbidden();
+
+  const rows = readCollection('consultRequests');
+  const target = rows.find((row) => row.id === id && user.managedHospitalIds.includes(row.hospitalId));
+
+  if (!target) throw consultNotFound();
+
+  return { rows, target };
+}
+
+/* --------------------------------------------------------------- 투영 */
+
+/** 저장 행 → 계약의 이력 한 줄. **계약 확장 이전 행의 빈 자리를 여기서 채운다.** */
+function toStatusChangeView(stored: StoredConsultStatusChange): ConsultStatusChangeView {
+  return {
+    event: stored.event ?? 'status_change',
+    status: stored.status,
+    changedAt: stored.changedAt,
+    changedByName: stored.changedByName ?? null,
+    visitAt: stored.visitAt ?? null,
+    cancelReason: stored.cancelReason ?? null,
+    // 저장 쪽은 알림 행을 가리키는 id 를 들고 있고, 투영에는 boolean 만 내려간다.
+    notified: stored.notified ?? Boolean(stored.notificationId),
+  };
+}
+
+interface Projection {
+  /** 이름까지 가리는가 (`operator`). */
+  maskName: boolean;
+  /** 번호를 가리는가. 목록은 역할과 무관하게 `true` 다. */
+  maskPhone: boolean;
 }
 
 /**
  * 저장 구조 → 계약의 `ConsultRequest`.
  *
- * 두 가지를 맞춘다: **로컬 전용 필드(`ownerUserId`)를 떼고**, 계약에서 필수 + nullable 인
- * `thirdPartyConsent` 의 **키를 항상 채운다** (동의 절차 도입 이전 행은 `null`).
- * 키가 없는 것과 `null` 인 것이 섞이면 "기록이 없다" 와 "아직 안 내려준다" 를 구분할 수 없다.
+ * 로컬 전용 필드(`ownerUserId`)를 떼고, 계약에서 필수 + nullable 인 자리의 **키를 항상 채운다**
+ * (`visitAt`·`cancelReason`·`thirdPartyConsent`). 키가 없는 것과 `null` 인 것이 섞이면
+ * "기록이 없다" 와 "아직 안 내려준다" 를 구분할 수 없다.
  */
-function toConsultRequest(stored: StoredConsultRequest): ConsultRequest {
-  const { ownerUserId: _ownerUserId, ...rest } = stored;
+function toAdminConsultRequest(stored: StoredConsultRequest, projection: Projection): AdminConsultRequest {
+  const { ownerUserId: _ownerUserId, statusHistory, ...rest } = stored;
 
-  return { ...rest, thirdPartyConsent: rest.thirdPartyConsent ?? null };
+  return {
+    ...rest,
+    name: projection.maskName ? maskPersonName(stored.name) : stored.name,
+    phone: projection.maskPhone ? maskPhoneMiddle(stored.phone) : stored.phone,
+    piiMasked: projection.maskName || projection.maskPhone,
+    visitAt: stored.visitAt ?? null,
+    cancelReason: cancelReasonOf(stored.status, statusHistory),
+    statusHistory: statusHistory.map(toStatusChangeView),
+    thirdPartyConsent: stored.thirdPartyConsent ?? null,
+  };
 }
 
 /** 관리자용 저장 구조에서 신청자 시야만 떼어낸다. */
-function toMyConsultRequest(request: StoredConsultRequest): MyConsultRequest {
-  const { memos: _memos, ...rest } = toConsultRequest(request);
+function toMyConsultRequest(stored: StoredConsultRequest): MyConsultRequest {
+  const { ownerUserId: _ownerUserId, memos: _memos, statusHistory, ...rest } = stored;
 
-  return { ...rest, thirdPartyConsent: rest.thirdPartyConsent ?? null, hospitalName: null };
+  return {
+    ...rest,
+    visitAt: stored.visitAt ?? null,
+    statusHistory: statusHistory
+      .filter((change) => (change.event ?? 'status_change') === 'status_change')
+      .map((change) => ({ status: change.status, changedAt: change.changedAt, visitAt: change.visitAt ?? null })),
+    thirdPartyConsent: stored.thirdPartyConsent ?? null,
+    hospitalName: null,
+  };
 }
 
 /** 표기 차이로 목록 검색·중복 대조가 어긋나지 않게 `010-1234-5678` 한 형태로 모은다. */
@@ -194,9 +391,8 @@ function normalizePhone(phone: string): string {
 // 서버 전환 시 삭제: 알림 생성은 서버 몫
 //
 // 상담 접수(`POST /consult-requests`)와 상태 변경(`PATCH .../status`)의 **부수효과로**
-// 서버가 알림을 만든다 — 알림을 만드는 공개 엔드포인트는 계약에 아예 없다. 그때까지만
-// 클라이언트가 대신 쓴다 (예전 `services/notifications.ts` 의 `notifyUser`/`notifyAdmin`).
-function createLocalNotification(input: Omit<AppNotification, 'id' | 'createdAt' | 'isRead'>): void {
+// 서버가 알림을 만든다 — 알림을 만드는 공개 엔드포인트는 계약에 아예 없다.
+function createLocalNotification(input: Omit<AppNotification, 'id' | 'createdAt' | 'isRead'>): string {
   const notification: AppNotification = {
     ...input,
     id: nextLocalId('notif'),
@@ -205,6 +401,68 @@ function createLocalNotification(input: Omit<AppNotification, 'id' | 'createdAt'
   };
 
   writeCollection('notifications', [notification, ...readCollection('notifications')]);
+
+  return notification.id;
+}
+
+/* --------------------------------------------------------------- 목록 필터 */
+
+/** 이 상담이 지금 걸린 (상태를 뺀) 필터에 걸리는가. 목록과 탭 숫자가 **같은 판정**을 쓴다. */
+function matchesFilters(
+  row: StoredConsultRequest,
+  filters: ConsultRequestFilters,
+  scope: ConsultScope,
+  now: Date
+): boolean {
+  const createdAt = new Date(row.createdAt).getTime();
+
+  if (filters.period) {
+    const [from, to] = periodRange(filters.period, now);
+    // 반열린 구간 `[from, to)`.
+    if (createdAt < from.getTime() || createdAt >= to.getTime()) return false;
+  }
+
+  if (filters.createdFrom && createdAt < new Date(filters.createdFrom).getTime()) return false;
+  if (filters.createdTo && createdAt > new Date(filters.createdTo).getTime()) return false;
+
+  if (filters.procedureId && filters.procedureId.length > 0) {
+    if (row.procedureId === null || !filters.procedureId.includes(row.procedureId)) return false;
+  }
+
+  const q = filters.q?.trim() ?? '';
+
+  if (q.length > 0 && !matchesQuery(row, q, scope)) return false;
+
+  return true;
+}
+
+/**
+ * 검색 — 이름 부분일치 **OR** 번호 숫자. 숫자가 2자 이상일 때만 번호 검색을 함께 건다.
+ *
+ * **운영자는 뒤 4자리 접미 일치뿐이다.** 전체 번호 부분일치를 허용하면 "이 번호의 상담이
+ * 존재하는가" 를 묻는 오라클이 되어 마스킹이 우회된다. 5자리 이상을 넣어도 에러가 아니라
+ * 뒤 4자리만 잘라 비교한다 — 검색은 **결과 없음이 정상 응답**인 자리다.
+ */
+function matchesQuery(row: StoredConsultRequest, q: string, scope: ConsultScope): boolean {
+  if (row.name.includes(q)) return true;
+
+  const digits = q.replace(/\D/g, '');
+  if (digits.length < 2) return false;
+
+  const phoneDigits = row.phone.replace(/\D/g, '');
+
+  if (scope === 'all') return phoneDigits.endsWith(digits.length > 4 ? digits.slice(-4) : digits);
+
+  return phoneDigits.includes(digits);
+}
+
+function countByStatus(rows: StoredConsultRequest[]): ConsultStatusCounts {
+  const counts = Object.fromEntries(
+    CONSULT_STATUSES.map((status) => [status, rows.filter((row) => row.status === status).length])
+  ) as Record<ConsultStatus, number>;
+
+  // `total` 을 따로 내려주는 이유: 화면이 다섯 수를 더하는 순간 그 덧셈이 또 하나의 판정 지점이 된다.
+  return { ...counts, total: rows.length };
 }
 
 /* --------------------------------------------------------------------- 오퍼레이션 */
@@ -226,12 +484,7 @@ export async function createConsultRequest(input: ConsultRequestCreateInput): Pr
   const phone = input.phone.trim();
 
   if (!CONSULT_PHONE_PATTERN.test(phone)) {
-    throw new ApiError({
-      status: 422,
-      code: 'VALIDATION_FAILED',
-      message: '입력값을 확인해주세요',
-      details: [{ field: 'phone', code: 'INVALID_PHONE_FORMAT', message: INVALID_PHONE_MESSAGE }],
-    });
+    throw validationFailed('phone', 'INVALID_PHONE_FORMAT', INVALID_PHONE_MESSAGE);
   }
 
   const now = new Date().toISOString();
@@ -245,7 +498,9 @@ export async function createConsultRequest(input: ConsultRequestCreateInput): Pr
     message: input.message,
     createdAt: now,
     status: 'new',
-    statusHistory: [{ status: 'new', changedAt: now }],
+    visitAt: null,
+    // 접수 행에는 행위자도 알림도 없다 — 환자가 스스로 한 일이다.
+    statusHistory: [{ event: 'status_change', status: 'new', changedAt: now }],
     // `agreedAt` 은 **받는 쪽 시계**다 (계약: 기기 시계는 증빙이 되지 않는다).
     thirdPartyConsent: { agreedAt: now, noticeVersion: input.thirdPartyConsent.noticeVersion },
     memos: [],
@@ -267,34 +522,63 @@ export async function createConsultRequest(input: ConsultRequestCreateInput): Pr
   return toMyConsultRequest(request);
 }
 
-/** `GET /consult-requests`. 관리자 상담 목록. 신청일시 최신순. */
-export async function fetchConsultRequests(filters: ConsultRequestFilters = {}): Promise<Paged<ConsultRequest>> {
-  const rows = [...readCollection('consultRequests')]
-    .sort(byCreatedAtDesc)
-    .filter((request) => (filters.status ? request.status === filters.status : true))
-    .map(toConsultRequest);
+/**
+ * `GET /consult-requests`. 관리자 상담 목록. 신청일시 최신순.
+ *
+ * **목록은 두 역할 모두 번호를 가린다** — 목록은 건별 열람 기록을 남기지 않는 자원이라
+ * 전체 번호가 실리면 무기록 대량 반출이 성립한다. 전체 번호는 상세 한 곳에만 있다.
+ *
+ * `statusCounts` 는 **상태만 푼 같은 모집단**에서 센다. 별도 조회로 두면 두 숫자가 서로 다른
+ * 시점을 가리켜 목록과 탭이 어긋난다.
+ */
+export async function fetchConsultRequests(filters: ConsultRequestFilters = {}): Promise<ConsultRequestList> {
+  if (filters.period && (filters.createdFrom || filters.createdTo)) {
+    throw new ApiError({
+      status: 422,
+      code: 'PERIOD_FILTER_CONFLICT',
+      message: '기간 조건은 한 가지 방식으로만 보낼 수 있어요',
+    });
+  }
 
-  return pageLocalRows(rows, filters.page, filters.pageSize);
+  const { rows, scope } = adminScopedRows(filters.hospitalId);
+  const now = new Date();
+  const matched = rows.filter((row) => matchesFilters(row, filters, scope, now));
+  const items = matched
+    .filter((row) => (filters.status ? row.status === filters.status : true))
+    .sort(byCreatedAtDesc)
+    .map((row) => toAdminConsultRequest(row, { maskName: scope === 'all', maskPhone: true }));
+
+  return {
+    ...pageLocalRows(items, filters.page, filters.pageSize),
+    scope,
+    statusCounts: countByStatus(matched),
+  };
 }
 
 /**
  * `GET /consult-requests/{consultRequestId}`.
  *
- * 없는 상담은 `null` 이 아니라 `404 CONSULT_REQUEST_NOT_FOUND`(`ApiError`)를 던진다.
- * 소비자는 `isApiError(error) && error.code === 'CONSULT_REQUEST_NOT_FOUND'` 로 "없음"을 분기한다.
+ * **전체 번호가 있는 유일한 자리다** (담당 `hospital_admin` 에게만). 없는 상담과 담당 병원
+ * 밖의 상담을 구분하지 않고 `404 CONSULT_REQUEST_NOT_FOUND` 를 던진다 — `403` 을 주면
+ * id 를 대입해 "이 상담이 존재한다" 를 알아내는 열거 경로가 된다.
  */
-export async function fetchConsultRequestById(id: string): Promise<ConsultRequest> {
-  const found = readCollection('consultRequests').find((request) => request.id === id);
+export async function fetchConsultRequestById(id: string): Promise<AdminConsultRequest> {
+  const { rows, scope } = adminScopedRows();
+  const found = rows.find((row) => row.id === id);
 
   if (!found) throw consultNotFound();
 
-  return toConsultRequest(found);
+  const maskAll = scope === 'all';
+
+  return toAdminConsultRequest(found, { maskName: maskAll, maskPhone: maskAll });
 }
 
 /** `GET /consult-requests/summary`. 개인정보를 담지 않는 숫자 두 개뿐이다. */
 export async function fetchConsultSummary(): Promise<ConsultSummary> {
   const now = new Date();
   const thisMonth = seoulMonthKey(now);
+  // ⚠ 계약은 이 숫자도 담당 병원 범위라고 적지만 로컬 구현은 전체를 센다 — 관리자 홈은
+  // 로그인 전에도 그리는 화면이라 스코프를 걸면 빈 카드가 된다 (`known-issues.md`).
   const rows = readCollection('consultRequests');
 
   return {
@@ -308,13 +592,12 @@ export async function fetchConsultSummary(): Promise<ConsultSummary> {
 /**
  * `GET /me/consult-requests`. 최신순.
  *
- * **지금 로그인한 계정이 접수한 건만 돌려준다.** 로컬 저장소는 한 브라우저를 여러 계정이
- * 함께 쓰는데, 가르지 않으면 남이 남긴 연락처가 내 상담 신청 화면에 자동으로 채워진다.
- * 주인이 적혀 있지 않은 행(시드·예전 브라우저 데이터)은 **누구의 것도 아니다** — 주인을
- * 추측해 누군가에게 붙이는 것보다 안 보이는 편이 안전하다. 비로그인이면 빈 목록이다
- * (서버라면 토큰이 없어 `401` 인 자리).
+ * **지금 로그인한 계정이 접수한 건만 돌려준다.** 주인이 적혀 있지 않은 행(시드·예전 브라우저
+ * 데이터)은 **누구의 것도 아니다**. 비로그인이면 빈 목록이다 (서버라면 `401` 인 자리).
  */
-export async function fetchMyConsultRequests(filters: ConsultRequestFilters = {}): Promise<Paged<MyConsultRequest>> {
+export async function fetchMyConsultRequests(
+  filters: MyConsultRequestFilters = {}
+): Promise<Paged<MyConsultRequest>> {
   const userId = currentUserId();
   const rows = (userId === null ? [] : [...readCollection('consultRequests')])
     .filter((request) => request.ownerUserId === userId)
@@ -326,49 +609,96 @@ export async function fetchMyConsultRequests(filters: ConsultRequestFilters = {}
 }
 
 /**
- * `PATCH /consult-requests/{consultRequestId}/status`.
+ * `PATCH /consult-requests/{consultRequestId}/status` — 상태 변경과 **예약 일시 변경**.
  *
- * **같은 상태로 다시 요청하면 아무 부수효과 없이 현재 리소스를 그대로 돌려준다 (no-op).**
- * 목록의 빠른 상태 버튼은 오탭이 잦은데, 그때마다 이력이 중복으로 쌓이고 신청자에게
- * 중복 알림이 가는 것을 막기 위한 계약이다.
+ * 순서가 규칙이다: **필수 입력 검사 → no-op 판정 → 부수효과.** `예약확정` 건에 일시 없이
+ * `예약확정` 을 다시 보내는 것은 "바꿀 것이 없는 요청" 이 아니라 **값을 빠뜨린 요청**이다.
+ *
+ * 세 값(`status`, `visitAt`, `cancelReason`)이 모두 그대로면 이력도 알림도 만들지 않는다 —
+ * 오탭으로 중복 알림이 나가는 것을 막는 계약이고, 요청 후의 상태가 요청자가 원한 상태와
+ * 같으므로 오류로 다루지 않는다.
  */
-export async function updateConsultStatus(id: string, status: ConsultStatus): Promise<ConsultRequest> {
-  const rows = readCollection('consultRequests');
-  const target = rows.find((request) => request.id === id);
+export async function updateConsultStatus(
+  id: string,
+  input: ConsultStatusUpdateInput
+): Promise<AdminConsultRequest> {
+  const { rows, target } = writableRow(id);
+  const actorName = currentUser()?.name ?? null;
 
-  if (!target) throw consultNotFound();
-  if (target.status === status) return toConsultRequest(target);
+  const required = requiredInputs(input.status);
+  const resolvedVisitAt = nextVisitAt(input.status, target.visitAt ?? null, input.visitAt);
+
+  if (required.includes('visitAt') && resolvedVisitAt === null) {
+    throw validationFailed('visitAt', 'VISIT_AT_REQUIRED', '확정 일시를 입력해주세요');
+  }
+
+  // 계약: 없으면 `CANCEL_REASON_REQUIRED`, 목록에 없는 코드면 형식 오류(`VALIDATION_FAILED`). 화면은 select 라
+  // 뒤의 경우에 닿지 않지만, 두 오류를 한 코드로 뭉개면 다른 클라이언트가 "고르지 않았다" 로 잘못 안내한다.
+  if (required.includes('cancelReason') && (input.cancelReason === undefined || input.cancelReason === null)) {
+    throw validationFailed('cancelReason', 'CANCEL_REASON_REQUIRED', '취소 사유를 선택해주세요');
+  }
+  if (required.includes('cancelReason') && !isConsultCancelReason(input.cancelReason)) {
+    throw validationFailed('cancelReason', 'INVALID_CANCEL_REASON', '취소 사유를 다시 선택해주세요');
+  }
+
+  // 사유는 취소 이벤트 행에만 저장된다 — 다른 상태로 갈 때 보낸 값은 무시한다.
+  const cancelReason = input.status === 'cancelled' ? (input.cancelReason ?? null) : null;
+  const current = {
+    status: target.status,
+    visitAt: truncateToMinute(target.visitAt ?? null),
+    cancelReason: cancelReasonOf(target.status, target.statusHistory),
+  };
+  const event = classifyEvent(current, { status: input.status, visitAt: resolvedVisitAt, cancelReason });
+  const detail: Projection = { maskName: false, maskPhone: false };
+
+  if (event === 'noop') return toAdminConsultRequest(target, detail);
 
   const changedAt = new Date().toISOString();
+  const visitLabel = formatVisitAtLong(resolvedVisitAt);
+
+  // 서버 전환 시 삭제: 알림 생성은 서버 몫 (상태 변경 트랜잭션의 부수효과다)
+  const notificationId = createLocalNotification({
+    audience: 'user',
+    type: 'consult-status',
+    ...(event === 'reschedule'
+      ? { title: '예약 일시 변경', message: `예약 일시가 '${visitLabel}'(으)로 변경되었어요` }
+      : {
+          title: '상담 상태 변경',
+          message: `상담 상태가 '${CONSULT_STATUS_LABEL[input.status]}'(으)로 변경되었어요`,
+        }),
+    relatedId: id,
+  });
+
   const updated: StoredConsultRequest = {
     ...target,
-    status,
-    statusHistory: [...target.statusHistory, { status, changedAt }],
+    status: input.status,
+    visitAt: resolvedVisitAt,
+    statusHistory: [
+      ...target.statusHistory,
+      {
+        event,
+        // `reschedule` 행의 상태는 그 시점의 상태(`booked`)다 — 행이 스스로를 설명한다.
+        status: input.status,
+        changedAt,
+        changedByName: actorName,
+        visitAt: resolvedVisitAt,
+        cancelReason,
+        notificationId,
+      },
+    ],
   };
 
   writeCollection(
     'consultRequests',
-    rows.map((request) => (request.id === id ? updated : request))
+    rows.map((row) => (row.id === id ? updated : row))
   );
 
-  // 서버 전환 시 삭제: 알림 생성은 서버 몫
-  createLocalNotification({
-    audience: 'user',
-    type: 'consult-status',
-    title: '상담 상태 변경',
-    message: `상담 상태가 '${CONSULT_STATUS_LABEL[status]}'(으)로 변경되었어요`,
-    relatedId: id,
-  });
-
-  return toConsultRequest(updated);
+  return toAdminConsultRequest(updated, detail);
 }
 
 /** `POST /consult-requests/{consultRequestId}/memos`. 메모는 신청자에게 내려가지 않는다. */
-export async function addConsultMemo(id: string, content: string): Promise<ConsultRequest> {
-  const rows = readCollection('consultRequests');
-  const target = rows.find((request) => request.id === id);
-
-  if (!target) throw consultNotFound();
+export async function addConsultMemo(id: string, content: string): Promise<AdminConsultRequest> {
+  const { rows, target } = writableRow(id);
 
   const updated: StoredConsultRequest = {
     ...target,
@@ -377,8 +707,8 @@ export async function addConsultMemo(id: string, content: string): Promise<Consu
 
   writeCollection(
     'consultRequests',
-    rows.map((request) => (request.id === id ? updated : request))
+    rows.map((row) => (row.id === id ? updated : row))
   );
 
-  return toConsultRequest(updated);
+  return toAdminConsultRequest(updated, { maskName: false, maskPhone: false });
 }

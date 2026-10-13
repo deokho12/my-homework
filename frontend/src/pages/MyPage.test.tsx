@@ -6,7 +6,7 @@ import { useLocation, useNavigationType } from 'react-router-dom';
 import { createConsultRequest, type ConsultRequestCreateInput } from '@/features/consult';
 import { addFavorite } from '@/features/favorite';
 import * as hospitalApi from '@/features/hospital/api/hospitalApi';
-import { writeCollection, type StoredHospitalInquiry } from '@/lib/localCollection';
+import { readCollection, writeCollection, type StoredHospitalInquiry } from '@/lib/localCollection';
 import { RouterBridge, router } from '@/navigation';
 import MyPage from '@/pages/MyPage';
 import { useAuthStore } from '@/store/useAuthStore';
@@ -182,6 +182,40 @@ describe('MyPage — 상담 내역 탭', () => {
     expect(within(row).getByText('충치치료 · 레진')).toBeInTheDocument();
     expect(within(row).getByText('신규')).toBeInTheDocument();
     expect(within(row).getByText(/신청 · 평일 저녁 연락 희망$/)).toBeInTheDocument();
+  });
+
+  it('병원이 확정한 방문 일시는 보조 문구를 대체하고 강조된다', async () => {
+    const created = await consultBy('u-me', { hospitalId: 'h1' });
+    // 병원 관리자가 `예약확정 + 일시` 로 바꾼 상태를 만든다 (관리자 화면이 하는 일 그대로).
+    const rows = readCollection('consultRequests');
+    writeCollection(
+      'consultRequests',
+      rows.map((row) =>
+        row.id === created.id
+          ? {
+              ...row,
+              status: 'booked' as const,
+              visitAt: '2026-10-08T05:00:00.000Z',
+              statusHistory: [
+                ...row.statusHistory,
+                {
+                  event: 'status_change' as const,
+                  status: 'booked' as const,
+                  changedAt: '2026-10-07T02:00:00.000Z',
+                  visitAt: '2026-10-08T05:00:00.000Z',
+                },
+              ],
+            }
+          : row
+      )
+    );
+
+    renderMyPage();
+
+    const row = await screen.findByRole('button', { name: /A치과의원/ });
+    expect(within(row).getByText('10/8(목) 14:00 방문')).toBeInTheDocument();
+    expect(within(row).getByText('예약확정')).toBeInTheDocument();
+    expect(within(row).queryByText(/연락 희망/)).not.toBeInTheDocument();
   });
 
   it('고르지 않은 시술은 `시술 미지정` 으로 적는다', async () => {

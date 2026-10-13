@@ -1,4 +1,5 @@
 import type { BadgeTone } from '@/components/Badge';
+import { formatDateTimeShort } from '@/lib/dateFormat';
 import type { InquiryStatus } from '@/types/domain';
 
 /**
@@ -33,33 +34,11 @@ export function inquiryTitle(content: string): string {
 /* ------------------------------------------------------------------ 날짜 */
 
 /**
- * 관리자 목록·상세의 절대 시각. **기기 시계가 아니라 `Asia/Seoul` 달력**이다 —
- * 해외에서 접속해도 병원이 본 시각과 같아야 한다. 상대 표기(`3시간 전`)는 쓰지 않는다.
+ * 관리자 목록·상세의 절대 시각 `10/7 18:20`. 읽을 수 없으면 `null`.
  *
- * 환자 쪽 날짜(`10/7`)는 새로 만들지 않고 `consultDisplay.ts` 의 `formatAppliedAt` 을 쓴다.
+ * **구현은 `lib/dateFormat.ts` 하나다** — 관리자 상담 화면이 같은 표기를 쓰고(`formatDateTimeShort`),
+ * 두 파일이 각자 포맷터를 들고 있으면 한쪽만 고쳐져 두 화면의 시각이 조용히 갈린다.
+ * 이 이름은 문의 화면 쪽 호출부를 위해 남겨 둔 얇은 재노출이다.
+ * 환자 쪽 날짜(`10/7`)도 새로 만들지 않고 `consultDisplay.ts` 의 `formatAppliedAt` 을 쓴다.
  */
-const INQUIRY_AT_FORMAT = new Intl.DateTimeFormat('ko-KR', {
-  timeZone: 'Asia/Seoul',
-  month: 'numeric',
-  day: 'numeric',
-  // 자정을 `24:00` 이 아니라 `00:00` 으로 적는 이유는 `consultDisplay.ts` 와 같다.
-  hour: '2-digit',
-  minute: '2-digit',
-  hour12: false,
-  hourCycle: 'h23',
-});
-
-/** `10/7 18:20`. 읽을 수 없으면 `null` — 빈 칸을 지어내지 않는다. */
-export function formatInquiryAt(iso: string | null | undefined): string | null {
-  if (!iso) return null;
-
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return null;
-
-  const parts: Record<string, string> = {};
-  for (const part of INQUIRY_AT_FORMAT.formatToParts(date)) {
-    if (part.type !== 'literal') parts[part.type] = part.value;
-  }
-
-  return `${parts.month}/${parts.day} ${parts.hour}:${parts.minute}`;
-}
+export const formatInquiryAt = formatDateTimeShort;

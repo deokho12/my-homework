@@ -15,6 +15,7 @@ import {
 } from '@/navigation';
 import { Text, View } from '@/primitives';
 
+import AdminConsultationsPage from '@/pages/admin/AdminConsultationsPage';
 import AdminHomePage from '@/pages/admin/AdminHomePage';
 import AdminInquiriesPage from '@/pages/admin/AdminInquiriesPage';
 import AdminHospitalEditPage from '@/pages/admin/AdminHospitalEditPage';
@@ -28,8 +29,6 @@ import HospitalDetailPage from '@/pages/HospitalDetailPage';
 import InquiryPage from '@/pages/InquiryPage';
 import MyPage from '@/pages/MyPage';
 import AboutScreen from '@/screens/about';
-import AdminConsultationDetailScreen from '@/screens/admin/consultations/[id]';
-import AdminConsultationsScreen from '@/screens/admin/consultations/index';
 import AdminNotificationsScreen from '@/screens/admin/notifications';
 import LoginScreen from '@/screens/auth/login';
 import SignupScreen from '@/screens/auth/signup';
@@ -132,16 +131,17 @@ const ROUTES: AppRoute[] = [
     // 스스로 승인할 수 있게 된다.
     guard: 'operator',
   },
+  // 목록과 상세가 같은 화면이다 — `:id` 는 선택된 상담을 뜻할 뿐이다.
   {
     path: '/admin/consultations',
-    element: <AdminConsultationsScreen />,
-    options: { title: '상담 관리' },
+    element: <AdminConsultationsPage />,
+    options: { title: '상담 예약' },
     guard: 'admin',
   },
   {
     path: '/admin/consultations/:id',
-    element: <AdminConsultationDetailScreen />,
-    options: { title: '상담 상세' },
+    element: <AdminConsultationsPage />,
+    options: { title: '상담 예약' },
     guard: 'admin',
   },
   // 목록과 상세가 같은 화면이다 — `:id` 는 선택된 문의를 뜻할 뿐이다.

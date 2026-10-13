@@ -266,16 +266,52 @@ export interface User {
   managedHospitalIds: string[];
 }
 
-export type ConsultStatus = 'new' | 'contacted' | 'booked' | 'cancelled';
+/**
+ * 상담 처리 상태 (openapi `ConsultStatus`). **2026-10-13 에 `visited` 가 더해져 5개다.**
+ *
+ * `booked` 는 **라벨만** `예약완료` → `예약확정` 으로 바뀌었고 저장값은 그대로다 — enum 값
+ * 제거는 breaking 이고(`openapi.yaml` §15), `예약완료` 와 `예약확정` 은 같은 사실을 가리키는
+ * 두 라벨이지 두 상태가 아니다. 반대로 `내원완료` 는 **새로운 사실**(실제로 왔는가)이라 값이 필요했다.
+ */
+export type ConsultStatus = 'new' | 'contacted' | 'booked' | 'visited' | 'cancelled';
 
-export const CONSULT_STATUSES: ConsultStatus[] = ['new', 'contacted', 'booked', 'cancelled'];
+/** 순서가 곧 상태 탭의 순서다 (`전체` 는 상태가 아니라 "필터 없음" 이라 여기 없다). */
+export const CONSULT_STATUSES: ConsultStatus[] = ['new', 'contacted', 'booked', 'visited', 'cancelled'];
 
 export const CONSULT_STATUS_LABEL: Record<ConsultStatus, string> = {
   new: '신규',
   contacted: '연락중',
-  booked: '예약완료',
+  booked: '예약확정',
+  visited: '내원완료',
   cancelled: '취소',
 };
+
+/**
+ * 취소 사유 (openapi `ConsultCancelReason`). `status: cancelled` 로 바꿀 때 **필수**이고,
+ * 주고받는 것은 코드뿐이다 — 라벨은 클라이언트가 들고 있는다 (문구를 다듬어도 저장값이 안 깨진다).
+ */
+export type ConsultCancelReason = 'no_answer' | 'patient_request' | 'procedure_unavailable' | 'duplicate' | 'etc';
+
+/** 순서가 곧 취소 사유 select 의 순서다. */
+export const CONSULT_CANCEL_REASONS: ConsultCancelReason[] = [
+  'no_answer',
+  'patient_request',
+  'procedure_unavailable',
+  'duplicate',
+  'etc',
+];
+
+export const CONSULT_CANCEL_REASON_LABEL: Record<ConsultCancelReason, string> = {
+  no_answer: '연락이 안 됨',
+  patient_request: '환자 요청',
+  procedure_unavailable: '진료 불가 시술',
+  duplicate: '중복 신청',
+  etc: '기타',
+};
+
+export function isConsultCancelReason(value: string | undefined | null): value is ConsultCancelReason {
+  return value !== undefined && value !== null && (CONSULT_CANCEL_REASONS as string[]).includes(value);
+}
 
 /**
  * 희망 연락 시간 (openapi `ConsultPreferredTime`). **값·순서가 곧 화면의 선택지다.**
@@ -299,10 +335,36 @@ export interface ConsultThirdPartyConsent {
   noticeVersion: string;
 }
 
+/**
+ * 처리 이력 한 줄 (openapi `ConsultStatusChange`). 이름과 달리 담는 것은 상태 변경이 아니라
+ * **처리 이벤트**다 — 예약확정 상태에서 일시만 바꾸는 `reschedule` 도 여기 남는다.
+ *
+ * **`status`·`changedAt` 외는 전부 선택 필드다.** `mocks/fixtures/consultRequests.ts`
+ * (백엔드 seed 가 import 하는 파일)의 과거 행에 이 값들이 없기 때문이고, 계약 확장 이전에
+ * 쌓인 행이 전부 `status_change`·`notified: false` 인 것과 같은 사실이다.
+ * **api 계층이 모든 응답에서 키를 채워 내보낸다** (`consultApi.ts` 의 `toStatusChangeView`).
+ */
 export interface ConsultStatusChange {
   status: ConsultStatus;
   changedAt: string;
+  /** 없으면 `status_change` (계약의 기본값). */
+  event?: ConsultEvent;
+  /** 누가 바꿨는지. 접수 행과 과거 행은 없다. */
+  changedByName?: string | null;
+  /** **이 이벤트 직후의** 확정 일시 스냅샷. 현재 값이 아니다. */
+  visitAt?: string | null;
+  /** `status: cancelled` 인 행에만 값이 있다. */
+  cancelReason?: ConsultCancelReason | null;
+  /**
+   * 이 이벤트로 **환자에게 알림이 나갔는지**. 규칙으로 파생하지 않고 저장된 사실을 그대로
+   * 내려준다 — 억제 규칙이 생기면 이미 알림을 받은 과거 이력이 소급해 `발송 안 함` 으로 보인다.
+   * (저장 쪽은 알림 행을 가리키는 id 를 들고 있다 — `localCollection.ts`)
+   */
+  notified?: boolean;
 }
+
+/** 이력 행의 성격 (openapi `ConsultStatusChange.event`). */
+export type ConsultEvent = 'status_change' | 'reschedule';
 
 export interface ConsultMemo {
   id: string;
@@ -326,6 +388,14 @@ export interface ConsultRequest {
   message: string;
   createdAt: string;
   status: ConsultStatus;
+  /**
+   * 병원이 확정한 **내원 일시**. 초·밀리초는 항상 `0` 이다 (입력 단위가 분).
+   *
+   * 계약(`ConsultRequest.visitAt`)에서는 **필수 + nullable** 인데 여기서는 선택이다 —
+   * 위 `preferredTime` 과 같은 이유로 이 필드가 없는 fixture 를 그대로 둬야 하기 때문이다.
+   * **api 계층이 모든 응답에서 키를 채워 내보낸다** (없으면 `null`).
+   */
+  visitAt?: string | null;
   statusHistory: ConsultStatusChange[];
   /**
    * 이 건에 기록된 제3자 제공 동의. `null` 이면 **동의 절차 도입 이전에 접수된 건**이다

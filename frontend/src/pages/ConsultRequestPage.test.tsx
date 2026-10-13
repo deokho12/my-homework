@@ -43,7 +43,8 @@ function createdConsult(overrides: Partial<MyConsultRequest> = {}): MyConsultReq
     message: '',
     createdAt: '2026-10-12T04:21:00.000Z',
     status: 'new',
-    statusHistory: [{ status: 'new', changedAt: '2026-10-12T04:21:00.000Z' }],
+    visitAt: null,
+    statusHistory: [{ status: 'new', changedAt: '2026-10-12T04:21:00.000Z', visitAt: null }],
     thirdPartyConsent: { agreedAt: '2026-10-12T04:21:00.000Z', noticeVersion: '2026-10-12' },
     ...overrides,
   };

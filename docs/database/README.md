@@ -6,7 +6,7 @@
 | **이전 대상** | PostgreSQL 14+ |
 | **스키마 정의** | [`schema.dbml`](schema.dbml) — 테이블·컬럼·인덱스·주석 |
 | **ORM 스키마** | [`../../backend/prisma/schema.prisma`](../../backend/prisma/schema.prisma) |
-| **요구사항 출처** | 1차(27개 테이블): `frontend/src/types/domain.ts`, `docs/features/*.md` (27개), `frontend/src/mocks/fixtures/*.ts`<br>2차(5개 테이블, §11): `docs/decisions/0001-roles-and-pii.md`, `docs/api/README.md` §4·§14, `backend/src/auth/refresh-token.store.ts` |
+| **요구사항 출처** | 1차(27개 테이블): `frontend/src/types/domain.ts`, `docs/features/*.md` (27개), `frontend/src/mocks/fixtures/*.ts`<br>2차(5개 테이블, §11): `docs/decisions/0001-roles-and-pii.md`, `docs/api/README.md` §4·§14, `backend/src/auth/refresh-token.store.ts`<br>3차(**테이블 추가 없음** — 상담 예약 확장, §12): `docs/features/requests/2026-10-12-04-관리자-상담예약-개선.md`, `docs/api/README.md` §4·§9·§14 |
 
 이 문서는 **왜 이렇게 설계했는지**를 남깁니다. 무엇이 있는지는 `schema.dbml` 을 보세요.
 
@@ -122,9 +122,10 @@
 | `doctor_procedures` | 전문의 상세 '주요 진료 분야', 탐색 의사 모드 시술 필터 |
 | `doctor_careers` | 전문의 상세 '경력 및 활동' |
 | `doctor_verifications` | `/admin/specialists`, 전문의 배지 판정(병원 상세·전문의 상세·탐색 카드) |
-| `consult_requests` | 상담 신청, `/admin/consultations`, `/admin/consultations/:id`, `/admin` 숫자 카드 2개, (신설 가능) 내 상담 내역 |
-| `consult_status_changes` | `/admin/consultations/:id` '상태 변경 이력' |
+| `consult_requests` | 상담 신청, `/admin/consultations`(화면 이름은 **상담 예약**), `/admin/consultations/:id`, `/admin` 숫자 카드 2개, 마이페이지 '내 상담 내역'(확정 일시 포함 — §12.2) |
+| `consult_status_changes` | `/admin/consultations/:id` '처리 이력' — 상태 변경 **과 예약 일시 변경**을 함께 담는다 (§12.3) |
 | `consult_memos` | `/admin/consultations/:id` '메모' |
+| `hospital_inquiries` **(아직 없음 — 요구사항만 전달됨)** | 병원 상세 `문의` 탭(공개 Q/A), `문의하기`·마이페이지 `내 문의`, 병원 관리자 `문의` 화면. **정의는 `docs/api/README.md` §14 의 `hospital_inquiries` 절에 있다** (2026-10-12 추가). 이 문서의 32개 집계에는 아직 포함되지 않는다 — `schema.dbml`·`schema.prisma` 에 들어오는 시점에 §11 과 같은 형태로 설계 근거를 옮겨 적는다 |
 | `favorites` | 병원 상세 하트, 마이페이지 찜 목록, 꿀팁 관련 병원 카드 하트 |
 | `reviews`, `review_photos` | 병원 상세 '방문자 후기' |
 | `promotions` | 이벤트 목록(`/events`), 홈 '지금 진행중인 이벤트', 병원 카드 🔥 배지·할인가, 병원 상세 가격 영역, 탐색 가격 비교표 '할인가' |
@@ -155,14 +156,16 @@ Prisma 는 SQLite 에서 `enum` 을 지원하지 않습니다. 상태값은 `Str
 
 | 원래 타입 | 컬럼 | 허용값 |
 |---|---|---|
-| `ConsultStatus` | `consult_requests.status`, `consult_status_changes.status` | `new` `contacted` `booked` `cancelled` |
+| `ConsultStatus` | `consult_requests.status`, `consult_status_changes.status` | `new` `contacted` `booked` `cancelled` `visited` (`visited` 는 2026-10-13 추가 — §12.1. `booked` 의 화면 라벨만 `예약완료` → `예약확정` 으로 바뀌었고 **저장값은 그대로**다) |
+| (신규) 처리 이벤트 | `consult_status_changes.event` | `status_change` `reschedule` (§12.3) |
+| (신규) 취소 사유 | `consult_status_changes.cancel_reason` | `no_answer` `patient_request` `procedure_unavailable` `duplicate` `etc` (§12.4) |
 | `VerificationStatus` | `doctors.verification_status`, `doctor_verifications.status` | `pending` `approved` `rejected` |
 | `AuthProvider` | `users.provider` | `email` `google` `kakao` |
 | (신규) 역할 | `users.role` | `user` `hospital_admin` `operator` |
 | `NotificationType` | `notifications.type` | `consult-status` `event` `system` |
 | `NotificationAudience` | `notifications.audience` | `user` `admin` |
 | `DentalSpecialty` | `doctors.specialty`, `doctors.verified_specialty`, `doctor_verifications.submitted_specialty` | 8종 (`치과보철전문의` … `일반의`) |
-| (자유값) 희망 시간 | `consult_requests.preferred_time` | `평일 오전` `평일 오후` `주말` |
+| (자유값) 희망 시간 | `consult_requests.preferred_time` | `평일 오전` `평일 오후` `평일 저녁` `주말` (`평일 저녁` 은 2026-10-12 요청서로 늘어난 값이다. **그 이전 접수 건에는 나타나지 않는다** — `openapi.yaml` 의 `ConsultPreferredTime` 과 같은 설명) |
 
 **`ProcedureId` 만 예외로 테이블입니다.** `procedures` 는 이미 이름·이모지·설명을 가진 엔티티이고, 13종 목록이 세 화면(홈 격자·탐색 칩·커뮤니티 선택)에서 공유되기 때문입니다. FK 로 참조하므로 enum 보다 강한 무결성을 얻습니다. `DentalSpecialty` 는 부속 정보가 없어 테이블로 만들지 않았습니다(지시 사항대로 `String`).
 
@@ -467,7 +470,8 @@ AND specialty <> '일반의'
 |---|---|
 | `consult_requests(hospital_id, created_at)` | `/admin/consultations` 를 담당 병원으로 좁힌 뒤 최신순 (§5.5 적용 후의 주 쿼리) |
 | `consult_requests(user_id, created_at)` | "내 상담 내역" 최신순 (§5.1) |
-| `consult_requests(status, created_at)` | 상태 필터 칩 `신규`/`연락중`/`예약완료`/`취소`, `/admin` 의 `처리 대기 중인 상담`(=`status='new'` 카운트) |
+| `consult_requests(status, created_at)` | 상태 필터를 **병원 범위 없이** 거는 질의 — `operator` 의 전 범위 목록, `/admin` 의 `처리 대기 중인 상담`(=`status='new'` 카운트) |
+| `consult_requests(hospital_id, status, created_at)` **(2026-10-13 추가)** | 상태 탭 5개(`전체`/`신규`/`연락중`/`예약확정`/`내원완료`/`취소`)의 **건수 집계 + 탭 선택 목록 최신순**. 담당 병원 범위가 선두이고 상태가 가운데, 정렬 컬럼이 뒤인 순서다. 상담 관리 화면에 들어올 때마다 도는 질의라 `(hospital_id, created_at)` 로 받아 필터링하는 것과 차이가 난다 (§12.6) |
 | `consult_requests(created_at)` | `/admin` 의 `이번 달 신규 상담` — `WHERE created_at >= 월초 AND < 다음 월초` |
 | `consult_requests(doctor_id)` | "이 전문의를 지목한 상담" (§5.2) |
 | `consult_status_changes(consult_request_id, changed_at)` | 상담 상세 '상태 변경 이력' 최신순 |
@@ -680,6 +684,7 @@ PK 가 애플리케이션 생성 문자열이라 **id 를 그대로 옮길 수 �
 - `pg_trgm` + GIN 인덱스로 부분일치 검색 개선 (§6.2)
 - PostGIS + `ST_DWithin` 으로 지도 반경 필터를 DB 로 이동 (§3.8)
 - `CHECK` 제약으로 상태값 허용 목록을 DB 에 고정 (Prisma 스키마로는 선언할 수 없어 수동 마이그레이션이 필요합니다). 애플리케이션 검증의 이중 안전망
+  - **조건부**: `CHECK (status <> 'booked' OR visit_at IS NOT NULL)` — 켜기 전에 **값 없는 기존 `booked` 행**을 어떻게 할지 먼저 정해야 합니다 (§12.10). 그 전까지는 쓰기 경로의 앱 불변식입니다
 - 부분 인덱스 (`WHERE deleted_at IS NULL`) 로 soft delete 인덱스 크기 축소
 
 ---
@@ -1003,13 +1008,14 @@ nullable 은 not-null 의 상위집합이라 애플리케이션이 항상 `false
 
 이식성 규칙(§3.3)이 JSON 컬럼을 금지합니다. 요구사항의 `metadata`(예시가 "변경 전/후 상태")를 `before_value` / `after_value` **varchar 2개**로 펼쳤습니다. `PriceRange { min, max }` → `price_min`/`price_max` 와 같은 처리입니다.
 
-기록 대상 9개를 실제로 매핑해 보면 두 컬럼으로 충분합니다.
+기록 대상 10개(2026-10-13 에 `consult_request.reschedule` 이 더해져 9 → 10)를 실제로 매핑해 보면 두 컬럼으로 충분합니다.
 
 | action | target_type | hospital_id | pii_masked | before → after |
 |---|---|---|---|---|
 | `consult_request.view` | `consult_request` | 상담 대상 병원 | `false`(담당자) / `true`(운영자) | — |
 | `partner_inquiry.view` | `partner_inquiry` | null | `false` (마스킹하지 않는 자원) | — |
 | `consult_request.status_change` | `consult_request` | 상담 대상 병원 | 응답 마스킹 여부 | `'new'` → `'contacted'` |
+| `consult_request.reschedule` (2026-10-13) | `consult_request` | 상담 대상 병원 | 응답 마스킹 여부 | `'2026-10-09T05:00:00.000Z'` → `'2026-10-12T02:00:00.000Z'` (확정 일시. **상태가 아니다**) |
 | `consult_request.memo_create` | `consult_request` | 상담 대상 병원 | 응답 마스킹 여부 | — (본문은 복사하지 않음) |
 | `doctor.verify` | `doctor` | 전문의 소속 병원 | `null` | `'pending'` → `'approved'` |
 | `hospital_admin.assign` | `user` (승격 대상) | 대상 병원 | `false` (이메일·이름 노출) | — |
@@ -1019,7 +1025,7 @@ nullable 은 not-null 의 상위집합이라 애플리케이션이 항상 `false
 
 **자유 텍스트(반려 사유, 메모 본문)는 감사 로그에 복사하지 않습니다.** 원본 테이블에 있고, 감사 로그가 개인정보 사본을 하나 더 만드는 것은 보존기간 관리 대상을 늘리기만 합니다. 감사 로그는 "누가·언제·무엇에 대해" 를 기록하고 "무엇이라고 썼는가" 는 원본을 봅니다.
 
-> 나중에 `metadata` 성격의 값이 2개를 넘으면 `audit_log_details(audit_log_id, key, value)` 자식 테이블을 추가합니다(§3.2 의 배열→테이블과 같은 방법). 지금 만들지 않은 이유는 기록 대상 9개 중 그것을 요구하는 것이 하나도 없기 때문입니다.
+> 나중에 `metadata` 성격의 값이 2개를 넘으면 `audit_log_details(audit_log_id, key, value)` 자식 테이블을 추가합니다(§3.2 의 배열→테이블과 같은 방법). 지금 만들지 않은 이유는 기록 대상 10개 중 그것을 요구하는 것이 하나도 없기 때문입니다.
 
 #### (4) 불변성 — 스키마로 할 수 있는 것과 앱이 지킬 것
 
@@ -1283,3 +1289,337 @@ model Hospital {
 8. **재동의 유예** — 약관 개정 시 즉시 차단인가, N일 유예인가. 유예를 준다면 `legal_documents` 에 `grace_until` 이 필요합니다. 지금은 즉시(로그인 후 동의 화면) 전제입니다.
 9. **`legal_documents` 를 누가 편집하는가** — 관리 화면이 없습니다. 초기에는 시드·마이그레이션으로 넣게 되며, 그러면 약관 개정에 배포가 필요합니다. 운영자 콘솔에 편집 화면이 생기면 `audit_logs` 의 기록 대상에 `legal_document.publish` 를 추가해야 합니다(현재 9개에 없습니다).
 10. **`audit_logs` 조회 화면** — 쓰기만 정의됐고 읽는 화면이 없습니다. 인덱스는 4개 질문을 전제로 만들었지만, 실제 화면이 정해지면 정렬·필터 축을 다시 확인해야 합니다.
+
+---
+
+## 12. 3차 — 상담 예약 (상태 5개 · 확정 일시 · 취소 사유 · 처리 이력)
+
+| | |
+|---|---|
+| **요구사항 출처** | `docs/features/requests/2026-10-12-04-관리자-상담예약-개선.md`, `docs/decisions/0001-roles-and-pii.md` 결정 3, `docs/api/README.md` §4·§9·§14 |
+| **새 테이블** | **0개.** 전체 32개 그대로 |
+| **바뀌는 것** | `consult_requests` 컬럼 +4 · 인덱스 +1, `consult_status_changes` 컬럼 +4, `ConsultStatus` 값 +1 |
+| **받는 곳** | `docs/api/README.md` §14 의 `consult_requests 확장` 절(계약용 요약) → `backend/prisma/schema.prisma`·`schema.dbml` (**백엔드는 협업자 영역이라 이 문서는 요구사항과 근거만 남깁니다**) |
+
+1·2차와 달리 **화면이 이미 있고 데이터도 쌓여 있는 테이블**을 고칩니다. 그래서 판단 기준이 하나 더
+붙습니다 — **과거 행이 새 규칙을 위반한 채 남는 것을 어떻게 다룰 것인가**(§12.10).
+
+### 12.1 상태 5개 — 코드를 바꾸지 않고 하나 더합니다
+
+```
+신규(new) → 연락중(contacted) → 예약확정(booked) → 내원완료(visited)
+  └────────────┴─────────────────┴──────────────────┴──→ 취소(cancelled)
+
+※ 화살표는 "보통 이 순서로 간다" 는 뜻이고 제약이 아닙니다 — 전이는 전부 허용합니다 (§12.7).
+  걸어 들어온 환자는 신규 → 내원완료로 바로 가고, 오기입 정정은 역방향으로도 갑니다.
+```
+
+**`booked` 를 `confirmed` 로 개명하지 않고 `visited` 만 더합니다.** 화면 라벨은
+`예약완료` → `예약확정` 으로 바뀌지만 **저장값은 그대로**입니다.
+
+| 개명의 대가 | |
+|---|---|
+| 계약 | `openapi.yaml` 의 enum 값 제거 = **breaking** (`docs/api/README.md` §15 가 `v2` 사유로 분류). 얻는 것은 이름뿐입니다 |
+| 데이터 | `consult_requests.status` 와 `consult_status_changes.status` **두 테이블의 과거 행 전부**를 UPDATE. 되돌리려면 역방향 마이그레이션이 또 필요합니다 |
+| 시드 | 백엔드 시드가 import 하는 `frontend/src/mocks/fixtures/consultRequests.ts` 의 `cr3` 가 `booked` 입니다. **DB 개명이 프런트 파일 수정을 끌고 들어옵니다** |
+| 운영 | 이미 나간 알림 문구(`'예약완료'(으)로 변경되었어요`)는 소급 수정이 불가능합니다 |
+
+`예약완료` 와 `예약확정` 은 **같은 사실을 가리키는 두 라벨**이지 두 상태가 아닙니다. 라벨은 계약 설명과
+클라이언트 매핑에만 있으므로 그쪽만 고치면 됩니다. 반대로 `내원완료` 는 **새로운 사실**(실제로 왔는가)이라
+값이 필요합니다 — 요청서가 "상담 → 내원 전환을 셀 수 없다" 고 적은 바로 그 구분입니다.
+
+> 코드와 라벨이 어긋난 채 남는 것은 비용입니다(`booked` 를 보고 `예약확정` 을 떠올려야 합니다).
+> 그래서 §3.1 의 허용값 표와 `schema.prisma` 주석에 **"`booked` = 예약확정"** 을 적습니다.
+> 같은 종류의 어긋남이 이미 하나 있습니다 — 탐색의 `인기순`(=평점순, §10-5).
+
+### 12.2 확정 일시 `visit_at` — 시각 하나, 컬럼 하나
+
+**`consult_requests.visit_at  DateTime? (UTC)`**
+
+| 질문 | 결정 | 근거 |
+|---|---|---|
+| 달력 날짜(`'YYYY-MM-DD'`)인가 시각인가 | **시각** | §3.7 이 문자열 날짜를 고른 대상은 **기간의 경계**(광고·프로모션)였습니다. 여기는 `10/9(목) **14:00**` 이라는 **한 순간**이고, "종료일 포함/배타" 같은 애매성이 없습니다. `legal_documents.effective_at` 을 시각으로 둔 것과 같은 판단(§11.6) |
+| 날짜·시간 두 컬럼으로 쪼갤까 | **하나** | 관리자 폼은 두 칸이지만 저장되는 사실은 하나입니다. 쪼개면 비교·정렬에 매번 결합이 필요하고 두 값이 어긋날 자리가 생깁니다 (`business_hours.hours` 와 반대 방향의 판단 — 거기는 **입력이 자유 텍스트 한 칸**이라 쪼개지 않았습니다) |
+| 시간대 | **UTC 저장, 표시는 KST** | §7.5 의 "서버 TZ=UTC, 표시 변환은 프런트" 규칙 그대로. 화면이 `10/9(목) 14:00` 을 그리려면 `Asia/Seoul` 변환이 필요하고, 그것은 `createdAt` 이 이미 하고 있는 일입니다 |
+| 정밀도 | **분 단위 (초·밀리초를 0 으로 절삭해 저장)** | 입력 단위가 분입니다. 절삭하지 않으면 같은 약속이 `14:00:00.123` 과 `14:00:00.000` 으로 갈려 **"일시가 바뀌었는가" 비교가 거짓 양성**을 냅니다 — 그 비교가 §12.3 의 no-op 판정입니다 |
+
+**상태가 바뀔 때 `visit_at` 을 어떻게 하는가** — 규칙 하나로 설명됩니다:
+**현재 행은 "지금 유효한 사실" 이고, 과거 사실은 이력 행이 보관합니다.**
+
+| 들어가는 상태 | `visit_at` | 왜 |
+|---|---|---|
+| `booked` | 요청값(없으면 현재값). 둘 다 없으면 **`422`** | 요청서: "날짜가 비면 저장되지 않는다" |
+| `visited` | **유지** | "언제 오기로 했던 건인가" 는 내원 기록의 일부입니다. 지우면 마이페이지의 확정 일시가 **내원한 순간 사라집니다** |
+| `cancelled` / `contacted` / `new` | **null** | 남겨 두면 취소된 건의 목록 카드와 환자 마이페이지가 계속 `10/9(목) 14:00 예정` 을 보여줍니다 — **환자에게 거짓**이 됩니다. 그 약속이 있었다는 사실은 직전 `booked`/`reschedule` 이력 행에 스냅샷으로 남습니다 |
+
+> **`visited` 에 `visit_at` 이 없는 건이 정상입니다.** 걸어 들어온 환자를 `신규` 에서 바로 `내원완료` 로
+> 넘기는 흐름이 요청서에 있습니다. "언제 왔는가" 가 필요하면 그 이력 행의 `changed_at` 이 답합니다 —
+> 그래서 `visited_at` 같은 컬럼을 따로 만들지 않았습니다.
+
+**과거 일시 입력을 막지 않습니다.** 지난 약속을 뒤늦게 기록하는 정정이 정상 경로이고
+(요청서의 "오기입 정정"), 막을 근거가 화면에 없습니다. 경고를 띄우는 것은 화면의 몫입니다.
+
+### 12.3 이벤트 모델 — 상태 변경과 일시 변경을 **한 테이블**에
+
+예약확정 상태에서 일시만 바꾸는 "일시 변경" 은 상태가 바뀌지 않지만 **이력에 남고 환자에게 알림이
+나가야** 합니다. 그래서 `consult_status_changes` 는 이제 **상태 변경이 아니라 처리 이벤트**를 담습니다.
+
+```
+consult_status_changes  (컬럼 4개 추가)
+  event            varchar, not null, default 'status_change'   -- status_change | reschedule
+  visit_at         timestamp, null     -- 이 이벤트 **직후**의 확정 일시 (결과 스냅샷)
+  cancel_reason    varchar, null       -- status='cancelled' 인 행에만 (§12.4)
+  notification_id  fk → notifications.id, null, SetNull         -- 환자 알림 (§12.8)
+```
+
+`reschedule` 행의 `status` 에는 **그 시점의 상태(`booked`)를 그대로** 넣습니다. 행이 스스로를 설명하고,
+`ConsultStatusChange.status` 가 `null` 이 될 수 있는 계약 변경(= breaking)도 피합니다.
+화면은 `event` 로 문구를 가릅니다 — `예약확정으로 변경` vs **`일시 변경`**.
+
+**왜 별도 테이블(`consult_reschedules`)이 아닌가**: 화면이 요구하는 것은 **한 줄로 섞인 시간순 이력**
+("누가 · 언제 · 무엇으로 · 알림 발송")입니다. 두 테이블이면 읽을 때마다 UNION 하고 정렬해야 하며,
+"누가·언제·알림" 세 컬럼이 양쪽에 복제됩니다. 한 테이블에 `event` 하나를 더하는 쪽이 싸고,
+이벤트 종류가 늘어도 컬럼이 아니라 **값**이 늘어납니다.
+
+**테이블 이름은 바꾸지 않습니다.** `consult_events` 가 내용에 맞지만, 개명은 Prisma 모델·시드·투영을
+함께 고치는 변경이고 얻는 것이 이름뿐입니다(§12.1 과 같은 저울). `event` 컬럼이 행의 성격을 이미 말합니다.
+**메모 작성 같은 다른 종류까지 이 테이블에 들어오면** 그때가 개명 시점입니다(§12.12-4).
+
+**`event` 에 `@default('status_change')` 를 둔 이유**: 기존 이력 행이 그대로 유효해지고
+마이그레이션에 백필이 필요 없습니다. §3.6 이 금지한 것은 **타임스탬프의 DB 기본값**이고,
+스칼라 기본값은 `legal_documents.requires_agreement @default(true)` 선례가 있습니다.
+
+**no-op 규칙의 재서술** (`docs/api/README.md` §9 에 계약 문구로 적었습니다):
+비교 대상이 `status` 하나에서 **`(status, visitAt, cancelReason)` 세 값**으로 넓어집니다.
+세 값이 모두 같으면 이력 행도 알림도 만들지 않습니다. **필수 입력 검사가 no-op 판정보다 먼저**입니다 —
+`예약확정` 건에 `visitAt` 없이 `예약확정` 을 보내는 것은 "바뀔 것이 없는 요청" 이 아니라
+**값을 빠뜨린 요청**입니다.
+
+### 12.4 취소 사유 — 이력 행에만 두고 현재 값은 파생합니다
+
+사유 코드 5개: `no_answer`(연락이 안 됨) · `patient_request`(환자 요청) ·
+`procedure_unavailable`(진료 불가 시술) · `duplicate`(중복 신청) · `etc`(기타).
+라벨이 아니라 코드를 값으로 쓴 근거는 `InquiryTopic` 과 같습니다 — **보존할 과거 데이터가 없는 새 값**이고,
+라벨을 저장하면 문구를 다듬는 순간 저장값이 깨집니다.
+
+**`consult_requests.cancel_reason` 컬럼을 만들지 않았습니다.**
+
+| | |
+|---|---|
+| 저장 | `consult_status_changes.cancel_reason` — 취소 이벤트 행의 불변 스냅샷 |
+| 현재 값 | **파생**: 현재 상태가 `cancelled` 일 때, 가장 최근 `cancelled` 이벤트 행의 사유 |
+| 재오픈(취소 → 연락중) | **비우는 절차가 없습니다.** 현재 상태가 `cancelled` 가 아니면 파생값이 자동으로 `null` 입니다 |
+
+`doctors.verification_status` 는 **다른 테이블의 최신 행**을 캐시한 컬럼이고 그럴 만한 이유가 있었습니다
+(배지 판정이 모든 목록 화면에서 일어나 상관 서브쿼리가 됩니다, §4). 여기는 다릅니다 —
+**관리자 목록·상세 응답이 이미 `statusHistory` 를 함께 싣고 있어서**(현재 계약의 `ConsultRequest`)
+추가 질의 없이 서버 투영에서 계산됩니다. 캐시 컬럼을 두면 "상태는 `contacted` 인데 사유가 남아 있는 행"
+이라는 어긋남이 가능해지고, 그 어긋남을 막는 불변식을 앱이 또 지켜야 합니다.
+
+> 뒤집히는 조건: **이력을 싣지 않는 가벼운 목록 투영이 생기는 순간.** 그때는 `doctors.verification_status`
+> 와 같은 이유로 캐시 컬럼이 맞고, 갱신 책임은 상태 변경 트랜잭션입니다.
+
+### 12.5 검색 — `phone_digits` 정규화 컬럼
+
+**`consult_requests.phone_digits  varchar, not null`** — `phone` 에서 숫자만 남긴 값(`01012344411`).
+
+`phone` 은 `010-1234-4411` 형태로 정규화 저장됩니다(계약). 뒷자리 4자리 검색은 그 문자열에
+`contains` 로도 맞지만, 담당자가 **번호를 통째로 붙여넣으면**(`01012344411`, `010 1234 4411`)
+하이픈 때문에 **조용히 0건**이 됩니다. §3.9 가 이름·태그에 적용한 **정규화 컬럼 규칙을 전화번호에도
+그대로 적용**합니다 — 쓰기 시 앱이 채우고, 검색은 `q` 에서 숫자만 남겨 이 컬럼에 겁니다.
+
+```ts
+const digits = q.replace(/\D/g, '');
+// 숫자가 2자 이상이면 번호 검색, 아니면 이름 검색 (둘을 OR 로 묶는다)
+where: { OR: [{ name: { contains: q.trim() } },
+              ...(digits.length >= 2 ? [{ phoneDigits: { contains: digits } }] : [])] }
+```
+
+**인덱스는 만들지 않습니다.** 뒷자리 검색은 앞쪽 와일드카드(`%4411%`)라 B-tree 를 타지 못합니다
+(§6.2 의 같은 주석). 담당 병원 범위로 이미 좁혀진 뒤의 스캔이고, 지금 규모에서는 비용이 없습니다.
+규모가 커지면 PostgreSQL `pg_trgm`(§7.6)이 받습니다.
+
+**역할별 범위가 다릅니다** (§12.9): `operator` 의 숫자 검색은 **뒤 4자리 접미 일치**로 제한합니다. 4자리를 넘게 넣으면
+에러가 아니라 뒤 4자리만 잘라 비교합니다(계약 `GET /consult-requests` 의 `q`).
+
+### 12.6 인덱스 — 1개 추가, 나머지는 그대로
+
+| 인덱스 | 받는 질의 |
+|---|---|
+| `consult_requests(hospital_id, status, created_at)` **추가** | 상태 탭 **카운트 5벌**(`groupBy(status)`)과 **탭 선택 목록 최신순**. 담당 병원 범위 → 상태 → 정렬 순서입니다. 상담 관리 화면 진입마다 도는 질의라 §6 서문의 "지금 규모에서는 인덱스가 없어도 빠릅니다" 에 기대지 않고 미리 겁니다 |
+
+**추가하지 않은 것과 이유** (§6.7 과 같은 기준):
+
+- **`visit_at` 인덱스** — "오늘 내원 예정" 같은 **일시 기준 목록 화면이 아직 없습니다.** 요청서의 필터
+  세 개는 전부 `created_at` 기준입니다. 그 화면이 생기면 `(hospital_id, visit_at)` 을 겁니다
+- **`phone_digits` 인덱스** — 앞쪽 와일드카드(§12.5)
+- **`procedure_id` 필터용 인덱스** — 9개 대분류가 서버 시술 id 여럿으로 풀려 `IN (…)` 이 되는데,
+  이미 병원·상태·기간으로 좁혀진 뒤의 조건이라 선택도가 낮습니다. 조건 칩 boolean 들을 인덱스하지 않은
+  것과 같은 판단입니다
+- **대분류(카테고리) 컬럼·테이블** — **DB 는 13개 시술 id 만 압니다.** 9개 대분류는
+  `frontend/src/features/procedure/taxonomy.ts` 의 프런트 매핑 계층이고, 서버는 풀린 id 목록을 받습니다
+  (`procedureId` 반복 파라미터). 대분류를 테이블로 올리는 것은 그 분류를 **관리하는 화면**이 생길 때의
+  일입니다 — 지금 올리면 두 곳(프런트 상수·DB 행)이 조용히 어긋날 자리만 생깁니다.
+  필터 칩에 `시술 미지정`(= `procedure_id IS NULL`)이 들어오면 **파라미터로 표현할 수 없으므로**
+  계약에 별도 값이 필요합니다 — 지금 요청서에 없어 만들지 않았습니다
+- **`event` 인덱스** — 이력은 항상 한 상담의 전체를 읽습니다. `(consult_request_id, changed_at)` 로 끝납니다
+
+### 12.7 판정 규칙 — 순수 함수 여섯 개 (`consult/transition.ts`)
+
+AGENTS.md 의 "규칙은 DB 도 요청도 모르는 순수 함수" 를 그대로 따릅니다. DB 없이 경계값을 테스트할 수
+있어야 하는 것들입니다.
+
+```ts
+export type ConsultStatus = 'new' | 'contacted' | 'booked' | 'cancelled' | 'visited';
+
+// 1. 전이는 전부 허용한다. 검증하는 것은 '필요한 입력이 왔는가' 뿐이다.
+//    (전이표를 두지 않은 이유: 막을 전이를 찾지 못했다 — 오기입 정정과 당일 내원이 둘 다 정상이다)
+export function requiredInputs(next: ConsultStatus): ReadonlyArray<'visitAt' | 'cancelReason'> {
+  if (next === 'booked')    return ['visitAt'];
+  if (next === 'cancelled') return ['cancelReason'];
+  return [];
+}
+
+// 2. 결과 일시 (§12.2). booked 는 요청값 ?? 현재값 — 둘 다 없으면 1번 검사가 먼저 막는다
+export function nextVisitAt(next, currentVisitAt, requestedVisitAt): Date | null {
+  if (next === 'booked')  return truncateToMinute(requestedVisitAt ?? currentVisitAt);
+  if (next === 'visited') return currentVisitAt;
+  return null;                                   // cancelled | contacted | new
+}
+
+// 3. 이 요청이 무엇인가 (§12.3) — no-op 판정과 이벤트 종류를 한 함수가 정한다
+export function classifyEvent(cur, req): 'noop' | 'status_change' | 'reschedule' {
+  if (req.status !== cur.status) return 'status_change';
+  if (cur.status === 'booked' && !sameMinute(req.visitAt, cur.visitAt)) return 'reschedule';
+  return 'noop';
+}
+
+// 4. '지연' 배지 — 서버는 저장하지도 내려주지도 않는다 (§12.11). 24시간은 경과 시간이라 시간대와 무관하다
+export const DELAY_THRESHOLD_MS = 24 * 60 * 60 * 1000;
+export const isDelayed = (status, createdAt, now) =>
+  status === 'new' && now.getTime() - createdAt.getTime() >= DELAY_THRESHOLD_MS;
+
+// 5. 기간 필터 경계 — Asia/Seoul 달력, 반열린 구간 [from, to)
+//    today     : 오늘 00:00 KST        ~ 내일 00:00 KST
+//    thisWeek  : 이번 주 월요일 00:00  ~ 다음 주 월요일 00:00   (주의 시작은 월요일)
+//    last30    : 오늘 00:00 − 29일     ~ 내일 00:00            (오늘을 포함한 30일)
+export function periodRange(period, now, tz = 'Asia/Seoul'): readonly [Date, Date];
+
+// 6. 투영용 파생 (consult/*.projection.ts) — 저장하지 않는 현재 취소 사유 (§12.4)
+export const cancelReasonOf = (status, history) =>
+  status !== 'cancelled' ? null
+    : [...history].reverse().find((e) => e.status === 'cancelled')?.cancelReason ?? null;
+```
+
+경계값을 **여기서** 못 박는 이유: `이번 주` 의 시작 요일과 `최근 30일` 의 포함 범위는 문서마다 다르게
+읽히는 대표적인 값이고, 화면·서버가 서로 다르게 구현하면 **목록 건수와 탭 카운트가 어긋납니다**
+(두 숫자가 같은 질의에서 나오지 않는 순간 사용자가 먼저 알아챕니다).
+
+### 12.8 "환자 알림 발송" — 파생하지 않고 **저장**합니다
+
+이력 행에 `notification_id`(nullable FK → `notifications.id`, `ON DELETE SET NULL`)를 둡니다.
+투영에는 **boolean 하나(`notified`)만** 내려갑니다 — 알림 상세로 가는 화면이 없는데 id 를 내리면
+그 자리가 "갈 수 있다" 는 약속이 됩니다.
+
+"모든 변경은 알림을 보낸다" 는 규칙으로 파생할 수도 있었습니다. 저장을 고른 이유:
+
+1. **규칙이 바뀌면 과거가 소급해 거짓이 됩니다.** 오기입 정정이 잦아지면 "연속 변경은 알림을 묶는다"
+   같은 억제 규칙이 생기기 쉽고, 그 순간 **이미 알림을 받은 과거 이력이 '발송 안 함' 으로 보입니다.**
+   `audit_logs.actor_role`·`pii_masked` 를 스냅샷으로 둔 것과 **같은 논리**입니다(§11.2-(2)).
+2. **발송은 실패하거나 생략될 수 있습니다** — 수신자 계정 탈퇴, 알림 생성 실패. 규칙은 "보냈어야 한다"
+   를 말할 뿐 "보냈다" 를 말하지 못합니다.
+3. **조인 키가 달리 없습니다.** `notifications.related_id` 는 상담을 가리킬 뿐이라, 이력 행이 여럿이면
+   시각으로 짝짓는 수밖에 없습니다 — 틀리기 쉽고 조용히 틀립니다.
+4. 대가는 nullable 컬럼 하나입니다.
+
+`null` 의 뜻은 **발송하지 않음(또는 발송 실패)** 입니다. 시드·과거 이력 행도 `null` 입니다.
+알림 행을 지우는 경로가 생기면(보존기간 배치) `null` 이 "삭제됨" 과 섞이므로, **그때 `notified_at` 을
+더합니다.** 지금은 알림 삭제 경로가 없어 모호성이 실현되지 않습니다.
+
+> 알림 생성과 이력 행 생성은 **같은 트랜잭션**입니다(§7.5 의 트랜잭션 점검 목록에 상담 상태 변경이
+> 이미 들어 있습니다). 둘이 갈리면 "이력은 있는데 알림이 없는" 행이 생기고, 그것이 정확히
+> 이 컬럼이 거짓이 되는 경우입니다.
+
+### 12.9 마스킹·스코프 델타
+
+스코프는 그대로입니다 — `hospital_admin` 은 담당 병원, `operator` 는 전체(결정 0001).
+**마스킹에 투영 축이 하나 붙습니다**(`docs/api/README.md` §4 에 계약 문구로 적었습니다).
+
+| 투영 | 역할 | 이름 | 연락처 | 감사 로그 |
+|---|---|---|---|---|
+| 목록 | `hospital_admin` | 전체 | **`010-****-4411`** | 남기지 않음 |
+| 목록 | `operator` | `박*영` | `010-****-4411` | 남기지 않음 |
+| 상세 | `hospital_admin` | 전체 | **전체** (`전화 걸기` 활성) | **남김** (`pii_masked=false`) |
+| 상세 | `operator` | `박*영` | `010-****-4411` | 남김 (`pii_masked=true`) |
+
+굵게 표시한 칸이 이번에 바뀐 곳입니다. **목록은 담당자에게도 번호를 가립니다** — 목록은 건별 열람
+기록을 남기지 않기로 한 자원이라(`docs/api/README.md` §4) 전체 번호가 실리면 **무기록 대량 반출**이
+성립합니다. 목록에서 값을 빼면 전체 번호를 보는 경로가 **기록이 남는 상세 한 곳**으로 모입니다.
+
+데이터 쪽 귀결 두 가지:
+
+- **`audit_logs` 의 핵심 질의(`WHERE pii_masked = false`)가 비로소 "전체 번호를 본 횟수" 와 같아집니다.**
+  목록에 전체 번호가 있던 동안 그 질의는 노출의 일부만 세고 있었습니다
+- `operator` 의 **숫자 검색은 뒤 4자리 접미 일치로 제한**합니다(§12.5). 전체 번호 부분일치를 허용하면
+  `phone_digits` 가 **"이 번호의 상담이 존재하는가" 오라클**이 되어 마스킹을 우회합니다.
+  뒤 4자리는 §4 가 운영자에게 남기기로 한 값이라 그 범위까지는 설계 의도 그대로입니다
+
+### 12.10 과거 행은 새 규칙을 소급해 만족하지 않습니다
+
+"`booked` 면 `visit_at` 이 있다" 는 **쓰기 경로의 불변식**이고, 기존 `booked` 행에는 값이 없습니다.
+`cr3` 의 메모 `8/2 14:00 예약 확정` 을 파싱해 채우는 것은 **추측**이고, 그 메모야말로
+"적을 칸이 없어 메모에 적었다" 는 요청서의 근거입니다. 화면은 `visit_at IS NULL` 인 `booked` 를
+`일시 미입력` 으로 보여주고 담당자가 채우게 합니다.
+
+**DB 제약으로 굳히지 않는 이유**도 같습니다. `CHECK (status <> 'booked' OR visit_at IS NOT NULL)` 은
+PostgreSQL 이전 후에 가능하지만(§7.6), 켜는 순간 **과거 행이 제약을 위반**합니다. 이전 시점에
+남아 있는 위반 행을 먼저 처리하는 결정이 필요하므로 §7.6 목록에 조건부로 적어 둡니다.
+
+### 12.11 파생값을 컬럼으로 만들지 않은 것 두 개
+
+| 안 만든 것 | 대신 | 근거 |
+|---|---|---|
+| `delayed`(지연) | **클라이언트 판정** `isDelayed(status, createdAt, now)` | 시간이 지나면 값이 바뀝니다. 컬럼이면 배치가 필요하고 배치가 늦으면 틀린 배지가 보입니다. 서버가 응답에 실어도 **받는 순간부터 늙기 시작하는 값**입니다. 판정에 필요한 두 값이 이미 응답에 있고, 24시간 경과는 시간대와 무관합니다. 탭·카운트가 되는 순간에는 서버가 세지만 그때도 컬럼은 필요 없습니다 — `status='new' AND created_at < now()-24h` 이고 §12.6 의 인덱스가 받습니다 |
+| `source`(유입 화면) | **지금 수집하지 않습니다** | 신청 화면이 보내지 않는 값입니다. 컬럼을 만들면 전 건이 `null` 인 컬럼이 남고 화면은 그것을 `알 수 없음` 으로 그려야 합니다. 요청서도 "데이터가 없으면 빼도 됩니다" 로 적었습니다. 필요해지면 `POST /consult-requests` 에 `source` 를 더하는 것이 먼저이고, **과거 건은 영구히 `null`** 이라는 사실을 그때 화면이 받아들여야 합니다 |
+
+### 12.12 밀려 있던 것 · 시드 · 남은 미결
+
+**밀려 있던 것 — 제3자 제공 동의 컬럼.** `ConsultThirdPartyConsent` 는 이미 `openapi.yaml` 의 응답
+**필수 필드**인데 받을 컬럼이 없습니다. 이번 마이그레이션에 함께 닫습니다.
+
+```
+consult_requests
+  third_party_consent_agreed_at      timestamp, null   -- 서버가 접수를 받아들인 시각 (서버 시계)
+  third_party_consent_notice_version varchar,   null   -- 동의한 안내문 버전 ('2026-10-12')
+```
+
+둘 다 nullable 이고 **함께 채워지거나 함께 null** 입니다(앱 불변식). `null` 은 **거절이 아니라 절차
+도입 이전 접수**이며 소급해 채울 방법이 없습니다 — 계약이 적어 둔 그대로입니다.
+안내문이 `legal_documents` 로 옮겨가면 이 자리가 `legal_document_id` FK 가 될 수 있지만,
+지금 안내문은 프런트 상수라 **버전 문자열만 보존**합니다(`user_agreements` 와 다른 선택인 이유).
+
+**시드·마이그레이션** (§8 보완):
+
+1. `phone_digits` 는 `not null` 입니다. **현재 데이터가 시드뿐이면 컬럼 추가 후 시드 재실행**으로 끝납니다.
+   운영 데이터가 생긴 뒤라면 마이그레이션 SQL 에 백필 한 줄을 넣습니다 — §3.8 의 raw SQL 금지는
+   **애플리케이션 코드** 규칙이고 마이그레이션 파일에는 적용되지 않습니다
+2. `event` 는 기본값이 있어 기존 이력 행이 그대로 유효합니다. `visit_at`·`cancel_reason`·
+   `notification_id` 는 전부 nullable 이라 백필이 없습니다
+3. 시드에 `visited` 건이 하나도 없습니다. 샘플을 만들려면 `frontend/src/mocks/fixtures/consultRequests.ts`
+   수정이 따라오는데 **그 파일은 프런트 영역**이라 이 변경에 묶지 않습니다
+4. §8.5 의 상대 날짜 권고가 여기에도 적용됩니다 — 고정 날짜 fixture 로는 `오늘`/`이번 주` 필터와
+   `지연` 배지가 **항상 0건**이라 QA 가 재현할 수 없습니다
+
+**남은 미결:**
+
+1. **`operator` 의 상담 처리 권한** (결정 0001 미결 3) — 상태가 5개가 되면서 "병원이 방치한 건을
+   운영자가 취소" 요구가 더 그럴듯해졌지만, 요청서에 없어 바꾸지 않았습니다. 바꾸면 스키마는 그대로이고
+   인가 규칙만 바뀝니다
+2. **취소 사유의 자유 텍스트** — `etc`(기타)에 설명 칸을 두지 않았습니다. 메모가 그 자리입니다.
+   `기타` 비율이 높게 나오면 사유 코드를 늘리는 것이 먼저입니다
+3. **상담 보존 기간** — 감사 보존 기간과 함께 정해야 합니다(§11.8-1). `visit_at` 이 더해졌을 뿐
+   성격은 같습니다
+4. **`consult_status_changes` 의 이름** — 이벤트가 더 늘면(메모 작성 등) `consult_events` 로 개명할
+   시점입니다. 지금은 두 종류뿐이라 `event` 컬럼으로 충분합니다
+5. **상담 → 내원 전환율 집계** — `visited` 가 생기면서 셀 수 있게 됐지만, 그것을 보여주는 화면이
+   아직 없습니다. 집계 화면이 생기면 모집단 정의(접수 기준인가 확정 기준인가)를 먼저 정해야 합니다

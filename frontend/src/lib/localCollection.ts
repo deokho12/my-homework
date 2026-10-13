@@ -4,6 +4,7 @@ import { qaPosts as seedQaPosts } from '@/mocks/fixtures/qaPosts';
 import type {
   AppNotification,
   ConsultRequest,
+  ConsultStatusChange,
   HospitalInquiryAnswer,
   InquiryTopic,
   Paged,
@@ -36,8 +37,20 @@ import type {
  *
  * 서버 전환 시 삭제: `userId` 는 서버가 토큰에서 채운다.
  */
-export interface StoredConsultRequest extends ConsultRequest {
+export interface StoredConsultRequest extends Omit<ConsultRequest, 'statusHistory'> {
   ownerUserId?: string;
+  statusHistory: StoredConsultStatusChange[];
+}
+
+/**
+ * 저장된 처리 이력 한 줄. 투영(`ConsultStatusChange`)과 다른 점은 하나다 — **어느 알림이
+ * 이 이벤트로 나갔는지**를 들고 있고, 응답에는 boolean(`notified`)만 내려간다
+ * (계약: 알림 상세로 가는 화면이 없는데 id 를 내리면 그 자리가 "갈 수 있다" 는 약속이 된다).
+ *
+ * 서버 전환 시 삭제: 서버는 `consult_status_changes.notification_id` 로 같은 것을 들고 있다.
+ */
+export interface StoredConsultStatusChange extends ConsultStatusChange {
+  notificationId?: string;
 }
 
 /**

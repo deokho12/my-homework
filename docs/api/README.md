@@ -406,6 +406,46 @@ partnerInquiries.detail:   (id) => ['partnerInquiries', id]
 | `ConsultSummary` | 숫자 두 개뿐이다 |
 | `Review.authorName` | 이미 저장 시점에 마스킹돼 있다 (`김**`). 역할과 무관하게 항상 마스킹 |
 
+### 상담 **목록**의 연락처는 역할과 무관하게 마스킹한다 (2026-10-13)
+
+위 표는 **역할**로 갈리는 규칙이다. 상담에는 그 위에 **투영**으로 갈리는 규칙이 하나 더 붙는다 —
+`GET /consult-requests` (목록)는 **담당 병원 관리자에게도** 전화번호 가운데를 가린다.
+전체 번호는 `GET /consult-requests/{id}` (상세, **감사 기록 대상**)에만 있다.
+
+| 투영 | 역할 | 이름 | 연락처 | `piiMasked` | 감사 로그 |
+|---|---|---|---|---|---|
+| 목록 | `hospital_admin` (담당 병원) | `박서영` | `010-****-4411` | **`true`** | 남기지 않음 |
+| 목록 | `operator` | `박*영` | `010-****-4411` | `true` | 남기지 않음 |
+| 상세 | `hospital_admin` (담당 병원) | `박서영` | `010-1234-4411` | `false` | **남김** (`pii_masked=false`) |
+| 상세 | `operator` | `박*영` | `010-****-4411` | `true` | 남김 (`pii_masked=true`) |
+
+**왜 담당자에게까지 목록을 가리나 — 대량 반출 방어선이 여기밖에 없기 때문이다.**
+바로 아래 "목록 조회는 기록하지 않는다" 가 적은 대로, 목록은 **건별 열람 기록을 남기지 않는다**
+(작업 화면이 목록을 반복 조회해서 로그가 의미 없이 불어난다). 그래서 목록에 전체 번호가 실리면
+`pageSize=100` × 페이지 넘김으로 **무기록 반출**이 성립한다 — 지금까지 1차 방어선은 `pageSize` 상한과
+요청 한도뿐이었다. 목록에서 값을 빼면 그 경로 자체가 사라지고, 전체 번호를 보는 모든 경로가
+**기록이 남는 상세 한 곳**으로 모인다. 담당자의 정상 업무(전화 걸기)는 상세에서 하므로 잃는 것이 없다 —
+요청서도 `전화 걸기` 버튼을 상세에만 둔다.
+
+**넓은 화면의 오른쪽 상세 패널은 상세 오퍼레이션이다.** 목록 옆에 붙어 있어도 `GET /{id}` 를 호출하므로
+**열 때마다 감사 행이 하나 남는다.** 이것은 부작용이 아니라 의도다 — 전체 번호를 본 횟수가 곧 감사 행 수다.
+
+**`piiMasked` 의 뜻을 넓혔다: "이 응답에 마스킹된 개인정보 필드가 있다".**
+역할 마스킹 여부만 뜻하던 값이라, 담당자 목록 응답(이름은 전체, 번호는 마스킹)에서 `false` 를 주면
+화면이 `010-****-4411` 을 **잘못 저장된 데이터**로 읽게 된다 — §4 가 플래그를 둔 이유가 정확히 그
+구분이었으므로 뜻을 넓히는 쪽이 맞다. 클라이언트 규칙은 그대로 한 줄이다: **`piiMasked === true` 면
+전화 걸기·복사를 잠그고 "전체 번호는 상세에서 확인할 수 있어요" 를 띄운다.**
+
+**`phoneMasked` 를 따로 두지 않는다.** 어느 필드가 가려졌는지는 위 표가 말하고, 화면이 묻는 질문은
+"전화를 걸 수 있나" 하나뿐이다. 소비자 없는 두 번째 플래그는 두 값이 어긋날 자리만 만든다.
+
+**검색(`q`)의 숫자 부분은 역할에 따라 범위가 다르다.** `hospital_admin` 은 번호 전체 부분일치,
+`operator` 는 **뒤 4자리 접미 일치**로 제한한다 — 4자리를 넘게 넣으면 에러가 아니라 **뒤 4자리만 잘라** 비교한다
+(검색은 0건이 정상 응답인 자리라 422 로 막지 않는다; 계약 `GET /consult-requests` 의 `q`). 운영자에게 뒤 4자리를 남긴 이유가 "고객 문의를 받았을 때
+어떤 상담 건인지 대조" 이고(위), 그 대조는 4자리로 충분하다. 제한하지 않으면 전체 번호를 넣어
+**"이 번호의 상담이 존재한다" 를 확인하는 오라클**이 되어 마스킹이 우회된다.
+(`docs/database/README.md` §12.5 — `phone_digits` 컬럼과 같은 판정 함수)
+
 ### 병원 문의의 문의자 이름 — 역할과 무관하게 항상 마스킹
 
 `hospital_inquiries` (§14) 는 상담과 **반대**다. 아무도 원본 이름을 보지 않는다.
@@ -459,6 +499,7 @@ partnerInquiries.detail:   (id) => ['partnerInquiries', id]
 | `GET /consult-requests/{id}` | **열람** | 실명·전화번호·문의 내용·내부 메모가 한 화면에 모이는 자리다. 남는 노출면의 핵심 |
 | `GET /partner-inquiries/{id}` | **열람** | 병원명·담당자 실명·연락처 |
 | `PATCH /consult-requests/{id}/status` | 변경 | 고객에게 알림이 나가는 행위. `statusHistory.changedByName` 으로 화면에도 노출 |
+| 〃 (상태는 그대로, 예약 일시만 변경) | 변경 | **`action` 에 `consult_request.reschedule` 이 더해져 허용값이 9개 → 10개가 된다.** 같은 엔드포인트지만 기록은 갈라야 한다 — `before_value`/`after_value` 에 들어가는 것이 상태가 아니라 일시다. 기록하는 이유는 윗줄과 같다(고객에게 알림이 나가는 행위). 허용값 목록은 **`backend/prisma/schema.prisma` 의 `AuditLog` 주석에도 박혀 있으므로 두 곳을 함께 고쳐야 한다** |
 | `POST /consult-requests/{id}/memos` | 작성 | `authorName` 으로 화면에도 노출 |
 | `PUT /doctors/{id}/verification` | 결정 | 누가·언제·어떤 사유로 판정했는지. 현재는 반려 사유만 남고 승인 시 그것도 지워진다 |
 | `POST /hospitals/{id}/admins` | 권한 부여 | 계정 승격이다. 권한 변경은 무조건 기록 대상 |
@@ -470,7 +511,8 @@ partnerInquiries.detail:   (id) => ['partnerInquiries', id]
 
 #### 목록 조회는 기록하지 않는다
 
-`GET /consult-requests` 에도 실명·전화번호가 실리지만 **건별 열람 로그를 남기지 않는다.**
+`GET /consult-requests` 는 **건별 열람 로그를 남기지 않는다.** (2026-10-13 부터 목록의 연락처는 역할과 무관하게
+가려서 내려가므로 — 위 절 — 목록으로는 전체 번호를 볼 수 없다. 실명은 담당자 목록에 그대로 실린다.)
 상담 관리 화면이 목록을 반복 조회해서 로그가 의미 없이 불어난다.
 **목록은 접근 통계로, 상세는 건별 열람 기록으로** 다루는 실무적 타협이다.
 
@@ -494,8 +536,9 @@ partnerInquiries.detail:   (id) => ['partnerInquiries', id]
 
 **뒤집히는 조건은 하나다 — 답변 수정이 허용되는 순간.** 그때 `audit_logs.action` 에
 `hospital_inquiry.answer_update` 를 추가하고 `before_value`/`after_value` 를 쓴다.
-`action` 허용값 9개는 `backend/prisma/schema.prisma` 의 `AuditLog` 주석에도 박혀 있으므로
-**두 곳을 함께 고쳐야 한다.** 지금 이 기능으로는 그 목록이 **한 줄도 바뀌지 않는다.**
+`action` 허용값 목록은 `backend/prisma/schema.prisma` 의 `AuditLog` 주석에도 박혀 있으므로
+**두 곳을 함께 고쳐야 한다.** 지금 이 기능(문의)으로는 그 목록이 **한 줄도 바뀌지 않는다.**
+(목록을 늘린 것은 상담 예약 쪽이다 — 위 표의 `consult_request.reschedule`, 2026-10-13)
 
 #### 필요한 테이블 요구사항 (db-master 전달용)
 
@@ -510,6 +553,7 @@ audit_logs
   actor_role        varchar, not null          -- 행위 시점의 역할 스냅샷.
                                               -- users.role 을 조인하면 안 된다 — 승격/해제로 바뀐다
   action            varchar, not null          -- 'consult_request.view', 'consult_request.status_change',
+                                              -- 'consult_request.reschedule' (2026-10-13 추가),
                                               -- 'partner_inquiry.view', 'doctor.verify',
                                               -- 'hospital_admin.assign', 'hospital_admin.unassign',
                                               -- 'hospital.create', 'partner_inquiry.review'
@@ -789,23 +833,52 @@ sort=rating | reviewCount | consultCount
 |---|---|---|
 | **새 상담 알림** | `POST /consult-requests` | `audience=admin`, `type=consult-status`, 제목 `새로운 상담 신청`, 내용 `{name}님이 상담을 신청했어요`, `relatedResource=consultRequest`, `relatedId={상담 id}`. **수신자는 그 병원의 관리자** |
 | **상담 상태 변경 알림** | `PATCH /consult-requests/{id}/status` | `audience=user`, 제목 `상담 상태 변경`, 내용 `상담 상태가 '{라벨}'(으)로 변경되었어요`. **수신자는 그 상담의 `userId`** |
-| 상태 이력 한 줄 | `PATCH /consult-requests/{id}/status` | `statusHistory` 에 `{ status, changedAt, changedByName }` 추가 |
+| 상태 이력 한 줄 | `PATCH /consult-requests/{id}/status` | `statusHistory` 에 `{ event, status, changedAt, changedByName, visitAt, cancelReason, notified }` 추가 |
+| **예약 일시 변경 알림** | `PATCH /consult-requests/{id}/status` (상태는 그대로 `booked`, `visitAt` 만 다름) | `audience=user`, `type=consult-status`(**새 값 없음**), 제목 `예약 일시 변경`, 내용 `예약 일시가 '{10월 9일(목) 14:00}'(으)로 변경되었어요`. 이력에는 `event='reschedule'` 행 하나. **수신자는 그 상담의 `userId`** |
 | **문의 답변 알림** | `POST /hospital-inquiries/{id}/answer` (§14, 경로 확정 — `openapi.yaml`) | `audience=user`, `type=inquiry-answer`(**신규 값**), 제목 `문의에 답변이 왔어요`, 내용 `{병원명} · {답변 앞 60자}`, `relatedResource=hospitalInquiry`(**신규 값**), `relatedId={문의 id}`. **수신자는 그 문의의 `userId` 한 명.** 새 문의가 들어올 때 **관리자 알림은 만들지 않는다**(§14 — 배지는 미답변 수다) |
 | **전문의 검수 결과 알림** | `PUT /doctors/{id}/verification` | `audience=admin`, `type=system`, `relatedResource=doctor`. **수신자는 그 전문의 소속 병원의 관리자.** 지금은 아무 알림도 생기지 않아 병원이 결과를 알 방법이 없다 |
 | 검수 감사 로그 | `PUT /doctors/{id}/verification` | 누가·언제·어떤 결정을 했는지. 지금은 반려 사유만 남고 승인하면 그것도 지워진다 |
 | 재검수 복귀 | `PUT /hospitals/{id}/doctors`, `PATCH /doctors/{id}` | `specialty` 또는 `certificateUrl` 이 바뀌면 `verificationStatus` → `pending`. 지금은 승인이 유지되어 검수 없이 다른 과 배지가 노출된다 |
 | 조회수 증가 | `POST /community/posts/{id}/views` | **`GET` 이 아니다.** GET 이 상태를 바꾸면 캐시·프리페치·재시도가 조회수를 부풀린다 |
 
-### 중복 알림 방지
+### 중복 알림 방지 — "같은 상태면 no-op" 을 **"바뀐 것이 없으면 no-op"** 으로 고쳐 쓴다 (2026-10-13)
 
-같은 상태로 다시 `PATCH .../status` 를 보내면 **아무 부수효과 없이 `200` + 현재 리소스**를 반환한다 (no-op).
-`X-Status-Changed: false` 헤더로 알려준다.
+예약 일시 변경이 들어오면서 **상태가 같은데 바뀌는 요청**이 생겼다. `예약확정` 인 상담의 일시를
+`10/9 14:00` → `10/12 11:00` 으로 옮기는 것이 그것이고, 이때 고객에게 알림이 **나가야 한다.**
+기존 문장("같은 상태로 다시 보내면 no-op")을 그대로 두면 그 요청이 조용히 무시된다.
 
-지금은 `예약완료` 인 상담에 `예약완료` 를 다시 누르면 이력이 중복으로 쌓이고 고객 알림도 또 간다.
-목록의 빠른 상태 버튼을 오탭하면 쉽게 발생하는데, **오탭이 고객에게 중복 알림으로 나가는 것**을 서버가 막는다.
+**비교 대상은 상태 하나가 아니라 세 값이다: `(status, visitAt, cancelReason)`.**
+
+| 요청이 현재와 다른 곳 | 결과 | 이력 | 알림 | `X-Status-Changed` |
+|---|---|---|---|---|
+| `status` 가 다르다 | 상태 변경 | `event='status_change'` 1행 | 상태 변경 알림 | `true` |
+| `status` 는 같고 `booked` 인데 `visitAt` 이 다르다 | 일시 변경 | `event='reschedule'` 1행 | **예약 일시 변경 알림** | `true` |
+| 세 값이 모두 같다 | **no-op** | 없음 | 없음 | `false` |
+
+`visitAt` 비교는 **분 단위**다 (서버가 초·밀리초를 0 으로 절삭해 저장한다 —
+`docs/database/README.md` §12.2). 같은 시각을 다시 저장하는 것이 초 자릿수 때문에 변경으로 보이면
+오탭 방어가 무너진다.
+
+`X-Status-Changed` 는 **이름을 바꾸지 않고 뜻을 넓혔다: "이 요청이 이력 행을 만들었는가".**
+소비자가 묻는 것은 "오탭으로 아무 일도 안 일어났는가" 하나이고, 일시 변경도 그 질문에는 같은 답이
+필요하다. 헤더 이름과 뜻이 반 걸음 어긋나는 대가로 소비자 코드가 갈라지지 않는다.
+
+오탭 방어는 그대로다. 지금은 `예약완료` 인 상담에 `예약완료` 를 다시 누르면 이력이 중복으로 쌓이고
+고객 알림도 또 간다. 목록의 빠른 상태 버튼을 오탭하면 쉽게 발생하는데,
+**오탭이 고객에게 중복 알림으로 나가는 것**을 서버가 막는다.
 
 4xx 로 만들지 않은 이유: 요청 후의 상태가 요청자가 원한 상태와 같다. 실패로 다룰 이유가 없고,
 클라이언트가 "이미 그 상태였습니다" 라는 에러를 사용자에게 보여줄 필요도 없다.
+
+**no-op 과 입력 검증의 순서**: 필수 입력 검사(`예약확정`→`visitAt`, `취소`→`cancelReason`)가 **먼저**다.
+`예약확정` 상담에 `visitAt` 없이 `예약확정` 을 다시 보내면 no-op 이 아니라 `422` 여야 한다 —
+그 요청은 "바꿀 것이 없다" 가 아니라 **값을 빠뜨린 요청**이고, 화면은 "확정 일시를 입력해주세요" 를
+띄워야 한다. (판정 함수는 `docs/database/README.md` §12.7)
+
+**이력 행이 알림과 1:1 로 묶인다.** 알림 생성과 이력 행 생성은 같은 트랜잭션이고,
+이력 행이 만들어진 알림의 id 를 들고 있다(§14 — `consult_status_changes.notification_id`).
+화면의 `환자 알림 발송` 배지가 그 링크에서 나온다. "모든 변경은 알림을 보낸다" 는 **규칙으로 파생하지
+않는다** — 규칙이 나중에 바뀌면 과거 이력의 표시가 소급해 거짓이 된다.
 
 ### 사용자용/관리자용 분리
 
@@ -1014,6 +1087,9 @@ JS 키는 origin 제한이 가능하고 **애초에 클라이언트 노출을 �
 | `DOCTOR_NOT_AT_HOSPITAL` | 422 | 이 병원에 소속된 전문의가 아니에요 |
 | `THIRD_PARTY_CONSENT_REQUIRED` | 422 | 개인정보 제3자 제공에 동의해야 상담을 신청할 수 있어요 |
 | `INVALID_PHONE_FORMAT` | 422 (detail) | 휴대폰 번호 형식이 아니에요. 010-1234-5678 처럼 입력해주세요 |
+| `VISIT_AT_REQUIRED` | 422 (detail) | 확정 일시를 입력해주세요 (2026-10-13) |
+| `CANCEL_REASON_REQUIRED` | 422 (detail) | 취소 사유를 선택해주세요 (2026-10-13) |
+| `PERIOD_FILTER_CONFLICT` | 422 | 기간 조건은 한 가지 방식으로만 보낼 수 있어요 (`period` 와 `createdFrom`/`createdTo` 를 함께 보냄, 2026-10-13) |
 
 **병원 문의** (2026-10-12)
 
@@ -1409,6 +1485,151 @@ nullable 규칙이 나중에 바뀌어도 노출 조건은 그대로여야 한�
 - **보존 기간.** 문의에는 연락처가 없지만 본문에 환자가 증상·예산을 적는다. 탈퇴(soft delete) 계정의
   **공개 Q/A 를 계속 노출할지**가 미결이다 (작성자 표기가 없어 식별 위험은 낮은 쪽이다)
 - **신고·숨김.** 부적절한 문의/답변을 내리는 경로가 없다. 생기면 `deleted_at` 과 운영자 권한이 함께 온다
+
+#### `consult_requests` 확장 — 상담 예약 (2026-10-13)
+
+`docs/features/requests/2026-10-12-04-관리자-상담예약-개선.md` 가 요구하는 **기존 도메인의 확장**이다.
+새 테이블은 없고 **기존 두 테이블에 컬럼이 붙는다.** 설계 판단과 근거는
+`docs/database/README.md` §12 에 있고, 여기에는 **백엔드 협업자가 받을 요구사항**만 적는다
+(백엔드는 협업자 영역이라 요구사항만 전달한다 — `hospital_inquiries` 와 같다).
+
+```
+consult_requests  (기존 테이블 — 컬럼 4개 추가)
+  visit_at                           timestamp, null   -- ★ 확정 내원 일시. UTC 시각(달력 날짜 아님).
+                                                       --   초·밀리초는 0 으로 절삭해 저장(입력 단위가 분)
+                                                       --   status='booked' 로 들어갈 때 필수,
+                                                       --   'visited' 로 가면 유지, 그 밖으로 나가면 null
+  phone_digits                       varchar, not null -- 숫자만 남긴 연락처('01012344411').
+                                                       --   목록 검색 q 의 숫자 매칭 전용. 표시는 phone
+  third_party_consent_agreed_at      timestamp, null   -- 이미 계약에 있으나 스키마에 없던 것(아래)
+  third_party_consent_notice_version varchar,   null   -- 〃. 둘은 함께 채워지거나 함께 null
+
+  Indexes  (추가 1개)
+    (hospital_id, status, created_at)   -- 상태 탭 5개 카운트 + 탭 선택 목록(최신순).
+                                        --   화면 진입마다 도는 질의다
+  Indexes  (그대로 두는 것)
+    (hospital_id, created_at)           -- '전체' 탭 최신순
+    (status, created_at)                -- operator 전 범위 상태 필터, 홈의 '처리 대기 중인 상담'
+    (user_id, created_at) / (created_at) / (doctor_id)
+
+consult_status_changes  (기존 테이블 — 이제 '상태 변경' 이 아니라 '처리 이벤트' 를 담는다)
+  event            varchar, not null, default 'status_change'
+                                       -- 'status_change' | 'reschedule'
+  visit_at         timestamp, null     -- ★ 이 이벤트 **직후**의 확정 일시 스냅샷
+  cancel_reason    varchar, null       -- no_answer | patient_request | procedure_unavailable
+                                       -- | duplicate | etc.  status='cancelled' 인 행에만
+  notification_id  fk → notifications.id, null, SetNull
+                                       -- 이 이벤트가 만든 환자 알림. 화면의 '환자 알림 발송' 배지
+  (기존) status, changed_at, changed_by_user_id, consult_request_id
+
+  Indexes  변화 없음 — (consult_request_id, changed_at)
+```
+
+**`ConsultStatus` 는 값을 하나 더한다. 기존 값은 그대로다.**
+`new` `contacted` `booked` `cancelled` **+ `visited`**. 라벨만 `예약완료` → **`예약확정`** 으로 바뀐다
+(라벨은 계약 설명과 클라이언트 매핑에만 있다 — 저장값이 아니다).
+`booked` 를 `confirmed` 로 **개명하지 않는 이유**는 §15 가 이미 정해 두었다 — **enum 값 제거는 breaking**
+(`v2` 사유)이고, 얻는 것은 이름뿐이다. 데이터 쪽 대가도 실재한다: 두 테이블의 과거 행 전부와
+백엔드 시드가 import 하는 `frontend/src/mocks/fixtures/consultRequests.ts` 의 `booked` 값을 함께 고쳐야 하고,
+그 fixture 는 프런트 파일이라 **DB 변경이 프런트 수정을 끌고 들어온다.**
+`예약완료` 와 `예약확정` 은 같은 사실을 가리키는 두 라벨이지 두 상태가 아니다.
+
+**전이는 전부 허용한다. 검증하는 것은 필수 입력뿐이다** (판정 함수는 `docs/database/README.md` §12.7).
+
+| 들어가는 상태 | 필수 입력 | 없으면 |
+|---|---|---|
+| `booked` | `visitAt` (요청 본문 또는 **현재 행에 이미 있는 값**) | `422` (`details[].code: VISIT_AT_REQUIRED`) |
+| `cancelled` | `cancelReason` (위 5개 코드 중 하나) | `422` (`CANCEL_REASON_REQUIRED`) |
+| 그 밖 | 없음 | — |
+
+전이표를 두지 않은 이유는 제품 결정이다 — 오기입 정정이 일상이고(`내원완료` 를 눌렀는데 안 왔다),
+걸어 들어온 환자는 `신규` 에서 바로 `내원완료` 로 간다. **막을 전이를 찾지 못했다.**
+금지 전이가 없으면 전이표는 "모두 허용" 한 줄이고, 그 한 줄을 테이블로 적으면 읽는 사람이
+**있지도 않은 규칙을 찾게 된다.**
+
+**신청자 투영(`MyConsultRequest`)에 내려가는 것과 내려가지 않는 것:**
+
+| | 신청자 | 왜 |
+|---|---|---|
+| `visitAt` | **내려간다** | 마이페이지가 `10/9(목) 14:00` 을 보여준다. 요청서의 확인 항목이다 |
+| `cancelReason` | **내려가지 않는다** | 병원의 **내부 처리 분류**다. `연락이 안 됨` 은 환자에게 비난으로 읽히고, 어느 화면도 환자에게 사유를 보여주지 않는다 |
+| `statusHistory` 의 `reschedule` 행 | **내려가지 않는다** (`status_change` 행만, 각 행은 `{status, changedAt, visitAt}`) | 신청자 이력은 **상태의 흐름**을 보여주는 자리다. 일시 변경 사실은 알림으로 이미 전달됐고, 지금의 결과는 최상위 `visitAt` 이 들고 있다 |
+| `notified` | **내려가지 않는다** | 자기가 받은 알림이다 |
+
+**관리자 투영(`ConsultRequest`)에 더해야 하는 것:** `visitAt`, 파생 `cancelReason`,
+`statusHistory[]` 의 `event` / `visitAt` / `cancelReason` / `notified`.
+`cancelReason` 은 **현재 행에 저장하지 않고 이력에서 파생한다** (근거: `docs/database/README.md` §12.4).
+`notified` 는 **boolean 으로만** 내려준다 — 알림 id 로 이동하는 화면이 없고, id 를 내리면 그 자리가
+"알림 상세로 갈 수 있다" 는 약속이 된다.
+
+**목록 필터 3개 — 어느 쪽이 서버인가** (§6 의 기준을 그대로 적용했다):
+
+| 화면 | 판단 | 파라미터 |
+|---|---|---|
+| 기간 `오늘`/`이번 주`/`최근 30일` | **서버** — 경계가 `Asia/Seoul` 달력이고 기기 시계를 쓰면 안 된다 (`ConsultSummary.timezone` 과 같은 이유) | `period=today\|thisWeek\|last30` (새 선택 파라미터). 기존 `createdFrom`/`createdTo` 와 **함께 오면 `422`** — 서버가 둘 중 하나를 임의로 고르면 화면과 결과가 조용히 어긋난다 |
+| 시술 9개 대분류 | **서버가 받는 것은 시술 id 다.** 대분류 → id 매핑은 클라이언트(`frontend/src/features/procedure/taxonomy.ts`)에 있다 — 서버는 13개 id 만 안다 | `procedureId` **반복 허용** (같은 파라미터 안에서는 OR, 다른 필터와는 AND). 대분류 하나가 서버 id 여러 개로 풀린다 |
+| 검색 `q` | **서버** (개인정보·페이지네이션) | 기존 `q`. 이름은 `name` 부분일치, 숫자는 `phone_digits` 부분일치. **역할별 범위는 §4** |
+| `지연` 배지 | **클라이언트** (아래) | 없음 |
+
+**`지연`(신규 24시간 경과)은 서버가 계산하지 않는다.** 판정에 필요한 두 값(`status`, `createdAt`)이
+이미 응답에 있고, 기준이 **시간대 없는 경과 시간**이라 기기 시계의 시간대 설정에 영향받지 않는다
+(§6 이 서버로 보내는 기준은 "기기 시계에 의존하는 규칙" 인데, 24시간 경과는 분 단위 오차가 판정을
+바꾸지 않는다). 서버가 `delayed: true` 를 내리면 **응답을 받은 순간부터 거짓이 되기 시작하는 값**이
+캐시·화면에 남는다. 클라이언트는 순수 함수 하나로 판정한다 (`isDelayed`, `docs/database/README.md` §12.7).
+
+> 뒤집히는 조건: **`지연` 이 탭·필터·카운트가 되는 순간.** 그때는 서버가 세야 하고,
+> 컬럼은 여전히 필요 없다 — `status='new' AND created_at < now()-24h` 로 표현되고
+> `(hospital_id, status, created_at)` 인덱스가 그대로 받는다.
+
+**카운트 세 벌 — 모집단이 다르다** (`hospital_inquiries` 에서와 같은 함정이다).
+
+| 화면 | 숫자 | 모집단 |
+|---|---|---|
+| 목록 상태 탭 `전체 42 · 신규 5 · …` | 상태별 건수 | **지금 걸린 필터(병원·기간·시술·검색)를 모두 적용하고 `status` 필터만 뺀 범위.** 그래야 탭을 눌러도 숫자가 흔들리지 않는다 |
+| 관리자 홈 `처리 대기 중인 상담` | `status='new'` | 담당 병원 **전체**. 목록 화면의 필터와 무관하다 |
+| 관리자 홈 `이번 달 신규 상담` | `created_at` ∈ 이번 달(KST) | 〃 |
+
+탭 카운트는 **목록 응답에 함께** 싣는다 — 계약의 `statusCounts` 필드(`ConsultStatusCounts`). 같은 필터를 두 번
+보내게 하면 두 응답이 서로 다른 시점을 가리키기 때문이다 —
+`GET /consult-requests/summary` 를 재사용할 수 없는 이유가 그것이다(모집단이 다르다).
+
+**제3자 제공 동의 컬럼은 "추가" 가 아니라 "밀린 것" 이다.** `ConsultThirdPartyConsent` 는 이미
+`openapi.yaml` 의 응답 필수 필드인데 `backend/prisma/schema.prisma` 에 받을 컬럼이 없다.
+이번 변경과 같은 마이그레이션에 묶어 닫는다. 두 컬럼 모두 nullable 인 이유는 계약이 적어 둔 그대로다 —
+**`null` 은 거절이 아니라 절차 도입 이전 접수**이고 소급해 채울 방법이 없다.
+
+**두지 않은 컬럼과 그 이유:**
+
+| 두지 않은 것 | 왜 |
+|---|---|
+| `consult_requests.cancel_reason` | 이력 행에 있다. 현재 행의 값은 "현재 상태가 `cancelled` 일 때의 최신 취소 이벤트 사유" 로 **파생**되고, 재오픈 시 지우는 절차 자체가 없어진다 (§12.4) |
+| `delayed` / `is_delayed` | 시간이 지나면 값이 바뀌는 파생값이다. 컬럼으로 두면 배치가 필요하고, 배치가 늦으면 틀린 배지가 보인다 |
+| `source`(유입 화면) | **지금 수집하지 않는다.** 요청서도 "데이터가 없으면 빼도 됩니다" 로 적었다. 신청 화면이 보내지 않는 값을 컬럼으로 만들면 전 건이 `null` 인 컬럼이 남고, 화면은 그것을 "알 수 없음" 으로 그려야 한다. 필요해지면 `POST /consult-requests` 에 `source` 를 더하는 것이 먼저이고, **과거 건은 영구히 `null`** 이라는 사실을 그때 화면이 받아들여야 한다 |
+| `visit_date` + `visit_time` 두 컬럼 | 한 약속이 두 컬럼으로 갈리면 비교·정렬에 매번 결합이 필요하고 두 값이 어긋날 자리가 생긴다 (§12.2) |
+| `consult_status_changes.updated_at` | 이력 행은 고쳐지지 않는다. `audit_logs` 와 같은 신호다 |
+| 상태 전이표 테이블 | 금지 전이가 없다(위) |
+
+**마이그레이션 메모 (협업자 전달):**
+
+1. `phone_digits` 는 `not null` 인데 기존 행이 있다. **현재 데이터가 시드뿐이면 컬럼 추가 후 시드 재실행**으로
+   끝난다. 운영 데이터가 생긴 뒤라면 마이그레이션 SQL 에 백필 한 줄(`phone` 에서 숫자만 남기기)을 넣는다 —
+   §3.8 의 "raw SQL 금지" 는 **애플리케이션 코드** 규칙이고 마이그레이션 파일에는 적용되지 않는다.
+2. `event` 는 `default 'status_change'` 라 기존 이력 행이 그대로 유효하다.
+3. **기존 `booked` 행에는 `visit_at` 이 없다.** 소급해 채우지 않는다 — `cr3` 의 메모
+   `8/2 14:00 예약 확정` 를 파싱하는 것은 추측이다(그 메모가 바로 "적을 칸이 없어서 메모에 적었다" 는
+   요청서의 근거다). **필수 입력 규칙은 쓰기 경로에만 건다.** 화면은 `visitAt === null` 인 `booked` 를
+   `일시 미입력` 으로 보여주고 담당자가 채우게 한다.
+4. 시드에 `visited` 건이 하나도 없다. 샘플이 필요하면 fixture 수정이 따라오는데 그 파일은 프런트
+   영역이다 — **이 변경에 묶지 않는다.**
+
+**정하지 않은 것:**
+
+- **`operator` 의 상담 처리 권한** — `PATCH .../status` 는 여전히 `hospital_admin` 전용이다
+  (결정 0001 미결 3). 상태가 5개가 되면서 "병원이 방치한 건을 운영자가 취소" 요구가 더 그럴듯해졌지만,
+  요청서에 없으므로 바꾸지 않았다.
+- **`내원완료` 이후의 되돌림을 화면이 경고할지** — 서버는 막지 않는다(자유 전이). 확인창은 화면의 몫이다.
+- **상담 보존 기간** — 감사 보존 기간과 함께 정해야 한다(결정 0001 미결 5). 이번 변경으로
+  `visit_at` 이 더해졌을 뿐 성격은 같다.
 
 ---
 

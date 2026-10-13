@@ -1,7 +1,7 @@
 import { Badge } from '@/components/Badge';
 import type { HospitalInquiry } from '@/features/inquiry/api/inquiryApi';
 import { INQUIRY_STATUS_TONE, formatInquiryAt, inquiryTitle } from '@/features/inquiry/inquiryDisplay';
-import { Pressable, Text, View, cx } from '@/primitives';
+import { Text, View, cx } from '@/primitives';
 import { ADMIN_INQUIRY_STATUS_LABEL, inquiryTopicLabel } from '@/types/domain';
 
 interface AdminInquiryListProps {
@@ -25,11 +25,18 @@ export function AdminInquiryList({ items, selectedId, onSelect }: AdminInquiryLi
 
         return (
           <li key={inquiry.id}>
-            <Pressable
-              onPress={() => onSelect(inquiry.id)}
+            {/*
+              `Pressable` 이 아니라 `<button>` 인 이유: primitive 는 받은 `aria-current` 를
+              그대로 버린다(`PressableProps` 에 그 자리가 없다). 지금 고른 카드가 보조기기에
+              전달되지 않으면 색만으로 선택을 말하게 된다 — 상담 예약 목록도 같은 이유로
+              `<button>` 이다. `rnw-view` 의 기본값(세로 flex)은 클래스로 되살린다.
+            */}
+            <button
+              type="button"
+              onClick={() => onSelect(inquiry.id)}
               aria-current={selected ? 'true' : undefined}
               className={cx(
-                'mb-3 gap-2 rounded-2xl border bg-white p-4',
+                'mb-3 flex w-full flex-col gap-2 rounded-2xl border bg-white p-4 text-left',
                 selected ? 'border-brand-600 ring-2 ring-brand-600' : 'border-neutral-100'
               )}
             >
@@ -47,7 +54,7 @@ export function AdminInquiryList({ items, selectedId, onSelect }: AdminInquiryLi
               <Text className="text-[13px] text-neutral-500">
                 {inquiry.askerName} · {inquiryTopicLabel(inquiry.topic)}
               </Text>
-            </Pressable>
+            </button>
           </li>
         );
       })}

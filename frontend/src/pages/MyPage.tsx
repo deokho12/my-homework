@@ -87,8 +87,9 @@ function ConsultRow({ request, isLast }: { request: MyConsultRequest; isLast: bo
   const schedule = consultScheduleLine({
     createdAt: request.createdAt,
     preferredTime: request.preferredTime,
-    // 요청서 `2026-10-12-04` 에서 `MyConsultRequest.visitAt` 이 생기면 이 인자만 바꾼다.
-    visitAt: null,
+    // 병원이 확정한 방문 일시. 있으면 신청 보조 문구를 대체하고 강조된다
+    // (`10/9(목) 14:00 방문`) — 관리자 목록 카드와 같은 함수·같은 문구다.
+    visitAt: request.visitAt,
   });
 
   return (

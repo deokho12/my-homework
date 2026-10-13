@@ -26,3 +26,22 @@ export function maskPersonName(name: string): string {
 
   return `${trimmed[0]}${'*'.repeat(trimmed.length - 2)}${trimmed[trimmed.length - 1]}`;
 }
+
+/**
+ * 연락처 가운데 블록을 가린다 — `010-1234-4411` → `010-****-4411`.
+ *
+ * 뒤 4자리를 남기는 이유: 운영자가 고객 문의를 받았을 때 어떤 상담 건인지 대조할 수 있어야
+ * 하고, 그것만으로 연락은 불가능하다 (`docs/api/README.md` §4).
+ *
+ * 저장값은 `010-1234-5678` 한 형태로 정규화되어 있지만(계약), 하이픈이 없는 과거 값이
+ * 들어와도 **원본이 그대로 새 나가지 않게** 숫자열에서 다시 만든다.
+ */
+export function maskPhoneMiddle(phone: string): string {
+  const blocks = phone.split('-');
+
+  if (blocks.length === 3) return `${blocks[0]}-****-${blocks[2]}`;
+
+  const digits = phone.replace(/\D/g, '');
+
+  return digits.length > 4 ? `${digits.slice(0, digits.length - 4).replace(/./g, '*')}${digits.slice(-4)}` : phone;
+}

@@ -127,6 +127,16 @@ describe('AdminHomePage — 문의 입구', () => {
     expect(await screen.findByText('문의 1')).toBeInTheDocument();
   });
 
+  it('상담 화면 입구의 이름은 `상담 예약` 이다 (사이드 메뉴·화면 제목과 같은 말)', async () => {
+    useAuthStore.setState({ user: userWithRole('hospital_admin'), status: 'ready' });
+    vi.spyOn(hospitalApi, 'fetchManagedHospitals').mockResolvedValue(emptyManaged('managed'));
+
+    renderWithProviders(<AdminHomePage />);
+
+    expect(await screen.findByText('상담 예약')).toBeInTheDocument();
+    expect(screen.queryByText('상담 관리')).not.toBeInTheDocument();
+  });
+
   it('운영자에게는 숫자 없이 `문의` 만 보여준다 — 운영자는 답변할 수 없어 할 일 수가 아니다', async () => {
     writeCollection('inquiries', [
       {

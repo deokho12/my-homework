@@ -64,8 +64,8 @@
 | 병원 등록 | `/admin/hospital/new` | [admin-hospital-new.md](admin-hospital-new.md) |
 | 병원 정보 수정 | `/admin/hospital/:id` | [admin-hospital-edit.md](admin-hospital-edit.md) |
 | 전문의 인증 검수 | `/admin/specialists` | [admin-specialists.md](admin-specialists.md) |
-| 상담 관리 | `/admin/consultations` | [admin-consultations.md](admin-consultations.md) |
-| 상담 상세 | `/admin/consultations/:id` | [admin-consultation-detail.md](admin-consultation-detail.md) |
+| 상담 예약 | `/admin/consultations` | [admin-consultations.md](admin-consultations.md) |
+| 상담 예약 (상세) | `/admin/consultations/:id` | [admin-consultation-detail.md](admin-consultation-detail.md) |
 | 문의 | `/admin/inquiries` (+ `/:id`) | [admin-inquiries.md](admin-inquiries.md) |
 | 관리자 알림 | `/admin/notifications` | [admin-notifications.md](admin-notifications.md) |
 

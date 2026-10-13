@@ -1,11 +1,10 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
-import { updateConsultStatus } from '@/features/consult/api/consultApi';
+import { updateConsultStatus, type ConsultStatusUpdateInput } from '@/features/consult/api/consultApi';
 import { queryKeys } from '@/lib/queryKeys';
-import type { ConsultStatus } from '@/types/domain';
 
 /**
- * 상담 상태 변경. `PATCH /consult-requests/{id}/status`.
+ * 상담 상태 변경·예약 일시 변경. `PATCH /consult-requests/{id}/status`.
  *
  * 두 캐시를 깬다:
  * - `consultRequests.all` — 목록·상세뿐 아니라 관리자 홈의 `처리 대기 중인 상담` 숫자
@@ -16,7 +15,7 @@ export function useUpdateConsultStatus() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, status }: { id: string; status: ConsultStatus }) => updateConsultStatus(id, status),
+    mutationFn: ({ id, input }: { id: string; input: ConsultStatusUpdateInput }) => updateConsultStatus(id, input),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.consultRequests.all });
       void queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all });

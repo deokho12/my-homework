@@ -89,7 +89,7 @@ export default function AdminHomePage() {
         <View className="mb-2 flex-row gap-2">
           <View className="flex-1">
             <PrimaryButton
-              label="상담 관리"
+              label="상담 예약"
               variant="outline"
               onPress={() => router.push('/admin/consultations')}
             />
