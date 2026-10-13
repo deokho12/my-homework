@@ -32,7 +32,8 @@ describe('CONSULT_STATUS_TONE', () => {
       booked: 'brand',
       // 예정된 방문이 있다는 뜻의 brand 를 내원완료에 주지 않는다 — 마이페이지가 같은 표를 쓴다.
       visited: 'neutral',
-      cancelled: 'neutral',
+      // 끝난 두 상태를 한눈에 가른다 — 취소만 빨강 계열 (2026-10-13 요청자 결정).
+      cancelled: 'danger',
     });
   });
 });

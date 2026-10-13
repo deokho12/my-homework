@@ -49,7 +49,8 @@ export function AdminConsultCard({ request, selected, onSelect, now }: AdminCons
         <span className="flex flex-row items-center justify-between gap-2">
           <span className="flex min-w-0 flex-row items-center gap-1.5">
             <Badge label={CONSULT_STATUS_LABEL[request.status]} tone={CONSULT_STATUS_TONE[request.status]} />
-            {/* 빨강은 Badge 톤에 없다. 색이 아니라 글자로도 읽히는 pill 로 둔다. */}
+            {/* 상태 칩이 아니라서 Badge(danger) 를 쓰지 않는다 — 같은 빨강이라도 더 작고 굵은
+                pill 로 두어 옆의 `취소` 칩과 생김새가 갈린다. 색 없이 글자로도 읽힌다. */}
             {delayed ? (
               <span className="shrink-0 rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[11px] font-bold text-rose-700">
                 지연

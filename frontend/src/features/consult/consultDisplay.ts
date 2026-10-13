@@ -32,7 +32,8 @@ export const CONSULT_STATUS_TONE: Record<ConsultStatus, BadgeTone> = {
   // 내원완료에 brand 를 주지 않는 이유: 마이페이지가 같은 표를 쓰고, 거기서 brand 는
   // "예정된 방문이 있다" 는 뜻이다. 이미 다녀온 건은 할 일이 아니다.
   visited: 'neutral',
-  cancelled: 'neutral', // 종결
+  // 끝난 두 상태(내원완료·취소)를 한눈에 가른다 — 취소만 빨강 계열 (2026-10-13 요청자 결정).
+  cancelled: 'danger',
 };
 
 /** 시술을 고르지 않고 신청한 건. 관리자 화면과 같은 말을 쓴다. */
