@@ -1934,8 +1934,8 @@ export function funnelOf(cohort: ReadonlyArray<FunnelInput>) {
 | 5 | `introduction` | 병원 소개 | `trim(introduction).length ≥ 30` | `introduction` |
 | 6 | `directions` | 찾아오시는 길 | `trim(directions).length ≥ 10` | `directions` |
 | 7 | `doctors` | 의료진 | 그 병원 소속 `doctors` 행 **≥ 1** (검수 상태 무관) | `doctors` |
-| — | *(자리)* `procedurePrices` | 시술별 가격 | **요청 07** | `procedureIds` |
-| — | *(자리)* `photos` | 병원 사진 3장 이상 | **요청 07** (파일 업로드가 생긴 뒤) | `images` |
+| — | *(자리)* `procedurePrices` | 시술별 가격 | **요청 07** → **§16.9 에서 채웠습니다 (제안)** | `procedureIds` → `procedures` (§16.9) |
+| — | *(자리)* `photos` | 병원 사진 3장 이상 | **요청 07** (파일 업로드가 생긴 뒤) → **§16.9 (제안)** | `images` |
 
 `target` 값은 **프런트에 이미 있는 폼 필드 키**입니다 —
 `frontend/src/features/hospital/lib/hospitalFieldErrors.ts` 의 `HOSPITAL_FIELD_KEYS`
@@ -2114,6 +2114,7 @@ noProcedures = (hospital_procedures 행 === 0)
 
 1. **완성도 항목 두 개** — `procedurePrices`(시술별 가격)와 `photos`(사진 3장 이상). 둘 다
    **요청 07** 이 입력 수단(가격 칸·파일 업로드)을 만든 뒤입니다. 자리와 `target` 만 적어 둡니다 (§13.7)
+   → **§16 에서 설계했습니다 (제안 단계)** — 항목은 7 → 9 가 됩니다 (§16.9)
 2. **일시 기준 목록 파라미터·화면** — §13.5. 인덱스는 먼저 깔립니다
 3. **반려 전문의 건별 줄과 사유 표시** — 관리자 시야의 병원 소속 전문의 GET 이 없습니다 (§13.4)
 4. **알림 종 · 환자 검색 (상단 바)** — 기존 `GET /notifications/unread-count` 와 상담 목록의 `q` 를
@@ -2485,6 +2486,12 @@ export const canReadFile = (purpose: string, viewerRole?: string) =>
 **`hospital_images` 를 고치지 않았습니다.** 그 테이블은 공개 URL 문자열이고 접근 통제가 없습니다.
 요청 07 에서 사진이 파일 업로드가 되면 `hospital_images` 가 `uploaded_files` 를 참조하게 될 수 있지만,
 **그 컬럼은 07 이 만듭니다.** 지금 만들면 소비자가 없는 FK 가 됩니다.
+
+> **→ §16.5 가 그 컬럼을 정했습니다** — `hospital_images.uploaded_file_id`(nullable·UNIQUE) 와
+> `purpose` 값 `hospital_photo` 하나입니다. **순서(`sort_order`)·대표는 `uploaded_files` 가 아니라
+> `hospital_images` 가 들고 있습니다** — §14.15 가 "07 이 만든다" 고 적어 둔 두 필드를 07 은
+> 파일 테이블에 만들지 않습니다(이유는 §16.5). `canReadFile` 도 **그대로입니다** — 이미
+> `business_registration` 이 아니면 공개라서, 병원 사진은 함수를 고치지 않고 들어옵니다.
 
 ### 14.8 `[필수] 병원 파트너 이용약관` — 문서를 늘리고, **필수성은 가입 경로가 정한다**
 
@@ -2936,3 +2943,589 @@ patientCancelSentence(reason: ConsultCancelReason) -> string | null
 4. **예약 일시 표기를 어느 쪽으로 통일하는가** (⑥). `10월 9일(금) 14:00` 은 계약에 이미 예시로 들어가
    있고, `10/9(목) 14:00` 은 요청서가 쓴 표기입니다. **데이터에는 영향이 없습니다**(문자열 하나) —
    interface-master·designer 결정 항목입니다
+
+---
+
+## 16. 병원 정보 확장 — 시술별 가격 · 사진 · 특징 (요청 07) — **제안 — 협업자 확인 대기 (2026-10-13)**
+
+| | |
+|---|---|
+| **상태** | **제안입니다. 협업자 확인 대기 (2026-10-13).** 이 절의 어떤 것도 `schema.prisma`·`schema.dbml`·`openapi.yaml` 에 아직 반영하지 않았습니다 |
+| **요구사항 출처** | `docs/features/requests/2026-10-12-07-병원정보-시술별가격-사진.md`, 화면: `docs/features/admin-hospital-edit.md`·`hospital-detail.md` |
+| **새 테이블** | **0개.** `uploaded_files`(§14.7)를 재사용하고, 나머지는 기존 테이블의 컬럼입니다 |
+| **새 컬럼** | `hospital_procedures` **3개**, `hospitals` **3개**, `hospital_images` **1개** (합계 7) |
+| **바뀌는 것** | 순수 함수 +4 묶음(`hospital/procedurePrice.ts`·`priceDisplay.ts`·`photos.ts`·`hoursFeatures.ts`) · `uploaded_files.purpose` 에 값 1개 · 완성도 항목 7 → **9** (§13.7) · 인덱스 **추가 0** |
+| **선행** | **§14 의 `uploaded_files` 가 전제입니다.** 그 테이블이 없으면 이 절의 사진은 기존 URL 입력 그대로 남습니다 |
+| **받는 곳** | 이 절 → **interface-master**(계약) → 백엔드(**협업자 영역**) |
+
+요청서가 지키라고 한 네 가지가 이 절의 제약입니다. 전부 설계에 그대로 반영했습니다.
+
+| 요청서의 제약 | 이 절에서 |
+|---|---|
+| 세부 시술 → 카테고리 노출 규칙(`features/procedure/taxonomy.ts`)은 그대로 | `procedures` 마스터 13종을 **건드리지 않습니다**. 가격은 그 13종 위에 붙습니다 (§16.2) |
+| 원데이는 시술이 아니라 병원 특징 | `hospitals.is_one_day` 그대로. `procedures` 에 '원데이' 행을 만들지 않습니다 (§16.6) |
+| db-master → interface-master 순서 | 이 절이 먼저이고, `openapi.yaml`·`docs/api/README.md` 는 **건드리지 않았습니다** (§16.15 가 인계 목록) |
+| 기존 전체 가격대는 지우지 말고 **대신 보여주는 값**으로 | `price_min`/`price_max` 유지 + 폴백 순수 함수 하나 (§16.4). 마이그레이션 백필이 없어 **기존 병원 11곳의 화면은 그대로입니다** |
+
+### 16.1 시술별 가격 — 새 테이블이 아니라 `hospital_procedures` 의 컬럼 3개
+
+선택지는 둘이었습니다.
+
+| 안 | 판단 |
+|---|---|
+| 새 테이블 `hospital_procedure_prices(hospital_id, procedure_id, …)` | 기각 |
+| ✅ **기존 조인 테이블 `hospital_procedures` 에 컬럼 3개** | 채택 |
+
+**입도(grain)가 완전히 같기 때문입니다.** 새 테이블을 만들어도 키는 `(hospital_id, procedure_id)`
+이고, 그것은 `hospital_procedures` 의 **유니크 키 그대로**입니다. 같은 입도의 테이블을 둘로 나누면
+**둘이 어긋난 상태가 표현 가능해집니다** — "체크하지 않은 시술에 가격만 있는 행", 반대로 "체크는
+했는데 가격 행이 없는 시술". 앞의 것은 화면이 만들 수 없는 상태이고(가격 칸은 체크한 줄에만
+생깁니다), 그런 상태를 **저장소가 표현할 수 있게 두면 언젠가 들어옵니다.** 한 행이면 그 상태가
+애초에 없습니다 — 체크 해제 = 행 삭제 = 가격도 함께 사라집니다.
+
+```prisma
+model HospitalProcedure {
+  // 기존: id, hospital_id, procedure_id, @@unique([hospital_id, procedure_id])
+
+  // ── §16 제안: 시술별 가격 (3개) ────────────────────────────────────────
+  /// 비급여 가격 범위 (**원**. §3.5 — 금액은 Int(원)).
+  /// **둘 다 null 이 "아직 적지 않음"** 이다. 한쪽만 null 인 행은 만들지 않는다 (앱 검증)
+  priceMin Int? @map("price_min")
+  priceMax Int? @map("price_max")
+
+  /// '상담 후 안내' 체크. true 면 price_min/price_max 는 **반드시 둘 다 null** (앱 검증).
+  /// null(미입력)과 구분해서 저장하는 이유는 §16.1 의 상태 표 참고 — 완성도 항목이 그 둘을 다르게 센다
+  priceOnRequest Boolean @default(false) @map("price_on_request")
+}
+```
+
+**상태는 셋이고, 셋 다 다른 사실입니다.**
+
+| # | `price_on_request` | `price_min`/`max` | 뜻 | 병원 상세에서 | 완성도 |
+|---|---|---|---|---|---|
+| ① | `false` | 값 | 가격 범위를 적었다 | `30만원 ~ 50만원` | 충족 |
+| ② | `true` | `null` | **상담 후 안내를 골랐다** | `상담 후 안내` | 충족 |
+| ③ | `false` | `null` | 체크만 하고 아직 안 적었다 | 가격 줄 없음 (시술 이름만) | 미충족 |
+
+**②와 ③을 한 상태로 합치지 않는 이유**(= `price_on_request` 컬럼을 없애고 "null 이면 상담 후
+안내" 로 읽지 않는 이유)는 **완성도 항목**입니다(§16.9). 합치면 시술을 체크하는 것만으로
+`시술별 가격` 항목이 충족되고, 그 항목은 **아무도 채운 적 없는데 항상 100%인 칸**이 됩니다
+(§13.7 이 "항상 참인 항목은 완성도를 공짜로 한 칸 올릴 뿐" 이라고 뺀 바로 그 종류입니다).
+환자 화면에서 ②와 ③이 거의 같아 보이는 것은 사실이지만, **담당자에게는 다른 사실**입니다 —
+②는 결정이고 ③은 미입력입니다.
+
+> ③을 환자에게 `상담 후 안내` 로 보여줄 것인지는 **화면 결정**입니다(디자이너·프런트). 데이터는
+> 둘을 구분해 두므로 어느 쪽으로 정해도 스키마가 바뀌지 않습니다. 기본 제안은 **가격 줄을 아예
+> 그리지 않는 것**입니다 — 적지도 않은 병원이 "상담하면 알려준다" 고 약속한 것처럼 읽힙니다.
+
+### 16.2 가격이 붙는 단위 — **서버 시술 13종**이고, 세부 18개는 지금 저장할 수 없습니다
+
+| 후보 단위 | 개수 | 판단 |
+|---|---|---|
+| ✅ **서버 시술 id** (`procedures.id`) | 13 | **채택.** FK 가 걸리고, 이미 `hospital_procedures` 가 그 단위다 |
+| 세부 시술 id (`taxonomy.ts` 의 `SubProcedureId`) | 31 | 기각 — **서버에 마스터가 없다** |
+
+세부 시술 31개 중 **13개만 `legacyProcedureId` 가 있고 18개는 `null`** 입니다(`taxonomy.ts`).
+그리고 그 13개는 서버 id 와 **1:1** 입니다(`LEGACY_TO_SUB` 가 `Record<ProcedureId, SubProcedureId>`
+라 컴파일러가 그것을 고정합니다). 그래서 **"세부 시술별 가격" 과 "서버 시술별 가격" 은 지금
+같은 것**입니다 — 인레이를 체크하고 가격을 넣으면 `procedure_id='inlay'` 행에 그 값이 들어가고,
+병원 상세는 `subFromLegacy('inlay').name` = `인레이` 로 그립니다. 요청서의 확인 항목
+("인레이를 체크하고 가격을 넣으면 상세에 인레이와 그 가격이 보인다")이 그대로 성립합니다.
+
+**준비중 18개는 체크 자체가 막혀 있습니다**(`SubProcedureCheckbox` 의 `disabled`). 체크할 수
+없으므로 **가격 칸도 생기지 않고, 저장할 값도 없습니다** — 데이터 변경 0입니다. 화면은 지금처럼
+`준비중` 배지로 "이 서비스가 그 시술을 아직 다루지 않는다" 는 사실만 말합니다.
+
+**세부 18개에 가격을 받으려면 무엇이 필요한가** (지금 하지 않는 일):
+
+- `procedures` 마스터에 행 18개를 더하는 일입니다. 그런데 그 테이블은 **홈 `시술로 찾기` 격자 ·
+  탐색 칩 · 커뮤니티 글 작성의 시술 선택**이 `sort_order` 로 공유하는 **고정 노출 목록**입니다
+  (스키마 주석). 행을 더하면 그 세 화면이 즉시 바뀝니다 — **가격 기능이 노출 범위를 바꾸는 것**은
+  요청서가 "노출 규칙은 그대로" 라고 못 박은 것과 정면으로 어긋납니다.
+- 노출과 저장을 분리하려면 `procedures` 에 `is_listed` 같은 축이 하나 더 필요하고, 그 순간
+  taxonomy 의 매핑 계층이 **서버로 이사**합니다. 그것은 07 보다 큰 작업이고 별도 요청입니다 (§16.16-5).
+- 문자열 `sub_procedure_id` 를 FK 없이 받는 중간안도 기각입니다. 허용값이 프런트 파일에만
+  있어 **서버가 검증할 수 없고**, 오타가 그대로 저장돼 영원히 안 보이는 가격이 됩니다.
+
+### 16.3 금액 단위와 검증 — **저장은 원**, 판정은 순수 함수 하나
+
+**저장 단위는 원(`Int`)입니다.** 요청서의 입력 칸은 `최소 ~ 최대 만원` 이지만, 그 변환(×10,000)은
+**화면의 일**입니다. 근거:
+
+- §3.5 가 "금액은 `Int`(원)" 이고 `promotions.original_price`·`hospitals.price_min` 이 전부 원입니다.
+  **한 응답 안에서 시술 가격만 만원이면** 폴백(§16.4)이 단위가 다른 두 값을 비교하게 됩니다 —
+  `45` 와 `450000` 중 어느 쪽이 큰지는 코드가 아니라 **읽는 사람**이 틀립니다.
+- 만원 단위로 저장하면 9만 5천원을 적을 수 없습니다. 입력 UI 는 바뀔 수 있고 저장값은 그 뒤에
+  남습니다.
+- **계약(API)도 원을 권합니다** — interface-master 확인 항목입니다 (§16.15).
+
+```ts
+// hospital/procedurePrice.ts — 순수 함수. DB 도 요청도 모른다
+export interface ProcedurePriceInput {
+  priceMin: number | null;
+  priceMax: number | null;
+  priceOnRequest: boolean;
+}
+
+/** 어긋난 조합을 전부 코드로 돌려준다. 빈 배열이면 통과. */
+export function validateProcedurePrice(input: ProcedurePriceInput): PriceErrorCode[];
+
+export type PriceErrorCode =
+  | 'PRICE_NOT_ALLOWED_ON_REQUEST' // onRequest=true 인데 금액이 왔다
+  | 'PRICE_INCOMPLETE'             // min/max 중 한쪽만 왔다
+  | 'PRICE_RANGE_INVERTED'         // min > max
+  | 'PRICE_OUT_OF_RANGE';          // 0 이하이거나 상한 초과
+```
+
+| 규칙 | 값 | 근거 |
+|---|---|---|
+| `onRequest=true` → 금액 금지 | — | 두 사실이 동시에 참일 수 없습니다. 하나를 우선시하는 서버 규칙을 만드는 대신 **422 로 거절**합니다 — 화면에서 동시에 켤 수 없으므로 이 요청이 오면 클라이언트 버그입니다 |
+| 한쪽만 입력 금지 | — | `30만원 ~ (빈칸)` 은 화면에 그릴 수 없습니다. "최소만 적고 최대는 열어 두기" 가 요구되면 그때 상태를 하나 더 정의합니다 |
+| `min ≤ max` | — | 요청서가 명시한 유일한 가격 규칙입니다. **`min === max` 는 허용**합니다(정찰제). `formatPriceRange` 가 이미 그 경우 한 값만 그립니다 |
+| `min > 0` | 0 금지 | `0원 ~ 50만원` 은 "무료" 로 읽힙니다. 미입력은 `null` 이 표현하므로 0을 센티널로 쓸 이유도 없습니다 |
+| 상한 | **제안 1억원** | 오타 방어용 상수 하나입니다. 숫자는 임의값이지만 **함수 한 곳**에 있습니다 (§13.7 의 30자·10자와 같은 처방) |
+| 만원 배수 강제 | **하지 않음** | 입력 UI 가 만원 칸인 것은 화면 사정입니다. 서버가 배수를 강제하면 천원 단위 입력이 생기는 날 계약부터 막힙니다 |
+
+> **DB CHECK 제약을 두지 않습니다** — §3.1 과 같은 이유(이식성·애플리케이션 검증 일원화)입니다.
+> `min ≤ max` 를 DB 가 막아도 **에러 메시지를 필드에 붙일 수 없어** 화면이 쓸 수 없습니다.
+
+### 16.4 기존 전체 가격대와의 관계 — **지우지 않고, 폴백 함수 하나**
+
+`hospitals.price_min`/`price_max` 는 **그대로 둡니다**(요청서 지시). 다만 **역할이 바뀝니다** —
+"이 병원의 가격" 이 아니라 **"시술별 가격이 하나도 없을 때 대신 보여주는 값"** 입니다.
+
+```ts
+// hospital/priceDisplay.ts — 순수 함수 하나. 병원 상세 `시술·가격` 섹션의 유일한 판정
+export function hospitalPriceSection(
+  rows: ReadonlyArray<ProcedurePriceRow>,          // 그 병원의 hospital_procedures (가격 포함)
+  fallback: { min: number; max: number }           // hospitals.price_min / price_max
+):
+  | { kind: 'perProcedure' }                       // 가격 상태가 정해진 행이 1개 이상 → 시술별 목록
+  | { kind: 'hospitalRange'; min: number; max: number } // 0개 + 전체 가격대가 있다 → 한 줄
+  | { kind: 'none' };                              // 0개 + 전체 가격대도 비었다 → 아무것도 안 그린다
+
+/** §14.16 이 이름만 적어 둔 그 함수다. (0, 0) 은 "미입력" 센티널이다 */
+export const hasPriceRange = (min: number, max: number) => min > 0 && max > 0;
+```
+
+**판정 기준은 "행이 있는가" 가 아니라 "가격 상태가 정해진 행이 있는가"** 입니다 —
+§16.1 의 ①·② 가 하나라도 있으면 `perProcedure`, 전부 ③ 이면 폴백입니다. 시술만 체크된
+기존 병원 11곳이 전부 ③ 이므로 **마이그레이션 직후 화면은 지금과 완전히 같습니다.**
+
+**섞지 않습니다.** `perProcedure` 일 때 가격이 없는(③) 시술 줄에 **전체 가격대를 내려 적지
+않습니다.** 전체 가격대는 "이 병원 전체" 의 값이고, 시술 줄에 적는 순간 **그 시술의 가격이라는
+거짓말**이 됩니다. 비교하려고 만든 기능이 비교를 망치는 자리입니다.
+
+**폴백이 걸리는 곳은 병원 상세 `시술·가격` 섹션 하나입니다.** 다른 두 소비자는 지금 그대로입니다:
+
+| 소비자 | 지금 | 07 에서 |
+|---|---|---|
+| 병원 카드(`HospitalCard`)의 가격 줄 | `priceRange` | **그대로.** 카드는 한 줄이고 시술 13개를 담을 자리가 없습니다 |
+| 탐색 `가격 비교표`(`PriceCompareTable`) | `priceRange.min` (또는 프로모션가) | **그대로 두되 미결입니다** — 시술 칩으로 좁힌 상태라면 그 시술의 `price_min` 이 훨씬 정확합니다. 요청서에 없어 이번에 하지 않습니다 (§16.16-9) |
+
+**언제 전체 가격대를 지우는가**: "모든(또는 거의 모든) 병원이 시술별 가격을 채운 날" 입니다.
+그 날을 **측정할 수단이 §16.9 의 완성도 항목**입니다 — `procedurePrices` 충족률이 지표입니다.
+지금 지우면 11곳의 가격 표시가 통째로 사라집니다.
+
+### 16.5 사진 — `hospital_images` 유지 + 파일 참조 1개, **대표는 첫 장**
+
+**`hospital_images` 를 `uploaded_files` 로 이관하지 않습니다. 공존입니다.**
+
+| | `uploaded_files` (§14.7) | `hospital_images` |
+|---|---|---|
+| 답하는 질문 | "이 바이트는 무엇이고 누가 언제 올렸고 언제 파기하는가" | "이 병원의 사진 **목록**은 무엇이고 순서는 어떤가" |
+| 수명 | 파기해도 행은 남는다(`purged_at`) | 담당자가 빼면 행이 사라진다 |
+| 외부 URL 사진 | 표현할 수 없다 | 기존 11곳이 그것이다 |
+
+```prisma
+model HospitalImage {
+  // 기존: id, hospital_id, url, sort_order, @@index([hospital_id, sort_order])
+
+  /// ── §16 제안 ──
+  /// 파일 업로드로 들어온 사진이면 그 파일. 외부 URL 로 들어온 기존 행은 null.
+  /// UNIQUE: 한 파일을 두 표시 행이 가리키면 한쪽을 빼거나 파기할 때 다른 쪽이 깨진 사진이 된다
+  /// (uploaded_files.storage_key 를 UNIQUE 로 둔 것과 같은 논리 — §14.7).
+  /// Restrict: 파일 행은 삭제하지 않는 테이블이다. 그 정책을 FK 로 굳힌다
+  uploadedFileId String?       @unique @map("uploaded_file_id")
+  uploadedFile   UploadedFile? @relation(fields: [uploadedFileId], references: [id], onDelete: Restrict)
+}
+```
+
+`uploaded_files.purpose` 에 값 하나(`hospital_photo`)를 더합니다. **그것이 전부입니다** —
+`canReadFile` 은 이미 `business_registration` 이 아니면 공개를 돌려주므로(§14.7)
+**순수 함수를 고치지 않습니다.** 사진은 환자에게 보이는 공개물이라 `audit_logs` 대상도 아니고
+`Cache-Control: no-store` 도 아닙니다.
+
+**`url` 은 계속 `hospital_images` 가 들고 있습니다.** 파일 기반 사진이면 서버가 발급한 공개 경로가
+들어갑니다. 덕분에 **`Hospital.images: string[]` 계약과 환자 화면이 하나도 바뀌지 않습니다** —
+요청서의 "사진을 파일로 올리면 병원 상세 사진 넘김에 보인다" 가 프런트 변경 없이 성립합니다.
+(사업자등록증과 달리 URL 을 발급해도 되는 이유: **그 URL 을 아는 사람 전부가 열람자여도 되는
+파일**입니다. §14.7 이 URL 을 금지한 것은 열람자를 운영자로 좁혀야 하는 파일이었기 때문입니다.)
+
+**대표 사진 = `sort_order` 가 가장 작은 행. `is_primary` 를 만들지 않습니다.**
+
+| 안 | 판단 |
+|---|---|
+| ✅ **대표 = 목록의 첫 장** | 채택 — 판정이 한 곳이고, "대표 지정" 과 "순서 바꾸기" 가 **같은 한 연산**이 됩니다 |
+| `hospital_images.is_primary` boolean | 기각 — `sort_order=0` 인 행과 `is_primary=true` 인 행이 **다를 수 있습니다.** "같은 판정을 두 곳에 두지 않는다"(AGENTS.md) 에 바로 걸립니다. 유일성(정확히 한 장)을 DB 로 강제할 수도 없습니다 |
+
+`hospitals.thumbnail` 은 **남깁니다** — 병원 카드·검색·찜 목록 투영이 전부 쓰는 계약 필드입니다.
+대신 **사진 목록 저장 트랜잭션이 첫 장의 `url` 로 함께 갱신**합니다. 쓰는 자리가 **하나**라
+두 값이 갈릴 수 없습니다(§4 의 비정규화 집계값과 같은 취급).
+
+```ts
+// hospital/photos.ts — 순수 함수
+export const MAX_HOSPITAL_PHOTOS = 11;              // 대표 1 + 내부 10 (요청서)
+
+/** 저장 전 검증: 장수 상한 · url 중복 · 빈 url. 빈 배열은 허용(사진 없는 병원) */
+export function validatePhotoSet(urls: readonly string[]): PhotoErrorCode[];
+
+/** 0..n-1 을 다시 매긴다. 중간에 빠진 번호·중복 번호를 남기지 않는다 */
+export function normalizePhotoOrder<T>(photos: readonly T[]): Array<T & { sortOrder: number }>;
+
+/** 대표 = 첫 장. 목록이 비면 기존 thumbnail 을 그대로 둔다(지우지 않는다) */
+export function primaryPhotoUrl(urls: readonly string[], fallback: string): string;
+```
+
+> **`sort_order` 를 0부터 연속으로 다시 매기는 이유**: 지금 컬럼은 `@default(0)` 이고 기존 행들이
+> 전부 0 일 수 있습니다. 순서가 "같은 값 여러 개" 면 캐러셀 순서가 **DB 반환 순서**가 되고,
+> 그것은 보장되지 않습니다 — 대표 사진이 날마다 바뀌는 버그가 여기서 나옵니다.
+
+**3장 이상은 "권장" 이고 저장을 막지 않습니다.** 막으면 사진 2장짜리 병원이 **다른 필드도 저장할 수
+없게** 됩니다. 권장은 완성도 항목으로 말합니다 (§16.9).
+
+### 16.6 병원 특징 칩 9개 — **컬럼은 2개만 늘고, 둘은 파생입니다**
+
+| # | 요청서의 칩 | 저장 | 비고 |
+|---|---|---|---|
+| 1 | 원데이 보철 | `hospitals.is_one_day` | **기존.** 요청서대로 시술이 아니라 특징입니다 |
+| 2 | 디지털 진료(구강스캐너) | `feature_digital_care` | 기존 |
+| 3 | 야간 진료 | **없음 — 진료시간에서 파생** | 아래 |
+| 4 | 주말 진료 | **없음 — 진료시간에서 파생** | 아래 |
+| 5 | 주차 가능 | `feature_parking` | 기존 |
+| 6 | 수면 진료 | **`feature_sedation` 신규** | |
+| 7 | 무통 마취 | `feature_painless_anesthesia` | 기존 |
+| 8 | 전담 코디네이터 | `feature_coordinator` | 기존 |
+| 9 | 장애인 편의시설 | **`feature_accessibility` 신규** | |
+| (10) | CCTV 설치 | `feature_cctv` | **기존인데 요청서의 9개에 없습니다** — §16.16-1 |
+| (11) | 야간상담 | `feature_night_consult` | **기존. 탐색 칩 `진료시간` 이 실제로 거르는 값입니다** — §16.16-2 |
+
+```prisma
+model Hospital {
+  /// ── §16 제안: 특징 2개 ──
+  /// 수면 진료(진정 요법) 가능
+  featureSedation      Boolean @default(false) @map("feature_sedation")
+  /// 장애인 편의시설 (경사로·휠체어 동선·장애인 화장실 등. 세부 항목은 받지 않는다)
+  featureAccessibility Boolean @default(false) @map("feature_accessibility")
+}
+```
+
+**enum 배열 테이블(`hospital_features`)을 만들지 않습니다.** §3.2 가 금지한 것은 **스칼라 배열**이지
+boolean 묶음이 아닙니다. 지금 6개가 이미 컬럼이고 계약의 `HospitalFeatures` 가 **키 고정 객체**입니다.
+테이블로 바꾸면 ① 기존 6컬럼 이관 ② 계약의 객체 → 배열 변경 ③ 모든 투영·필터 변경이 따라오는데,
+얻는 것은 "값 추가가 행 추가" 뿐입니다. 그런데 **특징은 데이터로 늘지 않습니다** — 라벨·아이콘·
+필터 파라미터가 전부 코드에 있어서, 행을 넣어도 화면에 **라벨 없는 칩**이 생길 뿐입니다.
+필터(`nightConsult=true`)도 컬럼 하나의 `WHERE` 로 끝납니다.
+
+**야간 진료·주말 진료는 저장하지 않습니다 — `business_hours` 에서 파생합니다.**
+
+```ts
+// hospital/hoursFeatures.ts — 순수 함수. business_hours 7행만 받는다
+export const NIGHT_FROM_HOUR = 18;   // 요청서: "18시 이후 진료가 있으면"
+
+export function derivedHourFeatures(
+  hours: ReadonlyArray<{ dayOfWeek: number; hours: string; isClosed: boolean }>
+): { nightCare: boolean; weekend: boolean };
+
+/** '10:00 - 19:00' → { closeMinutes: 1140 }. 파싱할 수 없으면 null */
+export function parseClosingTime(value: string): number | null;
+```
+
+| 왜 파생인가 | |
+|---|---|
+| **같은 사실이 두 곳에 있으면 어긋납니다** | 저장값이면 "수요일을 21시까지로 바꿨는데 야간 칩은 꺼진 병원" 이 생깁니다. 요청서의 확인 항목이 정확히 그 시나리오입니다 |
+| **켜 주는 코드가 저장 경로마다 필요합니다** | 관리자 저장·운영자 `PATCH`·시드·이관 중 **한 곳만 빠뜨리면 조용히 어긋납니다** |
+| 선례가 있습니다 | `consult_requests.delayed`(§12.11)·`hospitals.completeness_percent`(§13.10) 를 컬럼으로 만들지 않은 것과 같은 판단입니다 — **시간이 지나거나 다른 값이 바뀌면 틀려지는 값은 컬럼이 아닙니다** |
+
+| 파생 규칙 | 견고함 |
+|---|---|
+| **주말**: `day_of_week ∈ {6,7}` 인 행 중 `is_closed=false` 이고 `hours` 가 공백이 아닌 행이 1개 이상 | **견고합니다** — 문자열을 파싱하지 않습니다 |
+| **야간**: `is_closed=false` 인 행 중 `parseClosingTime(hours) ≥ 18:00` 인 행이 1개 이상 | ⚠ **`hours` 가 자유 문자열입니다** (`'10:00 - 19:00'`, `'휴진'`, `'09:00-13:00 / 14:00-18:00'`). 파싱 실패 시 **false** — 칩이 조용히 꺼집니다 |
+
+> **야간 파생의 한계를 숨기지 않습니다.** `business_hours.hours` 는 "관리자 폼이 자유 입력이고
+> 점심시간을 같은 칸에 적는다" 는 이유로 문자열입니다(스키마 주석). 파싱기는 **마지막 `HH:MM`**
+> 을 종료 시각으로 보는 것이 최선이고, 그래도 못 읽는 입력이 남습니다. 제대로 고치는 길은
+> `business_hours` 를 `open_minutes`/`close_minutes`(+ 점심 2개)로 구조화하는 것인데 **07 보다 큰
+> 변경**이라 미결입니다(§16.16-3). 그 전까지는 **파싱 실패 = 꺼짐**(거짓 광고가 되지 않는 쪽)입니다.
+
+### 16.7 한 줄 소개 — `hospitals.tagline`
+
+```prisma
+model Hospital {
+  /// ── §16 제안 ──
+  /// 리스트 카드에 노출되는 한 줄 소개. **40자 상한은 앱·계약 검증**이다 (DB 길이 제약 없음 — §3.1).
+  /// introduction(긴 소개)과 다른 필드다: 카드 한 줄 vs 상세 문단
+  tagline String @default("") @map("tagline")
+}
+```
+
+- **`@default("")` 입니다** — `introduction`·`directions` 와 같은 패턴입니다. 카드가 묻는 것은
+  "그릴 줄이 있는가" 하나뿐이라 `null`/`''` 를 구분할 소비자가 없고, 투영에 `?? ''` 분기가 생기지
+  않습니다. (§14.2 의 `phone` 을 nullable 로 둔 것과 기준이 다른 이유: 그쪽은 "입력 안 함" 과
+  "빈 값으로 입력함" 을 **중복 가입 후보 조회**가 구분해야 했습니다.)
+- **40자를 넘으면 자르지 않고 `422`** 입니다. 서버가 말없이 자르면 병원이 쓴 문장이 바뀝니다.
+- `introduction` 과 합치지 않습니다 — 완성도 항목 5(`introduction ≥ 30자`)가 **긴 소개**를 묻고
+  있는데, 한 줄 소개를 같은 칸에 넣으면 그 판정이 무엇을 묻는지 알 수 없게 됩니다.
+
+### 16.8 `앱 화면 미리보기` · 저장 후 안내 — **데이터 변경 0**
+
+| 요청서 항목 | 데이터 |
+|---|---|
+| 상단 섹션 이동 탭 (기본 정보/진료 시간/사진/병원 특징/진료 시술·가격) | **없음.** 기존 `Anchor`/`fieldAnchorId` 어휘 그대로입니다 |
+| `앱 화면 미리보기` | **없음.** 폼이 들고 있는 **저장 전 값**으로 그리는 클라이언트 렌더입니다. 임시저장(draft) 테이블을 만들지 않습니다 — 서버에 "저장되지 않은 병원 정보" 라는 두 번째 진실이 생기고, 어느 쪽이 환자에게 보이는지가 다시 결정 사항이 됩니다 |
+| 저장 후 `저장됐어요` 안내 | **없음.** `200` 응답의 화면 표현입니다 |
+| 가격 입력 아래 안내 문구(비급여 고시가·할인은 이벤트로) | **없음.** 정적 문구입니다. **서버는 고시가와의 일치를 검증할 수 없습니다**(대조할 데이터가 없습니다) — 책임 경계를 문구로만 말합니다 |
+
+### 16.9 완성도 (§13.7) — 자리로 비워 둔 두 항목을 채웁니다. 7 → **9개**
+
+§13.7 이 `*(자리)* procedurePrices`·`*(자리)* photos` 로 적어 둔 두 줄이 **입력 수단을 얻었으므로**
+항목이 됩니다. 선정 기준("담당자가 지금 이 화면에서 입력할 수 있는가")을 둘 다 만족합니다.
+
+| # | `key` | 라벨 | 충족 조건 | `target` |
+|---|---|---|---|---|
+| 1 | `basicInfo` | 기본 정보 | (기존) | `name` |
+| 2 | `businessHours` | 진료시간 | (기존) | `businessHours` |
+| 3 | `procedures` | 진료 시술 | `hospital_procedures` 행 ≥ 1 | **`procedures`** ← 키 변경(아래) |
+| **4** | **`procedurePrices`** | **시술별 가격** | 행 ≥ 1 **이고, 모든 행이 §16.1 의 ① 또는 ②** | **`procedures`** |
+| 5 | `thumbnail` | 대표 이미지 | (기존) | `thumbnail` |
+| **6** | **`photos`** | **병원 사진 3장 이상** | `hospital_images` 행 **≥ 3** | **`images`** |
+| 7 | `introduction` | 병원 소개 | (기존) | `introduction` |
+| 8 | `directions` | 찾아오시는 길 | (기존) | `directions` |
+| 9 | `doctors` | 의료진 | (기존) | `doctors` |
+
+**`procedurePrices` 를 "하나라도 적었으면 충족" 으로 하지 않은 이유**: 시술 13개 중 1개만 적고
+100% 가 되면, 그 항목은 환자가 비교할 수 있다는 **거짓 신호**가 됩니다. 반대로 "전부" 가 가혹하지
+않은 이유는 **`상담 후 안내` 가 클릭 한 번**이기 때문입니다 — 가격을 공개하지 않기로 한 병원도
+100% 에 도달할 수 있습니다. 이것이 ②를 ③과 구분해 저장한 값이 하는 일입니다(§16.1).
+
+**`thumbnail`(항목 5)과 `photos`(항목 6)를 둘 다 남깁니다.** 사진 3장이면 대표도 참이라 포함
+관계처럼 보이지만, **1~2장 상태에서 둘이 갈립니다**(대표는 있고 3장은 아님). 서로 다른 질문입니다.
+
+**바뀌는 것 둘:**
+
+1. `COMPLETENESS_ITEMS` 배열이 9개가 되고 **순서는 위 표 그대로**입니다(가격은 시술 바로 뒤,
+   사진은 대표 이미지 바로 뒤 — 환자 화면에서 비는 자리가 이웃합니다). `completenessPercent` 의
+   **"전부 충족이 아니면 99 상한"** 은 **고칠 것이 없습니다** — §13.7 이 바로 이 날을 위해 넣어
+   둔 장치입니다.
+2. `HOSPITAL_FIELD_KEYS`(= 서버 `422` 의 `details[].field` 어휘)에 **`procedures`·`images`·`tagline`
+   3개를 더합니다.** `procedureIds` 는 **응답 전용**으로 남습니다(§16.12) — 요청 필드가
+   `procedures` 가 되면 서버 오류 경로도 `procedures[2].priceMin` 이고, 폼 앵커 이름이 그것과
+   같아야 `mapHospitalFieldErrors` 의 접두 매칭이 그 칸을 찾습니다. 항목 3의 `target` 도 함께
+   `procedures` 로 옮깁니다(같은 섹션이라 포커스 지점은 그대로입니다).
+
+### 16.10 마이그레이션 — 컬럼 7개, **백필 0**
+
+```sql
+-- 1) 시술별 가격 (전부 nullable / false 기본값)
+ALTER TABLE hospital_procedures ADD COLUMN price_min INTEGER;
+ALTER TABLE hospital_procedures ADD COLUMN price_max INTEGER;
+ALTER TABLE hospital_procedures ADD COLUMN price_on_request BOOLEAN NOT NULL DEFAULT 0;
+
+-- 2) 사진 ↔ 파일
+ALTER TABLE hospital_images ADD COLUMN uploaded_file_id TEXT
+  REFERENCES uploaded_files(id);                       -- UNIQUE 인덱스는 Prisma @unique 가 만든다
+
+-- 3) 특징 2개 + 한 줄 소개
+ALTER TABLE hospitals ADD COLUMN feature_sedation BOOLEAN NOT NULL DEFAULT 0;
+ALTER TABLE hospitals ADD COLUMN feature_accessibility BOOLEAN NOT NULL DEFAULT 0;
+ALTER TABLE hospitals ADD COLUMN tagline TEXT NOT NULL DEFAULT '';
+
+-- 백필 없음. UPDATE 문이 한 줄도 없다.
+```
+
+**§14.3 과 달리 백필이 없습니다.** 그쪽은 "기본값이 닫힌 쪽(`pending`)이라 기존 병원이 전부
+앱에서 사라지는" 문제가 있어 같은 마이그레이션에서 열어 줘야 했습니다. 여기서는 **기본값이
+곧 사실**입니다 — 기존 병원 11곳은 실제로 시술별 가격을 적은 적이 없고(③), 수면 진료·장애인
+편의시설을 신고한 적이 없으며, 한 줄 소개를 쓴 적이 없습니다. **없는 사실을 지어내지 않습니다.**
+
+**화면 회귀 0 을 보장하는 연결 고리**: 모든 행이 ③ → `hospitalPriceSection` 이 `hospitalRange`
+→ 병원 상세가 지금과 **똑같이** 전체 가격대를 그립니다 (§16.4).
+
+**완성도 바는 내려갑니다** — 항목이 7 → 9 가 되고 새 두 항목은 전부 미충족이라, 7/7 이던
+병원이 7/9(78%)가 됩니다. **의도된 것입니다**: 요청 07 이 "채울 수 있게 된 칸" 을 두 개 늘렸고,
+완성도는 그 칸이 비었다는 사실을 말해야 합니다. (§13.7 이 "항목이 07 에서 늘어난다" 를 전제로
+설계된 이유입니다.) **이 사실을 릴리스 노트에 적습니다** — 적지 않으면 담당자는 "내가 아무것도
+안 했는데 점수가 깎였다" 로 읽습니다.
+
+### 16.11 인덱스 — **추가 0**
+
+| 질의 | 인덱스 |
+|---|---|
+| 이 병원의 시술·가격 (상세·관리자 폼) | `hospital_procedures @@unique([hospital_id, procedure_id])` **기존** — 선두 컬럼 조회입니다 |
+| 이 병원의 사진 (순서대로) | `hospital_images @@index([hospital_id, sort_order])` **기존** |
+| 이 병원의 사진 파일 / 고아 파일 정리 | `uploaded_files (hospital_id, purpose)` · `(purpose, created_at)` **§14.14 가 이미 "07 의 이 병원의 사진" 용도로 깔아 둔 것** |
+| 파일 ↔ 표시 행 역조회 | `hospital_images.uploaded_file_id` **UNIQUE**(제약이 곧 인덱스) |
+
+**만들지 않는 인덱스**: `hospital_procedures(price_min)` — "인레이 싼 순" 같은 **가격 정렬·필터
+화면이 없습니다.** 탐색 `가격 비교표` 는 이미 받은 목록을 클라이언트가 정렬합니다(§6.7 기준).
+`hospitals(feature_sedation)` 등 boolean — §6.7 이 적어 둔 그대로 선택도가 낮습니다.
+
+### 16.12 원자성 — 저장 한 번 = 트랜잭션 하나, 그리고 **교체가 아니라 머지**
+
+> ⚠ **이 절에서 가장 조용한 사고 지점입니다.** 지금 `PATCH /hospitals/{id}` 는 `procedureIds`
+> **배열**을 받고 조인 행을 **전체 교체**합니다(delete all → insert). 가격 컬럼을 그 테이블에
+> 올려 두고 교체 방식을 그대로 두면, **병원 이름만 고쳐 저장해도 시술별 가격이 전부 사라집니다.**
+
+**그래서 요청 본문의 모양이 바뀌어야 합니다** (계약 결정 — interface-master):
+
+```jsonc
+// 지금
+"procedureIds": ["implant", "inlay"]
+
+// 제안
+"procedures": [
+  { "procedureId": "implant", "priceMin": 1200000, "priceMax": 1800000 },
+  { "procedureId": "inlay",   "priceOnRequest": true },
+  { "procedureId": "crown" }                                   // 체크만 (③)
+]
+```
+
+| 안 | 판단 |
+|---|---|
+| ✅ **배열 하나(`procedures`)로 합친다** | 채택 — 서버는 이 목록으로 **upsert + 목록에 없는 행 delete**. 가격은 보낸 값으로 덮습니다 |
+| `procedureIds` 와 `prices` 두 배열 | 기각 — **"체크는 됐는데 가격 배열에 없는 시술"·"가격은 있는데 체크 안 된 시술" 을 계약이 허용**하게 됩니다. §16.1 이 테이블에서 없앤 상태를 계약이 되살립니다 |
+
+- **응답의 `procedureIds` 는 그대로 남깁니다** — 병원 카드·상세·전문의·검색이 전부 쓰는 필드이고,
+  `procedures` 에서 **파생되는 읽기 전용 값**입니다(두 출처가 아닙니다).
+- `procedures` 와 `procedureIds` 가 **요청에 둘 다 오면 `422`** 입니다. 우선순위 규칙을 만드는 것은
+  "둘 다 보내도 된다" 는 신호가 됩니다.
+- `minItems: 1` 은 그대로입니다(§13.7 의 전제 유지).
+
+**트랜잭션 경계 (요청 1건 = 트랜잭션 1개):**
+
+| 저장 | 한 트랜잭션 안 | 밖 |
+|---|---|---|
+| 병원 정보 저장 | `hospitals` UPDATE + `hospital_procedures` 머지 + `business_hours` 교체 + `hospital_images` 교체(+`sort_order` 재부여) + `hospitals.thumbnail` 동기화 + `uploaded_files` **claim** | **파일 업로드 자체**(`POST /uploads`) — 저장을 누르기 전에 일어납니다 (§14.5 와 같은 구조) |
+
+**파일 claim 은 조건부 UPDATE 입니다** (§14.5 의 사업자등록증과 같은 처방):
+
+```sql
+UPDATE uploaded_files
+   SET hospital_id = :hospitalId
+ WHERE id = :fileId
+   AND purpose = 'hospital_photo'
+   AND (hospital_id IS NULL OR hospital_id = :hospitalId)   -- 남의 병원 파일을 가져올 수 없다
+   AND uploaded_by_user_id = :currentUserId                 -- 남이 올린 파일을 가져올 수 없다
+   AND purged_at IS NULL;
+-- 영향 행이 0이면 트랜잭션 전체를 롤백하고 422 UPLOAD_NOT_FOUND / 409 UPLOAD_ALREADY_CLAIMED
+```
+
+**조건이 없으면 id 를 바꿔 가며 남의 파일을 자기 병원 사진으로 끌어올 수 있습니다** —
+id 가 추측하기 어려운 것은 통제가 아닙니다.
+
+**사진 목록은 전체 교체입니다** — 시술과 달리 사진에는 "이 행에만 붙은 입력값" 이 없어서
+(순서가 곧 전부라) 교체가 머지보다 단순하고, 순서 재부여도 한 번에 끝납니다.
+
+### 16.13 만들지 않는 것
+
+| 안 만든 것 | 대신 | 근거 |
+|---|---|---|
+| `hospital_procedure_prices` 테이블 | `hospital_procedures` 컬럼 3개 | 입도가 같습니다. 나누면 어긋난 상태가 표현 가능해집니다 (§16.1) |
+| 세부 시술 31종 마스터 테이블 / `procedures` 행 18개 추가 | — | 노출 목록이 바뀝니다. 요청서가 "노출 규칙은 그대로" 라고 못 박았습니다 (§16.2) |
+| 가격 **이력** 테이블 | — | 가격 변동을 보는 화면이 없습니다. "언제 올렸나" 가 요구되면 그때 만들고, 그 전까지는 `audit_logs` 도 이 행위를 기록하지 않습니다(관리자 행위 중 **열람·심사**가 감사 대상입니다 — §11.2) |
+| `hospital_procedures.price_unit` / `currency` | 원(Int) 고정 | 통화가 하나입니다. 단위 컬럼은 "섞여 들어올 수 있다" 는 신호가 됩니다 (§16.3) |
+| `hospitals.price_min/max` **삭제** | 폴백으로 유지 | 요청서 지시 + 11곳의 표시가 사라집니다 (§16.4) |
+| `hospital_images.is_primary` | `sort_order` 최솟값 | 판정이 두 곳이 됩니다 (§16.5) |
+| `uploaded_files.sort_order` / `is_primary` (§14.15 가 "07 이 만든다" 고 적은 둘) | `hospital_images` | 순서·대표는 **파일의 성질이 아니라 목록의 성질**입니다. 파일 테이블에 넣으면 사업자등록증 행에도 그 컬럼이 생깁니다 |
+| `uploaded_files.width`/`height`·썸네일 메타 | — | §14.15 와 같습니다. 리사이즈·크롭 요구가 없습니다 |
+| `feature_night_care` / `feature_weekend` 컬럼 | `derivedHourFeatures()` | 같은 사실이 두 곳에 있으면 어긋납니다 (§16.6) |
+| 병원 정보 **임시저장(draft)** 테이블 | 클라이언트 상태 | 미리보기는 저장 전 값입니다 (§16.8) |
+| 할인 가격 필드 | `promotions` | 요청서 그대로 — "할인 가격은 이벤트에서 따로 등록" |
+| `tagline` 의 노출 on/off 컬럼 | 빈 문자열 | 안 보이게 하려면 비우면 됩니다 |
+
+### 16.14 백엔드 인계 체크리스트
+
+**협업자 확인 후** 아래 순서로 진행합니다. ①은 이 문서의 작성자가, ②부터는 협업자 영역입니다.
+**§14(요청 06)의 `uploaded_files` 가 먼저 들어가야 ⑤·⑥ 이 가능합니다.**
+
+- [ ] ① **interface-master 가 계약을 확정**한다 — §16.15 의 인계 목록. `openapi.yaml`·
+      `docs/api/README.md` 는 이 문서의 작성자가 건드리지 않았습니다
+- [ ] ② `schema.prisma` + `docs/database/schema.dbml` 반영 (컬럼 7 + `UploadedFile.hospitalImage` 역방향 필드 — **DDL 변화 0**)
+  - [ ] `hospital_procedures` **+3**: `price_min`·`price_max`(둘 다 nullable), `price_on_request`(`@default(false)`)
+  - [ ] `hospital_images` **+1**: `uploaded_file_id`(nullable, **UNIQUE**, `onDelete: Restrict`)
+  - [ ] `hospitals` **+3**: `feature_sedation`·`feature_accessibility`(`@default(false)`), `tagline`(`@default("")`)
+  - [ ] `uploaded_files.purpose` 주석에 값 추가 — `business_registration | hospital_photo`
+- [ ] ③ **마이그레이션** — `ADD COLUMN` 7줄, **`UPDATE` 없음** (§16.10)
+- [ ] ④ 순수 함수 4묶음 + 단위 테스트 (§16.3·16.4·16.5·16.6).
+      **경계값을 테스트로 고정**: `min === max`, `min > max`, 한쪽만 입력, `onRequest` + 금액,
+      17:59/18:00, 토요일만 진료, `휴진`·파싱 불가 문자열, 사진 11장/12장, 사진 0장일 때 `thumbnail`
+- [ ] ⑤ 쓰기 경로 — `procedures` 배열 **머지**(upsert + 차집합 delete). ⚠ **지금의 전체 교체를
+      그대로 두면 이름만 고쳐도 가격이 날아갑니다** (§16.12)
+- [ ] ⑥ 사진 저장 — 목록 교체 + `sort_order` 0..n-1 재부여 + `thumbnail` 동기화 + 파일 **조건부
+      claim**(§16.12 SQL). 사진이 빠진 `uploaded_files` 행은 **지우지 않고** 고아 정리 배치가 맡는다
+      (`purpose='hospital_photo' AND 참조하는 hospital_images 행 없음 AND created_at < cutoff`)
+- [ ] ⑦ 읽기 경로 — 병원 상세 투영에 `procedures[].price*` 와 파생 특징 2개. **`Hospital.images`·
+      `thumbnail`·`procedureIds` 의 모양은 바뀌지 않습니다**(기존 화면 회귀 0)
+- [ ] ⑧ 완성도 — 서버 `hospital/completeness.ts` 항목 9개 (§16.9). 프런트
+      `features/hospital/lib/completeness.ts` 와 **같은 표·같은 순서**로 맞춘다
+- [ ] ⑨ 프런트 — `HOSPITAL_FIELD_KEYS` +3(`procedures`·`images`·`tagline`), 항목 3의 `target` 을
+      `procedures` 로, `HospitalForm` 의 `Anchor field="procedureIds"` → `"procedures"`
+- [ ] ⑩ 시드 — **기존 fixture 11곳의 값은 바꾸지 않는다**(seed 가 import 하는 파일입니다).
+      시술별 가격·사진 파일의 시드 데이터를 **만들지 않습니다** — 기본값 그대로가 "아직 안 적음"
+      이고, 그 상태의 화면(폴백)이 실제로 가장 많이 보일 상태입니다
+- [ ] ⑪ `docs/features/admin-hospital-edit.md`·`hospital-detail.md` 갱신,
+      `known-issues.md` 의 **"수정 화면에서 대표 이미지를 바꿔도 상세 사진이 그대로"** 줄 해소
+      (§16.5 의 `thumbnail` 동기화가 그 원인을 없앱니다)
+
+### 16.15 interface-master 에 넘기는 것
+
+| 자리 | 변경 |
+|---|---|
+| `HospitalWriteInput` (`POST /hospitals`, `PATCH /hospitals/{id}`) | **`procedureIds` → `procedures: HospitalProcedureInput[]`** (§16.12). `minItems: 1` 유지. 둘 다 오면 `422` |
+| **신규 스키마** `HospitalProcedureInput` | `procedureId`(필수, `ProcedureId` enum) · `priceMin`·`priceMax`(nullable **정수, 원**) · `priceOnRequest`(기본 `false`) |
+| `Hospital` 응답 | `procedures[]` **추가** (위 필드 + 서버가 아는 시술명). **`procedureIds` 는 유지**(파생, 읽기 전용) |
+| `Hospital` 응답 | `tagline` **추가**(문자열, 항상 있음, 빈 문자열 가능) |
+| `HospitalFeatures` 스키마 | **키 2개 추가** — `sedation`·`accessibility`. **`nightCare`·`weekend` 는 "읽기 전용 파생"** 임을 설명에 못 박는다(요청에 오면 `422` — 진료시간이 정합니다) |
+| `HospitalWriteInput.images` | **쓰기 가능으로** — 지금 수정 화면이 보내지 않는 필드입니다. `maxItems: 11`, **첫 항목이 대표**라는 사실을 설명에 적는다 |
+| `POST /uploads` | **`purpose` 에 값 추가** — `hospital_photo`. 이 purpose 는 **인증 필수**(가입 전 업로드가 아닙니다)이고 응답에 **공개 URL 을 포함**한다(사업자등록증과 다른 점 — §16.5). 크기·타입 제한은 이미지 전용으로 좁힌다 |
+| 공개 사진 열람 | `GET /uploads/{id}/content` 는 **운영자 전용**입니다. 사진은 그 경로가 아니라 `hospital_images.url` 로 노출됩니다 — **URL 발급 주체·형태가 결정 항목**입니다 (§16.16-7) |
+| `422 details[].code` 후보 | `PRICE_RANGE_INVERTED` · `PRICE_INCOMPLETE` · `PRICE_NOT_ALLOWED_ON_REQUEST` · `PRICE_OUT_OF_RANGE` · `PROCEDURE_DUPLICATED` · `TOO_MANY_IMAGES` · `TAGLINE_TOO_LONG` · `FEATURE_NOT_WRITABLE`(파생 특징을 보냈다) · `UPLOAD_NOT_FOUND`(**기존 재사용**) · `UPLOAD_ALREADY_CLAIMED` |
+| `details[].field` 어휘 | `procedures[i].priceMin` 처럼 **인덱스 경로**로 내려줘야 폼이 그 줄을 짚을 수 있습니다. 묶음 키는 `procedures`·`images`·`tagline` |
+| 완성도 응답 (§13.7 / `docs/api/README.md` §14) | 항목 **7 → 9**, `key` 두 개(`procedurePrices`·`photos`)와 순서 (§16.9) |
+| 금액 단위 | **원(정수).** 화면의 `만원` 은 표시 단위입니다 — 계약에 단위를 명시해 주세요 (§16.3) |
+
+### 16.16 남은 미결 · 협업자에게 물을 것
+
+1. **CCTV 설치 칩을 어떻게 할 것인가.** 요청서의 칩 9개에 없는데 **컬럼도 배지도 지금 있습니다.**
+   폼에서만 빼면 **고칠 수 없는 값**이 됩니다(켜져 있는 병원이 끌 수 없습니다). **칩 10개로
+   남기기를 권합니다.** 내리기로 하면 컬럼은 남기되 배지도 함께 내려야 합니다
+2. **`야간상담`(`feature_night_consult`)과 파생 `야간 진료` 의 관계.** 둘은 **다른 사실**입니다
+   (늦게까지 상담 전화를 받는 것 ≠ 늦게까지 진료하는 것). 그런데 **탐색의 조건 칩 `진료시간` 이
+   실제로 거르는 값은 `nightConsult`** 입니다(계약에 그렇게 적혀 있습니다). 환자가 `진료시간` 칩을
+   누르고 기대하는 것은 **야간 진료** 쪽에 가깝습니다. 칩의 기준을 파생 값으로 옮길 것인가가
+   열린 질문입니다 — 옮기면 **필터가 컬럼이 아니라 `business_hours` 조인/파싱**이 되어 질의가
+   무거워집니다(그때는 §16.6 의 "진료시간 구조화" 가 선행 조건입니다). 이번 범위에서는
+   **둘 다 그대로 두고 배지 문구만 구분**하기를 권합니다
+3. **`business_hours.hours` 를 구조화할 것인가.** 자유 문자열이라 `야간 진료` 파생이 파싱에
+   의존합니다(§16.6). `open_minutes`/`close_minutes`(+점심)로 쪼개면 파생이 정확해지고 진료시간
+   필터도 가능해지지만, **관리자 폼·계약·기존 11곳 이관이 따라오는 별도 작업**입니다
+4. **가격의 0·상한 규칙** — `min > 0`, 상한 1억원은 **제안값**입니다. 비급여 최고가(풀마우스
+   임플란트 등)를 생각하면 상한을 더 올려야 할 수도 있습니다
+5. **세부 시술 18개에 가격을 적고 싶다는 요구가 오면** — §16.2. `procedures` 마스터 확장 +
+   "저장은 되지만 노출 목록에는 없는 시술" 이라는 축이 함께 필요합니다. **07 범위 밖**입니다
+6. **업로드 인증** — §14.17-2 의 결정이 사업자등록증(가입 전, 토큰 없음)에 걸려 있는데,
+   **병원 사진은 로그인 뒤에 올립니다.** 그래서 `hospital_photo` 는 **인증 필수**로 못 박을 수
+   있고, 06 의 결정이 어느 쪽으로 가도 영향받지 않습니다 — 확인만 받으면 됩니다
+7. **사진 공개 URL 의 형태** — ⓐ 공개 `GET /files/{fileId}` 를 새로 열거나 ⓑ 저장소 공개 URL 을
+   그대로 쓰거나(객체 저장소 전제) ⓒ 정적 경로. **데이터 설계는 어느 쪽이든 같습니다**
+   (`hospital_images.url` 에 문자열이 들어갑니다). 다만 ⓑ 는 파기(`purged_at`) 후에도 URL 이
+   살아 있을 수 있어 **파기 절차가 저장소 객체 삭제까지 해야 합니다**(§14.7 이 이미 그렇게 적었습니다)
+8. **사진 파기·보존** — 병원이 사진을 빼면 `hospital_images` 행은 사라지고 `uploaded_files` 행은
+   남습니다. 고아 사진 파일의 보존 기간(제안: §14.7 의 고아 24시간과 **다르게**, 실수 복구를 위해
+   **7일** 뒤 파기)을 정해야 합니다
+9. **탐색 `가격 비교표` 를 시술별 가격으로 바꿀 것인가.** 지금은 `priceRange.min`(병원 전체)을
+   씁니다. 시술 칩으로 좁힌 상태라면 **그 시술의 `price_min`** 이 비교표가 원래 말하려던 숫자입니다.
+   요청서에 없어 이번에 하지 않습니다 — 하기로 하면 목록 응답에 `procedures[].price*` 가 필요하고
+   (지금은 상세에만 있어도 됩니다) **응답 크기가 늘어납니다**
+10. **전체 가격대(`hospitals.price_min/max`)의 폐기 시점과 조건** — §16.4. 지금 정하지 않습니다.
+    `procedurePrices` 완성도 충족률이 그 판단 근거입니다

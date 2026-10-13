@@ -17,10 +17,20 @@ openapi: 3.1.0
 # 🚧            구현이 계약을 아직 따라오지 않았다 (계약은 확정)
 # 🚧 [제안] + x-proposal
 #               **계약 자체가 아직 확정이 아니다.** 합의 전까지 구현하지 않는다.
-#               지금 이 표시가 붙은 것은 **병원 관리자 직접 가입(요청 06)** 하나이고
-#               (2026-10-13, 협업자 확인 대기), 판단 근거는 `docs/api/README.md` §20,
-#               데이터 설계는 `docs/database/README.md` §14 에 있다.
-#               선행 조건: `docs/decisions/0001-roles-and-pii.md` 결정 2 개정
+#               지금 이 표시가 붙은 것은 **두 묶음**이다 (둘 다 2026-10-13, 협업자 확인 대기):
+#
+#               ① **병원 관리자 직접 가입 (요청 06)**
+#                  판단 근거 `docs/api/README.md` §20 · 데이터 설계 `docs/database/README.md` §14
+#                  선행 조건: `docs/decisions/0001-roles-and-pii.md` 결정 2 개정
+#               ② **병원 정보 확장 — 시술별 가격 · 사진 · 특징 (요청 07)**
+#                  판단 근거 `docs/api/README.md` §21 · 데이터 설계 `docs/database/README.md` §16
+#                  선행 조건: ① 의 `POST /uploads` (사진이 같은 테이블·같은 오퍼레이션을 쓴다)
+#
+#               **둘은 따로 합의될 수 있다.** 어느 묶음에 속하는지는 그 설명의 인용문이
+#               §20 / §21 중 어느 쪽을 가리키는지로 읽는다.
+#               **확정 계약의 기존 `required`·`enum` 은 이 제안들이 건드리지 않았다** —
+#               새 필드는 `required` 에 넣지 않았고, 기존 필드를 대체하는 것은
+#               "합의되면 이렇게 바뀐다" 로 설명에만 적었다. 그것이 "아직 제안" 의 기계적 표현이다
 # ---------------------------------------------------------------------------
 
 info:
@@ -733,6 +743,13 @@ paths:
         > **이 계약은 느슨해지지 않는다** — 기본값은 폼이 그 값을 주지 않는 경로를 위한 것이고,
         > 운영자는 지금도 세 값을 다 받는다.
 
+        > 🚧 **제안 — 협업자 확인 대기 (2026-10-13), 요청 07 (§21):** 요청 스키마에
+        > `procedures`·`tagline` 이 늘고, 합의되면 **`required` 의 `procedureIds` 가
+        > `procedures` 로 바뀐다** (`minItems: 1` 유지 — 시술 0개 병원은 여전히 만들 수 없다).
+        > 등록 화면은 `PATCH` 와 **같은 폼**이므로 가격·사진·특징 규칙도 그대로 같다
+        > (검증·422 코드는 `HospitalProcedureInput` · `PATCH /hospitals/{id}` 설명 참고).
+        > **등록 시점에는 머지와 교체의 차이가 없다** — 기존 행이 없기 때문이다.
+
         **`isRecommended`(에디터 추천)는 `operator` 만 설정할 수 있다.** 현재 폼에는 병원 관리자가 직접
         체크할 수 있는 `추천 병원으로 노출 (에디터 추천)` 체크박스가 있는데, 에디터 추천을 병원이
         스스로 켜는 것은 신뢰 문제다. 역할이 셋으로 갈리면서 이 항목의 주인이 명확해졌다 —
@@ -803,6 +820,14 @@ paths:
         > 이 시야 분기는 `GET` 하나에만 생긴다. 목록·검색·지도·전문의 등 **공개 질의 전부**는
         > 분기 없이 `isPubliclyListed` 를 건다 (적용 자리 전체: `docs/database/README.md` §14.4,
         > 요약은 `docs/api/README.md` §20).
+
+        > 🚧 **제안 — 협업자 확인 대기 (2026-10-13), 요청 07 (§21):** 이 응답이 병원 상세의
+        > **`시술·가격` 섹션**을 먹여 살린다. 늘어나는 것은 `procedures[]`·`tagline` 과
+        > `features` 의 키 4개뿐이고 **기존 필드는 그대로다.**
+        > 시술별 가격과 전체 가격대 중 **무엇을 그릴지는 규칙 하나**로 정해진다
+        > (`Hospital.priceRange` 설명의 표 — 응답에 둘 다 싣고 화면이 고른다).
+        > **이 오퍼레이션만 `procedures` 를 싣는다** — 목록(`GET /hospitals`)은 지금 그대로다
+        > (열린 질문 9).
       x-screens: [hospital-detail.md, consult-request.md, doctor-detail.md, events.md, notifications.md]
       x-screen-status: "✅"
       responses:
@@ -851,6 +876,48 @@ paths:
         바꿀 수 없다. `isRecommended` 는 **`operator` 만** 바꿀 수 있고 `hospital_admin` 요청에서는 거절된다.
         보내면 무시하지 않고 `422 FIELD_NOT_WRITABLE` 로 거절한다 — 조용히 무시하면 관리자 화면이
         "저장했는데 안 바뀐다" 는 상태가 된다 (현재 `대표 이미지 URL` 에서 실제로 겪고 있는 증상이다).
+
+        > 🚧 **[제안] 협업자 확인 대기 (2026-10-13). 확정 계약이 아니다** — 요청 07
+        > (`docs/api/README.md` §21, 데이터 설계 `docs/database/README.md` §16).
+        > 합의 전까지 구현하지 않는다.
+        >
+        > ⚠️ **이 오퍼레이션에서 가장 조용한 사고 지점이 하나 있다.** 지금 서버는 `procedureIds`
+        > 배열로 `hospital_procedures` 행을 **전체 교체**한다(delete all → insert). 요청 07 이
+        > 그 테이블에 가격 컬럼 3개를 올리는데 **교체 방식을 그대로 두면, 담당자가 병원 이름만
+        > 고쳐 저장해도 시술별 가격이 전부 사라진다.** 화면에는 오류가 한 줄도 뜨지 않는다.
+        >
+        > 그래서 요청 본문의 모양과 저장 규칙이 함께 바뀐다:
+        >
+        > | | 지금 | 제안 |
+        > |---|---|---|
+        > | 요청 | `"procedureIds": ["implant", "inlay"]` | `"procedures": [{procedureId, priceMin?, priceMax?, priceOnRequest?}, …]` |
+        > | 저장 | **전체 교체** | **머지** — upsert + 목록에 없는 행만 delete |
+        > | 필드 생략 | 시술 불변 | **시술도 가격도 불변** (부분 수정의 뜻 그대로) |
+        > | 둘 다 보냄 | — | **`422`** (우선순위 규칙을 만들지 않는다) |
+        >
+        > **사진은 반대로 전체 교체**다 (`images`) — 사진 행에는 행마다 붙은 입력값이 없고 순서가
+        > 곧 전부라, 교체 + `sort_order` 0..n-1 재부여가 머지보다 단순하다. **첫 장이 대표**이고
+        > 같은 트랜잭션이 `thumbnail` 을 그 값으로 동기화한다 (known-issue `대표 이미지를 바꿔도
+        > 캐러셀이 그대로` 가 여기서 사라진다).
+        >
+        > **한 요청 = 한 트랜잭션.** 시술 머지 · 진료시간 · 사진 교체 · `thumbnail` 동기화 ·
+        > 업로드 파일 claim 이 함께 커밋되거나 함께 롤백된다. 파일 **바이트**만 그 밖이다.
+        > 파일 claim 은 **조건부 UPDATE** 다 (내 병원 것이거나 주인 없는 파일이고, 내가 올렸고,
+        > 파기되지 않았을 때만) — 아니면 트랜잭션 전체를 되돌리고 `422 UPLOAD_NOT_FOUND` 다.
+        > **id 가 추측하기 어려운 것은 통제가 아니다.**
+        >
+        > **파생 특징을 보내면 `422 FEATURE_NOT_WRITABLE`**: `features.nightCare`·`features.weekend`
+        > 는 `businessHours` 가 정한다. 진료시간을 21:00까지로 바꾸면 **그 저장 하나로** 야간 진료
+        > 칩이 켜진다 (요청서 07 의 확인 항목).
+        >
+        > **`422 details[].field` 는 인덱스 경로다** — `procedures[2].priceMin`, `images[11]`,
+        > `tagline`. 폼이 그 줄의 그 칸을 짚어야 하기 때문이고, 묶음 키(`procedures`·`images`·
+        > `tagline`)는 완성도 항목의 `target` 과 같은 어휘다.
+        >
+        > **저장 후 `저장됐어요` 안내와 `앱 화면 미리보기` 는 계약 변경이 0이다** — 전자는 `200`
+        > 응답의 화면 표현이고, 후자는 폼이 들고 있는 **저장 전 값**으로 그리는 클라이언트 렌더다.
+        > 임시저장(draft) 엔드포인트를 만들지 않는다: 서버에 "저장되지 않은 병원 정보" 라는 두 번째
+        > 진실이 생기고, 어느 쪽이 환자에게 보이는지가 다시 결정 사항이 된다 (DB §16.8).
       x-screens: [admin-hospital-edit.md]
       x-screen-status: "✅"
       x-role: [hospital_admin, operator]
@@ -3529,7 +3596,9 @@ paths:
         - **승인 상태(`승인 완료 · 앱 노출 중` / `승인 대기`)와 담당자 직책** — 사이드 메뉴 하단이
           요구하지만 `hospitals` 에 승인 상태가, `hospital_admins` 에 직책이 없다. **요청 06 과 함께** 설계한다.
         - **완성도 항목 둘** (`procedurePrices` · `photos`) — 입력 수단(가격 칸 · 파일 업로드)이
-          생기는 **요청 07** 의 일이다 (`HospitalCompletenessItemKey` 참고).
+          생기는 **요청 07** 의 일이다. 🚧 **그 제안이 올라왔다** (2026-10-13, 협업자 확인 대기 —
+          `docs/api/README.md` §21). 합의되면 이 응답의 `completeness.items` 가 **9개**가 되고
+          `percent` 의 분모가 바뀐다 (`HospitalCompletenessItemKey` 의 표).
         - **`visitDate`/`visitPeriod` 목록 파라미터** — `오늘 내원 예정` 에는 `전체 보기` 가 없다.
           날짜별 내원 목록 화면이 생기는 날 `period` 와 같은 모양으로 더한다(경계는 서버 KST).
           인덱스(`consult_requests(hospital_id, visit_at)`)는 먼저 깔린다.
@@ -4408,13 +4477,17 @@ paths:
     post:
       operationId: createUpload
       tags: [uploads]
-      summary: '🚧 [제안] 파일 업로드 (사업자등록증)'
-      x-proposal: 제안 — 협업자 확인 대기 (2026-10-13). **보안 결정이 열려 있다** — 비인증 업로드를 받을지가 핵심 질문이다
+      summary: '🚧 [제안] 파일 업로드 (사업자등록증 · 병원 사진)'
+      x-proposal: 제안 — 협업자 확인 대기 (2026-10-13). **보안 결정이 열려 있다** — 비인증 업로드를 받을지가 핵심 질문이다. `purpose=hospital_photo` 는 요청 07 (§21)
       description: |
         > 🚧 **제안 — 협업자 확인 대기 (2026-10-13). 이것은 확정 계약이 아니다.**
         > **그중에서도 이 오퍼레이션이 가장 확정도가 낮다** — `docs/database/README.md` §14.17-2 가
         > "보안 표면을 늘리는 결정이라 협업자 확인이 필요하다" 고 명시한다.
         > 합의 전에는 **구현하지 않는다.**
+        >
+        > **이 오퍼레이션에는 제안이 둘 겹쳐 있다**: `purpose=business_registration` 은 요청 06(§20),
+        > `purpose=hospital_photo` 는 **요청 07(§21)** 이다. 둘은 따로 합의될 수 있고, 규칙이
+        > 거의 모든 항목에서 반대다 (아래 표).
 
         회원가입 폼의 `사업자등록증 업로드`. **가입 전이라 토큰이 없다** — 그것이 이 설계의 전부다.
 
@@ -4442,14 +4515,44 @@ paths:
         그것을 아는 사람 전부가 열람자가 되고, 요청서의 "열람 권한을 운영자로 제한" 이 무너진다.
         읽기는 `GET /uploads/{uploadId}/content` **하나뿐**이고 `operator` 전용이다.
 
+        ## 🚧 `purpose` 별 규칙 — **값이 규칙을 정한다** (요청 07, §21)
+
+        | | `business_registration` (06) | `hospital_photo` (**07**) |
+        |---|---|---|
+        | 올리는 사람 | 가입 중인 사람 — **토큰이 없다** | **로그인한 담당 `hospital_admin` / `operator`** |
+        | 인증 | **없음** | **필수.** 없으면 `401`, 담당 병원이 없는 `user` 면 `403` |
+        | 허용 타입 | jpeg · png · **pdf** | **jpeg · png** (이미지 전용 — 사진 캐러셀에 pdf 를 그릴 수 없다) |
+        | 크기 상한 | 10 MiB | **10 MiB (같은 값)** — 두 값을 다르게 두면 `413` 문구가 둘이 된다 |
+        | 요청 한도 | IP 당 시간당 10회 | **계정당 시간당 60회** (사진 11장을 연달아 올린다 — IP 10회로는 폼 하나를 못 채운다) |
+        | 응답의 `publicUrl` | **`null`** (URL 을 발급하지 않는다) | **공개 URL.** 이 값을 `images[]` 에 넣어 저장한다 |
+        | 읽는 법 | `GET /uploads/{id}/content` — **운영자 전용 · 감사 대상** | 공개 URL 하나. **그 경로를 쓰지 않는다** |
+        | 고아 파기 | 24시간 (제안) | **7일** (제안 — 실수 복구 여지. 열린 질문 8) |
+        | 감사 로그 | 열람 1행 | **없음** — 환자에게 보이는 공개물이다 |
+
+        **사진에 URL 을 발급해도 되는 이유**(서류와 다른 점): **그 URL 을 아는 사람 전부가 열람자여도
+        되는 파일**이다. §20.3 이 URL 을 금지한 것은 열람자를 운영자로 좁혀야 하는 파일이었기
+        때문이고, 판정은 지금도 `canReadFile(purpose, role)` **한 함수**에 있다 (DB §16.5).
+
+        **업로드만으로는 아무 데도 보이지 않는다.** 사진이 병원 상세에 뜨려면 `PATCH /hospitals/{id}`
+        의 `images[]` 에 그 `publicUrl` 이 들어가야 하고, 그 저장 트랜잭션이 파일을 이 병원 것으로
+        **조건부 claim** 한다. 끝내 쓰이지 않은 파일은 주인이 없고 정리 배치가 치운다 —
+        깨지는 방향이 "주인 없는 파일이 남는 쪽" 으로만 고정된다 (§20.3 과 같은 구조).
+
         **`purpose` 를 요청에서 받는 이유**: 접근 통제와 보관 기간이 전부 이 값에서 파생된다
-        (`canReadFile(purpose, role)`, DB §14.7). 지금 **비인증으로 허용하는 값은
-        `business_registration` 하나**다. 요청 07 의 `hospital_photo` 가 생기면 그쪽은
-        **인증을 요구해야 한다** (올리는 사람이 이미 로그인한 담당자다) — 그때 이 오퍼레이션에
-        `security` 를 조건부로 두지 말고 **값별 규칙을 설명에 못 박는다.**
-      x-screens: [signup.md]
+        (`canReadFile(purpose, role)`, DB §14.7). **비인증으로 허용하는 값은
+        `business_registration` 하나**이고, `hospital_photo` 는 **인증 필수**다 (위 표).
+
+        > 🚧 **요청 07 에서 한 가지를 뒤집었다**(§21): 06 은 "`security` 를 조건부로 두지 말고
+        > 값별 규칙을 설명에만 적는다" 고 했지만, 지금 `security` 는 **두 줄**이다
+        > (`{}` = 비인증 허용, `bearerAuth` = 토큰 허용). 그대로 `security: []` 만 두면
+        > 계약이 "토큰을 **보내면 안 된다**" 고 말하게 되는데, 사진 업로드는 토큰이 **있어야** 한다 —
+        > 생성기와 게이트웨이가 그 한 줄을 읽는다. **값별 세부 규칙은 여전히 설명이 못 박는다**
+        > (어느 `purpose` 에 토큰이 필수인지는 스키마로 표현할 수 없다).
+      x-screens: [signup.md, admin-hospital-edit.md]
       x-screen-status: "🚧"
-      security: []
+      security:
+        - {}
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -4463,13 +4566,20 @@ paths:
                 file:
                   type: string
                   format: binary
-                  description: 최대 10 MiB. jpeg · png · pdf (바이트로 판정).
+                  description: |
+                    최대 10 MiB. **바이트 앞머리로 판정한다** (확장자·`Content-Type` 헤더가 아니다).
+                    허용 타입은 `purpose` 가 정한다 — `business_registration`: jpeg · png · pdf /
+                    🚧 `hospital_photo`(07): **jpeg · png**.
       responses:
         '201':
           description: |
             업로드된 파일의 메타데이터. **아직 주인이 없다** — 가입 트랜잭션이 `fileId` 로
             claim 할 때 병원·업로더가 채워진다 (DB §14.5).
             화면은 `originalName` 으로 `사업자등록증.pdf 제출 완료` 를 그린다.
+
+            🚧 **요청 07(§21)**: `purpose=hospital_photo` 면 `publicUrl` 이 함께 온다. 폼은 그 값을
+            미리보기에 걸고, **저장을 눌러 `PATCH /hospitals/{id}` 의 `images[]` 에 들어가야**
+            병원의 사진이 된다 (그 전까지는 주인 없는 파일이다).
           headers:
             Cache-Control:
               schema:
@@ -4490,11 +4600,42 @@ paths:
                   code: FILE_TOO_LARGE
                   message: 파일은 10MB까지 올릴 수 있어요
                   requestId: 01J9X8V0Q3
+        '401':
+          description: |
+            🚧 **요청 07(§21)**: `purpose=hospital_photo` 를 토큰 없이 보냈다.
+            `purpose=business_registration` 은 **이 응답이 나오지 않는다** (가입 전이라 토큰이 없다).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: UNAUTHENTICATED
+                  message: 로그인이 필요해요
+                  requestId: 01J9X8V0Q3
+        '403':
+          description: |
+            🚧 **요청 07(§21)**: 토큰은 있지만 병원 사진을 올릴 역할이 아니다
+            (`user`). 담당 병원 검사는 **업로드 시점이 아니라 저장 시점**에 한다 —
+            업로드 요청에는 아직 병원 id 가 없다.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: FORBIDDEN
+                  message: 이 작업을 수행할 권한이 없어요
+                  requestId: 01J9X8V0Q3
         '415':
           description: |
             허용되지 않는 파일 형식 (`code: UNSUPPORTED_FILE_TYPE`).
             **확장자가 아니라 실제 바이트로 판정한 결과다** — `.pdf` 로 이름만 바꾼 실행 파일이
             여기서 걸린다.
+
+            🚧 **요청 07(§21)**: 허용 타입이 `purpose` 마다 다르므로 **문구도 다르다** —
+            `hospital_photo` 는 `JPG, PNG 파일만 올릴 수 있어요`.
+            (`message` 를 그대로 화면에 보여주는 규약이라, 하나로 합치면 사진 칸에 `PDF` 가 안내된다.)
           content:
             application/json:
               schema:
@@ -5528,6 +5669,29 @@ components:
       description: |
         관리자 폼의 `병원 특징` 체크박스 6개. `⚡ 원데이가능` 배지는 여기가 아니라 `isOneDay` 에서 온다 —
         화면 문서가 출처가 다르다고 명시하는 지점이다.
+
+        > 🚧 **[제안] 협업자 확인 대기 (2026-10-13). 확정 계약이 아니다** — 요청 07
+        > (`docs/api/README.md` §21, 데이터 설계 `docs/database/README.md` §16.6).
+        > **키가 4개 늘고 기존 6개는 한 글자도 바뀌지 않는다** (`required` 도 그대로다).
+        >
+        > | 요청서 07 의 칩 9개 | 이 스키마 | 쓰기 |
+        > |---|---|---|
+        > | 원데이 보철 | `Hospital.isOneDay` (**여기 아님** — 시술이 아니라 병원 속성) | 가능 |
+        > | 디지털 진료(구강스캐너) | `digitalCare` | 가능 |
+        > | **야간 진료** | **`nightCare` — 읽기 전용 파생** | **불가 — `422 FEATURE_NOT_WRITABLE`** |
+        > | **주말 진료** | **`weekend` — 읽기 전용 파생** | **불가 — `422 FEATURE_NOT_WRITABLE`** |
+        > | 주차 가능 | `parking` | 가능 |
+        > | **수면 진료** | **`sedation` (신규)** | 가능 |
+        > | 무통 마취 | `painlessAnesthesia` | 가능 |
+        > | 전담 코디네이터 | `coordinator` | 가능 |
+        > | **장애인 편의시설** | **`accessibility` (신규)** | 가능 |
+        > | (요청서 9개에 없음) | `cctv` · `nightConsult` | 가능 — **열린 질문 1·2** |
+        >
+        > **`cctv` 를 계약에서 빼지 않았다.** 폼에서만 내리면 **이미 켜져 있는 병원이 끌 수 없는 값**이
+        > 된다 — 값은 남고 수정 수단만 사라지는 상태다. 칩 10개로 남길지는 제품 결정이다 (열린 질문 1).
+        >
+        > **배열 테이블(`hospital_features`)로 바꾸지 않는다.** 이 스키마는 **키 고정 객체**이고,
+        > 라벨·아이콘·필터 파라미터가 전부 코드에 있다. 값으로 늘릴 수 있는 종류가 아니다 (DB §16.6).
       required: [coordinator, painlessAnesthesia, digitalCare, parking, nightConsult, cctv]
       properties:
         coordinator:
@@ -5544,10 +5708,167 @@ components:
           description: 주차가능
         nightConsult:
           type: boolean
-          description: 야간상담. 병원 탐색의 `진료시간` 조건 칩이 실제로 거르는 값.
+          description: |
+            야간상담. 병원 탐색의 `진료시간` 조건 칩이 실제로 거르는 값.
+
+            🚧 **[제안] 요청 07 (§21):** 아래 `nightCare`(야간 **진료**)와 **다른 사실**이다 —
+            늦게까지 상담 전화를 받는 것과 늦게까지 진료하는 것은 같지 않다. 그런데 환자가
+            `진료시간` 칩을 누르고 기대하는 것은 `nightCare` 쪽에 가깝다. **칩의 기준을 옮길지는
+            열린 질문 2**이고, 이번 범위에서는 **둘 다 그대로 두고 배지 문구만 구분**하기를 권한다
+            (옮기면 필터가 컬럼이 아니라 `businessHours` 파싱이 되어 질의가 무거워진다).
         cctv:
           type: boolean
           description: CCTV설치
+        sedation:
+          type: boolean
+          x-proposal: 제안 — 협업자 확인 대기 (2026-10-13)
+          description: |
+            🚧 **[제안] 협업자 확인 대기 (2026-10-13)** — 요청 07 (§21). 수면 진료(진정 요법).
+            기존 병원 11곳은 `false` 다 — **백필하지 않는다. 없는 사실을 지어내지 않는다** (DB §16.10).
+            `required` 에 넣지 않은 것이 "아직 제안" 의 기계적 표현이다. 합의되면 required 가 된다.
+        accessibility:
+          type: boolean
+          x-proposal: 제안 — 협업자 확인 대기 (2026-10-13)
+          description: |
+            🚧 **[제안] 협업자 확인 대기 (2026-10-13)** — 요청 07 (§21).
+            장애인 편의시설(경사로·휠체어 동선·장애인 화장실 등). **세부 항목은 받지 않는다** —
+            화면이 칩 하나로 묻는다. 기존 병원은 `false` 다(백필 없음).
+        nightCare:
+          type: boolean
+          readOnly: true
+          x-proposal: 제안 — 협업자 확인 대기 (2026-10-13)
+          description: |
+            🚧 **[제안] 협업자 확인 대기 (2026-10-13)** — 요청 07 (§21, DB §16.6).
+            **읽기 전용 파생값이다. 저장하지 않는다.**
+
+            `businessHours` 중 `isClosed=false` 인 요일의 **종료 시각이 18:00 이상**인 요일이
+            하나라도 있으면 `true` (`derivedHourFeatures`). 요청 본문에 오면
+            **`422 FEATURE_NOT_WRITABLE`** — 조용히 무시하면 "껐는데 다시 켜진다" 가 된다.
+
+            **저장값이 아닌 이유**: 같은 사실이 두 곳에 있으면 어긋난다. 저장값이면
+            "수요일을 21시까지로 바꿨는데 야간 칩은 꺼져 있는 병원" 이 생기고, 그것이 요청서 07 의
+            확인 항목(`수요일 진료를 21:00까지로 바꾸면 야간 진료가 자동으로 켜진다`)이다.
+
+            ⚠ **`businessHours[].hours` 가 자유 문자열이라 파싱에 의존한다** (`10:00 - 19:00`,
+            `휴진`, `09:00-13:00 / 14:00-18:00`). **읽을 수 없으면 `false`** 다 — 거짓 광고가 되지
+            않는 쪽으로 깨뜨린다. 진료시간 구조화는 07 보다 큰 작업이라 미결이다 (열린 질문 3).
+        weekend:
+          type: boolean
+          readOnly: true
+          x-proposal: 제안 — 협업자 확인 대기 (2026-10-13)
+          description: |
+            🚧 **[제안] 협업자 확인 대기 (2026-10-13)** — 요청 07 (§21, DB §16.6).
+            **읽기 전용 파생값이다.** 토·일 중 `isClosed=false` 이고 `hours` 가 공백이 아닌 요일이
+            하나라도 있으면 `true`. **문자열을 파싱하지 않아 `nightCare` 와 달리 견고하다.**
+            요청 본문에 오면 `422 FEATURE_NOT_WRITABLE`.
+
+    HospitalProcedurePrice:
+      type: object
+      x-proposal: 제안 — 협업자 확인 대기 (2026-10-13)
+      description: |
+        > 🚧 **[제안] 협업자 확인 대기 (2026-10-13). 확정 계약이 아니다** — 요청 07
+        > (`docs/api/README.md` §21, 데이터 설계 `docs/database/README.md` §16.1).
+        > 합의 전까지 구현하지 않는다.
+
+        병원이 취급하는 시술 한 줄과 **그 시술의 비급여 가격 범위**. `Hospital.procedures[]` 의 항목이고,
+        병원 상세의 `시술·가격` 섹션이 읽는 값이다.
+
+        **상태가 셋이고 셋 다 다른 사실이다** (DB §16.1):
+
+        | # | `priceOnRequest` | `priceMin`/`priceMax` | 뜻 | 병원 상세에서 |
+        |---|---|---|---|---|
+        | ① | `false` | 값 | 가격 범위를 적었다 | `120만원 ~ 180만원` |
+        | ② | `true` | `null` | **`상담 후 안내` 를 골랐다** | `상담 후 안내` |
+        | ③ | `false` | `null` | 체크만 하고 아직 안 적었다 | **가격 줄 없음** (시술 이름만) |
+
+        **②와 ③을 한 값으로 합치지 않은 이유는 완성도다.** 합치면 시술 체크만으로 `시술별 가격`
+        항목이 충족되어 **아무도 채운 적 없는데 항상 100%인 칸**이 된다. 환자 화면에서 둘이 거의
+        같아 보이는 것은 사실이지만 담당자에게는 다른 사실이다 — ②는 결정이고 ③은 미입력이다.
+        ③을 환자에게 `상담 후 안내` 로 보여줄지는 **화면 결정**이고(기본 제안은 "그리지 않는다"),
+        계약이 둘을 구분해 내려주므로 어느 쪽으로 정해도 응답은 바뀌지 않는다.
+
+        **금액은 원(정수)다.** 화면의 `최소 ~ 최대 만원` 칸은 표시 단위이고 변환(×10,000)은
+        클라이언트가 한다 (info 의 공통 규약 `금액`, DB §16.3). 한 응답 안에서 이 값만 만원이면
+        `priceRange` 와 단위가 다른 두 금액이 섞인다.
+
+        **시술 이름을 함께 내려주지 않는다.** 이름의 출처는 `GET /procedures`(캐시되는 마스터)와
+        프런트 `taxonomy.ts` 하나이고, 여기에 또 실으면 같은 라벨이 두 곳에서 갈린다.
+        **대분류 묶음·`준비중` 배지·`원데이` 표시도 화면의 몫**이다 (요청서 07 이 "노출 규칙은
+        그대로" 라고 못 박은 자리다).
+      required: [procedureId, priceMin, priceMax, priceOnRequest]
+      properties:
+        procedureId:
+          $ref: '#/components/schemas/ProcedureId'
+        priceMin:
+          type: [integer, 'null']
+          description: |
+            원(정수). `priceMax` 와 **둘 다 값이거나 둘 다 `null`** 이다 — 한쪽만 채워진 행은 없다.
+          example: 1200000
+        priceMax:
+          type: [integer, 'null']
+          description: '원(정수). `priceMin === priceMax` 는 정상이다 (정찰제).'
+          example: 1800000
+        priceOnRequest:
+          type: boolean
+          description: |
+            `상담 후 안내` 를 고른 시술. `true` 면 `priceMin`·`priceMax` 는 **반드시 둘 다 `null`** 이다.
+          example: false
+
+    HospitalProcedureInput:
+      type: object
+      x-proposal: 제안 — 협업자 확인 대기 (2026-10-13)
+      description: |
+        > 🚧 **[제안] 협업자 확인 대기 (2026-10-13). 확정 계약이 아니다** — 요청 07
+        > (`docs/api/README.md` §21, 데이터 설계 `docs/database/README.md` §16.12).
+
+        병원 저장 요청(`HospitalCreateRequest.procedures` · `HospitalUpdateRequest.procedures`)의
+        시술 한 줄. **체크된 시술만 보낸다** — 목록에 없는 시술은 체크 해제로 읽혀 가격과 함께 사라진다.
+
+        **`procedureIds` 와 `prices` 두 배열로 나누지 않은 이유**: 그러면 "체크는 됐는데 가격 배열에
+        없는 시술"·"가격은 있는데 체크 안 된 시술" 을 계약이 허용하게 된다. 저장소에서 없앤 상태를
+        계약이 되살리는 모양이다 (DB §16.1).
+
+        **검증** — 어긋난 조합은 전부 `422 VALIDATION_FAILED` 의 `details[]` 로 내려가고,
+        `field` 는 **인덱스 경로**(`procedures[2].priceMin`)다. 그래야 폼이 그 줄의 그 칸을 짚는다.
+
+        | 어긋난 조합 | `details[].code` |
+        |---|---|
+        | `priceOnRequest=true` 인데 금액이 왔다 | `PRICE_NOT_ALLOWED_ON_REQUEST` |
+        | `priceMin`/`priceMax` 중 **한쪽만** 왔다 | `PRICE_INCOMPLETE` |
+        | `priceMin > priceMax` | `PRICE_RANGE_INVERTED` |
+        | `0` 이하이거나 상한(**제안: 1억원**) 초과 | `PRICE_OUT_OF_RANGE` |
+        | 같은 `procedureId` 가 배열에 두 번 | `PROCEDURE_DUPLICATED` |
+
+        **서버가 우선순위로 자동 해결하지 않고 거절하는 이유**: 화면에서 `상담 후 안내` 와 금액 입력은
+        동시에 켤 수 없다. 그 조합이 오면 클라이언트 버그이고, 조용히 한쪽을 이기게 하면 담당자는
+        "저장했는데 다르게 들어갔다" 를 보게 된다.
+
+        **`0` 을 금지하는 이유**: `0원 ~ 50만원` 은 "무료" 로 읽힌다. 미입력은 `null` 이 표현하므로
+        `0` 을 센티널로 쓸 자리도 없다. **만원 배수를 강제하지 않는다** — 입력 UI 가 만원 칸인 것은
+        화면 사정이고, 천원 단위 입력이 생기는 날 계약부터 막힌다. 상한값은 **제안**이다 (열린 질문 4).
+
+        **가격을 붙일 수 있는 단위는 서버 시술 13종(`ProcedureId`)뿐이다.** 세부 시술 31개 중 18개는
+        서버에 마스터가 없고 화면에서도 체크가 막혀 있다(`준비중`). 나머지 13개는 서버 id 와 1:1 이라
+        "세부 시술별 가격" 과 "서버 시술별 가격" 이 **지금은 같은 것**이다 (DB §16.2).
+      required: [procedureId]
+      properties:
+        procedureId:
+          $ref: '#/components/schemas/ProcedureId'
+        priceMin:
+          type: [integer, 'null']
+          minimum: 1
+          maximum: 100000000
+          description: 원(정수). 생략·`null` 이면 "아직 적지 않음"(③)이다.
+          example: 1200000
+        priceMax:
+          type: [integer, 'null']
+          minimum: 1
+          maximum: 100000000
+          example: 1800000
+        priceOnRequest:
+          type: boolean
+          default: false
+          description: '`상담 후 안내` 체크. `true` 로 보내면서 금액을 함께 보내면 `422 PRICE_NOT_ALLOWED_ON_REQUEST`.'
 
     Sponsorship:
       type: object
@@ -5584,7 +5905,14 @@ components:
 
         덧붙인 것: `sponsorship`, `representativeSpecialty`, `distanceKm`.
 
-        > 🚧 **제안 — 협업자 확인 대기 (2026-10-13).** `phone`·`addressDetail` 두 필드가 늘고,
+        > 🚧 **제안 — 협업자 확인 대기 (2026-10-13), 요청 07 (§21):** `procedures`·`tagline` 두 필드가
+        > 더 늘고, **기존 필드는 하나도 지워지지 않는다.** `procedureIds` 는 `procedures` 에서
+        > **파생되는 읽기 전용 값**으로 남고(두 출처가 아니다), `priceRange` 는 **역할만** 바뀐다
+        > (시술별 가격이 하나도 없을 때의 대체값 — 아래 `priceRange` 설명). 그래서 **병원 카드·검색·
+        > 찜 목록·지도 투영은 한 글자도 바뀌지 않는다.** 새 두 필드를 `required` 에 넣지 않은 것이
+        > "아직 제안" 의 기계적 표현이다.
+
+        > 🚧 **제안 — 협업자 확인 대기 (2026-10-13), 요청 06 (§20).** `phone`·`addressDetail` 두 필드가 늘고,
         > `approvalStatus` 는 여기에 **들어오지 않는다.**
         > 공개 응답에 승인 상태를 싣지 않는 이유는 단순하다 — **공개 응답에 실리는 병원은
         > 전부 `approved` 다**(`isPubliclyListed`). 값이 하나뿐인 필드는 정보가 아니고,
@@ -5652,16 +5980,82 @@ components:
             비어 보이는 문제만 막는다). **수정** 화면은 여전히 이 키를 보내지 않는다 —
             `대표 이미지 URL` 을 바꿔도 캐러셀이 안 바뀌는 증상이 수정 화면에만 남아 있다
             (`docs/features/known-issues.md`).
+
+            🚧 **[제안] 협업자 확인 대기 (2026-10-13)** — 요청 07 (§21, DB §16.5):
+            **모양은 그대로 `string[]` 이다.** 바뀌는 것은 ① 수정 화면이 이 배열을 **보내게 되고**
+            (`HospitalUpdateRequest.images`), ② 값이 **파일 업로드로 발급된 공개 URL** 일 수 있다는 것
+            (`POST /uploads`, `purpose=hospital_photo` → `UploadedFileRef.publicUrl`)뿐이다.
+            외부 URL 사진(기존 11곳)도 그대로 쓸 수 있다.
+
+            **순서가 계약이다 — 첫 항목이 대표 사진**이고, 저장 트랜잭션이 `thumbnail` 을 그 값으로
+            함께 갱신한다. `is_primary` 같은 두 번째 판정을 만들지 않는 이유이고, 위에 적힌
+            known-issue(`대표 이미지를 바꿔도 캐러셀이 그대로`)가 **그 동기화로 사라진다.**
+            최대 **11장**(대표 1 + 내부 10) — 초과는 `422 TOO_MANY_IMAGES`.
+            3장 이상은 **권장일 뿐 저장을 막지 않는다** — 막으면 사진 2장인 병원이 다른 칸도 저장할 수
+            없게 된다. 권장은 완성도 항목 `photos` 로 말한다.
           items:
             type: string
             format: uri
         procedureIds:
           type: array
           minItems: 1
+          description: |
+            이 병원이 취급하는 시술. 병원 카드·상세·검색·전문의 화면이 전부 쓰는 값이다.
+
+            🚧 **[제안] 협업자 확인 대기 (2026-10-13)** — 요청 07 (§21, DB §16.12):
+            **모양도 소비자도 바뀌지 않는다. 바뀌는 것은 출처뿐이다** — 합의되면 이 배열은
+            `procedures[].procedureId` 에서 **파생되는 읽기 전용 값**이 된다(두 출처가 아니다).
+            **바뀌는 쪽은 요청이다**: 저장은 `procedures` 배열 하나로 하고, 요청에
+            `procedureIds` 와 `procedures` 가 **둘 다 오면 `422`** 다.
           items:
             $ref: '#/components/schemas/ProcedureId'
+        procedures:
+          type: array
+          x-proposal: 제안 — 협업자 확인 대기 (2026-10-13)
+          description: |
+            🚧 **[제안] 협업자 확인 대기 (2026-10-13). 확정 계약이 아니다** — 요청 07
+            (§21, DB §16.1). 합의 전까지 구현하지 않는다.
+
+            시술과 **시술별 가격**. `procedureIds` 와 **같은 목록이고 순서도 같다** —
+            `procedureIds` 가 이 배열에서 파생된다. 병원 상세의 `시술·가격` 섹션이 읽는 값이고,
+            전체 가격대(`priceRange`)와의 우선순위는 `priceRange` 설명의 표 하나로 정해진다.
+
+            **대분류 9개로 묶는 것·`준비중` 배지·`원데이` 표시는 화면의 몫이다** — 서버는 시술 13종의
+            평면 목록만 내려준다 (요청서 07: "세부 시술 → 카테고리 노출 규칙은 그대로",
+            "원데이는 시술이 아니라 병원 특징").
+
+            **지금은 목록 응답(`GET /hospitals`)에도 실린다고 가정하지 마라** — 상세
+            (`GET /hospitals/{id}`)가 유일한 소비자다. 탐색 `가격 비교표` 를 시술별 가격으로
+            바꾸기로 하면 목록 응답에도 필요해지고 **응답 크기가 늘어난다** (열린 질문 9).
+
+            `required` 에 넣지 않은 것이 "아직 제안" 의 기계적 표현이다. 합의되면 required 가 되고
+            `minItems: 1` 이 붙는다 (`procedureIds` 의 제약이 그대로 옮겨온다).
+          items:
+            $ref: '#/components/schemas/HospitalProcedurePrice'
         priceRange:
           $ref: '#/components/schemas/PriceRange'
+          description: |
+            병원 전체 가격대.
+
+            🚧 **[제안] 협업자 확인 대기 (2026-10-13)** — 요청 07 (§21, DB §16.4):
+            **값도 모양도 그대로고 역할만 바뀐다.** 요청서 07 이 "기존 전체 가격대 값은 바로 지우지
+            말고, 시술별 가격이 없을 때 대신 보여주는 값으로 남겨 두기" 라고 지시한 자리다.
+
+            **고르는 규칙은 한 곳이다** (`hospitalPriceSection` — 응답에 둘 다 싣고 화면이 고른다):
+
+            | 조건 | 병원 상세 `시술·가격` 섹션 |
+            |---|---|
+            | `procedures` 에 ① 또는 ② 가 **1개 이상** | 시술별 목록 (`perProcedure`) |
+            | 전부 ③ 이고 `min`·`max` 가 **둘 다 0 초과** | 전체 가격대 한 줄 (`hospitalRange`) |
+            | 전부 ③ 이고 가격대도 `0` | **아무것도 그리지 않는다** (`none`) |
+
+            **섞지 않는다** — 시술별 목록을 그릴 때 가격이 없는(③) 시술 줄에 전체 가격대를 내려 적지
+            않는다. 적는 순간 **"그 시술의 가격" 이라는 거짓말**이 된다. 비교하려고 만든 기능이 비교를
+            망치는 자리다.
+
+            **다른 소비자는 지금 그대로다**: 병원 카드의 가격 줄은 한 줄이라 시술 13개를 담을 자리가
+            없고, 탐색 `가격 비교표` 도 이 값을 쓴다 (바꿀지는 열린 질문 9).
+            **마이그레이션 직후 기존 11곳은 전부 ③ 이라 화면이 지금과 똑같다** (백필이 없다).
         rating:
           type: number
           format: float
@@ -5746,6 +6140,25 @@ components:
           example: 3층 301호
         introduction:
           type: string
+        tagline:
+          type: string
+          maxLength: 40
+          x-proposal: 제안 — 협업자 확인 대기 (2026-10-13)
+          description: |
+            🚧 **[제안] 협업자 확인 대기 (2026-10-13). 확정 계약이 아니다** — 요청 07
+            (§21, DB §16.7). 리스트 카드에 노출되는 **한 줄 소개** (최대 40자).
+
+            **`introduction` 과 다른 필드다** — 카드 한 줄 vs 상세 문단. 합치지 않은 이유는 완성도
+            항목 `introduction`(30자 이상)이 **긴 소개**를 묻고 있어서다. 한 줄 소개를 같은 칸에 넣으면
+            그 판정이 무엇을 묻는지 알 수 없게 된다.
+
+            **빈 문자열이 정상값이다**(`null` 이 아니다) — 카드가 묻는 것은 "그릴 줄이 있는가" 하나뿐이고,
+            안 보이게 하려면 비우면 된다. 노출 on/off 플래그를 따로 두지 않는 이유다.
+            기존 11곳은 `''` 다 (백필할 값이 없다).
+
+            **40자를 넘기면 서버가 자르지 않고 `422 TAGLINE_TOO_LONG`** 이다 —
+            말없이 자르면 병원이 쓴 문장이 바뀐다.
+          example: 20년 경력 보철 전담 · 당일 보철 가능
         events:
           type: array
           description: |
@@ -5892,6 +6305,16 @@ components:
           description: 생략하면 서버가 기본 이미지를 넣는다.
         images:
           type: array
+          description: |
+            병원 상세 사진 캐러셀. 순서가 그대로 저장된다.
+
+            🚧 **[제안] 협업자 확인 대기 (2026-10-13)** — 요청 07 (§21, DB §16.5):
+            **첫 항목이 대표 사진**이고 서버가 `thumbnail` 을 그 값으로 함께 채운다
+            (둘을 따로 보내 어긋나게 둘 수 없다). 값은 외부 URL 이거나
+            `POST /uploads`(`purpose=hospital_photo`)가 돌려준 `publicUrl` 이다.
+            **최대 11장**(대표 1 + 내부 10) — 초과는 `422 TOO_MANY_IMAGES`.
+            합의되면 이 필드에 `maxItems: 11` 이 붙는다. **지금 붙이지 않은 것은
+            확정 계약의 제약을 제안이 조용히 바꾸지 않기 위해서다.**
           items:
             type: string
             format: uri
@@ -5899,6 +6322,15 @@ components:
           type: string
           maxLength: 2000
           default: ''
+        tagline:
+          type: string
+          maxLength: 40
+          default: ''
+          x-proposal: 제안 — 협업자 확인 대기 (2026-10-13)
+          description: |
+            🚧 **[제안] 협업자 확인 대기 (2026-10-13)** — 요청 07 (§21).
+            한 줄 소개(`Hospital.tagline`). 40자 초과는 `422 TAGLINE_TOO_LONG` —
+            **서버가 자르지 않는다.**
         priceRange:
           $ref: '#/components/schemas/PriceRange'
         tags:
@@ -5909,8 +6341,24 @@ components:
         procedureIds:
           type: array
           minItems: 1
+          description: |
+            🚧 **[제안] 협업자 확인 대기 (2026-10-13)** — 요청 07 (§21, DB §16.12):
+            합의되면 이 필드는 **요청에서 사라지고 `procedures` 가 대신한다**
+            (`required` 도 `procedureIds` → `procedures` 로 바뀐다). 둘 다 보내면 `422` 다 —
+            우선순위 규칙을 만들면 "둘 다 보내도 된다" 는 신호가 된다.
+            **지금 required 를 바꾸지 않은 것은 확정 계약을 제안이 깨지 않게 하기 위해서다.**
           items:
             $ref: '#/components/schemas/ProcedureId'
+        procedures:
+          type: array
+          minItems: 1
+          x-proposal: 제안 — 협업자 확인 대기 (2026-10-13)
+          description: |
+            🚧 **[제안] 협업자 확인 대기 (2026-10-13). 확정 계약이 아니다** — 요청 07
+            (§21, DB §16.12). 시술 체크 + **시술별 가격**을 한 배열로 받는다.
+            `procedureIds` 를 대체하며 둘 다 오면 `422`.
+          items:
+            $ref: '#/components/schemas/HospitalProcedureInput'
         consultAvailable:
           type: boolean
           default: true
@@ -5962,6 +6410,17 @@ components:
 
         광고·집계 필드는 누구도 보낼 수 없다 (`422 FIELD_NOT_WRITABLE`).
         `isRecommended` 는 **`operator` 만** 보낼 수 있고 `hospital_admin` 이 보내면 거절된다.
+
+        > 🚧 **[제안] 협업자 확인 대기 (2026-10-13). 확정 계약이 아니다** — 요청 07
+        > (§21, DB §16.12). 필드 셋이 는다: `procedures`·`tagline`·(기존)`images` 의 실제 사용.
+        >
+        > ⚠️ **이 스키마에서 가장 조용한 사고 지점**: 지금 서버는 `procedureIds` 배열을 받아
+        > 조인 행을 **전체 교체**한다(delete all → insert). 그 테이블에 가격 컬럼이 생기는데
+        > 교체 방식을 그대로 두면 **병원 이름만 고쳐 저장해도 시술별 가격이 전부 사라진다.**
+        > 그래서 `procedures` 는 **교체가 아니라 머지**다 (아래 필드 설명 · `PATCH /hospitals/{id}` 설명).
+        >
+        > **파생 특징(`features.nightCare`·`features.weekend`)을 보내면 `422 FEATURE_NOT_WRITABLE`** 이다.
+        > 조용히 무시하지 않는 이유는 `isRecommended` 와 같다 — "저장했는데 안 바뀐다" 가 된다.
       properties:
         isRecommended:
           type: boolean
@@ -5992,14 +6451,46 @@ components:
           format: uri
         images:
           type: array
+          description: |
+            🚧 **[제안] 협업자 확인 대기 (2026-10-13)** — 요청 07 (§21, DB §16.5·16.12).
+            **수정 화면이 드디어 이 키를 보낸다** (지금은 보내지 않아서 `대표 이미지 URL` 을 바꿔도
+            캐러셀이 안 바뀐다 — `docs/features/known-issues.md`).
+
+            - **전체 교체다** (`procedures` 와 다르다). 사진 행에는 "그 행에만 붙은 입력값" 이 없고
+              순서가 곧 전부라 교체가 머지보다 단순하다. 서버가 `sort_order` 를 **0..n-1 로 다시
+              매긴다** — 같은 순서값이 여럿이면 캐러셀 순서가 DB 반환 순서가 되고, 대표 사진이
+              날마다 바뀌는 버그가 거기서 나온다
+            - **생략하면 사진을 건드리지 않는다.** 빈 배열(`[]`)은 "전부 지운다" 는 뜻이고, 그때
+              `thumbnail` 은 **지우지 않고 그대로 둔다**
+            - **첫 항목이 대표**이고 서버가 `thumbnail` 을 그 값으로 동기화한다. 같은 요청에
+              `thumbnail` 을 따로 보내 서로 다른 값을 지정하면 `422` (판정이 두 곳이 되지 않게)
+            - 값은 외부 URL 이거나 `POST /uploads`(`purpose=hospital_photo`)의 `publicUrl` 이다.
+              서버는 **발급한 값 그대로 역조회**해 그 파일을 이 병원 것으로 claim 한다 —
+              URL 을 파싱하지 않는다 (URL 형태는 열린 질문 7·11)
+            - 남의 파일·없는 파일·파기된 파일을 가리키면 **`422 UPLOAD_NOT_FOUND`**
+              (네 경우를 한 코드로 합치는 것은 §20.3 과 같은 판단이다 — 구분해 주면
+              "그 자리에 남의 파일이 있다" 가 샌다)
+            - 최대 **11장** → 초과는 `422 TOO_MANY_IMAGES`. 같은 URL 이 두 번 오면 `422`
           items:
             type: string
             format: uri
         introduction:
           type: string
           maxLength: 2000
+        tagline:
+          type: string
+          maxLength: 40
+          x-proposal: 제안 — 협업자 확인 대기 (2026-10-13)
+          description: |
+            🚧 **[제안] 협업자 확인 대기 (2026-10-13)** — 요청 07 (§21).
+            한 줄 소개. 40자 초과는 `422 TAGLINE_TOO_LONG` — **서버가 자르지 않는다.**
+            지우려면 빈 문자열을 보낸다.
         priceRange:
           $ref: '#/components/schemas/PriceRange'
+          description: |
+            전체 가격대. 🚧 **[제안] 요청 07 (§21):** 계속 보낼 수 있다 — **지우지 않는다.**
+            시술별 가격이 하나도 정해지지 않은 병원의 상세가 이 값으로 그려진다
+            (폴백 규칙은 `Hospital.priceRange` 설명의 표).
         tags:
           type: array
           items:
@@ -6008,8 +6499,41 @@ components:
         procedureIds:
           type: array
           minItems: 1
+          description: |
+            🚧 **[제안] 협업자 확인 대기 (2026-10-13)** — 요청 07 (§21, DB §16.12):
+            합의되면 이 필드는 **요청에서 사라지고 `procedures` 가 대신한다.** 둘 다 보내면 `422`.
+
+            ⚠️ **합의 전의 동작을 분명히 해 둔다**: 지금 이 배열은 조인 행을 **전체 교체**한다.
+            가격 컬럼이 들어간 뒤에도 이 필드를 계속 받아 교체한다면 **가격이 함께 지워진다** —
+            그래서 `procedures` 와 **같은 요청에 섞을 수 없고**, 전환이 끝나면 이 필드를 내린다.
           items:
             $ref: '#/components/schemas/ProcedureId'
+        procedures:
+          type: array
+          minItems: 1
+          x-proposal: 제안 — 협업자 확인 대기 (2026-10-13)
+          description: |
+            🚧 **[제안] 협업자 확인 대기 (2026-10-13). 확정 계약이 아니다** — 요청 07
+            (§21, DB §16.12). 시술 체크와 **시술별 가격**을 한 배열로 받는다.
+
+            **저장 규칙은 머지다 — 교체가 아니다:**
+
+            | 요청의 상태 | 서버가 하는 일 |
+            |---|---|
+            | 필드를 **생략** | 시술도 가격도 **건드리지 않는다** (부분 수정의 뜻 그대로) |
+            | 배열에 있는 시술 | **upsert** — 보낸 가격 값으로 덮는다 |
+            | 배열에 **없는** 기존 시술 | **delete** (체크 해제 = 행 삭제 = 가격도 함께 사라짐) |
+            | 빈 배열 `[]` | `422` (`minItems: 1`) — 시술 0개 병원은 환자가 시술로 찾을 수 없다 |
+
+            **"가격 칸을 비워서 보내면 가격만 지운다"** 가 성립한다 —
+            `{ procedureId, priceMin: null, priceMax: null, priceOnRequest: false }` 가
+            ③(미입력)이고, 그것은 정상 상태다.
+
+            **한 요청 = 한 트랜잭션**이다. 시술 머지 · 진료시간 · 사진 교체 · `thumbnail` 동기화 ·
+            업로드 파일 claim 이 전부 같은 트랜잭션 안에서 일어난다. 파일 **바이트**만 그 밖이다
+            (업로드가 저장보다 먼저 끝난다 — §20.3 과 같은 구조).
+          items:
+            $ref: '#/components/schemas/HospitalProcedureInput'
         consultAvailable:
           type: boolean
         isOneDay:
@@ -7886,6 +8410,12 @@ components:
 
             **`doctors` 만 `HOSPITAL_FIELD_KEYS` 에 없다** — 병원 필드가 아니라 수정 화면의
             **의료진 영역**이다. 요청 07 이 화면을 분리하면 그 라우트가 된다.
+
+            🚧 **[제안] 협업자 확인 대기 (2026-10-13)** — 요청 07 (§21): 합의되면 이 enum 에
+            **`procedures`·`images`·`tagline`** 이 더해지고, 항목 3(`procedures`)의 `target` 이
+            `procedureIds` → **`procedures`** 로 옮겨간다 (요청 필드 이름이 그것이고, 서버 오류
+            경로도 `procedures[2].priceMin` 이다 — 폼 앵커 이름이 같아야 접두 매칭이 그 칸을 찾는다).
+            같은 섹션이라 **포커스 지점은 그대로**다.
           example: businessHours
 
     HospitalCompletenessItemKey:
@@ -7913,15 +8443,43 @@ components:
         **0개가 정상 상태**라 "안 채웠다" 고 말하면 거짓말을 체크하게 만들며, 태그(`tags`)는
         태그 필터 화면이 없어 비어 있어도 환자 화면에 빈자리가 생기지 않는다.
 
-        **🚧 07 에서 더해질 자리 둘** (지금 내려가지 않는다):
-
-        | 예정 `key` | 라벨 | 왜 지금은 없나 | 예정 `target` |
-        |---|---|---|---|
-        | `procedurePrices` | 시술별 가격 | 스키마를 요청 07 이 정한다 | `procedureIds` |
-        | `photos` | 병원 사진 3장 이상 | **오늘 채울 수단이 없다** — 수정 화면이 `images` 를 아예 보내지 않고 파일 업로드가 없다 | `images` (⚠️ 이 키는 아직 `HOSPITAL_FIELD_KEYS` 에 **없다** — 07 이 입력 칸을 만들 때 함께 더해야 한다) |
-
-        늘어나는 것은 **값 추가**라 breaking 이 아니지만 `percent` 의 분모가 7에서 9로 바뀐다 —
-        같은 병원의 완성도가 그날 **내려간다.** 그래서 화면은 퍼센트를 저장해 두고 비교하지 않는다.
+        > 🚧 **[제안] 협업자 확인 대기 (2026-10-13). 확정 계약이 아니다** — 요청 07
+        > (`docs/api/README.md` §21, DB §16.9). **항목이 7 → 9 가 된다.** 비워 두었던 두 자리가
+        > **입력 수단을 얻었다**(가격 칸 · 파일 업로드) — 선정 기준("담당자가 지금 이 화면에서
+        > 입력할 수 있는가")을 둘 다 만족한다.
+        >
+        > **합의되면 위 enum 에 `procedurePrices`·`photos` 두 값이 더해지고 `items` 배열이
+        > 이 순서로 9개가 된다** (지금 enum 을 넓히지 않은 것은 "서버가 이미 이 값을 내려줄 수
+        > 있다" 고 말하지 않기 위해서다):
+        >
+        > | # | `key` | 라벨 | 충족 조건 | `target` |
+        > |---|---|---|---|---|
+        > | 1 | `basicInfo` | 기본 정보 | (그대로) | `name` |
+        > | 2 | `businessHours` | 진료시간 | (그대로) | `businessHours` |
+        > | 3 | `procedures` | 진료 시술 | `procedures.length >= 1` | **`procedures`** ← `procedureIds` 에서 바뀐다 |
+        > | **4** | **`procedurePrices`** | **시술별 가격** | 시술 ≥ 1 **이고 모든 시술이 ① 또는 ②** (`HospitalProcedurePrice` 의 표) | **`procedures`** |
+        > | 5 | `thumbnail` | 대표 이미지 | (그대로) | `thumbnail` |
+        > | **6** | **`photos`** | **병원 사진 3장 이상** | `images.length >= 3` | **`images`** |
+        > | 7 | `introduction` | 병원 소개 | (그대로) | `introduction` |
+        > | 8 | `directions` | 찾아오시는 길 | (그대로) | `directions` |
+        > | 9 | `doctors` | 의료진 | (그대로) | `doctors` |
+        >
+        > **`procedurePrices` 를 "하나라도 적었으면 충족" 으로 하지 않은 이유**: 시술 13개 중 1개만
+        > 적고 100% 가 되면 그 항목은 "환자가 비교할 수 있다" 는 **거짓 신호**가 된다. 반대로
+        > "전부" 가 가혹하지 않은 이유는 **`상담 후 안내` 가 클릭 한 번**이기 때문이다 —
+        > 가격을 공개하지 않기로 한 병원도 100% 에 도달한다.
+        >
+        > **`thumbnail`(5)과 `photos`(6)를 둘 다 둔다.** 3장이면 대표도 참이라 포함 관계처럼
+        > 보이지만 **1~2장 상태에서 갈린다**(대표는 있고 3장은 아님). 다른 질문이다.
+        >
+        > ⚠️ **분모가 7 → 9 로 바뀌므로 같은 병원의 완성도가 그날 내려간다** (7/7 → 7/9 = 78%).
+        > **의도된 것이다** — 채울 수 있는 칸이 둘 늘었고 완성도는 그 칸이 비었다는 사실을 말해야
+        > 한다. 다만 담당자에게는 "아무것도 안 했는데 점수가 깎였다" 로 보이므로
+        > **릴리스 노트에 적어야 한다.** `percent` 의 **"전부 충족이 아니면 99 상한"** 은
+        > 고칠 것이 없다 — 바로 이 날을 위한 장치다.
+        >
+        > `target` enum 에도 **`procedures`·`images`·`tagline` 세 값**이 함께 더해진다
+        > (= 프런트 `HOSPITAL_FIELD_KEYS` 와 서버 `422 details[].field` 의 묶음 키).
 
     # ---------------------------------------------------------------- 찜
     FavoriteList:
@@ -8328,21 +8886,37 @@ components:
     # ---------------------------------------------------------------- 업로드 (🚧 제안)
     FilePurpose:
       type: string
-      enum: [business_registration]
+      enum: [business_registration, hospital_photo]
       description: |
         🚧 **제안 — 협업자 확인 대기 (2026-10-13).** 파일의 용도.
         **접근 통제와 보관 기간이 전부 이 값에서 파생된다** (`canReadFile(purpose, role)` ·
         `retentionOf(purpose, state)` — DB §14.7). 그래서 권한 컬럼을 따로 두지 않는다.
 
-        지금 값은 하나다. **요청 07(병원 사진)이 `hospital_photo` 를 더할 예정이지만
-        여기서 미리 만들지 않는다** — 그 값은 공개 파일이라 접근 규칙이 반대이고,
-        소비자가 없는 enum 값은 "이미 된다" 는 오해를 만든다.
+        **값 둘은 서로 다른 제안에 속하고 따로 합의될 수 있다:**
+
+        | 값 | 제안 | 인증 | 읽는 법 |
+        |---|---|---|---|
+        | `business_registration` | 요청 06 (§20) | **없음** — 가입 전이라 토큰이 없다 | `GET /uploads/{id}/content` (운영자 전용 · 감사 대상) |
+        | `hospital_photo` | **요청 07 (§21)** | **필수** — 로그인한 담당자 | **공개 URL** (`UploadedFileRef.publicUrl` → `Hospital.images[]`) |
+
+        > `hospital_photo` 는 **이 제안이 더한 값이다** (06 은 "소비자가 없는 enum 값은 '이미 된다'
+        > 는 오해를 만든다" 며 미뤘고, 요청 07 이 그 소비자다). **`FilePurpose` 스키마 자체가
+        > 제안이므로 확정 계약의 enum 을 넓힌 것이 아니다** — 합의가 갈리면 값 하나만 빠진다.
+
+        **규칙이 정반대인 값 둘을 한 enum·한 오퍼레이션에 둔 이유**: 판정이
+        `canReadFile(purpose, role)` **한 함수** 안에 남기 때문이다. 오퍼레이션을 나누면
+        "이 바이트를 누가 읽을 수 있는가" 의 답이 두 곳이 된다. 그 함수는 이미
+        `business_registration` 이 아니면 공개를 돌려주므로 **고칠 것이 없다** (DB §16.5).
 
     UploadedFileRef:
       type: object
       description: |
         🚧 **제안 — 협업자 확인 대기 (2026-10-13).** 업로드된 파일의 **참조**.
-        **바이트도 URL 도 여기 없다** — 읽기는 `GET /uploads/{id}/content` 하나뿐이다.
+        사업자등록증(06)에는 **바이트도 URL 도 여기 없다** — 읽기는
+        `GET /uploads/{id}/content` 하나뿐이다.
+
+        🚧 **요청 07(§21)**: 병원 사진(`purpose=hospital_photo`)에만 `publicUrl` 이 채워진다.
+        **서류와 사진의 차이가 이 필드 하나로 드러난다.**
       required: [fileId, originalName, byteSize]
       properties:
         fileId:
@@ -8359,6 +8933,25 @@ components:
           type: integer
           description: 바이트. 화면이 `2.1MB` 로 환산해 보여준다.
           example: 2201440
+        publicUrl:
+          type: [string, 'null']
+          format: uri
+          x-proposal: 제안 — 협업자 확인 대기 (2026-10-13)
+          description: |
+            🚧 **[제안] 요청 07 (§21, DB §16.5).** `purpose=hospital_photo` 일 때만 채워지는
+            **공개 URL**, 그 밖에는 `null` 이다 — 사업자등록증에는 **영원히 `null`** 이다
+            (URL 을 한 번이라도 발급하면 그것을 아는 사람 전부가 열람자가 되고 §20.3 의 보장이 무너진다).
+
+            **이 문자열을 그대로 `HospitalUpdateRequest.images[]` 에 넣어 저장한다.** 서버는 저장
+            시점에 **자기가 발급한 값 그대로 역조회**해 그 파일을 claim 한다 — **URL 을 파싱하지
+            않는다.** 그래야 URL 형태(공개 라우트 / 저장소 URL / 정적 경로)가 어느 쪽으로 정해져도
+            저장 경로가 바뀌지 않는다 (열린 질문 7·11).
+
+            **사진의 쓰기 입력을 `fileId` 가 아니라 이 URL 로 받는 이유**: 응답
+            `Hospital.images: string[]` 를 그대로 두기 위해서다. 두 모양(쓰기는 id, 읽기는 URL)을
+            섞으면 폼이 기존 외부 URL 사진과 새로 올린 사진을 **다른 배열**로 들어야 하고,
+            순서(= 대표 사진)가 두 배열에 걸친다.
+          example: https://cdn.molamola.kr/hospital-photos/up_01J9X8V0Q3.jpg
 
     # ---------------------------------------------------------------- auth
     UserRole:
