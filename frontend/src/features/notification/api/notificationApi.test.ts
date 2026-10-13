@@ -7,7 +7,7 @@ import {
   markNotificationAsRead,
 } from '@/features/notification/api/notificationApi';
 import { isApiError } from '@/lib/apiClient';
-import { writeCollection } from '@/lib/localCollection';
+import { readCollection, writeCollection } from '@/lib/localCollection';
 import type { AppNotification } from '@/types/domain';
 
 /** 삭제된 `useNotificationStore` 의 동작을 이 계층으로 옮겨 고정한다. */
@@ -95,6 +95,38 @@ describe('markNotificationAsRead', () => {
     const error = await markNotificationAsRead('nope').catch((caught: unknown) => caught);
 
     expect(isApiError(error) && error.status).toBe(404);
+  });
+});
+
+describe('consultStatus — 읽을 때 키를 맞춘다', () => {
+  // 계약의 `AppNotification` 은 `consultStatus` 를 **required · nullable** 로 못 박는다.
+  // 저장 쪽에는 칸이 생기기 전의 행과 시드(백엔드 seed 가 import 하는 fixture)가 그대로
+  // 남아 있으므로, 백필하지 않고 **읽을 때** 맞춘다.
+  it('칸이 없는 과거 행·시드도 `consultStatus: null` 로 내려간다', async () => {
+    writeCollection('notifications', [notification({ id: 'legacy' })]);
+
+    const [item] = (await fetchNotifications('user')).items;
+
+    expect('consultStatus' in item).toBe(true);
+    expect(item.consultStatus).toBeNull();
+    // 저장된 행은 건드리지 않는다 — 백필 없음 (`docs/database/README.md` §15.8).
+    expect(readCollection('notifications')[0].consultStatus).toBeUndefined();
+  });
+
+  it('적혀 있는 값은 그대로 내려간다', async () => {
+    writeCollection('notifications', [notification({ id: 'n-booked', consultStatus: 'booked' })]);
+
+    expect((await fetchNotifications('user')).items[0].consultStatus).toBe('booked');
+  });
+
+  it('읽음 처리 응답도 같은 모양이다 — 처음 읽을 때도, 이미 읽은 행을 다시 눌러도', async () => {
+    writeCollection('notifications', [
+      notification({ id: 'n-unread' }),
+      notification({ id: 'n-read', isRead: true }),
+    ]);
+
+    await expect(markNotificationAsRead('n-unread')).resolves.toMatchObject({ consultStatus: null });
+    await expect(markNotificationAsRead('n-read')).resolves.toMatchObject({ consultStatus: null });
   });
 });
 

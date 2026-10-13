@@ -10,7 +10,6 @@ import {
   formatAppliedAt,
   formatDateTimeShort,
   formatVisitAt,
-  formatVisitAtLong,
   isConsultDelayed,
   todayInSeoul,
   toVisitAtInputs,
@@ -138,12 +137,6 @@ describe('formatDateTimeShort', () => {
   it('파싱할 수 없으면 null', () => {
     expect(formatDateTimeShort('어제')).toBeNull();
     expect(formatDateTimeShort(null)).toBeNull();
-  });
-});
-
-describe('formatVisitAtLong — 환자 알림 문구', () => {
-  it('`M월 D일(요일) HH:MM` 로 적는다', () => {
-    expect(formatVisitAtLong('2026-10-08T05:00:00Z')).toBe('10월 8일(목) 14:00');
   });
 });
 

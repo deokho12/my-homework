@@ -1,6 +1,6 @@
 import { ApiError } from '@/lib/apiClient';
 import { pageLocalRows, readCollection, writeCollection } from '@/lib/localCollection';
-import type { AppNotification, NotificationAudience, Paged } from '@/types/domain';
+import type { AppNotification, ConsultStatus, NotificationAudience, Paged } from '@/types/domain';
 
 /**
  * 알림함.
@@ -55,6 +55,28 @@ export interface MarkAllReadResult {
   unreadCount: number;
 }
 
+/**
+ * 서버 전환 시 삭제: **로컬에서 알림 행을 만들 때의 입력 모양**이다 (만드는 함수 자체는
+ * `features/consult/api/consultApi.ts`·`features/inquiry/api/inquiryApi.ts` 안에 있다).
+ *
+ * `consultStatus` 를 **선택이 아니라 필수**로 요구한다 — 저장된 행에서는 선택 필드지만
+ * (칸이 생기기 전의 행과 시드에 키가 없다), **새로 만드는 행은 반드시 적는다**는 것이
+ * 쓰기 경로의 불변식이다 (`docs/database/README.md` §15.1). 타입이 그것을 강제하면
+ * 통로가 하나 더 생기는 날 컴파일 에러로 잡힌다.
+ */
+export type NewLocalNotification = Omit<AppNotification, 'id' | 'createdAt' | 'isRead' | 'consultStatus'> & {
+  consultStatus: ConsultStatus | null;
+};
+
+/**
+ * 저장 행 → 응답 행. **칸이 없는 과거 행·시드는 읽을 때 `null` 로 맞춘다** (백필하지
+ * 않는다 — 시드 fixture 는 백엔드 seed 가 import 하는 파일이라 고치지 않는다).
+ * 그래서 화면은 `consultStatus` 가 "없는" 경우를 따로 다루지 않아도 된다.
+ */
+function toNotification(stored: AppNotification): AppNotification {
+  return { ...stored, consultStatus: stored.consultStatus ?? null };
+}
+
 function inAudience(audience: NotificationAudience) {
   return (notification: AppNotification) => notification.audience === audience;
 }
@@ -72,7 +94,8 @@ export async function fetchNotifications(
 ): Promise<NotificationList> {
   const rows = readCollection('notifications')
     .filter(inAudience(audience))
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .map(toNotification);
 
   return { ...pageLocalRows(rows, filters.page, filters.pageSize), unreadCount: unreadCountFor(audience) };
 }
@@ -103,7 +126,7 @@ export async function markNotificationAsRead(id: string): Promise<AppNotificatio
     throw new ApiError({ status: 404, code: 'NOTIFICATION_NOT_FOUND', message: '알림을 찾을 수 없어요' });
   }
 
-  if (target.isRead) return target;
+  if (target.isRead) return toNotification(target);
 
   const updated: AppNotification = { ...target, isRead: true };
 
@@ -112,7 +135,7 @@ export async function markNotificationAsRead(id: string): Promise<AppNotificatio
     rows.map((notification) => (notification.id === id ? updated : notification))
   );
 
-  return updated;
+  return toNotification(updated);
 }
 
 /**

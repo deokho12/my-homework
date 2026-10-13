@@ -1,6 +1,4 @@
-import {
-  formatVisitAtLong,
-} from '@/features/consult/consultDisplay';
+import { consultNotificationText } from '@/features/consult/consultNotificationText';
 import {
   cancelReasonOf,
   classifyEvent,
@@ -14,6 +12,7 @@ import {
   CONSULT_PHONE_PATTERN,
   INVALID_PHONE_MESSAGE,
 } from '@/features/consult/schemas/consultRequestSchema';
+import type { NewLocalNotification } from '@/features/notification/api/notificationApi';
 import { ApiError } from '@/lib/apiClient';
 import {
   nextLocalId,
@@ -26,7 +25,6 @@ import {
 import { useAuthStore } from '@/store/useAuthStore';
 import {
   CONSULT_STATUSES,
-  CONSULT_STATUS_LABEL,
   isConsultCancelReason,
   type AppNotification,
   type ConsultCancelReason,
@@ -206,6 +204,14 @@ export interface ConsultStatusUpdateInput {
   visitAt?: string | null;
   /** `cancelled` 일 때 필수. 다른 상태로 갈 때 보낸 값은 무시한다. */
   cancelReason?: ConsultCancelReason | null;
+  /**
+   * 서버 전환 시 삭제: 계약에 없는 **로컬 전용 입력**이다 (`inquiryApi` 의
+   * `HospitalInquiryCreateInput.hospitalName` 과 같은 수법). 환자에게 가는 알림 문구에
+   * 병원 이름이 들어가는데, 서버는 `hospitals` 를 조인해 얻지만 로컬에는 그 표가 없다 —
+   * 병원을 이미 조회해 이름을 그리고 있는 화면(관리자 상담 상세)이 넘겨준다.
+   * 넘어오지 않으면 문구는 `병원` 으로 성립한다.
+   */
+  hospitalName?: string;
 }
 
 /* --------------------------------------------------------------- 로컬 구현 보조 */
@@ -370,7 +376,7 @@ function normalizePhone(phone: string): string {
 //
 // 상담 접수(`POST /consult-requests`)와 상태 변경(`PATCH .../status`)의 **부수효과로**
 // 서버가 알림을 만든다 — 알림을 만드는 공개 엔드포인트는 계약에 아예 없다.
-function createLocalNotification(input: Omit<AppNotification, 'id' | 'createdAt' | 'isRead'>): string {
+function createLocalNotification(input: NewLocalNotification): string {
   const notification: AppNotification = {
     ...input,
     id: nextLocalId('notif'),
@@ -495,6 +501,8 @@ export async function createConsultRequest(input: ConsultRequestCreateInput): Pr
     title: '새로운 상담 신청',
     message: `${request.name}님이 상담을 신청했어요`,
     relatedId: request.id,
+    // 접수 알림이 말하는 상태는 그 상담이 방금 놓인 상태다 (`new`).
+    consultStatus: 'new',
   });
 
   return toMyConsultRequest(request);
@@ -622,19 +630,22 @@ export async function updateConsultStatus(
   if (event === 'noop') return toAdminConsultRequest(target, detail);
 
   const changedAt = new Date().toISOString();
-  const visitLabel = formatVisitAtLong(resolvedVisitAt);
 
   // 서버 전환 시 삭제: 알림 생성은 서버 몫 (상태 변경 트랜잭션의 부수효과다)
   const notificationId = createLocalNotification({
     audience: 'user',
     type: 'consult-status',
-    ...(event === 'reschedule'
-      ? { title: '예약 일시 변경', message: `예약 일시가 '${visitLabel}'(으)로 변경되었어요` }
-      : {
-          title: '상담 상태 변경',
-          message: `상담 상태가 '${CONSULT_STATUS_LABEL[input.status]}'(으)로 변경되었어요`,
-        }),
+    // 문구는 순수 함수 하나가 만든다 — 서버로 옮길 때 그 파일째 간다.
+    ...consultNotificationText({
+      event,
+      status: input.status,
+      visitAt: resolvedVisitAt,
+      cancelReason,
+      hospitalName: input.hospitalName ?? null,
+    }),
     relatedId: id,
+    // 일시만 바뀐 경우에도 그 시점 상태는 `booked` 다 (`input.status` 가 그 값이다).
+    consultStatus: input.status,
   });
 
   const updated: StoredConsultRequest = {

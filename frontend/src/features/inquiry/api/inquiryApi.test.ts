@@ -466,6 +466,8 @@ describe('inquiryApi — 답변 (POST /hospital-inquiries/{id}/answer)', () => {
       message: '강남 스마일 치과 · 평일은 오전 10시부터 오후 7시까지 진료합니다.',
       relatedId: 'hi-h1',
       isRead: false,
+      // 상담 알림이 아니다 — 상태 칸은 비어 있어야 아이콘이 문의로 갈린다.
+      consultStatus: null,
     });
   });
 

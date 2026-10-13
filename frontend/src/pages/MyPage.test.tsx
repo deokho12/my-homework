@@ -257,6 +257,32 @@ describe('MyPage — 상담 내역 탭', () => {
 
     expect(await screen.findByText('아직 신청한 상담이 없어요')).toBeInTheDocument();
   });
+
+  it('알림에서 온 `?consult=` 는 그 행에 포커스를 주고, 쓰고 나면 주소에서 지운다', async () => {
+    await consultBy('u-me', { hospitalId: 'h1' });
+    const mine = await consultBy('u-me', { hospitalId: 'h2' });
+
+    renderMyPage(`/mypage?tab=consults&consult=${mine.id}`);
+
+    const row = await screen.findByRole('button', { name: /B치과의원/ });
+    await waitFor(() => expect(row).toHaveFocus());
+    // 포커스가 사라져도 어느 줄인지 남아야 한다 — 링은 주소를 정리한 뒤에도 그 행에 있다.
+    expect(row.className).toContain('ring-brand-300');
+    expect(screen.getByRole('button', { name: /A치과의원/ }).className).not.toContain('ring-brand-300');
+
+    // 한 번 쓰고 지운다 — 탭은 그대로 두고 `consult=` 만 사라진다.
+    await waitFor(() => expect(probe()).toBe('?tab=consults|REPLACE'));
+  });
+
+  it('목록에 없는 상담 id 면 조용히 탭만 열고 주소만 정리한다', async () => {
+    await consultBy('u-me', { hospitalId: 'h1' });
+
+    renderMyPage('/mypage?tab=consults&consult=cr-not-mine');
+
+    expect(await screen.findByRole('button', { name: /A치과의원/ })).toBeInTheDocument();
+    await waitFor(() => expect(probe()).toBe('?tab=consults|REPLACE'));
+    expect(screen.getByRole('button', { name: /A치과의원/ }).className).not.toContain('ring-brand-300');
+  });
 });
 
 describe('MyPage — 탭 전환과 주소', () => {

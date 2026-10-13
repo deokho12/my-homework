@@ -12,6 +12,15 @@ openapi: 3.1.0
 #
 # 저장 구조와 1:1로 맞추지 않았다. 응답은 화면이 필요한 형태를 기준으로 정했고,
 # DB 스키마(`docs/database/`)와의 정렬은 별도로 진행된다.
+#
+# ── 표기 ───────────────────────────────────────────────────────────────────
+# 🚧            구현이 계약을 아직 따라오지 않았다 (계약은 확정)
+# 🚧 [제안] + x-proposal
+#               **계약 자체가 아직 확정이 아니다.** 합의 전까지 구현하지 않는다.
+#               지금 이 표시가 붙은 것은 **병원 관리자 직접 가입(요청 06)** 하나이고
+#               (2026-10-13, 협업자 확인 대기), 판단 근거는 `docs/api/README.md` §20,
+#               데이터 설계는 `docs/database/README.md` §14 에 있다.
+#               선행 조건: `docs/decisions/0001-roles-and-pii.md` 결정 2 개정
 # ---------------------------------------------------------------------------
 
 info:
@@ -103,6 +112,10 @@ tags:
     description: 병원 입점 문의 (접수 + 운영자 심사)
   - name: operator
     description: 운영자 전용 — 병원 담당자 지정·해제
+  - name: uploads
+    description: |
+      🚧 **제안 — 협업자 확인 대기 (2026-10-13).** 파일 업로드 (사업자등록증).
+      합의 전까지 확정 계약이 아니다 — `docs/api/README.md` §20 참고
 
 security: []
 
@@ -153,6 +166,168 @@ paths:
                   requestId: 01J9X8V0Q3
         '422':
           $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /auth/signup/hospital-admin:
+    post:
+      operationId: signUpAsHospitalAdmin
+      tags: [auth]
+      summary: '🚧 [제안] 병원 관리자 직접 가입'
+      x-proposal: 제안 — 협업자 확인 대기 (2026-10-13)
+      description: |
+        > 🚧 **제안 — 협업자 확인 대기 (2026-10-13).**
+        > **이것은 확정 계약이 아니다.** `docs/decisions/0001-roles-and-pii.md` **결정 2**
+        > (지금은 "병원 관리자 계정은 운영자가 만든다")가 개정되어야 성립한다. 그 문서의
+        > `변경 제안` 소절이 합의되기 전까지 **구현을 시작하지 않는다.**
+        > 데이터 설계는 `docs/database/README.md` **§14**, 계약 판단은 `docs/api/README.md` **§20**.
+
+        회원가입 화면의 `치과 관계자이신가요?` 토글을 켠 제출
+        (`docs/features/requests/2026-10-12-06-병원관리자-직접가입.md`).
+        가입 한 번으로 **계정 · 병원 · 담당자 연결 · 서류 주인 확정 · 약관 동의 4종**이 생기고,
+        성공 시 곧바로 로그인 상태가 된다 (일반 가입과 같다).
+
+        **`POST /auth/signup` 을 확장하지 않고 오퍼레이션을 나눈 이유** (판단, §20):
+
+        1. **토글에 따라 required 가 달라진다.** 한 스키마에 담으면 `oneOf` + discriminator 가
+           필요하고, 그 순간 `422` 의 `details[].field` 경로가 **어느 가지의 경로인지** 흐려진다.
+           이 폼은 필드가 10개가 넘고 화면이 칸마다 오류를 붙여야 한다 (§11 의 `details` 규약).
+        2. **일반 가입 흐름을 한 글자도 건드리지 않는다** — 요청서가 지킨 것이다
+           ("토글을 끈 상태에서 지금과 똑같이 동작").
+        3. **일어날 수 없는 에러가 계약에 섞이지 않는다.** `UPLOAD_NOT_FOUND`·`AGREEMENT_*` 는
+           일반 가입에서 영원히 발생하지 않는다. 한 오퍼레이션에 모아 두면 클라이언트가
+           "이 코드가 내게 올 수 있는가" 를 계약에서 읽어낼 수 없다.
+        4. 요청 한도도 다르다 (서류 업로드가 선행하는 경로라 더 조인다).
+
+        비용은 `name`/`email`/`password` 세 필드의 중복이다. 그 값이면 싸다 —
+        둘은 **같은 폼의 두 제출 경로**이고, 클라이언트는 제출 시점에 토글 값을 이미 안다.
+
+        **`operator` 계정은 이 경로를 쓸 수 없다** (애초에 비인증 경로이고, 가입은 항상
+        `role='hospital_admin'` 인 **새 계정**을 만든다). 이미 가입된 이메일이면 `409` 다 —
+        기존 계정을 이 경로로 승격시키지 않는다. 승격은 `POST /hospitals/{id}/admins` 그대로다.
+
+        **서버가 정하는 값** (요청으로 넘길 수 없다):
+        - `user.role = 'hospital_admin'`, `user.provider = 'email'`
+        - `hospital.approvalStatus` — 설정 플래그 `HOSPITAL_AUTO_APPROVE` 가 정한다
+          (dev 기본 `approved`, prod 기본 `pending` — DB §14.11). **요청이 고를 수 없다.**
+        - `hospital.region` — **요청 본문에 없다.** 가입 폼에 지역 칸이 없고 `region` 은 NOT NULL 이라,
+          서버가 주소에서 파생한다 (`GET /geo/address-search` 의 `region` → 없으면 주소 문자열 파싱).
+          ⚠️ **열린 질문** — 주소 검색 응답에 지역이 실리는지 확인해야 한다 (DB §14.17-7, §20).
+        - 집계·광고 필드 전부 (`POST /hospitals` 와 같다)
+
+        **한 트랜잭션이다** (DB §14.5). 중간 실패는 "담당 병원 0곳인 `hospital_admin`",
+        "주인 없는 병원 행", "동의 없이 가입된 계정" 을 만든다. **파일 바이트만 트랜잭션 밖**이고
+        (객체 저장소 쓰기는 롤백되지 않는다), 트랜잭션 안에서는 메타행을 **조건부 UPDATE 로 claim**
+        한다 — 깨지는 방향이 한쪽(주인 없는 파일이 남는 쪽)으로만 고정된다.
+
+        **약관은 4종 필수**다 — `terms`·`privacy`·`location`·`partner-terms`
+        (`requiredAgreementSlugs('hospital_admin')`, DB §14.8). 하나라도 빠지면 `422`.
+        **`POST /auth/signup`(일반)에 `partner-terms` 가 섞여 오면 그쪽도 `422`** 다 —
+        동의할 이유가 없는 약관에 동의한 기록을 만들지 않는다. 그래서 두 오퍼레이션의
+        `slug` enum 이 서로 다르다.
+
+        **승인 전에도 관리자 화면을 쓴다. 환자 앱에는 병원이 보이지 않는다** (`isPubliclyListed`,
+        DB §14.4). 그 판정이 걸리는 공개 오퍼레이션 목록은 §20 에 있다.
+      x-screens: [signup.md, login.md]
+      x-screen-status: "🚧"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HospitalAdminSignUpRequest'
+            example:
+              name: 김원장
+              email: director@smile-dental.kr
+              password: s3cret!
+              position: director
+              businessRegistrationFileId: up_01J9X8V0Q3
+              hospital:
+                name: 강남 스마일 치과
+                phone: 02-1234-5678
+                address: 서울 강남구 테헤란로 152
+                addressDetail: 3층 301호
+                latitude: 37.500613
+                longitude: 127.036431
+              agreedTermsVersions:
+                - slug: terms
+                  version: '1.0'
+                - slug: privacy
+                  version: '1.0'
+                - slug: location
+                  version: '1.0'
+                - slug: partner-terms
+                  version: '1.0'
+      responses:
+        '201':
+          description: |
+            가입 완료 + 로그인 상태. 기존 `AuthSession`(토큰 + 사용자) 에 **만들어진 병원 한 조각**이
+            붙는다 — 완료 화면이 `병원 정보 입력하기`(`hospital.id` 로 이동)와 상태 안내
+            (`approvalStatus`)를 **추가 조회 없이** 그려야 하기 때문이다.
+            병원 전체(`Hospital`)를 내려보내지 않는 이유: 그 값은 방금 보낸 입력이고,
+            화면이 필요한 것은 id 와 상태 둘뿐이다.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HospitalAdminAuthSession'
+        '409':
+          description: |
+            이미 가입된 이메일. **코드는 일반 가입과 같은 `EMAIL_ALREADY_REGISTERED` 다** —
+            db-master 가 넘긴 목록은 `EMAIL_TAKEN` 이었으나, 같은 사실에 코드를 둘 두면
+            화면이 두 문구 사전을 들게 된다 (§11 의 "`message` 를 그대로 보여준다" 가 깨진다).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: EMAIL_ALREADY_REGISTERED
+                  message: 이미 가입된 이메일이에요
+                  requestId: 01J9X8V0Q3
+        '422':
+          description: |
+            검증 실패. 네 종류가 같은 `422` 안에서 `code` 로 갈린다 — 화면이 어디를 가리킬지
+            알아야 해서 `details[].field` 로 자리를 짚어 준다.
+
+            | `code` | 언제 |
+            |---|---|
+            | `VALIDATION_FAILED` | 형식·길이·좌표 누락 등 일반 검증 |
+            | `UPLOAD_NOT_FOUND` | `businessRegistrationFileId` 가 없거나, 이미 주인이 있거나, 용도가 `business_registration` 이 아니거나, 파기된 파일 |
+            | `AGREEMENT_REQUIRED` | 필수 약관 4종 중 누락. 또는 목록에 없는 slug 가 섞임 |
+            | `AGREEMENT_VERSION_NOT_FOUND` | slug 는 맞는데 서버가 모르는 버전 |
+
+            **`UPLOAD_NOT_FOUND` 가 `404` 가 아닌 이유**: 없는 리소스를 요청한 것이 아니라
+            **요청 본문의 한 필드 값이 규칙을 어긴 것**이다. 화면은 업로드 칸에 오류를 붙이고
+            다시 올리게 해야 한다 (§11 의 `400` vs `422` 구분과 같은 기준).
+            네 경우를 한 코드로 합친 것도 의도다 — "남의 업로드 id 를 찍었다" 와 "만료됐다" 를
+            구분해 주면 id 대입으로 **다른 사람이 서류를 올렸는지** 알 수 있다.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                uploadNotFound:
+                  summary: 사업자등록증 파일을 찾을 수 없음
+                  value:
+                    error:
+                      code: UPLOAD_NOT_FOUND
+                      message: 사업자등록증을 다시 첨부해주세요
+                      details:
+                        - field: businessRegistrationFileId
+                          code: UPLOAD_NOT_FOUND
+                          message: 사업자등록증을 다시 첨부해주세요
+                      requestId: 01J9X8V0Q3
+                agreementRequired:
+                  summary: 파트너 약관 미동의
+                  value:
+                    error:
+                      code: AGREEMENT_REQUIRED
+                      message: 필수 약관에 모두 동의해야 가입할 수 있어요
+                      details:
+                        - field: agreedTermsVersions
+                          code: AGREEMENT_REQUIRED
+                          message: '[필수] 병원 파트너 이용약관에 동의해주세요'
+                      requestId: 01J9X8V0Q3
         '429':
           $ref: '#/components/responses/RateLimited'
 
@@ -543,6 +718,21 @@ paths:
         `id`, `rating=0`, `reviewCount=0`, `consultCount=0`, 광고 관련 필드 전부(`isSponsored=false`,
         `sponsoredCategories=[]`, `sponsoredRank=null`, `sponsoredStartDate=null`, `sponsoredEndDate=null`).
 
+        > 🚧 **제안 — 협업자 확인 대기 (2026-10-13): 이 오퍼레이션의 계약은 그대로다.**
+        > 직접 가입(`POST /auth/signup/hospital-admin`)이 생겨도 **요청 스키마도 필수 항목도
+        > 바뀌지 않는다.** 운영자 경로는 남는다 — 없어지는 것은 "유일한 경로" 라는 말뿐이고,
+        > 대량 이관·대행 등록이 여전히 이 경로다 (결정 0001 변경 제안).
+        >
+        > 서버가 정하는 값에 **`approvalStatus='approved'` 가 더해진다** —
+        > `approvalSource='operator'`, `approvalDecidedByUserId` = 요청한 운영자.
+        > 기본값(`pending`)에 기대지 않고 **명시해서 쓴다.** 운영자가 만든 병원은 이미 검수를
+        > 거친 것이고(결정 2 의 흐름), `pending` 으로 두면 운영자가 자기가 만든 병원을 자기가
+        > 다시 승인해야 한다.
+        >
+        > DB §14.16 이 가입 경로를 위해 `thumbnail`·`priceRange` 의 **DB 기본값**을 제안하지만,
+        > **이 계약은 느슨해지지 않는다** — 기본값은 폼이 그 값을 주지 않는 경로를 위한 것이고,
+        > 운영자는 지금도 세 값을 다 받는다.
+
         **`isRecommended`(에디터 추천)는 `operator` 만 설정할 수 있다.** 현재 폼에는 병원 관리자가 직접
         체크할 수 있는 `추천 병원으로 노출 (에디터 추천)` 체크박스가 있는데, 에디터 추천을 병원이
         스스로 켜는 것은 신뢰 문제다. 역할이 셋으로 갈리면서 이 항목의 주인이 명확해졌다 —
@@ -595,6 +785,24 @@ paths:
         - 의료진 → `GET /hospitals/{hospitalId}/doctors`
         - 후기 → `GET /hospitals/{hospitalId}/reviews`
         - 진행중인 이벤트 → `GET /promotions?hospitalId={hospitalId}`
+
+        > 🚧 **제안 — 협업자 확인 대기 (2026-10-13): 이 오퍼레이션에 시야가 둘 생긴다.**
+        >
+        > | 보는 사람 | 승인 대기·반려 병원 |
+        > |---|---|
+        > | 비로그인 · `user` · 담당이 아닌 `hospital_admin` | **`404 HOSPITAL_NOT_FOUND`** |
+        > | 담당 `hospital_admin` · `operator` | `200` (관리 시야) |
+        >
+        > **`403` 이 아니라 `404` 인 것이 요점이다.** `docs/api/README.md` §3 의 "병원 존재는
+        > 공개 정보라 숨겨서 얻는 것이 없다" 는 **이미 공개된 병원**을 말한다. 승인 전 병원은
+        > 아직 공개 자원이 아니고, `403` 을 주면 "이 id 에 심사 중인 병원이 있다" 가 새어
+        > id 대입으로 **입점 준비 중인 병원 수를 셀 수 있다.** `deleted_at` 된 병원을 `404` 로
+        > 다루는 것과 같은 취급이다. `PATCH /hospitals/{id}` 의 `403 HOSPITAL_NOT_MANAGED` 는
+        > 그대로다 — 그쪽은 **공개된 병원**에 대한 담당 범위 문제다.
+        >
+        > 이 시야 분기는 `GET` 하나에만 생긴다. 목록·검색·지도·전문의 등 **공개 질의 전부**는
+        > 분기 없이 `isPubliclyListed` 를 건다 (적용 자리 전체: `docs/database/README.md` §14.4,
+        > 요약은 `docs/api/README.md` §20).
       x-screens: [hospital-detail.md, consult-request.md, doctor-detail.md, events.md, notifications.md]
       x-screen-status: "✅"
       responses:
@@ -609,7 +817,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/Hospital'
         '404':
-          description: 병원 없음 (화면 문구 `병원 정보를 찾을 수 없어요`)
+          description: |
+            병원 없음 (화면 문구 `병원 정보를 찾을 수 없어요`).
+            🚧 제안이 합의되면 **공개 시야에서 본 승인 대기·반려 병원**도 여기로 떨어진다 (위).
           content:
             application/json:
               schema:
@@ -667,6 +877,107 @@ paths:
           $ref: '#/components/responses/HospitalNotFound'
         '422':
           $ref: '#/components/responses/ValidationFailed'
+
+  /hospitals/{hospitalId}/approval:
+    parameters:
+      - $ref: '#/components/parameters/HospitalId'
+    patch:
+      operationId: decideHospitalApproval
+      tags: [operator]
+      summary: '🚧 [제안] 병원 승인 · 반려 (운영자)'
+      x-proposal: 제안 — 협업자 확인 대기 (2026-10-13). **자리 예약이다** — 검수 화면이 범위 밖이라 모양이 바뀔 수 있다
+      description: |
+        > 🚧 **제안 — 협업자 확인 대기 (2026-10-13).** 확정 계약이 아니다.
+        > **운영자 검수 화면은 이번 범위 밖이다** (요청서 06 · DB §14.3 이 "전이 경로 없음" 으로 적는다).
+        > 그런데도 적어 두는 이유는 하나다 — **이것이 이 제안이 만드는 `pending` 상태의 유일한 출구**다.
+        > `HOSPITAL_AUTO_APPROVE` 를 끈 환경에서 이 오퍼레이션이 없으면 가입한 병원이 **영원히
+        > 환자 앱에 뜨지 않는다.** 모양(본문·응답)은 검수 화면이 생길 때 다시 본다.
+
+        `pending`/`rejected` → `approved`, `pending` → `rejected`. **`operator` 전용.**
+
+        **`PATCH /hospitals/{id}` 에 `approvalStatus` 를 끼우지 않은 이유**: 그 오퍼레이션은
+        `hospital_admin` 도 쓴다. 같은 본문에 승인 필드를 두면 **필드 단위 인가**가 하나 더 생기고
+        (지금 `isRecommended` 가 `422 FIELD_NOT_WRITABLE` 로 걸러지는 그 자리), 담당자가 자기 병원을
+        스스로 승인하는 경로를 **거절로 막는** 모양이 된다. 역할이 다르면 오퍼레이션을 나누는 쪽이
+        읽는 사람에게도 명확하다 (`PUT /doctors/{id}/verification` 과 같은 모양이다).
+
+        **`approved → 무엇이든` 전이는 없다.** 승인 취소는 상태 되돌리기가 아니라 삭제
+        (`deleted_at`)다 — 노출 판정이 `deletedAt === null && approvalStatus === 'approved'`
+        하나이므로 두 수단을 겹쳐 두면 "왜 안 보이는가" 의 답이 둘이 된다 (DB §14.1).
+
+        **부수효과**
+        1. `approvalStatus`·`approvalSource='operator'`·`approvalDecidedAt`·`approvalDecidedByUserId` 갱신
+        2. 감사 로그 1행 — `hospital.approve` 또는 `hospital.reject`
+           (`target_type='hospital'`, §4). **자동 승인은 감사 로그를 남기지 않는다** —
+           행위자가 없고, 가짜 시스템 계정을 넣으면 `actor_role` 스냅샷이 거짓이 된다 (DB §14.11)
+        3. 그 병원 담당자에게 알림 1건 — `audience=admin`, `type=system`,
+           `relatedResource=hospital`, `consultStatus=null`.
+           ⚠️ 요청서의 완료 화면은 "알림과 **문자**로 알려드려요" 라고 약속하는데
+           **SMS 발송 수단이 없다** (열린 질문, §20)
+        4. 승인되는 순간 그 병원이 **공개 목록·검색·지도·전문의 목록에 나타난다.**
+           반대로 반려는 아무것도 사라지게 하지 않는다 (애초에 보이지 않았다)
+      x-screens: []
+      x-screen-status: "🚧"
+      x-role: operator
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [approved, rejected]
+                  description: |
+                    `pending` 으로 되돌리는 값을 **받지 않는다** — 재제출 화면이 없어서
+                    되돌려 놓으면 병원이 아무것도 할 수 없는 상태에 갇힌다 (DB §14.17-1).
+                note:
+                  type: [string, 'null']
+                  maxLength: 500
+                  description: |
+                    **`status: rejected` 일 때 필수**다 — 없으면 `422 VALIDATION_FAILED`
+                    (`details[].code: APPROVAL_NOTE_REQUIRED`). 사유 없는 반려는 병원이
+                    무엇을 고쳐야 할지 알 수 없다. `partner_inquiries.review_note` 와 같은 성격이다.
+                    승인일 때 보낸 값은 저장한다 (검수 메모).
+            examples:
+              approve:
+                summary: 승인
+                value:
+                  status: approved
+              reject:
+                summary: 반려 — 사유 필수
+                value:
+                  status: rejected
+                  note: 제출하신 사업자등록증이 치과 의료기관으로 확인되지 않아요.
+      responses:
+        '200':
+          description: 결정이 반영된 병원 (관리 시야)
+          headers:
+            X-Audit-Logged:
+              schema:
+                type: boolean
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManagedHospital'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/HospitalNotFound'
+        '422':
+          description: |
+            사유 없는 반려, 또는 허용되지 않는 전이 (`approved` 인 병원에 다시 결정을 보냄 —
+            `code: INVALID_APPROVAL_TRANSITION`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /hospitals/{hospitalId}/doctors:
     parameters:
@@ -830,6 +1141,15 @@ paths:
 
         응답 항목은 공개 `Hospital` 과 같지만 광고 현황 표시용 `sponsorship` 계산 필드가 항상 포함된다
         (병원 수정 화면의 `광고 현황 (읽기 전용)` 카드).
+
+        **이 목록은 노출 판정(`isPubliclyListed`)을 적용하지 않는다 — 관리 시야다.**
+        승인 대기·반려 병원도 담당자와 운영자에게는 보여야 한다 (DB §14.4 의 "판정을 적용하지
+        않는 자리"). 공개 목록 `GET /hospitals` 는 반대로 **반드시** 적용한다.
+
+        > 🚧 **제안 — 협업자 확인 대기 (2026-10-13).** 아래 `approvalStatus` 파라미터와
+        > 응답 항목의 `ManagedHospital` 두 필드(`approvalStatus`·`position`)는 **제안**이다.
+        > 합의 전에는 이 오퍼레이션을 **지금 그대로**(`Hospital` 항목, 파라미터 2개) 읽어라.
+        > 근거: `docs/database/README.md` §14, `docs/api/README.md` §20.
       x-screens: [admin-home.md, admin-hospital-edit.md]
       x-screen-status: "✅"
       x-role: [hospital_admin, operator]
@@ -844,6 +1164,22 @@ paths:
           schema:
             type: string
             maxLength: 100
+        - name: approvalStatus
+          in: query
+          description: |
+            🚧 **제안 — 협업자 확인 대기 (2026-10-13).**
+            승인 상태 필터. **`operator` 의 검수 대기 목록**(`?approvalStatus=pending`)이 유일한
+            소비자다 — DB §14.14 가 그 질의 하나를 위해 인덱스 `(approval_status)` 를 둔다.
+
+            `hospital_admin` 이 보내면 무시하지 않고 그냥 담당 병원 안에서 걸러진다
+            (담당 병원이 1~2곳이라 필터의 의미가 거의 없지만, 역할마다 파라미터를 거절하는
+            규칙을 새로 만들 이유도 없다).
+
+            **별도 오퍼레이션(`GET /admin/hospitals/pending`)을 만들지 않은 이유**: 같은 목록의
+            부분집합이고, 응답 모양도 `scope` 도 같다. 경로를 나누면 운영자 콘솔이 두 캐시 키를
+            들고 같은 화면을 그리게 된다.
+          schema:
+            $ref: '#/components/schemas/HospitalApprovalStatus'
       responses:
         '200':
           description: 병원 목록
@@ -861,7 +1197,7 @@ paths:
                   items:
                     type: array
                     items:
-                      $ref: '#/components/schemas/Hospital'
+                      $ref: '#/components/schemas/ManagedHospital'
                   meta:
                     $ref: '#/components/schemas/PageMeta'
                   scope:
@@ -1444,8 +1780,10 @@ paths:
 
         **부수효과:** 접수와 동시에 **그 병원의 담당자 전원**(`hospital_admins` 에 걸린 계정)에게
         `audience=admin` 알림을 만든다 (제목 `새로운 상담 신청`, 내용 `{name}님이 상담을 신청했어요`,
-        `relatedResource=consultRequest`, `relatedId` = 상담 id).
+        `relatedResource=consultRequest`, `relatedId` = 상담 id,
+        **`consultStatus: new`** — 접수 직후의 상담 상태다, 2026-10-13).
         알림 생성은 이 엔드포인트의 책임이고, 별도의 알림 생성 API 는 없다.
+        문구는 **바뀌지 않는다** — 요청 08 이 정한 환자용 문장은 `audience=user` 알림의 것이다.
 
         알림 내용에 신청자 이름이 들어가므로 **수신자는 담당자로 한정된다.** `operator` 는 이 알림을 받지 않는다 —
         운영자에게는 이름이 마스킹되어야 하는데 알림 문구에 이름이 박히면 마스킹이 무의미해진다.
@@ -2064,8 +2402,8 @@ paths:
 
         | 현재와 다른 곳 | 결과 | 이력 | 환자 알림 | `X-Status-Changed` |
         |---|---|---|---|---|
-        | `status` 가 다르다 | 상태 변경 | `event: status_change` 1행 | 제목 `상담 상태 변경`, 내용 `상담 상태가 '{라벨}'(으)로 변경되었어요` | `true` |
-        | `status` 는 같고 `booked` 인데 `visitAt` 이 다르다 | **일시 변경** | `event: reschedule` 1행 (`status` 는 `booked` 그대로) | 제목 `예약 일시 변경`, 내용 `예약 일시가 '{10월 9일(목) 14:00}'(으)로 변경되었어요` | `true` |
+        | `status` 가 다르다 | 상태 변경 | `event: status_change` 1행 | 상태별 문구 (아래 부수효과 3) · `consultStatus` = **요청의 `status`** | `true` |
+        | `status` 는 같고 `booked` 인데 `visitAt` 이 다르다 | **일시 변경** | `event: reschedule` 1행 (`status` 는 `booked` 그대로) | 제목 `예약 일시가 바뀌었어요` · `consultStatus` = **`booked`** | `true` |
         | 세 값이 모두 같다 | **no-op** — 부수효과 없이 `200` + 현재 리소스 | 없음 | 없음 | `false` |
         | `status` 가 같고 위 두 경우가 아니다 (예: `cancelled` 그대로 `cancelReason` 만 다름, `booked` 아닌 상태에 `visitAt` 만 보냄) | **no-op** — 위와 같다. 사유만 고치는 경로는 두지 않는다 (사유는 이력 행의 사실이고, 고칠 일이 생기면 메모로 남긴다) | 없음 | 없음 | `false` |
 
@@ -2097,6 +2435,21 @@ paths:
            지금은 알림이 계정과 무관하게 쌓여서 관리자가 상태를 바꾸면 **관리자 자신의 알림함에도**
            들어온다. 만들어진 알림이 이력 행에 묶여 `notified: true` 로 내려간다. "모든 변경은 알림을
            보낸다" 는 **규칙으로 파생하지 않는다** — 규칙이 바뀌면 과거 이력의 표시가 소급해 거짓이 된다
+
+           **`consultStatus` 는 상태 변경이면 요청의 `status`, 일시 변경이면 `booked`** 다
+           (2026-10-13 추가). 일시 변경에 특례가 없는 것이 이 칸을 "이벤트" 가 아니라
+           "**변경 후 상태**" 로 정의해서 얻은 이득이다 — 아이콘이 묻는 것은 "무슨 이벤트였나" 가
+           아니라 "지금 예약이 잡힌 건가" 이기 때문이다 (`docs/database/README.md` §15.2).
+
+           **문구는 이 트랜잭션 안에서 완성된 문자열로 저장한다** (`AppNotification.title`/`message`
+           의 표). 요청 08 이 `booked`·`contacted`·`cancelled` 세 경우의 문장을 새로 정했고,
+           **`visited` 와 되돌림(`new` 등)은 기존 문구 `상담 상태가 '{라벨}'(으)로 변경되었어요` 를
+           유지한다** — 요청서가 그 두 경우의 문장을 적지 않았다.
+
+           **취소 사유는 알림 행에 저장하지 않는다** (`notifications.cancelReason` 없음 — DB §15.5).
+           `ConsultCancelReason` → 환자용 문장 변환은 알림 행이 만들어지기 **전에** 끝나고,
+           결과는 `message` 안에만 남는다. 사유별 집계는 이력 행이 이미 답한다.
+           관리자 라벨(`연락이 안 됨`·`중복 신청`)을 환자 문구에 **쓰지 않는다.**
         4. 감사 로그 1행. **`action` 이 갈린다** — 상태 변경은 `consult_request.status_change`,
            일시 변경은 **`consult_request.reschedule`** (`before_value`/`after_value` 에 들어가는 것이
            상태가 아니라 일시다)
@@ -2135,7 +2488,7 @@ paths:
                   type: [string, 'null']
                   format: date-time
                   description: |
-                    확정 내원 일시 (UTC 시각. 화면은 `Asia/Seoul` 로 변환해 `10/9(목) 14:00` 으로 그린다).
+                    확정 내원 일시 (UTC 시각. 화면은 `Asia/Seoul` 로 변환해 `10/9(금) 14:00` 으로 그린다).
 
                     **`status: booked` 일 때 필수**다 — 본문에 없으면 **현재 행에 이미 있는 값**을 쓰고,
                     둘 다 없으면 `422` (`VISIT_AT_REQUIRED`). 일시만 바꾸는 "일시 변경" 은 현재 상태와
@@ -2147,7 +2500,7 @@ paths:
                     **`booked` 이외의 상태로 갈 때 보낸 값은 무시한다** — 결과값은 상태가 정한다:
                     `visited` 는 현재 값을 **유지**하고(언제 오기로 했던 건인가는 내원 기록의 일부다),
                     `new`·`contacted`·`cancelled` 로 나가면 **`null` 로 지운다**(취소된 건의 목록 카드와
-                    환자 마이페이지에 `10/9(목) 14:00 예정` 이 남으면 **환자에게 거짓**이 된다).
+                    환자 마이페이지에 `10/9(금) 14:00 예정` 이 남으면 **환자에게 거짓**이 된다).
                     지워진 약속은 직전 `booked`/`reschedule` 이력 행의 스냅샷에 남는다.
 
                     **과거 시각도 받는다.** 지난 약속을 뒤늦게 기록하는 정정이 정상 경로다
@@ -2307,7 +2660,7 @@ paths:
         같은 저장 구조에서 두 개의 응답 형태가 나오는 것이 의도된 설계다.
 
         **확정 내원 일시(`visitAt`)가 여기로 내려간다** (2026-10-13) — 병원이 `예약확정` 으로 바꾸면서
-        넣은 일시를 신청자가 `10/9(목) 14:00` 으로 본다. 취소 사유와 일시 변경 이력은 내려가지 않는다
+        넣은 일시를 신청자가 `10/9(금) 14:00` 으로 본다. 취소 사유와 일시 변경 이력은 내려가지 않는다
         (`MyConsultRequest` 설명).
 
         최신순.
@@ -2354,10 +2707,14 @@ paths:
       tags: [consult-requests]
       summary: 내 상담 신청 상세
       description: |
-        사용자 알림함의 `상담 상태 변경` 알림이 지금은 병원 상세로 보낸다. 이 엔드포인트가 생기면
-        알림을 눌렀을 때 그 상담 자체로 들어갈 수 있다.
-
         본인 상담이 아니면 `404` (남의 상담 존재 여부를 흘리지 않는다).
+
+        🚧 **지금 이 오퍼레이션을 읽는 화면이 없다.** 2026-10-13(요청 08)에 상담 알림의 이동 대상이
+        **마이페이지 상담 내역 목록**(`GET /me/consult-requests` + `relatedId` 로 그 행을 강조)으로
+        정해졌다 — 목록 화면이 이미 한 상담에 필요한 것을 모두 그리므로 상세 조회가 한 번 더 필요하지
+        않다. 상담 **상세 화면**이 생기는 날 이 오퍼레이션이 그 화면의 것이 된다.
+        (처음 이 오퍼레이션을 둔 근거는 "알림이 병원 상세로 가는 결함" 이었는데, 그 결함은
+        이동 대상을 바꾸는 것으로 닫혔다.)
       x-screens: [mypage.md, notifications.md]
       x-screen-status: "🚧"
       x-role: user
@@ -2761,6 +3118,7 @@ paths:
         | 수신자 | 그 문의의 `userId` **한 명** |
         | `audience` | `user` |
         | `type` | `inquiry-answer` (신규 값) |
+        | `consultStatus` | **`null`** — 상담 알림이 아니다 (2026-10-13) |
         | `title` | `문의에 답변이 왔어요` |
         | `message` | `{병원명} · {답변 앞 60자}` (60자를 넘으면 `…`) |
         | `relatedResource` | `hospitalInquiry` (신규 값) |
@@ -3483,6 +3841,16 @@ paths:
 
         최신순. 알림을 생성하는 공개 엔드포인트는 **없다** — 알림은 상담 접수·상태 변경·인증 검수의
         부수효과로만 생긴다. 프론트엔드의 `notifyUser`/`notifyAdmin` 헬퍼는 서버로 이동해 사라진다.
+
+        **항목에 `consultStatus` 가 함께 내려간다** (2026-10-13, 요청 08). **파라미터·정렬·페이지네이션은
+        바뀌지 않았다** — 응답 항목에 필드 하나가 늘었을 뿐이다(§15 의 additive). 소비자는 알림함의
+        종류 아이콘 다섯(예약 / 상담 / 문의 / 이벤트 / 안내)이고, `consultStatus` 로 필터하는 질의는
+        없다 (`?type=` 은 그대로 `NotificationType` 이다).
+
+        **사용자 알림함에서 상담 알림을 누르면 마이페이지 상담 내역으로 간다** —
+        `relatedResource=consultRequest` + `relatedId` = **상담 id** 한 값이면 충분하고, 화면이
+        병원 id 를 먼저 조회하지 않는다. 관리자 알림함(`audience=admin`)의 겉모습과 이동은
+        **바뀌지 않는다** (요청 08 은 사용자 화면만 말한다).
       x-screens: [notifications.md, admin-notifications.md, mypage.md, admin-home.md]
       x-screen-status: "✅ 🟡"
       security:
@@ -4033,6 +4401,191 @@ paths:
                 items:
                   $ref: '#/components/schemas/Promotion'
 
+  # =========================================================================
+  # uploads  🚧 제안 — 협업자 확인 대기 (2026-10-13)
+  # =========================================================================
+  /uploads:
+    post:
+      operationId: createUpload
+      tags: [uploads]
+      summary: '🚧 [제안] 파일 업로드 (사업자등록증)'
+      x-proposal: 제안 — 협업자 확인 대기 (2026-10-13). **보안 결정이 열려 있다** — 비인증 업로드를 받을지가 핵심 질문이다
+      description: |
+        > 🚧 **제안 — 협업자 확인 대기 (2026-10-13). 이것은 확정 계약이 아니다.**
+        > **그중에서도 이 오퍼레이션이 가장 확정도가 낮다** — `docs/database/README.md` §14.17-2 가
+        > "보안 표면을 늘리는 결정이라 협업자 확인이 필요하다" 고 명시한다.
+        > 합의 전에는 **구현하지 않는다.**
+
+        회원가입 폼의 `사업자등록증 업로드`. **가입 전이라 토큰이 없다** — 그것이 이 설계의 전부다.
+
+        **세 안 중 ⓑ 를 제안한다** (DB §14.17-2):
+
+        | 안 | 모양 | 판단 |
+        |---|---|---|
+        | ⓐ | 가입 요청 자체를 `multipart/form-data` 로 | **기각** — JSON 계약이 깨진다. 중첩된 `hospital` 객체와 약관 배열을 multipart 필드로 평탄화해야 하고, `422 details[].field` 경로가 폼 필드명과 어긋난다 |
+        | **ⓑ** | **비인증 사전 업로드 → 가입 요청이 `fileId` 참조** | **제안.** 가입 요청은 JSON 그대로이고, 업로드 실패와 가입 실패가 화면에서 분리된다 (파일을 다시 고르지 않고 재시도할 수 있다) |
+        | ⓒ | 계정부터 만들고 두 번째 요청에서 병원 등록 | **기각** — 요청서의 "가입 한 번" 이 깨지고, **담당 병원 0곳인 `hospital_admin`** 이라는 어중간한 상태가 정상 경로가 된다 (DB §14.5 가 트랜잭션으로 막으려던 바로 그 상태다) |
+
+        **ⓑ 가 만드는 것은 인증 없이 바이트를 받는 자리 하나다.** 받아들인다면 아래 넷이
+        **같이 와야** 한다 — 하나라도 빠지면 저장소 오남용 표면이 된다:
+
+        1. **크기 상한 10 MiB** (`413`). 사업자등록증 스캔 한 장이면 충분하고, 요청 07 의
+           병원 사진이 같은 테이블을 쓰게 되면 그쪽 상한을 따로 정한다
+        2. **실제 타입 판정** (`415`). `image/jpeg` · `image/png` · `application/pdf` 셋뿐이고
+           **확장자나 `Content-Type` 헤더가 아니라 바이트 앞머리(magic number)로 판정한다** —
+           둘 다 보내는 쪽이 고를 수 있는 값이다
+        3. **IP 당 요청 한도** (`429`). 계정이 없으므로 한도의 축이 IP 다. 제안: **시간당 10회**
+        4. **고아 파일 정리 배치.** 가입이 완료되지 않은 파일은 주인이 없다
+           (`hospital_id IS NULL`). 제안: **24시간 후 파기** (DB §14.7)
+
+        **응답에 URL 이 없다.** `fileId` 만 돌려준다 — URL 문자열을 한 번이라도 발급하면
+        그것을 아는 사람 전부가 열람자가 되고, 요청서의 "열람 권한을 운영자로 제한" 이 무너진다.
+        읽기는 `GET /uploads/{uploadId}/content` **하나뿐**이고 `operator` 전용이다.
+
+        **`purpose` 를 요청에서 받는 이유**: 접근 통제와 보관 기간이 전부 이 값에서 파생된다
+        (`canReadFile(purpose, role)`, DB §14.7). 지금 **비인증으로 허용하는 값은
+        `business_registration` 하나**다. 요청 07 의 `hospital_photo` 가 생기면 그쪽은
+        **인증을 요구해야 한다** (올리는 사람이 이미 로그인한 담당자다) — 그때 이 오퍼레이션에
+        `security` 를 조건부로 두지 말고 **값별 규칙을 설명에 못 박는다.**
+      x-screens: [signup.md]
+      x-screen-status: "🚧"
+      security: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [purpose, file]
+              properties:
+                purpose:
+                  $ref: '#/components/schemas/FilePurpose'
+                file:
+                  type: string
+                  format: binary
+                  description: 최대 10 MiB. jpeg · png · pdf (바이트로 판정).
+      responses:
+        '201':
+          description: |
+            업로드된 파일의 메타데이터. **아직 주인이 없다** — 가입 트랜잭션이 `fileId` 로
+            claim 할 때 병원·업로더가 채워진다 (DB §14.5).
+            화면은 `originalName` 으로 `사업자등록증.pdf 제출 완료` 를 그린다.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadedFileRef'
+        '413':
+          description: 파일이 너무 큼. `code` 는 `FILE_TOO_LARGE`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: FILE_TOO_LARGE
+                  message: 파일은 10MB까지 올릴 수 있어요
+                  requestId: 01J9X8V0Q3
+        '415':
+          description: |
+            허용되지 않는 파일 형식 (`code: UNSUPPORTED_FILE_TYPE`).
+            **확장자가 아니라 실제 바이트로 판정한 결과다** — `.pdf` 로 이름만 바꾼 실행 파일이
+            여기서 걸린다.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: UNSUPPORTED_FILE_TYPE
+                  message: JPG, PNG, PDF 파일만 올릴 수 있어요
+                  requestId: 01J9X8V0Q3
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /uploads/{uploadId}/content:
+    parameters:
+      - name: uploadId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: getUploadContent
+      tags: [uploads]
+      summary: '🚧 [제안] 업로드 파일 원본 열람 (운영자 전용)'
+      x-proposal: 제안 — 협업자 확인 대기 (2026-10-13)
+      description: |
+        > 🚧 **제안 — 협업자 확인 대기 (2026-10-13).** 확정 계약이 아니다.
+
+        운영자 검수 화면이 사업자등록증을 여는 **유일한 경로**다. **`operator` 전용.**
+
+        **올린 본인(담당 `hospital_admin`)도 다시 내려받을 수 없다** — 요청서의
+        "저장·열람 권한을 운영자로 제한" 그대로다. 관리자 화면은 파일명과 `제출 완료` 만
+        보여주고 링크를 걸지 않는다. 판정은 순수 함수 한 줄이다:
+        `canReadFile('business_registration', role) === (role === 'operator')` (DB §14.7).
+
+        **서명된 임시 URL 을 발급하지 않는다.** URL 이 생기는 순간 그것을 가진 사람이 열람자가
+        되고 감사 로그가 비어 버린다 — 이 오퍼레이션이 존재하는 이유가 **열람을 한 자리로
+        모으는 것**이다.
+
+        - `Cache-Control: no-store` — 공유 캐시·브라우저 디스크에 개인정보가 남지 않게 한다
+        - `Content-Disposition: inline` + 원본 파일명
+        - **열람은 감사 대상이다** — `audit_logs.action='hospital_document.view'`,
+          `target_type='uploaded_file'`, `pii_masked=false`
+          (마스킹하지 않은 개인정보를 봤다). `partner_inquiry.view` 와 같은 취급이다 (§4)
+        - 파기된 파일(`purged_at` 이 채워짐)은 **`404`** 다. 행은 남아 있지만 바이트가 없다 —
+          행을 지우지 않는 이유는 감사 로그가 `target_id` 로 이 파일을 가리키기 때문이다
+      x-screens: []
+      x-screen-status: "🚧"
+      x-role: operator
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 파일 원본
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+            Content-Disposition:
+              schema:
+                type: string
+                example: inline; filename="business-registration.pdf"
+            X-Audit-Logged:
+              schema:
+                type: boolean
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: 없는 파일 또는 이미 파기된 파일. `code` 는 `UPLOAD_NOT_FOUND`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   /legal-documents/{slug}:
     parameters:
       - name: slug
@@ -4040,7 +4593,10 @@ paths:
         required: true
         schema:
           type: string
-          enum: [terms, privacy, location, about]
+          enum: [terms, privacy, location, about, partner-terms]
+        description: |
+          🚧 `partner-terms` 는 **제안 — 협업자 확인 대기 (2026-10-13)** 로 추가된 값이다
+          (`[필수] 병원 파트너 이용약관`, DB §14.8). 합의 전에는 이 slug 의 문서가 없다.
     get:
       operationId: getLegalDocument
       tags: [content]
@@ -5027,6 +5583,13 @@ components:
         기존 필드를 지우거나 이름을 바꾸지 않았으므로 프론트엔드 타입은 수정 없이 통과한다.
 
         덧붙인 것: `sponsorship`, `representativeSpecialty`, `distanceKm`.
+
+        > 🚧 **제안 — 협업자 확인 대기 (2026-10-13).** `phone`·`addressDetail` 두 필드가 늘고,
+        > `approvalStatus` 는 여기에 **들어오지 않는다.**
+        > 공개 응답에 승인 상태를 싣지 않는 이유는 단순하다 — **공개 응답에 실리는 병원은
+        > 전부 `approved` 다**(`isPubliclyListed`). 값이 하나뿐인 필드는 정보가 아니고,
+        > 클라이언트가 그 값을 보고 다시 거르기 시작하면 **같은 판정이 두 곳**에 생긴다.
+        > 관리 시야의 승인 상태는 `ManagedHospital` 이 가진다.
       required:
         - id
         - name
@@ -5152,6 +5715,35 @@ components:
             type: string
         address:
           type: string
+        phone:
+          type: [string, 'null']
+          description: |
+            🚧 **제안 — 협업자 확인 대기 (2026-10-13).** 치과 대표번호. 표시용 원본.
+
+            **`hospitals` 에 전화번호 칸이 아예 없었다** (fixture 에도 없다 — 병원 상세에
+            전화번호가 보이지 않는 이유다). 직접 가입 폼의 `치과 대표번호` 가 이 값을 만든다.
+
+            **공개 응답에 내릴 것인가는 제품 결정이다 (열린 질문, §20).**
+            내리는 쪽을 권한다 — 요청 08 이 확정한 알림 문구가 `변경이 필요하면 **병원에 전화해
+            주세요**` 인데, 지금 그 번호가 앱 어디에도 없다. 계약에 필드만 두고 공개 시야에서
+            `null` 로 가리는 것도 가능하지만, 그러면 "입력 안 함" 과 "가려짐" 이 같은 값이 된다.
+            합의 전까지는 **관리 시야(`ManagedHospital`)에서만 채워진다고 읽어라.**
+
+            기존 11곳에는 값이 없어 `null` 이다 (백필할 값이 없다).
+          example: 02-1234-5678
+        addressDetail:
+          type: [string, 'null']
+          description: |
+            🚧 **제안 — 협업자 확인 대기 (2026-10-13).** 상세 주소 (`3층 301호`).
+
+            `address` 를 쪼개지 않고 칸을 더한 이유: 주소 검색 UI 가 돌려주는 것은 한 덩어리이고,
+            다시 검색하면 그 값이 **통째로 교체된다.** 상세 주소를 같은 칸에 이어 붙이면
+            재검색 때 사라진다. 표시용 합치기는 클라이언트의 `formatAddress(address, addressDetail)`
+            한 줄이다 (DB §14.2).
+
+            공개 노출 여부는 `phone` 과 같은 열린 질문이다. 찾아가는 데 필요한 정보라
+            공개하는 쪽이 자연스럽지만 제품 결정이다.
+          example: 3층 301호
         introduction:
           type: string
         events:
@@ -5180,6 +5772,87 @@ components:
             `latitude`/`longitude`/`radiusKm` 를 함께 보낸 요청(지도 보기)에서만 채워진다.
             그 밖에는 null. 지도 아래 병원 카드의 `시술 · 거리 · 후기 수` 표시가 쓴다.
           example: 1.2
+
+    HospitalApprovalStatus:
+      type: string
+      enum: [pending, approved, rejected]
+      description: |
+        🚧 **제안 — 협업자 확인 대기 (2026-10-13).** 병원 승인 상태
+        (`docs/database/README.md` §14.1).
+
+        | 값 | 뜻 |
+        |---|---|
+        | `pending` | 가입했고 서류 검수 전. **관리자 화면은 쓰고 환자 앱에는 보이지 않는다** |
+        | `approved` | 검수 통과. 환자 앱에 보인다. 운영자가 만든 병원과 기존 11곳도 이 값이다 |
+        | `rejected` | 반려. 사유가 `approvalNote` 에 남는다 |
+
+        **노출 판정은 이 값 단독이 아니다** — `deletedAt === null && approvalStatus === 'approved'`
+        둘을 함께 본다(`isPubliclyListed`). soft delete 된 병원이 `approved` 이면
+        배지가 `앱 노출 중` 이라고 **거짓말을 한다** (DB §14.4 의 경고).
+
+        **판정을 부정형(`!== 'rejected'`)으로 쓰지 않는다.** 값이 늘어날 때 긍정형은 저절로
+        안전한 쪽(안 보임)으로 떨어지고 부정형은 그 반대다.
+
+        `suspended`(노출 중단)를 만들지 않았다 — 요구한 화면이 없고, 운영상 내리는 수단은
+        `deleted_at` 이 이미 있다.
+
+    AdminPosition:
+      type: string
+      enum: [director, manager, coordinator, etc]
+      description: |
+        🚧 **제안 — 협업자 확인 대기 (2026-10-13).** 담당자의 **그 병원에서의** 직책
+        (DB §14.6).
+
+        | 코드 | 화면 라벨 |
+        |---|---|
+        | `director` | `대표원장` |
+        | `manager` | `실장` |
+        | `coordinator` | `코디네이터` |
+        | `etc` | `기타` |
+
+        **라벨이 아니라 코드를 값으로 쓴다** — 표시 문구가 바뀔 수 있고(`대표원장`→`원장`),
+        그때 과거 행을 UPDATE 하면 "그때 뭐라고 적었는가" 가 사라진다
+        (`ConsultCancelReason`·`InquiryTopic` 과 같은 처리).
+
+        **사람의 속성이 아니라 연결의 속성이다.** `hospital_admins` 가 M:N 이라 한 사람이
+        A 병원 대표원장이면서 B 병원 코디네이터일 수 있다.
+
+        **`null` 이 정상값이다** — 운영자가 지정한 담당자
+        (`POST /hospitals/{id}/admins` 에는 직책 입력이 없다). 화면은 그 경우 직책 줄을
+        **생략한다**(지어내지 않는다).
+
+    ManagedHospital:
+      description: |
+        🚧 **제안 — 협업자 확인 대기 (2026-10-13).** 관리 시야의 병원 —
+        공개 `Hospital` + 관리 화면만 쓰는 두 필드.
+
+        **두 필드를 `Hospital` 에 넣지 않은 이유**: `Hospital` 은 비로그인 응답에도 쓰인다.
+        승인 상태와 "내 직책" 은 공개 자원의 속성이 아니다. 스키마를 나누면 공개 응답에
+        새어 나갈 길 자체가 없다 (`piiMasked` 를 플래그로 둔 것과 달리, 여기서는
+        **필드가 존재하지 않는 것**이 가장 싼 보장이다).
+
+        **합의 전에는 이 스키마를 `Hospital` 과 같다고 읽어라** — 추가된 두 필드를
+        `required` 에 넣지 않은 것이 그 뜻이다. 합의되면 `approvalStatus` 는 required 가 된다
+        (사이드 메뉴 배지가 매 행에 그 값을 필요로 한다).
+      allOf:
+        - $ref: '#/components/schemas/Hospital'
+        - type: object
+          properties:
+            approvalStatus:
+              $ref: '#/components/schemas/HospitalApprovalStatus'
+            position:
+              oneOf:
+                - $ref: '#/components/schemas/AdminPosition'
+                - type: 'null'
+              description: |
+                🚧 제안. **요청자 본인의** 이 병원에서의 직책이다 — 담당자 전원의 직책이 아니다.
+                관리자 사이드 메뉴 하단이 `{직책 라벨} · {승인 완료 · 앱 노출 중 | 승인 대기}` 를
+                그리는 데 쓴다 (요청 05 에서 **저장될 곳이 없어 미뤄진** 줄이다 —
+                `docs/features/known-issues.md`).
+
+                `operator` 가 보는 목록에서는 **항상 `null`** 이다. 운영자는 담당자가 아니다
+                (`CANNOT_ASSIGN_OPERATOR` 와 같은 선). 담당자 전원의 직책이 필요하면
+                `GET /hospitals/{id}/admins` 가 그 질문의 자리다.
 
     HospitalCreateRequest:
       type: object
@@ -6049,7 +6722,7 @@ components:
           format: date-time
           description: |
             **확정 내원 일시** (2026-10-13 신규). UTC 시각이며 화면이 `Asia/Seoul` 로 변환해
-            `10/9(목) 14:00` 으로 그린다. 초·밀리초는 항상 `0` 이다 (입력 단위가 분).
+            `10/9(금) 14:00` 으로 그린다. 초·밀리초는 항상 `0` 이다 (입력 단위가 분).
 
             **`null` 인 경우가 셋이다** — ① 아직 예약확정이 아닌 건 ② 확정됐다가 취소·연락중으로
             돌아간 건(나갈 때 지운다) ③ **계약 확장 이전에 `booked` 가 된 건**. ③ 은 소급해 채우지
@@ -6111,7 +6784,7 @@ components:
         **신청자 시야.** 같은 저장 구조에서 나오는 다른 투영이다.
         `memos`(내부 메모)와 `statusHistory[].changedByName`(처리자 이름)을 담지 않는다.
 
-        **2026-10-13 에 `visitAt` 이 더해졌다** — 마이페이지 `내 상담 내역` 이 `10/9(목) 14:00` 을
+        **2026-10-13 에 `visitAt` 이 더해졌다** — 마이페이지 `내 상담 내역` 이 `10/9(금) 14:00` 을
         보여준다. 같이 생긴 세 값은 **내려가지 않는다:**
 
         | | 신청자 | 왜 |
@@ -7291,7 +7964,7 @@ components:
 
     AppNotification:
       type: object
-      required: [id, audience, type, title, message, isRead, createdAt, relatedId]
+      required: [id, audience, type, consultStatus, title, message, isRead, createdAt, relatedId]
       properties:
         id:
           type: string
@@ -7299,26 +7972,102 @@ components:
           $ref: '#/components/schemas/NotificationAudience'
         type:
           $ref: '#/components/schemas/NotificationType'
+        consultStatus:
+          oneOf:
+            - $ref: '#/components/schemas/ConsultStatus'
+            - type: 'null'
+          description: |
+            **그 알림을 낳은 이벤트 직후의 상담 상태** (2026-10-13 추가,
+            `docs/database/README.md` §15). `ConsultStatus` 를 그대로 재사용한다 —
+            새 값 집합을 만들지 않았다.
+
+            **키는 항상 있고 값은 nullable 이다.** `type='consult-status'` 가 아닌 알림
+            (`inquiry-answer`·`event`·`system`)은 `null` 이고, **계약 확장 이전에 만들어진
+            `consult-status` 행도 `null`** 이다 (백필하지 않는다 — DB §15.8).
+
+            | 알림을 만든 이벤트 | 값 |
+            |---|---|
+            | 상담 접수 (`audience=admin`) | `new` |
+            | 상태 변경 (`PATCH /consult-requests/{id}/status`) | **변경 후 상태** = 요청의 `status` |
+            | 예약 일시 변경 (같은 엔드포인트, `event='reschedule'`) | **`booked`** (상태는 그대로다) |
+            | 문의 답변 | `null` |
+
+            **소비자는 알림함의 종류 아이콘 하나다.** 판정은 한 줄이고 클라이언트에 있다 —
+            `type='consult-status' && consultStatus='booked'` 면 **예약**(달력), 그 밖의
+            `consult-status` 는 **상담**, 나머지는 `type` 그대로. `null` 이 변경 전 동작
+            (상담 아이콘)으로 떨어지므로 과거 행에서도 화면이 깨지지 않는다.
+
+            **서버는 아이콘을 모른다.** 내려보내는 것은 상태라는 사실이고, 그림으로 바꾸는 것은
+            표시 규칙이다. 같은 이유로 `icon`·`visitAt`·`cancelReason` 을 알림에 싣지 않는다 —
+            **취소 사유는 알림 행에 저장되지 않고 `message` 문장 안에만 녹아 있다** (DB §15.5).
+
+            `consultStatus` 로 문구를 **다시 조립하지 않는다.** 문구는 발송 시점에 확정된
+            `title`/`message` 문자열이다 (아래).
+          example: booked
         title:
           type: string
           description: |
-            상담 쪽 제목은 둘이다 — 상태가 바뀌면 `상담 상태 변경`,
-            예약확정 상태에서 **일시만** 바뀌면 `예약 일시 변경` (2026-10-13).
-          example: 상담 상태 변경
+            **발송 시점에 확정되어 저장된 문자열이다** — 소급 수정되지 않는다.
+            상담 알림의 제목은 `consultStatus` 와 이벤트가 정한다 (2026-10-13, 요청 08):
+
+            | 이벤트 / 상태 | `consultStatus` | 제목 |
+            |---|---|---|
+            | 예약확정 | `booked` | `상담 예약이 확정됐어요` |
+            | 예약 일시 변경 (`reschedule`) | `booked` | `예약 일시가 바뀌었어요` |
+            | 연락중 | `contacted` | `병원이 연락 중이에요` |
+            | 취소 | `cancelled` | `상담이 취소됐어요` |
+            | 내원완료 · 되돌림(`new` 등) | `visited` · `new` 등 | `상담 상태 변경` (**기존 문구 유지**) |
+            | 상담 접수 (`audience=admin`) | `new` | `새로운 상담 신청` |
+            | 문의 답변 | `null` | `문의에 답변이 왔어요` |
+
+            `내원완료`·되돌림의 문구를 바꾸지 않은 이유: **요청서가 그 두 경우의 문장을 적지 않았다.**
+            지어내면 요청자가 검수하지 않은 문장이 환자에게 나간다 (DB §15.3).
+          example: 상담 예약이 확정됐어요
         message:
           type: string
           description: |
-            상담 상태 변경은 `상담 상태가 '{라벨}'(으)로 변경되었어요`,
-            일시 변경은 `예약 일시가 '{10월 9일(목) 14:00}'(으)로 변경되었어요` 다.
-            라벨은 `ConsultStatus` 의 화면 라벨이며 **발송 시점의 문구가 그대로 보존된다** —
-            라벨이 바뀌어도(`예약완료` → `예약확정`) 이미 나간 알림은 소급 수정되지 않는다.
-          example: 상담 상태가 '예약확정'(으)로 변경되었어요
+            **발송 시점에 확정되어 저장된 문자열이다.** 렌더 시점에 조립하지 않는다 —
+            병원 이름이 바뀌어도 과거 알림의 문장은 그대로인 것이 맞다 (DB §15.4).
+
+            `{H}` = 병원 이름 (없거나 빈 문자열이면 `병원`),
+            `{V}` = 확정 일시를 `Asia/Seoul` 로 **`10/9(금) 14:00`** 로 적은 것.
+
+            | 이벤트 / 상태 | 본문 |
+            |---|---|
+            | 예약확정 | `{H} · {V} 방문. 변경이 필요하면 병원에 전화해 주세요` |
+            | 예약확정인데 일시를 읽을 수 없음 (방어) | `{H} · 방문 일시는 병원에서 다시 알려드려요` |
+            | 예약 일시 변경 | `{H} · {V} 방문. 변경이 필요하면 병원에 전화해 주세요` |
+            | 연락중 | `{H}{이\|가} 상담 신청을 확인했어요. 곧 전화가 올 거예요` |
+            | 취소 · `no_answer` | `{H} · 연락이 닿지 않아 취소됐어요` |
+            | 취소 · `patient_request` | `{H} · 요청하신 대로 취소했어요` |
+            | 취소 · `procedure_unavailable` | `{H} · 이 병원에서 진료하지 않는 시술이에요` |
+            | 취소 · `duplicate` | `{H} · 같은 신청이 있어 하나로 정리했어요` |
+            | 취소 · `etc` **또는 사유 없음/모르는 코드** | `{H} · 자세한 사유는 병원에 문의해 주세요` |
+            | 내원완료 · 되돌림 | `상담 상태가 '{라벨}'(으)로 변경되었어요` (**기존 문구 유지**) |
+            | 상담 접수 (`audience=admin`) | `{이름}님이 상담을 신청했어요` |
+            | 문의 답변 | `{H} · {답변 앞 60자}` (60자를 넘으면 `…`) |
+
+            **일시 표기는 `10/9(금) 14:00` 하나다** (2026-10-13 결정, DB §15.11-4).
+            계약이 이전에 쓰던 `10월 9일(금) 14:00` 표기는 **교체됐다** — 같은 알림함에서
+            예약확정 알림과 일시 변경 알림이 서로 다른 날짜 표기를 쓰면 안 되고,
+            마이페이지 상담 내역의 `10/9(금) 14:00 방문` 과도 같은 기준이어야 한다.
+            **이미 나간 알림의 옛 표기는 소급 수정하지 않는다.**
+
+            **연락중의 조사는 받침 판정 순수 함수가 정한다.** 병원 이름 끝 글자에 받침이 없으면
+            `가`(`강남 스마일 치과가`), 있으면 `이`(`○○치과의원이`, 폴백 `병원이`),
+            끝 글자가 한글이 아니면(영문·숫자) `이(가)`. `이(가)` 로 고정하지 않은 이유:
+            대부분의 이름에서 어색한 문장이 나오고, 판정 자체는 이름 하나로 끝나는 순수 함수다.
+
+            **환자 문구에 관리자 용어를 쓰지 않는다** — 취소 사유 코드와 그 관리자 라벨
+            (`연락이 안 됨`·`중복 신청`)은 환자에게 보내지 않는다. 같은 코드의 두 독자용 문장이라,
+            한쪽을 다듬어도 다른 쪽이 흔들리지 않아야 한다 (DB §15.5).
+          example: 강남 스마일 치과 · 10/9(금) 14:00 방문. 변경이 필요하면 병원에 전화해 주세요
         isRead:
           type: boolean
         createdAt:
           type: string
           format: date-time
-          description: UTC. 화면이 보는 기기의 시간대로 표시한다.
+          description: 'UTC ISO 8601 로 내려간다. 화면은 `Asia/Seoul` 고정으로 표시한다 (기기 시간대를 따르지 않는다).'
         relatedId:
           type: [string, 'null']
           description: |
@@ -7334,6 +8083,11 @@ components:
 
             `hospitalInquiry` 는 2026-10-12 에 추가된 값이다 (§9). 누르면 마이페이지 `내 문의` 에서
             `relatedId` 의 문의가 펼쳐진 채 열린다 (공개·비공개 답변을 모두 읽을 수 있는 유일한 자리).
+
+            **`consultRequest` + `audience=user` 는 마이페이지 상담 내역으로 간다** (2026-10-13, 요청 08).
+            `relatedId` 가 **상담 id** 이고 그 한 값이면 충분하다 — 화면이 병원 id 를 먼저 조회할 필요가
+            없다. 이전에는 상담 알림이 병원 상세로 갔는데, 알림이 말하는 사실(내 상담이 어떻게 됐는가)은
+            병원 상세에 없다. `audience=admin` 의 접수 알림은 그대로 관리자 상담 상세로 간다.
           example: consultRequest
 
     # ---------------------------------------------------------------- 커뮤니티
@@ -7552,6 +8306,59 @@ components:
         longitude:
           type: number
           format: double
+        region:
+          type: [string, 'null']
+          description: |
+            🚧 **제안 — 협업자 확인 대기 (2026-10-13).** 시·군·구
+            (카카오 로컬 응답의 `address.region_2depth_name`).
+
+            **왜 필요한가**: `hospitals.region` 은 NOT NULL 인데 **직접 가입 폼에 지역 칸이 없다**
+            (DB §14.2). 서버가 주소에서 파생해야 하고, 가장 정확한 출처는 주소 검색을 중계하는
+            이 응답이다. 지금은 서버가 카카오 응답에서 이 값을 버리고 있다.
+
+            ⚠️ **열린 질문 (DB §14.17-7)** — 카카오 로컬의 주소 검색 응답에 이 값이 실제로
+            실리는지 확인해야 한다. 실리지 않거나 비어 있으면 `null` 이고, 그때 서버는
+            주소 문자열에서 뽑는다(`regionOf`). **이 값이 비면 탐색의 지역 표시가 깨진다.**
+
+            `region_1depth_name`(`서울`)을 함께 내리지 않은 이유: 기존 `hospitals.region` 이
+            `서울 강남구` 한 덩어리이고, 두 조각으로 내리면 합치는 규칙이 또 생긴다.
+            합칠 일이 생기면 그때 필드를 나눈다.
+          example: 강남구
+
+    # ---------------------------------------------------------------- 업로드 (🚧 제안)
+    FilePurpose:
+      type: string
+      enum: [business_registration]
+      description: |
+        🚧 **제안 — 협업자 확인 대기 (2026-10-13).** 파일의 용도.
+        **접근 통제와 보관 기간이 전부 이 값에서 파생된다** (`canReadFile(purpose, role)` ·
+        `retentionOf(purpose, state)` — DB §14.7). 그래서 권한 컬럼을 따로 두지 않는다.
+
+        지금 값은 하나다. **요청 07(병원 사진)이 `hospital_photo` 를 더할 예정이지만
+        여기서 미리 만들지 않는다** — 그 값은 공개 파일이라 접근 규칙이 반대이고,
+        소비자가 없는 enum 값은 "이미 된다" 는 오해를 만든다.
+
+    UploadedFileRef:
+      type: object
+      description: |
+        🚧 **제안 — 협업자 확인 대기 (2026-10-13).** 업로드된 파일의 **참조**.
+        **바이트도 URL 도 여기 없다** — 읽기는 `GET /uploads/{id}/content` 하나뿐이다.
+      required: [fileId, originalName, byteSize]
+      properties:
+        fileId:
+          type: string
+          description: 가입 요청의 `businessRegistrationFileId` 에 그대로 넣는 값.
+          example: up_01J9X8V0Q3
+        originalName:
+          type: string
+          description: |
+            사용자가 올린 원본 파일명. 관리자 화면이 `사업자등록증.pdf 제출 완료` 로 보여준다.
+            **그대로 화면에 그리므로 이스케이프는 클라이언트의 몫이다** (서버는 저장한 값을 돌려준다).
+          example: 사업자등록증.pdf
+        byteSize:
+          type: integer
+          description: 바이트. 화면이 `2.1MB` 로 환산해 보여준다.
+          example: 2201440
 
     # ---------------------------------------------------------------- auth
     UserRole:
@@ -7665,8 +8472,134 @@ components:
               slug:
                 type: string
                 enum: [terms, privacy, location]
+                description: |
+                  🚧 **`partner-terms` 는 여기에 들어오지 않는다** (제안, 2026-10-13).
+                  일반 가입이 그 slug 를 보내면 `422` 다 — 동의할 이유가 없는 약관에
+                  동의한 기록을 만들지 않는다 (DB §14.8). 병원 관리자 가입은
+                  `POST /auth/signup/hospital-admin` 의 **다른 enum** 을 쓴다.
               version:
                 type: string
+
+    HospitalAdminSignUpRequest:
+      type: object
+      description: |
+        🚧 **제안 — 협업자 확인 대기 (2026-10-13).**
+        `POST /auth/signup/hospital-admin` 의 본문. 회원가입 화면에서 `치과 관계자이신가요?`
+        토글을 켠 상태의 폼 전체다.
+
+        `SignUpRequest` 를 `allOf` 로 상속하지 않았다 — 상속하면 `agreedTermsVersions` 의
+        **`slug` enum 이 달라야 하는 것**을 표현할 수 없고(하위 스키마가 상위의 enum 을
+        좁히지 못한다), 그 enum 차이가 이 두 경로를 가르는 규칙 그 자체다.
+      required: [name, email, password, hospital, position, businessRegistrationFileId, agreedTermsVersions]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 50
+          description: 담당자 본인 이름. 앞뒤 공백을 제거해 저장한다 (일반 가입과 같다).
+        email:
+          type: string
+          format: email
+          maxLength: 254
+          description: 앞뒤 공백 제거 + 소문자 변환 후 저장 (일반 가입과 같다).
+        password:
+          type: string
+          minLength: 6
+          maxLength: 128
+        hospital:
+          type: object
+          description: |
+            등록할 병원. **`region` 은 받지 않는다** — 폼에 지역 칸이 없고 서버가 주소에서
+            파생한다 (`GET /geo/address-search` 의 `region`). ⚠️ 열린 질문 (§20).
+          required: [name, phone, address, latitude, longitude]
+          properties:
+            name:
+              type: string
+              minLength: 1
+              maxLength: 100
+              example: 강남 스마일 치과
+            phone:
+              type: string
+              maxLength: 20
+              description: |
+                치과 대표번호. **휴대폰 패턴이 아니다** — `02-1234-5678` 같은 지역번호를 받는다.
+                `consult_requests.phone` 과 같은 완화 패턴을 쓰고, 숫자만 남긴 값을 서버가
+                함께 저장한다(중복 가입 **검출용**이지 차단용이 아니다 — DB §14.9).
+              example: 02-1234-5678
+            address:
+              type: string
+              minLength: 1
+              maxLength: 200
+              description: |
+                `GET /geo/address-search` 결과에서 **고른 값**이어야 한다
+                (`HospitalCreateRequest.address` 와 같은 규약). 직접 타이핑한 주소는 좌표가 없어
+                지도에 찍히지 않는다. 요청서도 "직접 입력칸 없음" 을 확인 항목으로 적는다.
+            addressDetail:
+              type: [string, 'null']
+              maxLength: 100
+              description: |
+                선택. `3층 301호`. `address` 와 합치지 않고 따로 받는 이유는
+                `Hospital.addressDetail` 의 설명과 같다 (재검색 시 `address` 가 통째로 교체된다).
+            latitude:
+              type: number
+              format: double
+            longitude:
+              type: number
+              format: double
+        position:
+          $ref: '#/components/schemas/AdminPosition'
+        businessRegistrationFileId:
+          type: string
+          description: |
+            `POST /uploads` (`purpose=business_registration`) 가 돌려준 `fileId`.
+            가입 트랜잭션이 **조건부 UPDATE 로 claim** 한다 — 이미 주인이 있거나, 용도가 다르거나,
+            파기된 파일이면 `422 UPLOAD_NOT_FOUND` 이고 **가입 전체가 롤백된다**.
+
+            남의 업로드 id 를 추측해 넣어도 같은 `422` 다 (실패 이유를 구분해 주지 않는다 —
+            구분하면 id 대입으로 "그 자리에 서류가 있다" 가 샌다).
+          example: up_01J9X8V0Q3
+        agreedTermsVersions:
+          type: array
+          minItems: 4
+          description: |
+            **필수 4종 전부**: `terms` · `privacy` · `location` · `partner-terms`
+            (`requiredAgreementSlugs('hospital_admin')`, DB §14.8). 하나라도 빠지면
+            `422 AGREEMENT_REQUIRED`, 서버가 모르는 버전이면 `422 AGREEMENT_VERSION_NOT_FOUND`.
+
+            동의 기록은 **가입과 같은 트랜잭션**이다 — 동의 없이 만들어진 계정이 남지 않는다.
+          items:
+            type: object
+            required: [slug, version]
+            properties:
+              slug:
+                type: string
+                enum: [terms, privacy, location, partner-terms]
+              version:
+                type: string
+                example: '1.0'
+
+    HospitalAdminAuthSession:
+      description: |
+        🚧 **제안 — 협업자 확인 대기 (2026-10-13).**
+        기존 `AuthSession`(토큰 + 사용자) + 방금 만들어진 병원 한 조각.
+      allOf:
+        - $ref: '#/components/schemas/AuthSession'
+        - type: object
+          required: [hospital]
+          properties:
+            hospital:
+              type: object
+              required: [id, approvalStatus]
+              description: |
+                완료 화면이 **추가 조회 없이** `병원 정보 입력하기`(id 로 이동)와 상태 안내를
+                그리는 데 필요한 최소값이다. 병원 전체를 돌려보내지 않는 이유: 그 값은 방금
+                보낸 입력이고, 화면이 쓰는 것은 둘뿐이다.
+              properties:
+                id:
+                  type: string
+                  example: h12
+                approvalStatus:
+                  $ref: '#/components/schemas/HospitalApprovalStatus'
 
     LogInRequest:
       type: object
@@ -7688,7 +8621,15 @@ components:
       properties:
         slug:
           type: string
-          enum: [terms, privacy, location, about]
+          enum: [terms, privacy, location, about, partner-terms]
+          description: |
+            🚧 `partner-terms`(`[필수] 병원 파트너 이용약관`)는
+            **제안 — 협업자 확인 대기 (2026-10-13)** 로 추가된 값이다 (DB §14.8).
+
+            **`legal_documents` 에 "누구에게 필수인가" 를 적지 않는다** — 필수성은 문서의
+            성질이 아니라 **가입 경로의 성질**이다. 같은 약관이 나중에 일반 사용자에게도
+            필수가 될 수 있고, 그때 문서 행을 고치면 "그때 무엇에 동의했는가" 의 불변성이 깨진다.
+            판정은 순수 함수 하나다 — `requiredAgreementSlugs(kind)`.
         title:
           type: string
           example: 서비스 이용약관
@@ -7803,6 +8744,17 @@ components:
         role:
           $ref: '#/components/schemas/UserRole'
           description: 지정 직후에는 항상 `hospital_admin` 이다 (필요하면 승격된 결과).
+        position:
+          oneOf:
+            - $ref: '#/components/schemas/AdminPosition'
+            - type: 'null'
+          description: |
+            🚧 **제안 — 협업자 확인 대기 (2026-10-13).** 이 사람의 **이 병원에서의** 직책.
+
+            **운영자가 지정한 담당자는 `null` 이다** — `POST /hospitals/{id}/admins` 에 직책
+            입력이 없고, 앞으로도 더하지 않는다(운영자가 남의 직함을 대신 고르는 모양이 된다).
+            직책은 **직접 가입한 사람이 스스로 고른 값**일 때만 있다.
+            화면은 `null` 이면 직책 줄을 생략한다 (지어내지 않는다).
         assignedAt:
           type: string
           format: date-time

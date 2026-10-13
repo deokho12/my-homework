@@ -12,6 +12,7 @@ import {
   INQUIRY_TOPIC_REQUIRED_MESSAGE,
 } from '@/features/inquiry/schemas/inquirySchema';
 import { inquiryStatus, isPubliclyVisible } from '@/features/inquiry/inquiryVisibility';
+import type { NewLocalNotification } from '@/features/notification/api/notificationApi';
 import { ApiError } from '@/lib/apiClient';
 import {
   nextLocalId,
@@ -359,7 +360,7 @@ function answerPreview(content: string): string {
 //
 // 답변 등록(`POST /hospital-inquiries/{id}/answer`)의 **부수효과로** 서버가 알림을 만든다 —
 // 알림을 만드는 공개 엔드포인트는 계약에 아예 없다 (`consultApi.ts` 와 같은 임시 구현).
-function createLocalNotification(input: Omit<AppNotification, 'id' | 'createdAt' | 'isRead'>): void {
+function createLocalNotification(input: NewLocalNotification): void {
   const notification: AppNotification = {
     ...input,
     id: nextLocalId('notif'),
@@ -539,6 +540,8 @@ export async function answerHospitalInquiry(
     // 이름이 박히는 순간 마스킹 경계가 하나 더 생긴다.
     message: `${updated.hospitalName ?? '병원'} · ${answerPreview(content)}`,
     relatedId: updated.id,
+    // 상담 알림이 아니다 — 상태 칸은 비운다 (아이콘은 `type` 만으로 문의로 갈린다).
+    consultStatus: null,
   });
 
   return toHospitalInquiry(updated);

@@ -1,15 +1,19 @@
-import { useQueryClient } from '@tanstack/react-query';
-import { useCallback, useMemo } from 'react';
-
 import { router, Stack } from '@/navigation';
-import { FlatList, Pressable, Text, View, cx } from '@/primitives';
-import { SafeAreaView } from '@/primitives';
+import { ScrollView, Text, View, cx } from '@/primitives';
+import { Pressable, SafeAreaView } from '@/primitives';
 
 import { QueryState } from '@/components/QueryState';
-import { CONTAINER_PADDING } from '@/components/layout/Container';
-import { fetchMyConsultRequests, useMyConsultRequests } from '@/features/consult';
-import { useMarkAllNotificationsAsRead, useMarkNotificationAsRead, useNotifications } from '@/features/notification';
-import { queryKeys } from '@/lib/queryKeys';
+import { containerClass } from '@/components/layout/Container';
+import {
+  NOTIFICATION_ICON_GLYPH,
+  NOTIFICATION_ICON_LABEL,
+  NOTIFICATION_ICON_TONE,
+  notificationIcon,
+  useMarkAllNotificationsAsRead,
+  useMarkNotificationAsRead,
+  useNotifications,
+} from '@/features/notification';
+import { formatDateTimeShort } from '@/lib/dateFormat';
 import type { AppNotification } from '@/types/domain';
 
 /**
@@ -24,33 +28,34 @@ const LIST_PAGE_SIZE = 100;
 
 const EMPTY_TITLE = '아직 도착한 알림이 없어요';
 
-function NotificationRow({
-  notification,
-  hospitalIdForConsult,
-}: {
-  notification: AppNotification;
-  /**
-   * `상담 상태 변경` 알림이 어느 병원으로 가야 하는지.
-   *
-   * **동기 조회가 아니라 Promise 다.** 알림 목록과 상담 내역은 별개의 쿼리라 알림이 먼저
-   * 도착할 수 있고, 그때 동기로 캐시만 보면 매핑이 비어 있어 탭이 조용히 죽는다. 로컬
-   * 구현은 같은 tick 에 끝나서 드러나지 않지만, api 본문이 `apiRequest` 로 바뀌는 순간
-   * 네트워크 왕복만큼 그 창이 열린다 — 이 리팩터가 대비하려는 바로 그 시점이다.
-   */
-  hospitalIdForConsult: (consultId: string) => Promise<string | undefined>;
-}) {
+/**
+ * 알림 한 줄.
+ *
+ * **문구를 여기서 만들지 않는다** — 저장된 `title`/`message` 를 그대로 그린다. 보낸 문구는
+ * 기록이라, 문장을 다듬어도 과거 알림이 소급해 바뀌면 안 된다
+ * (`features/consult/consultNotificationText.ts` 가 보낼 때 한 번 만든다).
+ *
+ * 행은 링크가 아니라 **버튼**이다 — 누르면 읽음 처리라는 상태 변경이 함께 일어나고,
+ * 이동이 없는 `안내` 행도 그 변경은 일으킨다.
+ */
+function NotificationRow({ notification }: { notification: AppNotification }) {
   const markAsRead = useMarkNotificationAsRead();
+
+  const kind = notificationIcon(notification);
+  const Icon = NOTIFICATION_ICON_GLYPH[kind];
+  const tone = NOTIFICATION_ICON_TONE[kind];
+  const at = formatDateTimeShort(notification.createdAt);
+  const unread = !notification.isRead;
 
   const handlePress = () => {
     // 읽음 처리는 이동을 막지 않는다 — 실패해도 알림을 열지 못할 이유가 없다.
     markAsRead.mutate(notification.id);
 
     if (notification.type === 'consult-status' && notification.relatedId) {
-      void hospitalIdForConsult(notification.relatedId).then((hospitalId) => {
-        // 못 찾는 경우: 내역 100건 상한 밖이거나(아래 LIST_PAGE_SIZE 주석) 조회가 실패했다.
-        // 둘 다 이동할 곳이 없으므로 읽음 처리만 남긴다.
-        if (hospitalId) router.push(`/hospital/${hospitalId}`);
-      });
+      // **고정 주소다.** 예전에는 그 상담의 병원을 비동기로 찾아 병원 상세로 보냈는데,
+      // 주인이 없는 샘플 상담은 찾을 수 없어 조용히 이동하지 않았다. 상담 내역은
+      // 알림이 말한 바로 그 상담이 있는 곳이라 id 만으로 갈 수 있다.
+      router.push(`/mypage?tab=consults&consult=${notification.relatedId}`);
       return;
     }
 
@@ -69,73 +74,84 @@ function NotificationRow({
   };
 
   return (
-    <Pressable
-      onPress={handlePress}
-      className={`mb-2 flex-row gap-3 rounded-2xl border p-4 ${
-        notification.isRead ? 'border-neutral-100 bg-white' : 'border-brand-100 bg-brand-50'
-      }`}
+    <button
+      type="button"
+      onClick={handlePress}
+      className={cx(
+        'mb-2 flex w-full flex-row items-start gap-3 rounded-2xl border p-4 text-left',
+        'active:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2',
+        unread ? 'border-brand-100 bg-brand-50' : 'border-neutral-100 bg-white'
+      )}
     >
-      <View className="pt-1.5">
-        {notification.isRead ? (
-          <View style={{ width: 8, height: 8 }} />
-        ) : (
-          <View className="rounded-full bg-brand-600" style={{ width: 8, height: 8 }} />
+      {/* 낭독기에만 들리는 머리말. `aria-label` 로 전체를 덮지 않는 이유: 본문 글자를
+          선택·번역·확대할 수 있어야 하고, 라벨과 보이는 글이 어긋날 길을 만들지 않는다.
+          읽은 행은 `읽음,` 을 말하지 않는다 — 메일함의 관습대로 차이는 "말하느냐"로 전한다. */}
+      <span className="sr-only">{`${unread ? '안 읽음, ' : ''}${NOTIFICATION_ICON_LABEL[kind]} 알림.`}</span>
+
+      {/* 칩 배경은 늘 카드 배경의 반대쪽이다 — 안 읽음 카드(brand-50) 위의 brand 칩은
+          사라져 보인다. 읽었다고 아이콘을 흐리게 하지는 않는다 (종류는 읽음과 무관한 사실). */}
+      <span
+        aria-hidden="true"
+        className={cx(
+          'flex h-9 w-9 shrink-0 items-center justify-center rounded-full',
+          unread ? 'bg-white' : tone.chip
         )}
-      </View>
-      <View className="flex-1">
-        <Text
-          className={`mb-1 text-sm ${
-            notification.isRead ? 'font-medium text-neutral-500' : 'font-bold text-neutral-900'
-          }`}
+      >
+        <Icon size={18} className={tone.icon} aria-hidden="true" />
+      </span>
+
+      <span className="min-w-0 flex-1">
+        <span className="flex flex-row items-start justify-between gap-2">
+          <span
+            className={cx(
+              'min-w-0 flex-1 text-sm',
+              unread ? 'font-bold text-neutral-900' : 'font-medium text-neutral-500'
+            )}
+          >
+            {notification.title}
+          </span>
+          {/* 읽은 행도 같은 크기의 빈 자리를 남긴다 — 읽음 전후로 제목 칸 폭이 흔들리지 않게.
+              점은 위 숨김 텍스트와 중복이라 낭독기에서 숨긴다. */}
+          <span
+            aria-hidden="true"
+            className={cx('mt-1.5 h-2 w-2 shrink-0 rounded-full', unread && 'bg-brand-600')}
+          />
+        </span>
+
+        {/* 병원 이름이 길어도 자르지 않고 줄바꿈한다 — 이름을 `…` 로 자르면 어느 병원인지
+            모르게 된다. 넘치는 쪽은 문장 꼬리이고, 병원명·일시는 앞에 있다. */}
+        {/* `block` 을 함께 주지 않는다 — `line-clamp-*` 는 `display:-webkit-box` 로 동작하는데
+            Tailwind 가 `.block` 을 뒤에 내보내서 `display:block` 이 이기고 clamp 가 조용히
+            죽는다 (md 이상에서만 살아나 좁은 화면이 오히려 안 잘리는 거꾸로가 된다).
+            `-webkit-box` 도 블록 상자라 줄바꿈 자리는 그대로다. */}
+        <span
+          className={cx(
+            'mt-1 line-clamp-3 text-sm leading-relaxed md:line-clamp-2',
+            // 읽음 본문을 neutral-400(2.6:1)에서 올렸다 — 본문이 이제 핵심 정보다.
+            notification.isRead ? 'text-neutral-500' : 'text-neutral-600'
+          )}
         >
-          {notification.title}
-        </Text>
-        <Text className={`text-sm ${notification.isRead ? 'text-neutral-400' : 'text-neutral-600'}`}>
           {notification.message}
-        </Text>
-        <Text className="mt-1.5 text-[11px] text-neutral-400">
-          {new Date(notification.createdAt).toLocaleString('ko-KR')}
-        </Text>
-      </View>
-    </Pressable>
+        </span>
+
+        {at ? (
+          <time dateTime={notification.createdAt} className="mt-1.5 block text-[11px] text-neutral-400">
+            {at}
+          </time>
+        ) : null}
+      </span>
+    </button>
   );
 }
 
 export default function NotificationsScreen() {
   const { data, isLoading, isError, isFetching, refetch } = useNotifications('user', { pageSize: LIST_PAGE_SIZE });
   const markAllAsRead = useMarkAllNotificationsAsRead();
-  // 알림에는 상담 id 만 실려 있다. 병원 상세로 보내려면 그 상담이 어느 병원 것인지 알아야 하고,
-  // 그건 사용자 시야의 내역(`GET /me/consult-requests`)이 답할 수 있는 질문이다.
-  // 미리 받아두면 탭이 즉시 이동하지만, 아직이면 아래 resolver 가 기다렸다 이동한다.
-  useMyConsultRequests({ pageSize: LIST_PAGE_SIZE });
-
-  const queryClient = useQueryClient();
-  const myConsultsFilters = useMemo(() => ({ pageSize: LIST_PAGE_SIZE }), []);
-
-  /**
-   * 캐시에 있으면 즉시, 없으면 조회가 끝날 때까지 기다렸다가 병원 id 를 돌려준다.
-   * `ensureQueryData` 라서 이미 진행 중인 조회가 있으면 거기에 합류한다 (중복 요청 없음).
-   */
-  const resolveHospitalId = useCallback(
-    async (consultId: string) => {
-      try {
-        const page = await queryClient.ensureQueryData({
-          queryKey: queryKeys.consultRequests.mine(myConsultsFilters),
-          queryFn: () => fetchMyConsultRequests(myConsultsFilters),
-        });
-        return page.items.find((request) => request.id === consultId)?.hospitalId;
-      } catch {
-        // 조회 실패는 이동만 포기한다 — 알림함 자체는 계속 쓸 수 있어야 한다.
-        return undefined;
-      }
-    },
-    [queryClient, myConsultsFilters]
-  );
 
   return (
     <SafeAreaView className="flex-1 bg-neutral-50" edges={['bottom']}>
       <Stack.Screen options={{ title: '알림' }} />
-      <View className={cx(CONTAINER_PADDING, 'flex-row items-center justify-between pb-2 pt-4')}>
+      <View className={cx(containerClass('content'), 'flex-row items-center justify-between pb-2 pt-4')}>
         <Text className="text-lg font-bold text-neutral-900">알림함</Text>
         <Pressable onPress={() => markAllAsRead.mutate('user')} hitSlop={8}>
           <Text className="text-sm font-semibold text-brand-700">모두 읽음</Text>
@@ -150,28 +166,28 @@ export default function NotificationsScreen() {
           void refetch();
         }}
         isRetrying={isError && isFetching}
-        // 0건은 아래 FlatList 의 기존 빈 상태(🔔)가 그대로 맡는다.
+        // 0건은 아래 목록의 기존 빈 상태(🔔)가 그대로 맡는다.
         isEmpty={() => false}
         emptyState={{ title: EMPTY_TITLE }}
       >
         {(page) => (
-          <FlatList
-            data={page.items}
-            keyExtractor={(item) => item.id}
-            contentContainerClassName={cx(CONTAINER_PADDING, 'py-2')}
-            renderItem={({ item }) => (
-              <NotificationRow
-                notification={item}
-                hospitalIdForConsult={resolveHospitalId}
-              />
-            )}
-            ListEmptyComponent={
+          <ScrollView contentContainerClassName={cx(containerClass('content'), 'py-2')}>
+            {page.items.length === 0 ? (
               <View className="items-center px-8 py-16">
                 <Text className="mb-2 text-4xl">🔔</Text>
                 <Text className="text-center text-sm text-neutral-500">{EMPTY_TITLE}</Text>
               </View>
-            }
-          />
+            ) : (
+              // 목록으로 감싸 "목록, 항목 N개" 가 먼저 들리게 한다.
+              <ul>
+                {page.items.map((item) => (
+                  <li key={item.id}>
+                    <NotificationRow notification={item} />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </ScrollView>
         )}
       </QueryState>
     </SafeAreaView>

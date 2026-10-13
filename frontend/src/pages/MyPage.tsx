@@ -1,5 +1,5 @@
 import { ChevronRight, ClipboardList, Heart, MessageCircleQuestion } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { forwardRef, useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
 import { router, useFocusEffect } from '@/navigation';
@@ -79,7 +79,23 @@ function LoginCard() {
 
 /* ------------------------------------------------------------------ 상담 내역 패널 */
 
-function ConsultRow({ request, isLast }: { request: MyConsultRequest; isLast: boolean }) {
+interface ConsultRowProps {
+  request: MyConsultRequest;
+  isLast: boolean;
+  /** 알림에서 이 행을 지목하고 들어왔는가 (`?consult=`). 링으로 어느 줄인지 보여준다. */
+  highlighted: boolean;
+}
+
+/**
+ * 상담 내역 한 줄. 누르면 그 병원 상세로 간다 (펼침이 없는 목록이다).
+ *
+ * `MyInquiryRow` 처럼 `forwardRef` 인 이유는 하나다 — 상담 알림이 `?consult=` 로 지목한
+ * 행에 **포커스를 줘야** 하기 때문이다 (`Pressable` 로는 DOM 노드를 잡을 수 없다).
+ */
+const ConsultRow = forwardRef<HTMLButtonElement, ConsultRowProps>(function ConsultRow(
+  { request, isLast, highlighted },
+  ref
+) {
   // 로컬 응답의 `hospitalName` 이 항상 null 이라 행마다 조회한다. 서버가 채우면 사라진다.
   const hospitalName = useHospitalName(request.hospitalId);
   // 모르는 시술 id 면 null — 줄 자체를 그리지 않는다 ("미지정"이라 적으면 거짓말이다).
@@ -93,35 +109,76 @@ function ConsultRow({ request, isLast }: { request: MyConsultRequest; isLast: bo
   });
 
   return (
-    <Pressable
-      onPress={() => router.push(`/hospital/${request.hospitalId}`)}
-      className={cx('gap-1.5 py-4', !isLast && 'border-b border-neutral-100')}
+    <button
+      type="button"
+      ref={ref}
+      onClick={() => router.push(`/hospital/${request.hospitalId}`)}
+      className={cx(
+        // `flex flex-col` 은 줄 간격(`gap-1.5`)을 유지하려는 것이다 — 예전 `Pressable`
+        // (RN 기본값이 세로 flex)에서 옮겨 오면서 세 줄이 붙어 보이지 않도록.
+        'flex w-full flex-col gap-1.5 py-4 text-left',
+        !isLast && 'border-b border-neutral-100',
+        // 시간이 지나 사라지는 강조는 낭독기·느린 로딩에서 놓친다 — 링은 남는다.
+        highlighted && 'rounded-xl ring-2 ring-brand-300'
+      )}
     >
-      <View className="flex-row items-center justify-between gap-2">
-        <Text className="min-w-0 flex-1 text-[15px] font-bold text-neutral-900" numberOfLines={1}>
-          {hospitalName}
-        </Text>
-        <View className="shrink-0">
+      <span className="flex flex-row items-center justify-between gap-2">
+        <span className="min-w-0 flex-1 truncate text-[15px] font-bold text-neutral-900">{hospitalName}</span>
+        <span className="shrink-0">
           <Badge label={CONSULT_STATUS_LABEL[request.status]} tone={CONSULT_STATUS_TONE[request.status]} />
-        </View>
-      </View>
-      {procedureLabel ? <Text className="text-[13px] text-neutral-600">{procedureLabel}</Text> : null}
+        </span>
+      </span>
+      {procedureLabel ? <span className="block text-[13px] text-neutral-600">{procedureLabel}</span> : null}
       {schedule ? (
-        <Text
+        <span
           className={
             schedule.emphasized
-              ? 'text-sm font-semibold text-brand-700'
-              : 'text-[13px] text-neutral-500'
+              ? 'block text-sm font-semibold text-brand-700'
+              : 'block text-[13px] text-neutral-500'
           }
         >
           {schedule.text}
-        </Text>
+        </span>
       ) : null}
-    </Pressable>
+    </button>
   );
-}
+});
 
-function ConsultsPanel({ query }: { query: ReturnType<typeof useMyConsultRequests> }) {
+/**
+ * 상담 내역 목록.
+ *
+ * `deepLinkId` 는 상담 알림이 들고 온 상담 id 다 (`/mypage?tab=consults&consult=...`).
+ * 목록에 없는 id(100건 상한 밖·남의 상담)면 **아무 일도 일어나지 않고 주소만 정리된다** —
+ * `내 문의` 의 `?inquiry=` 와 같은 동작이다.
+ */
+function ConsultsPanel({
+  query,
+  deepLinkId,
+  onDeepLinkHandled,
+}: {
+  query: ReturnType<typeof useMyConsultRequests>;
+  deepLinkId: string | null;
+  onDeepLinkHandled: () => void;
+}) {
+  // 주소에서 파라미터를 지운 뒤에도 강조는 남아야 한다 — 마지막으로 들어온 값을 붙들어 둔다.
+  // 렌더 중에 맞춘다(효과가 아니라) — 포커스와 강조가 **같은 값**에서 나오게. 패널이 떠 있는
+  // 채로 새 `consult=` 가 붙어도 둘이 갈리지 않는다.
+  const [highlightId, setHighlightId] = useState(deepLinkId);
+  if (deepLinkId !== null && deepLinkId !== highlightId) setHighlightId(deepLinkId);
+  const rowRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const loaded = query.data !== undefined;
+
+  useEffect(() => {
+    if (deepLinkId === null || !loaded) return;
+
+    const row = rowRefs.current[deepLinkId];
+    row?.focus();
+    // jsdom 에는 없는 API 라 옵셔널 호출이다.
+    row?.scrollIntoView?.({ block: 'center' });
+    // 파라미터는 한 번 쓰고 지운다 — 새로고침·뒤로 가기에서 같은 행이 다시 잡히지 않게.
+    onDeepLinkHandled();
+  }, [deepLinkId, loaded, onDeepLinkHandled]);
+
   return (
     <QueryState
       isLoading={query.isLoading}
@@ -147,7 +204,14 @@ function ConsultsPanel({ query }: { query: ReturnType<typeof useMyConsultRequest
         <ul>
           {page.items.map((request, index) => (
             <li key={request.id}>
-              <ConsultRow request={request} isLast={index === page.items.length - 1} />
+              <ConsultRow
+                ref={(node) => {
+                  rowRefs.current[request.id] = node;
+                }}
+                request={request}
+                isLast={index === page.items.length - 1}
+                highlighted={highlightId === request.id}
+              />
             </li>
           ))}
         </ul>
@@ -360,18 +424,24 @@ function SignedInView({ user, isHospitalAdmin }: { user: User; isHospitalAdmin: 
     favorites: favorites.data?.hospitalIds.length ?? null,
   };
 
-  // 답변 알림이 들고 온 문의 id. 한 번 쓰고 주소에서 지운다 (`replace` — 이력을 쌓지 않는다).
+  // 알림이 들고 온 id 둘. 한 번 쓰고 주소에서 지운다 (`replace` — 이력을 쌓지 않는다).
   const deepLinkInquiryId = searchParams.get('inquiry');
-  const clearInquiryParam = useCallback(() => {
-    setSearchParams(
-      (prev) => {
-        const next = new URLSearchParams(prev);
-        next.delete('inquiry');
-        return next;
-      },
-      { replace: true }
-    );
-  }, [setSearchParams]);
+  const deepLinkConsultId = searchParams.get('consult');
+  const clearParam = useCallback(
+    (name: string) => {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.delete(name);
+          return next;
+        },
+        { replace: true }
+      );
+    },
+    [setSearchParams]
+  );
+  const clearInquiryParam = useCallback(() => clearParam('inquiry'), [clearParam]);
+  const clearConsultParam = useCallback(() => clearParam('consult'), [clearParam]);
 
   const selectTab = (key: TabKey) => {
     setSearchParams(
@@ -463,7 +533,13 @@ function SignedInView({ user, isHospitalAdmin }: { user: User; isHospitalAdmin: 
           tabIndex={0}
           className="px-4 pb-3 pt-1"
         >
-          {tab === 'consults' ? <ConsultsPanel query={myConsults} /> : null}
+          {tab === 'consults' ? (
+            <ConsultsPanel
+              query={myConsults}
+              deepLinkId={deepLinkConsultId}
+              onDeepLinkHandled={clearConsultParam}
+            />
+          ) : null}
           {tab === 'inquiries' ? (
             <InquiriesPanel
               query={myInquiries}

@@ -16,7 +16,7 @@ import {
   formatVisitAt,
   isConsultDelayed,
 } from '@/features/consult/consultDisplay';
-import { useHospitalName } from '@/features/hospital';
+import { useHospital, useHospitalName } from '@/features/hospital';
 import { CONSULT_STATUS_LABEL } from '@/types/domain';
 
 interface AdminConsultDetailProps {
@@ -72,6 +72,10 @@ export function AdminConsultDetail({
   const message = request.message.trim();
   // 목록 카드와 같은 훅이다 — 두 자리가 같은 병원 이름(과 같은 "아직 모름" 표시)을 쓴다.
   const hospitalName = useHospitalName(request.hospitalId);
+  // 서버 전환 시 삭제: 환자 알림 문구에 넣을 **진짜 이름**이다. 화면 표기(`—`/`알 수 없는
+  // 병원`)를 그대로 보내면 그 말이 알림에 박히므로, 모를 때는 보내지 않는다(문구는 `병원`).
+  // 같은 쿼리라 조회가 한 번 더 나가지는 않는다.
+  const { data: hospital } = useHospital(request.hospitalId);
 
   return (
     <div>
@@ -132,7 +136,9 @@ export function AdminConsultDetail({
           request={request}
           draft={draft}
           onDraftChange={onDraftChange}
-          onSubmit={onSubmit}
+          onSubmit={(input, context) =>
+            onSubmit(hospital ? { ...input, hospitalName: hospital.name } : input, context)
+          }
           saving={saving}
           saveError={saveError}
           now={now}

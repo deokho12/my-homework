@@ -113,17 +113,6 @@ export function formatVisitTime(iso: string | null | undefined): string | null {
   return parts ? `${parts.hour}:${parts.minute}` : null;
 }
 
-/**
- * `10월 9일(금) 14:00` — **환자에게 가는 알림 문구 전용**이다 (계약
- * `AppNotification.message`: `예약 일시가 '{...}'(으)로 변경되었어요`).
- * 화면 안에서는 좁은 자리에 들어가는 `formatVisitAt` 을 쓴다.
- */
-export function formatVisitAtLong(iso: string | null | undefined): string | null {
-  const parts = dateParts(VISIT_FORMAT, iso);
-
-  return parts ? `${parts.month}월 ${parts.day}일(${parts.weekday}) ${parts.hour}:${parts.minute}` : null;
-}
-
 /** `2026-10-13` — 서울 달력의 오늘. `<input type="date" min>` 이 쓴다. */
 export function todayInSeoul(now: Date): string {
   return seoulDateKey(now);

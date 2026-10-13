@@ -507,6 +507,21 @@ export interface AppNotification {
   createdAt: string;
   /** Id of the related consult request, hospital, etc. Null for generic notices. */
   relatedId: string | null;
+  /**
+   * `type: 'consult-status'` 행의 **변경 후 상태** (`docs/database/README.md` §15).
+   * 일시 변경(`reschedule`)이면 `booked` 다. 다른 `type` 은 전부 `null`.
+   *
+   * 소비자는 **아이콘 판정 하나**다 (`features/notification/notificationDisplay.ts`).
+   * 문구는 저장된 `message` 문자열이지, 이 값으로 다시 만들지 않는다 — 다시 만들면
+   * 문장을 다듬는 날 과거 알림 문구가 소급해 바뀐다.
+   *
+   * **선택 필드인 이유**: 칸이 생기기 전에 저장된 행과 `mocks/fixtures/notifications.ts`
+   * 의 시드에는 이 키가 없다 (백엔드 seed 가 import 하는 파일이라 고치지 않았다 —
+   * §15.8 의 결정과 같다). 백필하지 않고 **읽을 때 `null` 로** 맞춘다
+   * (`features/notification/api/notificationApi.ts`). 새로 만드는 행은 항상 적는다 —
+   * 쓰기 경로의 입력 타입(`NewNotification`)이 키를 요구한다.
+   */
+  consultStatus?: ConsultStatus | null;
 }
 
 /** 목록 조회 계약의 공통 페이지네이션 모양. `GET /hospitals` 등이 이 모양으로 응답한다. */

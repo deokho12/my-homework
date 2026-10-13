@@ -108,6 +108,8 @@ describe('createConsultRequest', () => {
       title: '새로운 상담 신청',
       message: '김민준님이 상담을 신청했어요',
       isRead: false,
+      // 접수 알림이 말하는 상태는 그 상담이 방금 놓인 상태다.
+      consultStatus: 'new',
     });
   });
 
@@ -418,9 +420,33 @@ describe('updateConsultStatus — 이벤트와 부수효과', () => {
     expect(readCollection('notifications')[0]).toMatchObject({
       audience: 'user',
       type: 'consult-status',
-      title: '상담 상태 변경',
-      message: "상담 상태가 '예약확정'(으)로 변경되었어요",
+      title: '상담 예약이 확정됐어요',
+      // 화면이 아이콘을 가를 수 있도록 **변경 후 상태**를 함께 적는다.
+      consultStatus: 'booked',
       relatedId: 'cr1',
+    });
+  });
+
+  it('알림 문구에 병원 이름이 들어간다 — 화면이 넘겨준 로컬 전용 입력이다', async () => {
+    await updateConsultStatus('cr1', {
+      status: 'booked',
+      visitAt: '2026-10-09T05:00:00.000Z',
+      hospitalName: '강남 스마일 치과',
+    });
+
+    expect(readCollection('notifications')[0]).toMatchObject({
+      title: '상담 예약이 확정됐어요',
+      message: '강남 스마일 치과 · 10/9(금) 14:00 방문. 변경이 필요하면 병원에 전화해 주세요',
+    });
+  });
+
+  it('병원 이름이 없으면 `병원` 으로 적는다 — 빈 자리를 남기지 않는다', async () => {
+    await updateConsultStatus('cr1', { status: 'cancelled', cancelReason: 'no_answer' });
+
+    expect(readCollection('notifications')[0]).toMatchObject({
+      title: '상담이 취소됐어요',
+      message: '병원 · 연락이 닿지 않아 취소됐어요',
+      consultStatus: 'cancelled',
     });
   });
 
@@ -438,8 +464,10 @@ describe('updateConsultStatus — 이벤트와 부수효과', () => {
       notified: true,
     });
     expect(readCollection('notifications')[0]).toMatchObject({
-      title: '예약 일시 변경',
-      message: "예약 일시가 '10월 10일(토) 11:00'(으)로 변경되었어요",
+      title: '예약 일시가 바뀌었어요',
+      message: '병원 · 10/10(토) 11:00 방문. 변경이 필요하면 병원에 전화해 주세요',
+      // 일시만 바뀐 알림도 그 시점 상태는 `booked` 다 — 아이콘이 예약확정과 같아진다.
+      consultStatus: 'booked',
     });
   });
 

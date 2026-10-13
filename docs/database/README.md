@@ -6,7 +6,7 @@
 | **이전 대상** | PostgreSQL 14+ |
 | **스키마 정의** | [`schema.dbml`](schema.dbml) — 테이블·컬럼·인덱스·주석 |
 | **ORM 스키마** | [`../../backend/prisma/schema.prisma`](../../backend/prisma/schema.prisma) |
-| **요구사항 출처** | 1차(27개 테이블): `frontend/src/types/domain.ts`, `docs/features/*.md` (27개), `frontend/src/mocks/fixtures/*.ts`<br>2차(5개 테이블, §11): `docs/decisions/0001-roles-and-pii.md`, `docs/api/README.md` §4·§14, `backend/src/auth/refresh-token.store.ts`<br>3차(**테이블 추가 없음** — 상담 예약 확장, §12): `docs/features/requests/2026-10-12-04-관리자-상담예약-개선.md`, `docs/api/README.md` §4·§9·§14<br>4차(**테이블·컬럼 추가 없음, 인덱스 1개** — 대시보드 집계, §13): `docs/features/requests/2026-10-12-05-관리자-레이아웃-대시보드.md`, `docs/api/README.md` §3·§14 |
+| **요구사항 출처** | 1차(27개 테이블): `frontend/src/types/domain.ts`, `docs/features/*.md` (27개), `frontend/src/mocks/fixtures/*.ts`<br>2차(5개 테이블, §11): `docs/decisions/0001-roles-and-pii.md`, `docs/api/README.md` §4·§14, `backend/src/auth/refresh-token.store.ts`<br>3차(**테이블 추가 없음** — 상담 예약 확장, §12): `docs/features/requests/2026-10-12-04-관리자-상담예약-개선.md`, `docs/api/README.md` §4·§9·§14<br>4차(**테이블·컬럼 추가 없음, 인덱스 1개** — 대시보드 집계, §13): `docs/features/requests/2026-10-12-05-관리자-레이아웃-대시보드.md`, `docs/api/README.md` §3·§14<br>5차(**제안 — 협업자 확인 대기 (2026-10-13)**, 테이블 1개·컬럼 9개, §14): `docs/features/requests/2026-10-12-06-병원관리자-직접가입.md`, `docs/decisions/0001-roles-and-pii.md` 결정 2 |
 
 이 문서는 **왜 이렇게 설계했는지**를 남깁니다. 무엇이 있는지는 `schema.dbml` 을 보세요.
 
@@ -126,6 +126,7 @@
 | `consult_status_changes` | `/admin/consultations/:id` '처리 이력' — 상태 변경 **과 예약 일시 변경**을 함께 담는다 (§12.3) |
 | `consult_memos` | `/admin/consultations/:id` '메모' |
 | `hospital_inquiries` **(아직 없음 — 요구사항만 전달됨)** | 병원 상세 `문의` 탭(공개 Q/A), `문의하기`·마이페이지 `내 문의`, 병원 관리자 `문의` 화면. **정의는 `docs/api/README.md` §14 의 `hospital_inquiries` 절에 있다** (2026-10-12 추가). 이 문서의 32개 집계에는 아직 포함되지 않는다 — `schema.dbml`·`schema.prisma` 에 들어오는 시점에 §11 과 같은 형태로 설계 근거를 옮겨 적는다 |
+| `uploaded_files` **(아직 없음 — §14 제안, 협업자 확인 대기)** | 회원가입의 `사업자등록증 업로드`, (운영자) 서류 열람. 요청 07 의 병원 사진 업로드도 같은 테이블을 쓴다. **32개 집계에 포함되지 않는다** — `schema.dbml`·`schema.prisma` 에 들어오는 시점에 집계를 고친다 |
 | `favorites` | 병원 상세 하트, 마이페이지 찜 목록, 꿀팁 관련 병원 카드 하트 |
 | `reviews`, `review_photos` | 병원 상세 '방문자 후기' |
 | `promotions` | 이벤트 목록(`/events`), 홈 '지금 진행중인 이벤트', 병원 카드 🔥 배지·할인가, 병원 상세 가격 영역, 탐색 가격 비교표 '할인가' |
@@ -2119,5 +2120,819 @@ noProcedures = (hospital_procedures 행 === 0)
    그대로 씁니다. 대시보드 집계에 넣지 않습니다
 5. **승인 상태(`승인 완료 · 앱 노출 중` / `승인 대기`)와 직책** — 요청 06 입니다. `hospitals` 에
    승인 상태 컬럼이 없고 `hospital_admins` 에 직책 컬럼이 없습니다. **그 요청서가 올 때 함께 설계합니다**
+   → **§14 에서 설계했습니다 (제안 단계)**
 6. **`이번 주`·`지난달 대비` 같은 비교 숫자** — 요청서에 없습니다. `periodRange` 는 이미 받을 수
    있지만 소비자가 없습니다
+
+---
+
+## 14. 병원 관리자 직접 가입 — **제안 — 협업자 확인 대기 (2026-10-13)**
+
+| | |
+|---|---|
+| **상태** | **제안입니다. 협업자 확인 대기 (2026-10-13).** 이 절의 어떤 것도 `schema.prisma`·`schema.dbml`·`openapi.yaml` 에 아직 반영하지 않았습니다 |
+| **요구사항 출처** | `docs/features/requests/2026-10-12-06-병원관리자-직접가입.md`, 사용자 확정 사항(2026-10-13, 아래), `docs/decisions/0001-roles-and-pii.md` **결정 2(변경 대상)** |
+| **새 테이블** | **1개** — `uploaded_files` (사업자등록증. 요청 07 의 병원 사진도 같은 테이블을 쓴다) |
+| **새 컬럼** | `hospitals` **8개**, `hospital_admins` **1개**. 기존 컬럼 **3개의 기본값 변경** |
+| **바뀌는 것** | 순수 함수 +5 (`hospital/visibility.ts`·`hospital/approval.ts`·`auth/agreements.ts`·`upload/access.ts`) · 인덱스 +4 · `legal_documents.slug` 에 값 1개 · `audit_logs.action` 에 값 3개 · `audit_logs.target_type` 에 값 1개 |
+| **받는 곳** | 이 절 → `docs/decisions/0001` 결정 2 개정 → **interface-master**(계약) → 백엔드(**협업자 영역**) |
+
+**사용자가 확정한 것 (2026-10-13)** — 이 절 전체의 전제입니다.
+
+1. 방식은 **직접 가입 + 승인 대기**다 (초대 코드가 아니다). **결정 2 를 바꾸는 일이다**
+2. 개발 단계에서는 **자동 승인**. 운영자 검수 화면은 별도 작업(이번 범위 밖) — **단 데이터는 그것을 받칠 수 있어야 한다**
+3. 승인 전: **관리자 화면은 쓴다. 환자 앱에는 병원이 노출되지 않는다**
+4. 사업자등록증 파일의 저장·열람 권한은 **운영자만**
+
+1·2차는 테이블을, 3차는 컬럼을, 4차는 숫자의 모집단을 설계했습니다.
+**5차가 설계하는 것은 "아직 공개되지 않은 행" 이라는 상태**입니다. 지금까지 `hospitals` 에 행이 있다는
+것은 곧 환자가 볼 수 있다는 뜻이었습니다(`deleted_at IS NULL` 하나가 전부). 그 등식이 깨집니다 —
+**행은 있는데 보이면 안 되는 병원**이 생기고, 그 판정이 빠진 질의 한 곳이 곧 "승인 안 난 병원이 앱에
+떴다" 는 사고입니다. 그래서 이 절에서 가장 긴 것이 §14.4(노출 판정이 걸리는 자리 전부)입니다.
+
+### 14.1 승인 상태를 어디에 두나 — `hospitals` 컬럼 5개, **이력 테이블은 만들지 않는다**
+
+선택지는 셋이었습니다.
+
+| 안 | 판단 |
+|---|---|
+| `hospitals` 에 상태 컬럼 | **채택** |
+| `hospital_approvals` 이력 테이블 + `hospitals` 에 캐시 컬럼 (`doctor_verifications` 패턴) | 기각 |
+| 별도 1:1 테이블 (`hospital_approval_states`) | 기각 |
+
+**`doctor_verifications` 패턴을 따르지 않은 이유.** 그 테이블이 존재하는 이유는 **재검수 강제**입니다 —
+전문의가 `specialty` 나 자격증을 바꾸면 `pending` 행이 새로 생겨 승인이 자동으로 풀립니다(§5.8).
+병원 승인에는 그런 트리거가 없습니다. 병원 정보를 고쳤다고 해서 승인이 풀리지 않습니다
+(**사업자등록증이 바뀌면 풀려야 하는가** 는 미결로 남깁니다 — §14.17-3).
+트리거가 없으면 이력 테이블이 답하는 질문은 "누가 언제 승인했는가" 하나뿐이고,
+**그 질문은 `audit_logs` 가 이미 받는 질문**입니다. `partner_inquiries` 에 심사 이력 테이블을 만들지
+않은 것과 같은 판단입니다(§11.4 — "같은 사실을 두 곳에 두면 어긋나고, 어느 쪽이 진실인지 판단할
+근거가 없어집니다"). 심사 이력을 **보여주는 화면**이 요구되는 날 이력 테이블을 만들면 되고,
+그때는 `audit_logs` 의 `hospital.approve` 행이 이미 그 데이터입니다.
+
+```prisma
+model Hospital {
+  // ── §14 제안: 승인 (5개) ─────────────────────────────────────────
+  /// HospitalApprovalStatus: pending | approved | rejected
+  /// 공개 노출 판정은 이 값 단독이 아니라 isPubliclyListed() 다 (§14.4)
+  approvalStatus String @default("pending") @map("approval_status")
+
+  /// 이 승인이 어디서 왔는가: operator | auto | migrated.  pending 이면 null
+  ///   operator = 사람이 검수했다 (approval_decided_by_user_id 가 함께 채워진다)
+  ///   auto     = 개발 단계 자동 승인 플래그 (§14.11). **행위자가 없다**
+  ///   migrated = 이 마이그레이션 이전부터 있던 병원 (§14.3)
+  approvalSource String? @map("approval_source")
+
+  /// 결정 시각. 자동 승인도 "언제 결정됐는가" 는 사실이므로 채운다
+  approvalDecidedAt DateTime? @map("approval_decided_at")
+
+  /// 결정한 운영자. **nullable 이지만 Restrict** — auto·migrated 는 null 이 정상이고,
+  /// 값이 들어간 뒤에는 그 사용자를 물리 삭제할 수 없다
+  /// (doctor_verifications.reviewed_by_user_id·audit_logs.actor_user_id 와 같은 정책 — §11.7)
+  approvalDecidedByUserId String? @map("approval_decided_by_user_id")
+
+  /// 반려 사유. status='rejected' 면 필수다 (앱 검증).
+  /// partner_inquiries.review_note 와 같은 성격이고, **오늘은 쓰는 경로가 없다** (§14.17-1)
+  approvalNote String? @map("approval_note")
+}
+```
+
+**값은 셋입니다.** `suspended`(노출 중단)를 만들지 않았습니다 — 요구한 화면이 없고, 운영상 내리는
+수단은 `deleted_at`(soft delete)이 이미 있습니다. 값을 늘리는 것은 나중에도 **문자열 하나**이고,
+노출 판정을 `=== 'approved'` 로 적어 두면 값이 늘어도 판정은 저절로 안전한 쪽입니다
+(`!== 'rejected'` 로 적으면 그렇지 않습니다 — **이 절의 판정식을 부정형으로 쓰지 마세요**).
+
+### 14.2 가입 폼이 요구하는 컬럼 3개 — `phone`·`phone_digits`·`address_detail`
+
+승인과 무관하지만 같은 마이그레이션에 들어갑니다. **`hospitals` 에 전화번호 컬럼이 아예 없습니다**
+(fixture 에도 없습니다 — 지금 병원 상세에 전화번호가 보이지 않는 이유입니다).
+
+```prisma
+model Hospital {
+  /// 치과 대표번호. 표시용 원본 ('02-1234-5678'). 형식 검사는 앱 (consult_requests.phone 과 같은 완화 패턴)
+  phone String? @map("phone")
+  /// 숫자만 남긴 값 ('0212345678'). 중복 가입 후보 조회용 (§14.9).
+  /// consult_requests.phone_digits 와 같은 정규화 규칙이다 (§12.5)
+  phoneDigits String? @map("phone_digits")
+  /// 상세 주소 ('3층 301호'). address 는 주소 검색이 돌려준 도로명/지번 그대로 둔다
+  addressDetail String? @map("address_detail")
+}
+```
+
+**셋 다 nullable 입니다.** 기존 병원 11곳에 넣을 값이 없고, 운영자가 만드는 병원(`POST /hospitals`)도
+오늘은 전화번호를 받지 않습니다. 없는 값을 `''` 로 채우면 "입력 안 함" 과 "빈 문자열로 입력함" 이
+구분되지 않습니다.
+
+**`address` 를 쪼개지 않고 `address_detail` 을 더한 이유**: 주소 검색 UI 가 돌려주는 것은 한 덩어리이고,
+다시 검색하면 그 값이 통째로 교체됩니다. 상세 주소를 같은 칸에 이어 붙이면 재검색 때 사라집니다.
+표시용 합치기는 순수 함수 하나입니다 — `formatAddress(address, addressDetail)`.
+
+**`region` 은 받지 않고 파생합니다.** 가입 폼에 지역 칸이 없는데 `hospitals.region` 은 NOT NULL 입니다.
+주소 검색이 **서버 경유**(`docs/api/README.md` §10)이므로 카카오 응답의 `region_2depth_name`(`강남구`)을
+그대로 쓸 수 있습니다. 응답에 없으면 주소 문자열에서 뽑습니다(`regionOf`). **이 값이 비면 탐색의
+지역 표시가 깨지므로, 주소 검색 응답에 지역이 포함되는지가 interface-master 확인 항목입니다.**
+
+### 14.3 기본값과 마이그레이션 — **기본값은 닫고, 백필은 연다**
+
+```sql
+-- 1) 컬럼 추가. 기본값은 '닫힌 쪽'
+ALTER TABLE hospitals ADD COLUMN approval_status TEXT NOT NULL DEFAULT 'pending';
+-- 2) 같은 마이그레이션에서 기존 행만 '열린 쪽'으로 백필
+UPDATE hospitals SET approval_status = 'approved', approval_source = 'migrated';
+```
+
+두 줄이 **반대 방향인 것이 의도**입니다.
+
+- **기본값이 `pending`** — 새 행을 만드는 코드가 이 필드를 빠뜨리면 **병원이 안 보입니다.** 반대로
+  기본값이 `approved` 면 빠뜨렸을 때 **검수 안 받은 병원이 환자에게 보입니다.** 실수의 대가가 한쪽은
+  "문의 한 건", 다른 쪽은 "검증 없이 노출된 의료기관" 입니다. 실패는 닫히는 쪽으로 해야 합니다.
+- **백필은 `approved`** — 기존 병원 11곳을 `pending` 으로 두면 마이그레이션 직후 **앱 전체가 빈 화면**이
+  됩니다(홈·탐색·검색·지도·꿀팁 관련 병원이 전부 0건). 이 11곳은 운영자가 넣은 데이터이므로
+  검수 대상이 아닙니다. `approval_source='migrated'` 가 "사람이 승인한 것이 아니라 이관된 행" 임을
+  남깁니다 — `approval_decided_at`·`approval_decided_by_user_id` 는 **null 로 둡니다**
+  (없는 결정을 지어내지 않습니다. `doctor_verifications` 시드 행이 null 인 것과 같습니다).
+
+**운영자가 만드는 병원(`POST /hospitals`)은 `approved` 를 명시해서 씁니다** — 기본값에 기대지 않습니다.
+운영자가 만든 병원은 이미 검수를 거친 것이고(결정 2 의 흐름), 그 경로를 `pending` 으로 두면
+운영자가 자기가 만든 병원을 자기가 다시 승인해야 합니다. `approval_source='operator'`,
+`approval_decided_by_user_id` = 그 운영자입니다.
+
+**상태 전이**
+
+```
+            (가입: 자동 승인 OFF)          (운영자 승인)
+  (없음) ───────────────────────→ pending ─────────────→ approved
+     │                                │                     ↑
+     │  (가입: 자동 승인 ON §14.11)     │ (운영자 반려,        │ (운영자 승인)
+     │  (운영자 POST /hospitals)       │  approval_note 필수) │
+     └────────────────────────────────┼──────────→ rejected ┘
+                                      ↑                 │
+                                      └─────────────────┘
+                                       (재제출 — 화면 없음, §14.17-1)
+```
+
+| 전이 | 오늘 쓰는 경로 | 기록 |
+|---|---|---|
+| → `pending` (신규) | 가입 (자동 승인 OFF) | `hospitals.created_at` |
+| → `approved` (신규) | 가입 (자동 승인 ON), `POST /hospitals` | `approval_source` |
+| `pending` → `approved`/`rejected` | **없음** (검수 화면이 범위 밖) | `audit_logs` `hospital.approve`/`hospital.reject` |
+| `rejected` → `pending` | **없음** (재제출 화면이 없음) | 〃 |
+| `approved` → 무엇이든 | **전이 없음** | 승인 취소는 `deleted_at` 이다 (§14.1) |
+
+전이 검증은 **앱의 순수 함수**입니다(§14.13). DB `CHECK` 를 쓰지 않는 이유는 §3.1·§11.4 와 같습니다 —
+전이는 이전 값을 알아야 해서 CHECK 로 표현할 수 없습니다.
+
+### 14.4 "앱에 노출되지 않음" 의 정확한 범위 — 판정 **하나**와 그것이 걸리는 자리 **전부**
+
+요청서의 문장은 "승인 전에는 관리자 화면은 쓰되 앱에 병원이 노출되지 않음" 한 줄입니다.
+그 한 줄이 실제로 걸리는 질의가 아래 전부입니다. **이 표가 이 절의 핵심 산출물입니다.**
+
+```ts
+// hospital/visibility.ts — 판정은 여기 하나뿐이다
+export const isPubliclyListed = (h: { approvalStatus: string; deletedAt: Date | null }) =>
+  h.deletedAt === null && h.approvalStatus === 'approved';
+
+// 같은 판정의 질의 표현. 두 표현이 갈리지 않는지 테스트가 고정한다 (아래 경고)
+export const PUBLICLY_LISTED_WHERE = { deletedAt: null, approvalStatus: 'approved' } as const;
+```
+
+> **`deleted_at` 을 판정에 함께 넣은 것이 중요합니다.** 사이드 메뉴 배지(`승인 완료 · 앱 노출 중`)가
+> `approval_status === 'approved'` 만 보면, **soft delete 된 병원이 "앱 노출 중" 이라고 말합니다.**
+> 배지와 질의가 **같은 함수**를 써야 하는 이유이고, AGENTS.md 의 "같은 판정을 두 곳에 두지 않는다" 가
+> 가리키는 바로 그 상황입니다(병원 카드 배지와 전문의 목록 배지가 갈렸던 사고와 같은 모양).
+
+| 자리 | 지금 조건 | 바뀐 뒤 | 미승인 병원은 |
+|---|---|---|---|
+| 병원 목록·탐색·카테고리(시술 칩)·정렬 | `hospital.filters.ts:23` `{ deletedAt: null }` | `PUBLICLY_LISTED_WHERE` | 안 나옴 |
+| 지도(bounds 질의) | 같은 함수가 만든다 | 〃 (자동) | 안 나옴 |
+| 검색(`q`, 검색 resolve, 추천 병원) | 같은 함수 + `hospital.service.ts:113` | 〃 | 안 나옴 |
+| 홈 추천(`is_recommended`)·꿀팁 관련 병원(`guide_hospitals`) | 조인만 | 조인 대상에 〃 | 안 나옴 |
+| 광고 노출(`hospital_sponsorships`) | 기간 판정 | 병원 조인에 〃 | 안 나옴 (**미승인 병원의 광고 행은 존재할 수 없지만, 질의는 막는다**) |
+| **전문의 목록·검색·의사 모드** | `doctor.filters.ts:38` `hospital: { deletedAt: null }` | `hospital: PUBLICLY_LISTED_WHERE` | **소속 전문의가 통째로 안 나옴** |
+| 전문의 상세 직접 링크 | `doctor.repository.ts:96` | 공개 시야면 `404 DOCTOR_NOT_FOUND` | 못 봄 |
+| **병원 상세 직접 링크** | `hospital.repository.ts:32` | 공개 시야면 **`404 HOSPITAL_NOT_FOUND`** | 못 봄 (아래) |
+| 찜 목록(`/me/favorites`) | 조인 | 조인에 〃. **행은 지우지 않는다** | 목록에서 빠짐 |
+| 찜 토글 | — | 상세와 같은 판정 → `404` | 못 함 |
+| 상담 신청(`POST /consult-requests`) | 병원 존재 확인 | 상세와 같은 판정 → `404` | 못 함 |
+| 병원 문의(`hospital_inquiries` — 아직 테이블 없음) | — | 공개 Q/A 목록·문의 작성 모두 같은 판정 | 못 함 |
+| 후기 목록·이벤트(`promotions`) | 병원 범위 | 병원 조인에 〃 | 안 나옴 |
+
+**병원 상세를 `404` 로 하는 이유 — `docs/api/README.md` §3 의 "병원 존재는 공개 정보" 와 모순이 아닙니다.**
+그 규칙이 말하는 것은 **이미 공개된 병원**의 존재입니다. 승인 전 병원은 아직 공개 자원이 아니고,
+`403` 을 주면 "이 id 에 심사 중인 병원이 있다" 가 새어 id 대입으로 입점 준비 중인 병원 목록을 셀 수
+있습니다. `deleted_at` 이 설정된 병원을 `404` 로 다루는 것과 같은 취급입니다.
+
+**판정을 적용하지 않는 자리 (관리 시야)** — 여기에 적용하면 요청서의 "관리자 화면은 쓴다" 가 깨집니다.
+
+- `/admin` 대시보드 집계 전부(§13), `GET /admin/hospitals`, 병원 정보 조회·수정, 전문의 등록·수정,
+  진료시간·태그·시술 저장, 완성도 계산
+- 운영자의 전 병원 목록·전문의 검수 큐 (**미승인 병원의 전문의도 검수 큐에 뜹니다** — 검수는 운영자
+  시야이고, 전문의 배지는 어차피 공개 화면에서만 의미가 있습니다)
+- 알림함 (승인 결과 알림이 바로 이 병원 앞으로 갑니다)
+
+그래서 `GET /hospitals/{id}` 는 **시야가 둘인 유일한 오퍼레이션**이 됩니다:
+
+```ts
+// 공개 시야에서 숨고, 관리 시야에서 보인다
+const visible = isPubliclyListed(h)
+  || viewer?.role === 'operator'
+  || viewer?.managedHospitalIds.includes(h.id);   // canViewHospitalPrivately()
+```
+
+### 14.5 가입 한 번에 생기는 행 — **트랜잭션 하나, 파일 메타행만 밖**
+
+토글을 켠 가입 1회가 만드는 행:
+
+| # | 테이블 | 값 |
+|---|---|---|
+| 1 | `users` | `role='hospital_admin'`, `provider='email'`, 이메일 정규화·비밀번호 해시 |
+| 2 | `hospitals` | `approval_status` = §14.11 의 판정값, 이름·대표번호·주소·좌표·상세주소·`region`(파생)·`name_normalized` |
+| 3 | `hospital_admins` | `(user_id, hospital_id)` + `position`(직책) |
+| 4 | `uploaded_files` | 사업자등록증 **메타행의 주인 확정**(`hospital_id`·`uploaded_by_user_id` UPDATE) |
+| 5 | `user_agreements` | 4행 (`terms`·`privacy`·`location`·`partner-terms`) |
+
+**1·2·3·4·5 는 한 트랜잭션입니다** (`prisma.$transaction`). 중간 실패 시 어중간한 상태의 예:
+
+- 1만 성공 → `hospital_admin` 인데 담당 병원이 0곳. 관리자 화면에 들어와 빈 목록만 보는 상태입니다
+  (`docs/api/README.md` §3 이 담당자 해제 때 `role` 을 되돌리는 바로 그 이유)
+- 1·2 성공, 3 실패 → **주인 없는 병원 행**. 아무도 고칠 수 없고 운영자가 수동으로 담당자를 붙여야 합니다
+- 1·2·3 성공, 5 실패 → **동의 없이 가입된 계정** (§11.3 의 "가입과 동의는 같은 트랜잭션")
+
+**파일 바이트는 트랜잭션에 참여할 수 없습니다.** 객체 저장소 쓰기는 롤백되지 않으므로, 업로드는
+가입 요청 **전에** 끝나고(§14.7), 트랜잭션 안에서는 **메타행을 claim** 할 뿐입니다. 방향이 한쪽으로만
+깨집니다 — 가입이 실패하면 **주인 없는 파일**이 남고(배치가 지웁니다), 반대로 "가입은 됐는데 파일이
+없다" 는 일어나지 않습니다. claim 은 조건부 UPDATE 입니다:
+
+```ts
+// 트랜잭션 안. 이미 주인이 있는 파일(남의 업로드 id 추측)이면 0건 → 전체 롤백
+const claimed = await tx.uploadedFile.updateMany({
+  where: { id: dto.businessRegistrationFileId, purpose: 'business_registration',
+           hospitalId: null, uploadedByUserId: null, purgedAt: null },
+  data:  { hospitalId, uploadedByUserId: userId },
+});
+if (claimed.count !== 1) throw new UnprocessableEntity('UPLOAD_NOT_FOUND');
+```
+
+**재시도 멱등성은 `users.email` 유니크가 줍니다.** 같은 폼을 두 번 제출하면 두 번째는 `409`
+(`EMAIL_TAKEN`)에서 멈추고 병원 행이 두 개 생기지 않습니다 — 별도 중복 방지 규칙이 필요 없는 이유입니다
+(§14.9).
+
+> SQLite 의 쓰기 트랜잭션은 직렬화됩니다. 가입 트랜잭션 안에서 **외부 호출(주소 검색·파일 저장소)을
+> 하지 마세요** — 트랜잭션이 네트워크 지연만큼 DB 를 잠급니다. 좌표는 요청 본문으로 이미 와 있고,
+> 파일은 이미 저장돼 있습니다.
+
+### 14.6 직책 — `hospital_admins.position`
+
+```prisma
+model HospitalAdmin {
+  /// AdminPosition: director | manager | coordinator | etc   (대표원장 | 실장 | 코디네이터 | 기타)
+  /// null = 운영자가 지정한 담당자 (POST /hospitals/{id}/admins 에는 직책 입력이 없다)
+  position String? @map("position")
+}
+```
+
+**`users` 가 아니라 `hospital_admins` 인 이유**: 직책은 사람의 속성이 아니라 **그 병원에서의 역할**입니다.
+`hospital_admins` 는 M:N 이므로(결정 1) 한 사람이 A 병원 대표원장이면서 B 병원 코디네이터일 수 있고,
+`users` 에 두면 두 번째 담당 병원이 생기는 순간 둘 중 하나가 거짓이 됩니다. 담당자 해제 시 직책이
+함께 사라지는 것도 맞는 동작입니다(행이 사라집니다).
+
+**값은 코드로 저장합니다** (`director`/`manager`/…). `doctors.specialty` 가 한글을 저장하는 것과 다른
+선택인데, 그쪽은 **법으로 정해진 자격 명칭**이라 라벨이 곧 값입니다. 직책은 표시 문구가 바뀔 수 있고
+(`대표원장`→`원장`), 그때 과거 행의 값을 UPDATE 하게 되면 "그때 뭐라고 적었는가" 가 사라집니다.
+`consult_status_changes.cancel_reason`(`no_answer`·`etc` …)과 같은 처리입니다.
+**라벨 매핑은 한 곳**(프런트 상수 또는 투영)이고, `기타`→`etc` 역시 그 선례를 따릅니다.
+
+사이드 메뉴 하단은 이 값과 §14.4 의 판정을 함께 씁니다: `{직책 라벨} · {승인 완료 · 앱 노출 중 | 승인 대기}`.
+`position` 이 null 이면 직책 줄을 생략합니다(지어내지 않습니다).
+
+### 14.7 사업자등록증 — `uploaded_files` 하나로 요청 07 까지 받는다
+
+서버에 파일 업로드가 아직 없습니다. **요청 07(병원 사진 업로드)이 같은 기반을 쓸 예정**이므로
+공용으로 설계하되, **07 의 필드는 만들지 않습니다.**
+
+```prisma
+/// ★ 업로드된 파일의 메타데이터. **바이트는 여기 없다** — 저장소는 storage_key 뒤에 숨는다.
+/// 공용 테이블이다: 지금 purpose 는 1종이고, 요청 07 이 'hospital_photo' 를 더한다.
+model UploadedFile {
+  id String @id
+
+  /// FilePurpose: business_registration
+  /// (요청 07 에서 hospital_photo 추가 예정 — **지금 만들지 않는다**)
+  /// 접근 통제·보관 기간이 전부 이 값에서 파생된다 (canReadFile / retentionOf)
+  purpose String
+
+  /// 저장소 키. 로컬 디스크면 상대 경로, 객체 저장소면 object key.
+  /// **저장소 종류 컬럼을 두지 않았다** — 한 배포에 백엔드는 하나이고 설정값이다.
+  /// UNIQUE: 두 행이 같은 키를 가리키면 한쪽을 파기할 때 다른 쪽이 깨진 행이 된다
+  storageKey String @unique @map("storage_key")
+
+  /// 사용자가 올린 원본 파일명. 관리자 화면이 '사업자등록증.pdf 제출 완료' 로 보여준다
+  originalName String @map("original_name")
+  /// image/jpeg | image/png | application/pdf (앱 검증. 확장자가 아니라 실제 타입으로 판정)
+  contentType String @map("content_type")
+  byteSize    Int    @map("byte_size")
+
+  /// 어느 병원의 파일인가. **가입 전 업로드라 처음에는 null** 이고 가입 트랜잭션이 채운다 (§14.5)
+  hospitalId String? @map("hospital_id")
+  /// 올린 사람. 위와 같은 이유로 nullable. Restrict — 업로더가 사라지면 "누가 제출했는가" 가 사라진다
+  uploadedByUserId String? @map("uploaded_by_user_id")
+
+  createdAt DateTime @map("created_at")
+
+  /// 원본 바이트를 파기한 시각. 파기는 행 삭제가 아니다 (아래).
+  /// partner_inquiries.pii_purged_at 과 같은 성격이고, **보존 기간은 컬럼으로 굳히지 않는다**
+  purgedAt DateTime? @map("purged_at")
+
+  hospital   Hospital? @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  uploadedBy User?     @relation(fields: [uploadedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([hospitalId, purpose])
+  @@index([purpose, createdAt])
+  @@map("uploaded_files")
+}
+```
+
+**접근 통제는 컬럼이 아니라 `purpose` 에서 파생합니다.**
+
+```ts
+// upload/access.ts — 순수 함수
+export const canReadFile = (purpose: string, viewerRole?: string) =>
+  purpose === 'business_registration' ? viewerRole === 'operator' : true;
+```
+
+- **운영자만입니다. 올린 본인(담당 병원 `hospital_admin`)도 다시 내려받을 수 없습니다** — 요청서의
+  "저장·열람 권한을 운영자로 제한" 그대로입니다. 관리자 화면은 파일명과 `제출 완료` 만 보여주고
+  링크를 걸지 않습니다
+- **공개 URL 을 발급하지 않습니다.** `hospital_images.url` 처럼 URL 문자열을 어딘가에 저장하는 순간
+  그 URL 을 아는 사람 전부가 열람자가 됩니다. 접근은 오퍼레이션(`operator` 전용)을 통해서만 하고
+  응답은 `Cache-Control: no-store` 입니다
+- **열람은 감사 대상입니다** — `audit_logs.action='hospital_document.view'`,
+  `target_type='uploaded_file'`, `pii_masked=false`(마스킹하지 않은 개인정보를 봤다).
+  `partner_inquiry.view` 와 같은 취급입니다
+
+**보관·파기** (기간은 설정값. §11.4 와 같이 컬럼으로 굳히지 않습니다):
+
+| 대상 | 조회 조건 | 기본 제안 |
+|---|---|---|
+| 고아 파일 (가입 미완료) | `hospital_id IS NULL AND created_at < cutoff AND purged_at IS NULL` | **24시간** |
+| 반려된 병원의 서류 | 병원 `approval_status='rejected'` + 결정 후 N일 | **30일** (반려 입점 문의와 함께 정한다 — §11.8-2) |
+| 승인·대기 중인 병원의 서류 | — | **병원이 살아 있는 동안 보관** (입점 계약 근거. `approved` 입점 문의와 같은 기본값) |
+| soft delete 된 병원의 서류 | `hospitals.deleted_at` + N일 | 미결 |
+
+파기 = **저장소 객체 삭제 + `purged_at` 세팅**. 행은 남깁니다 — `audit_logs` 가 `target_id` 로 이
+파일을 가리키고 있어서, 행을 지우면 "대상 없는 열람 기록" 이 됩니다(§11.4 와 같은 논리).
+
+**`hospital_images` 를 고치지 않았습니다.** 그 테이블은 공개 URL 문자열이고 접근 통제가 없습니다.
+요청 07 에서 사진이 파일 업로드가 되면 `hospital_images` 가 `uploaded_files` 를 참조하게 될 수 있지만,
+**그 컬럼은 07 이 만듭니다.** 지금 만들면 소비자가 없는 FK 가 됩니다.
+
+### 14.8 `[필수] 병원 파트너 이용약관` — 문서를 늘리고, **필수성은 가입 경로가 정한다**
+
+```
+legal_documents.slug: terms | privacy | location | about | partner-terms   ← 값 1개 추가
+시드 1행: partner-terms / 1.0 / requires_agreement = true
+```
+
+**`legal_documents` 에 "누구에게 필수인가" 컬럼을 만들지 않았습니다.** `is_required_for='hospital_admin'`
+같은 컬럼은 문서에 대상자를 박아 넣는 것인데, 필수성은 **문서의 성질이 아니라 가입 경로의 성질**입니다
+(같은 약관이 나중에 일반 사용자에게도 필수가 될 수 있고, 그때 문서 행을 UPDATE 하면 §11.3 이 지키려던
+불변성이 깨집니다). 대신 순수 함수 하나입니다:
+
+```ts
+// auth/agreements.ts
+export type SignupKind = 'user' | 'hospital_admin';
+export const requiredAgreementSlugs = (kind: SignupKind) =>
+  kind === 'hospital_admin'
+    ? ['terms', 'privacy', 'location', 'partner-terms'] as const
+    : ['terms', 'privacy', 'location'] as const;
+```
+
+가입 요청의 `agreedTermsVersions` 를 이 목록과 대조해 **부족하면 `422`**, 없는 버전이면 `422`(§11.3).
+토글을 끈 일반 가입에 `partner-terms` 가 섞여 오면 그것도 `422` 입니다 — 동의할 이유가 없는 약관에
+동의한 기록을 만들지 않습니다.
+
+> **놓치기 쉬운 것: 재동의 계산도 같은 함수로 좁혀야 합니다.** §11.3 의 재동의 판정은
+> "`requires_agreement=true` 인 최신 시행 버전 중 내가 동의하지 않은 것" 인데, 그대로 두면
+> **전 일반 사용자에게 `병원 파트너 이용약관` 재동의 팝업이 뜹니다.** 대상 slug 집합을 먼저
+> `requiredAgreementSlugs(사용자의 역할)` 로 좁힌 뒤 미동의를 찾아야 합니다. 이 한 줄이
+> 새 slug 를 추가하면서 생기는 유일한 회귀 위험입니다.
+
+담당자로 **승격**되는 경로(`POST /hospitals/{id}/admins`)는 어떻게 하나 — 그 사람은 파트너 약관에 동의한
+적이 없습니다. 위 재동의 계산이 그대로 답합니다: 담당 병원이 생긴 순간 `partner-terms` 가 대상 집합에
+들어오고 동의 행이 없으므로 **다음 로그인에서 동의 대상으로 계산됩니다.** 별도 처리가 필요 없습니다.
+
+### 14.9 같은 병원이 두 번 가입하는 경우 — **막지 않는다. 다만 찾을 수 있게 둔다**
+
+**하드 차단을 만들지 않습니다.**
+
+- **같은 주소에 치과가 둘 있습니다** (한 건물 2·3층). 주소 문자열 일치로 막으면 정상 가입이 막힙니다
+- **같은 대표번호를 분원이 공유합니다.** 이전 개원으로 번호가 승계되기도 합니다
+- **폼 중복 제출은 이미 막혀 있습니다** — 가입이 한 트랜잭션이고 `users.email` 이 유니크라
+  두 번째 제출은 `409` 입니다(§14.5). "실수로 두 번" 의 압도적 다수가 이 경우입니다
+- 남는 것은 **실제로 같은 병원을 두 사람이 등록한 경우**인데, 그것은 차단이 아니라 **검수의 일**입니다.
+  차단하면 두 번째 사람은 아무 안내도 받지 못한 채 가입에 실패합니다
+
+**대신 운영자가 찾을 수 있게만 둡니다** — `phone_digits` 컬럼과 그 인덱스(§14.2·§14.14).
+검수 화면이 생길 때 "같은 대표번호의 병원이 이미 있습니다" 를 **경고로** 띄울 수 있습니다.
+
+```ts
+// 차단이 아니라 검수 보조. 결과가 있어도 가입은 진행된다
+where: { phoneDigits, deletedAt: null, NOT: { id: hospitalId } }
+```
+
+`hospitals.address` 에는 인덱스를 만들지 않았습니다 — 중복 판정이 부분일치여야 의미가 있는데
+앞쪽 와일드카드는 B-tree 를 타지 못하고(§6.2), 근접 판정은 좌표로 하는 편이 정확합니다.
+그 질의를 쓰는 화면이 아직 없으므로 지금 인덱스를 거는 것은 추측입니다(§13.9 와 같은 기준).
+
+### 14.10 `partner_inquiries` 와의 관계 — **공존. 대체하지 않는다**
+
+| | 입점 문의 (`partner_inquiries`) | 직접 가입 (§14) |
+|---|---|---|
+| 누가 | 비로그인. 계정이 없다 | 가입하는 본인 |
+| 무엇이 남나 | 연락처와 문의 내용 **한 행** | 계정·병원·담당자·서류·동의 **다섯 종류** |
+| 의도 | "얘기부터 들어보고 싶다" | "지금 등록하겠다" |
+| 운영자가 하는 일 | 심사 후 **연락** | **서류 검수** 후 승인/반려 |
+
+**결정 2 에서 바뀌는 것은 "입점 문의가 병원 생성의 _유일한_ 경로" 라는 부분**이지, 문의 폼을 없애는
+것이 아닙니다. 문의는 가입 의사가 없는 사람도 쓰는 입구이고, 테이블·심사 흐름이 이미 설계돼 있습니다(§11.4).
+
+**최소 규칙 둘:**
+
+1. **직접 가입은 `partner_inquiries` 행을 만들지 않습니다.** 문의가 아닙니다. 두 큐에 같은 건이
+   두 번 뜨면 운영자가 같은 병원을 두 번 심사합니다
+2. 같은 병원이 문의도 하고 직접 가입도 한 경우, 운영자가 **기존 컬럼** `partner_inquiries.linked_hospital_id`
+   로 연결합니다. 그 컬럼이 이미 "이 병원이 어느 문의에서 왔는가" 를 위해 nullable 로 설계돼 있습니다 —
+   **스키마 변경 0** 입니다
+
+> 운영자의 **대기 큐가 두 개**가 됩니다(문의 심사 + 병원 승인 검수). 그 둘을 한 화면에서 볼지
+> 나눌지는 운영자 콘솔 설계의 몫이고(결정 0001 미결 1), 데이터는 양쪽을 다 받습니다.
+> `/partner-inquiry` 화면을 남길지 접을지도 제품 결정입니다 — 두 입구가 같은 의도를 받으면
+> 사용자가 어디로 가야 할지 모릅니다 (§14.17-5).
+
+### 14.11 개발 단계 자동 승인 — 설정 플래그 + `approval_source='auto'`
+
+```
+HOSPITAL_AUTO_APPROVE   (dev 기본 true / prod 기본 false)
+```
+
+```ts
+// hospital/approval.ts — 순수 함수. DB 도 env 도 모른다. 플래그를 인자로 받는다
+export function approvalOnSignup(autoApprove: boolean, now: Date) {
+  return autoApprove
+    ? { approvalStatus: 'approved', approvalSource: 'auto',  approvalDecidedAt: now,  approvalDecidedByUserId: null }
+    : { approvalStatus: 'pending',  approvalSource: null,    approvalDecidedAt: null, approvalDecidedByUserId: null };
+}
+```
+
+**`approval_source` 컬럼이 있어야 하는 이유가 여기입니다.** `approval_decided_by_user_id = null` 만으로는
+세 가지가 구분되지 않습니다 — ① 자동 승인 ② 이관된 기존 병원 ③ 아직 결정 없음. 운영 전환 시
+**반드시 해야 하는 질의가 "플래그가 켜진 채로 자동 승인된 병원 찾기"** 이고, 그 질의가
+`approval_source='auto'` 입니다. (플래그를 켠 채 배포하는 것이 이 설계에서 가장 흔한 사고입니다.)
+
+**자동 승인은 `audit_logs` 에 남기지 않습니다.** `audit_logs.actor_user_id` 는 NOT NULL + Restrict 이고,
+자동 승인에는 **행위자가 없습니다.** 가짜 시스템 계정을 만들어 넣으면 "행위자" 라는 컬럼의 의미가
+무너지고, `actor_role` 스냅샷도 거짓이 됩니다. 사실을 그대로 적는 자리는 `approval_source` 입니다.
+사람이 한 승인·반려만 `hospital.approve`/`hospital.reject` 로 남습니다.
+
+**가입 응답과 알림**: 자동 승인이어도 완료 화면 문구는 요청서대로 둡니다(승인 결과 안내).
+승인 결과 알림은 기존 `notifications`(`audience='admin'`, `hospital_id`, `type='system'`) 로 충분하고
+**새 테이블이 필요 없습니다.** 문자(SMS)는 발송 인프라가 없습니다 — §14.17-6.
+
+### 14.12 이메일 형식 검사 — **이미 있습니다 (확인만)**
+
+요청서의 "지금은 이메일 형식 검사가 없습니다"(24행) 는 **낡은 기술(記述)입니다.**
+
+| 자리 | 지금 | 근거 |
+|---|---|---|
+| 클라이언트 가입 | ✅ 검사 | `frontend/src/features/auth/schemas/authSchemas.ts` 의 `email` 스키마(`.email()`)를 가입·로그인이 **공유** |
+| 클라이언트 로그인 | ✅ 검사 | 〃 |
+| 서버 가입 | ✅ 검사 | `backend/src/auth/auth.schemas.ts:21` `.email('이메일 형식이 올바르지 않아요')` |
+| 서버 로그인 | ❌ **일부러 안 함** | 같은 파일 46–48행의 주석: 형식으로 거절하면 "짧은/이상한 입력 = 없는 계정" 정보가 새고, 규칙 이전에 만든 계정이 로그인하지 못한다 |
+
+**데이터 설계에 변경 없습니다.** `users.email` 은 이미 `trim().toLowerCase()` 정규화 + UNIQUE 이고(§3.9),
+그 규칙이 가입·로그인 양쪽에서 같습니다. 서버 로그인의 미검사는 **의도된 것이므로 고치지 않습니다** —
+요청서의 "로그인에도 형식 검사" 는 클라이언트에서 이미 충족됩니다.
+
+### 14.13 판정 규칙 — 순수 함수 다섯 묶음
+
+AGENTS.md 의 "규칙은 DB 도 요청도 모르는 순수 함수" 를 따릅니다. **DB 없이 경계값을 테스트할 수
+있어야 하는 것들**이고, 각 함수가 이 절의 질문 하나에 대응합니다.
+
+| 파일 | 함수 | 답하는 질문 |
+|---|---|---|
+| `hospital/visibility.ts` | `isPubliclyListed(h)` · `PUBLICLY_LISTED_WHERE` · `canViewHospitalPrivately(h, viewer)` | 누구에게 보이나 (§14.4) |
+| `hospital/approval.ts` | `canTransition(from, to)` · `requiresNote(to)` · `approvalOnSignup(autoApprove, now)` | 어떤 전이가 되나 (§14.3·§14.11) |
+| `auth/agreements.ts` | `requiredAgreementSlugs(kind)` | 어떤 약관이 필수인가 (§14.8) |
+| `upload/access.ts` | `canReadFile(purpose, role)` · `retentionOf(purpose, state)` | 누가 파일을 보나, 언제 지우나 (§14.7) |
+| `hospital/address.ts` | `formatAddress(a, d)` · `regionOf(kakaoResult)` | 주소·지역 표시 (§14.2) |
+
+> **`isPubliclyListed` 와 `PUBLICLY_LISTED_WHERE` 는 같은 판정의 두 표현입니다.** 한쪽만 고치면
+> **목록에서는 사라졌는데 상세는 열리는**(또는 그 반대) 상태가 되고, 그 어긋남은 조용합니다.
+> 두 표현을 **같은 파일에** 두고, "판정이 거짓인 행을 where 가 반환하지 않는다" 를 고정하는 테스트를
+> 함께 두세요. 함수를 공유할 수 없는 이유(하나는 JS 값, 하나는 Prisma 조건)를 주석에 남깁니다 —
+> AGENTS.md 가 요구하는 "공유가 안 되면 그 이유를 주석에" 가 이 경우입니다.
+
+### 14.14 인덱스 — 4개 추가
+
+| 테이블 | 인덱스 | 쿼리 |
+|---|---|---|
+| `hospitals` | `(approval_status)` | 운영자 검수 대기 목록(`approval_status='pending'`). **공개 목록용이 아닙니다** — 거기서는 선택도가 낮아(거의 전부 `approved`) 풀스캔이 낫습니다(§6.7 의 boolean 과 같은 사정) |
+| `hospitals` | `(phone_digits)` | 중복 가입 후보 조회 (§14.9) |
+| `uploaded_files` | `(hospital_id, purpose)` | "이 병원의 사업자등록증" 단건 조회, 07 의 "이 병원의 사진" |
+| `uploaded_files` | `(purpose, created_at)` | 고아 파일 정리 배치, 보존기간 파기 배치 |
+| `uploaded_files` | `storage_key` **UNIQUE** | 같은 키를 두 행이 가리키지 않게 |
+
+**만들지 않은 인덱스**: `hospital_admins(position)`(조회 축이 아닙니다 — 표시용),
+`hospitals(approval_source)`(운영 전환 때 한 번 도는 질의라 풀스캔으로 충분합니다),
+`uploaded_files(uploaded_by_user_id)`("이 사람이 올린 파일" 화면이 없습니다 — §11.4 와 같은 기준).
+
+### 14.15 만들지 않는 것
+
+| 안 만든 것 | 대신 | 근거 |
+|---|---|---|
+| `hospital_approvals` 이력 테이블 | `audit_logs` + `hospitals` 컬럼 5개 | 재검수 트리거가 없어 이력의 유일한 소비자가 "누가 승인했나" 뿐 (§14.1) |
+| `hospitals.is_visible` / `is_published` boolean | `approval_status` 파생 | 두 값이 갈리면 어느 쪽이 진실인지 알 수 없습니다. 노출은 **승인의 결과**이지 독립 축이 아닙니다 |
+| `approval_status` 값 `suspended` | `deleted_at` | 요구한 화면이 없습니다. 값 추가는 나중에도 문자열 하나입니다 |
+| `legal_documents.is_required_for` | `requiredAgreementSlugs()` | 필수성은 문서가 아니라 가입 경로의 성질 (§14.8) |
+| `hospital_admins.invite_code` (결정 2 의 대안) | — | 직접 가입을 택했으므로 불필요 (결정 문서의 "변경 제안" 절 참고) |
+| `uploaded_files.checksum` · `storage_backend` · `width`/`height` | — | 중복 검출·멀티 저장소·썸네일 요구가 없습니다. 이미지 치수는 **요청 07** 이 필요해지면 그때 |
+| `uploaded_files` 의 07 전용 필드 (`sort_order`, `is_primary`) | — | **07 이 만듭니다.** 사진 순서·대표 지정은 사진 화면의 요구사항입니다 |
+| 사업자등록번호 컬럼 | — | 폼이 **파일**만 받습니다. 번호를 따로 받거나 OCR 로 뽑는 요구가 없습니다. 생기면 `hospitals.business_number` + 유니크 여부를 그때 정합니다(국세청 조회 없이 유니크를 거는 것은 위험합니다) |
+| 가입 행위의 `audit_logs` 행 | `hospitals.created_at` 등 | 감사 대상은 **관리자 행위**입니다. 본인이 자기 병원을 만드는 것은 사용자 행위이고, 그 사실은 행 자체에 남습니다 |
+| SMS 발송 테이블 | — | 발송 인프라가 없습니다 (§14.17-6) |
+
+### 14.16 백엔드 인계 체크리스트
+
+**협업자 확인 후** 아래 순서로 진행합니다. ①②는 이 문서의 작성자가, ③부터는 협업자 영역입니다.
+
+- [ ] ① **결정 0001 의 결정 2 를 개정**한다 (지금은 "변경 제안" 소절까지만 있습니다)
+- [ ] ② **interface-master 가 계약을 확정**한다 — `openapi.yaml`, `docs/api/README.md` §3 권한 표·§4 감사 로그 (아래 인계 목록)
+- [ ] ③ `schema.prisma` + `docs/database/schema.dbml` 반영
+  - [ ] `hospitals` **+8 컬럼**: `approval_status`(NOT NULL, `@default("pending")`), `approval_source`, `approval_decided_at`, `approval_decided_by_user_id`(Restrict), `approval_note`, `phone`, `phone_digits`, `address_detail`
+  - [ ] `hospital_admins` **+1 컬럼**: `position`(nullable)
+  - [ ] `uploaded_files` **신규 테이블** (+ `User.uploadedFiles`·`Hospital.uploadedFiles` 역방향 필드 — **DDL 변화 0**, §11.7 과 같은 사정)
+  - [ ] **기존 컬럼 3개의 기본값 변경** — 아래가 빠지면 **가입 트랜잭션이 NOT NULL 위반으로 실패합니다**
+- [ ] ④ **마이그레이션** — `ADD COLUMN ... DEFAULT 'pending'` 직후 **같은 마이그레이션에서**
+      `UPDATE hospitals SET approval_status='approved', approval_source='migrated'` (§14.3)
+- [ ] ⑤ 노출 판정 적용 — `hospital.filters.ts:23`, `hospital.service.ts:113`, `hospital.repository.ts:32`,
+      `hospital.projection.ts:141`, `doctor.filters.ts:38`, `doctor.repository.ts:96`·`103`·`112`·`132`.
+      **`{ deletedAt: null }` 을 손으로 쓴 자리를 전부 찾아** 공개/관리 시야 중 어느 쪽인지 판정한다(§14.4)
+- [ ] ⑥ 순수 함수 5묶음 + 그 단위 테스트 (§14.13). **`isPubliclyListed` ↔ `PUBLICLY_LISTED_WHERE` 일치 테스트 포함**
+- [ ] ⑦ 가입 트랜잭션 (§14.5) + 파일 claim 의 조건부 UPDATE
+- [ ] ⑧ 업로드 오퍼레이션 + 저장소 어댑터 + 고아 정리 배치
+- [ ] ⑨ 시드 — `legal_documents` 에 `partner-terms/1.0` 1행 추가(§11.3 의 플레이스홀더 원칙 그대로).
+      **기존 fixture·시드 병원 11곳의 데이터는 바꾸지 않는다** (마이그레이션 백필이 처리합니다)
+- [ ] ⑩ `docs/features/signup.md`·`login.md`·`admin-*.md` 갱신, `known-issues.md` 의
+      "메뉴 아래에 담당자 직책과 승인 상태가 없습니다" 줄 해소
+
+**기존 컬럼 3개의 기본값 변경 (④ 의 일부)** — 가입 폼이 주지 않는 NOT NULL 컬럼들입니다.
+
+| 컬럼 | 지금 | 제안 | 근거 |
+|---|---|---|---|
+| `hospitals.thumbnail` | `String` (기본값 없음, 생성 계약은 `url()` 필수) | **`@default("")`** | `introduction`·`directions` 가 이미 `@default("")` 입니다. §13.7 완성도 항목 4(`비어 있지 않고 기본 이미지가 아님`)가 **빈 문자열을 자연스럽게 '미충족'** 으로 처리합니다. 실제 대표 이미지는 요청 07 의 파일 업로드가 채웁니다 |
+| `hospitals.price_min` / `price_max` | `Int` (기본값 없음, 생성 계약 필수) | **`@default(0)`** | `latitude`/`longitude` 가 이미 "둘 다 0이면 미입력" 센티널로 쓰이고 있습니다(§13.7 항목 1). 둘 다 0 이면 화면에 가격대를 **표시하지 않습니다** — `hasPriceRange(min,max)` 한 줄입니다. 07 이 시술별 가격을 가져오면 이 값은 대체값으로 남습니다(요청 07 "기존 가격대는 지우지 말 것") |
+| (참고) `hospital_procedures` 0건 | 생성 계약은 `min(1)` | **허용** | §13.7 이 이미 "항목 3은 0개인 병원이 실제로 존재할 수 있습니다" 를 전제합니다. 가입 폼에 시술 선택이 없고, 완성도 바와 `noProcedures` 경고가 그 상태를 가리킵니다 |
+
+> `POST /hospitals`(운영자)의 **계약은 그대로 둡니다** — 운영자는 지금도 세 값을 다 받습니다.
+> 기본값은 **가입 경로를 위한 것**이고, 계약을 느슨하게 만드는 변경이 아닙니다.
+
+### 14.17 남은 미결 · 협업자에게 물을 것
+
+1. **`rejected` 와 `approval_note` 를 지금 만들 것인가.** 오늘 그 값을 쓰는 코드가 없습니다(검수 화면이
+   범위 밖). **지금 만들기를 권합니다** — 값 하나와 nullable 컬럼 하나라 비용이 없고, 노출 판정을
+   `=== 'approved'` 로 적어 두면 값이 늘어도 안전합니다. 반대 의견이면 `pending|approved` 둘로 시작해도
+   §14.4 는 그대로 성립합니다. **재제출(`rejected → pending`) 화면이 없는 것**은 어느 쪽이든 남는 구멍입니다
+2. **업로드를 어떤 모양으로 받을 것인가 (API 결정).** 가입 전이라 **토큰이 없습니다.**
+   ⓐ 가입 요청 자체를 multipart 로 (JSON 계약이 깨집니다) ⓑ **비인증 사전 업로드 + 가입 요청이 id 참조**
+   (이 절의 전제. 저장소 오남용 표면이 생기므로 크기·타입 제한 + rate limit + 고아 정리가 필수)
+   ⓒ 계정부터 만들고 두 번째 요청에서 병원 등록 (요청서의 "가입 한 번" 이 깨집니다).
+   **ⓑ 를 제안하지만 보안 표면을 늘리는 결정이라 협업자 확인이 필요합니다**
+3. **사업자등록증을 교체하면 승인이 풀려야 하는가.** `doctor_verifications` 는 자격증이 바뀌면 재검수를
+   강제합니다(§5.8). 병원도 같아야 한다면 `uploaded_files` 신규 행 + `approval_status='pending'` 되돌림이
+   필요하고, 그 순간 **앱에서 병원이 사라집니다.** 교체 화면이 아직 없으므로 미결로 둡니다
+4. **파일 보존 기간 숫자** — 고아 24시간·반려 30일은 제안입니다. 반려 입점 문의의 보존 기간(§11.8-2)과
+   **함께** 정해야 합니다. 서로 다르면 "같은 병원의 서류는 지웠는데 문의의 연락처는 남은" 상태가 됩니다
+5. **`/partner-inquiry` 화면을 남길 것인가** (§14.10). 데이터는 공존이지만 입구 두 개는 제품 결정입니다
+6. **승인 결과 문자(SMS)** — 요청서의 완료 화면이 "알림과 문자로 알려드려요" 라고 약속합니다.
+   **발송 인프라가 없습니다**(결정 0001 에서 "이메일 발송 인프라가 없다" 와 같은 사정). 알림은 기존
+   `notifications` 로 되고, 문자는 되지 않습니다. **화면 문구에서 "문자" 를 빼거나, 발송 수단을 먼저
+   정해야 합니다**
+7. **주소 검색 응답에 지역(`region_2depth_name`)이 포함되는가** — `hospitals.region` 이 NOT NULL 인데
+   가입 폼에 지역 칸이 없습니다(§14.2). interface-master 확인 항목입니다
+8. **담당자가 비밀번호를 잊으면** — 결정 0001 미결 6 이 "운영자가 계정을 만들지 않으므로 비밀번호 찾기의
+   우선순위가 올라갔다" 고 적었는데, **직접 가입은 그 압력을 한 번 더 올립니다.** 이제 계정도 병원도
+   본인만 만들 수 있고, 대신 들어가 줄 사람이 없습니다
+
+---
+
+## 15. 알림 — 상담 상태 칸 (요청 08)
+
+> 요청서: `docs/features/requests/2026-10-12-08-알림-예약확정-문의답변.md`
+> 요청자 결정일 2026-10-13. **데이터 변경은 nullable 컬럼 하나가 전부입니다** —
+> 나머지(문구, 이동 경로, 아이콘 그림)는 계약과 화면의 몫입니다.
+
+요청 08 이 알림함에 요구하는 것은 네 가지입니다: ① 예약확정 알림에 **방문 일시가 문장으로** 들어갈 것
+② 문의 답변 알림 ③ 상담 알림을 누르면 **마이페이지 상담 내역**으로 ④ 왼쪽에 **종류 아이콘 다섯**
+(예약 / 문의 / 상담 / 이벤트 / 안내).
+
+이 중 **④ 만 데이터를 요구합니다.**
+
+| 요구 | 지금 데이터로 되는가 | 결론 |
+|---|---|---|
+| ① 방문 일시가 문장에 | 됩니다 — `message` 가 자유 문자열입니다(§15.3) | 변경 없음 |
+| ② 문의 답변 알림 | 됩니다 — `type='inquiry-answer'` 가 **이미 있습니다**(2026-10-12 계약 추가) | 변경 없음 |
+| ③ 상담 내역으로 이동 | 됩니다 — `related_type='consult_request'` + `related_id` = 상담 id 그대로 | 변경 없음 |
+| ④ 예약 아이콘을 상담 아이콘과 가르기 | **안 됩니다** — `type` 이 `consult-status` 하나라 예약확정과 연락중·취소가 같은 값입니다 | **컬럼 1개 추가** |
+
+### 15.1 추가하는 것 — `notifications.consult_status` 하나
+
+```
+notifications
+  consult_status varchar, null   -- ConsultStatus. type='consult-status' 행의 "변경 후 상태".
+                                 -- 일시 변경(reschedule)이면 'booked'. 다른 type 은 전부 null
+```
+
+- **허용값**: `new` | `contacted` | `booked` | `visited` | `cancelled` — `consult_requests.status` 와
+  **같은 도메인**입니다(§12.1). 새 값 집합을 만들지 않습니다
+- **기본값 없음, NOT NULL 아님.** 쓰기 경로의 불변식만 둡니다:
+  `type='consult-status'` 로 **새로 만드는** 행은 값을 반드시 적는다. `type` 이 그 밖이면 `null` 이다
+- **DB CHECK 를 걸지 않습니다** — 기존 행이 `null` 이라 켜는 순간 위반입니다(§12.10 과 같은 사정).
+  PostgreSQL 이전 후 과거 행을 정리하기로 하면 §7.6 에 조건부로 올립니다
+- **인덱스를 만들지 않습니다** — 소비자가 `WHERE` 가 아닙니다(§15.5)
+
+### 15.2 왜 컬럼인가 — 새 `type` 값·범용 `subtype`·역조인을 모두 버린 이유
+
+소비자는 **아이콘 판정 하나**입니다. 순수 함수 한 줄로 적으면 이렇습니다.
+
+```
+notificationIcon({ type, consultStatus }) -> 'booking' | 'inquiry' | 'consult' | 'event' | 'notice'
+
+  type='consult-status' && consultStatus='booked'  -> 'booking'   (예약)
+  type='consult-status'  (그 밖 · null 포함)        -> 'consult'   (상담)
+  type='inquiry-answer'                            -> 'inquiry'   (문의)
+  type='event'                                     -> 'event'     (이벤트)
+  type='system'                                    -> 'notice'    (안내)
+```
+
+**이 함수는 클라이언트에 둡니다** (`frontend/src/features/notification/notificationIcon.ts`).
+서버는 아이콘을 모릅니다 — 내려보내는 것은 `type`·`consultStatus` 라는 **사실**이고, 그 사실을 그림으로
+바꾸는 것은 표시 규칙입니다(`isDelayed` 를 서버 컬럼으로 만들지 않은 것과 같은 이유, §12.11).
+판정 지점이 화면 한 곳뿐이라 "같은 판정을 두 곳에 두지 않는다" 가 자동으로 지켜집니다.
+
+버린 대안 넷:
+
+| 대안 | 왜 버렸나 |
+|---|---|
+| **새 `type` 값 `consult-booked`** | `type` 은 **이동 경로의 축**입니다 — 화면이 `type` 으로 분기해 상담 내역·내 문의·이벤트로 보냅니다. 값을 쪼개면 그 분기가 전부 `consult-status \|\| consult-booked` 두 줄이 되고, 하나를 빠뜨린 자리가 **조용히 이동하지 않는 알림**이 됩니다. 아이콘 하나를 가르려고 라우팅 축을 쪼개는 교환입니다 |
+| **범용 `subtype varchar`** | 허용값이 `type` 에 따라 달라져서 **검증을 문장으로 쓸 수 없습니다**(`type='event'` 일 때 `subtype='booked'` 은 무엇인가). `consult_status` 는 도메인이 이미 정의돼 있고 `consult_requests.status` 와 같은 값 집합이라, 틀린 값이 들어오면 그 자체로 틀렸다고 말할 수 있습니다 |
+| **`consult_status_changes.notification_id` 역조인으로 파생** | ⓐ 알림함 목록이 상담 이력 조인을 N건마다 하게 되고, 그 조인 키에 인덱스가 없습니다 — 인덱스를 새로 만들면 비용이 nullable 컬럼 하나와 비슷한데 질의만 복잡해집니다 ⓑ **접수 알림(`audience='admin'`)에는 짝이 되는 이력 행의 `notification_id` 가 없습니다** — 접수 행은 알림 id 를 적지 않습니다 ⓒ 알림은 상담보다 오래 남을 수 있습니다(보존 기간 미정, §12.12-3) |
+| **`event`(`status_change`/`reschedule`) 를 알림에 복사** | 아이콘이 묻는 것은 "무슨 이벤트였나" 가 아니라 "**지금 예약이 잡힌 건가**" 입니다. `변경 후 상태` 한 칸이면 일시 변경도 `booked` 로 자연히 떨어져 특례가 없습니다 — 다음 절 표의 둘째 줄이 그 이득입니다 |
+
+### 15.3 이벤트별로 무엇이 들어가는가
+
+`consult_status` 는 **그 알림을 낳은 이벤트 직후의 상담 상태**입니다. 이력 행의 `status` 와 같은 값이고
+(§12.3 — "`reschedule` 행의 상태는 그 시점의 상태(`booked`)다, 행이 스스로를 설명한다"), 알림 행이
+그것을 한 벌 더 들고 있을 뿐입니다.
+
+| 이벤트 | `type` | `consult_status` | 아이콘 | 문구 |
+|---|---|---|---|---|
+| 상담 접수 (환자) | `consult-status` (`audience='admin'`) | `new` | 상담 | 지금 문구 유지 (`새로운 상담 신청`) |
+| → `contacted` | `consult-status` | `contacted` | 상담 | **요청 08 이 새로 정함** — `병원이 연락 중이에요` |
+| → `booked` | `consult-status` | `booked` | **예약** | **요청 08** — `상담 예약이 확정됐어요` / `○○치과의원 · 10/9(목) 14:00 방문 …` |
+| 예약 일시 변경 (`reschedule`) | `consult-status` | **`booked`** | **예약** | 지금 문구 유지 (`예약 일시가 '…'(으)로 변경되었어요`) |
+| → `cancelled` | `consult-status` | `cancelled` | 상담 | **요청 08** — `상담이 취소됐어요` + 환자용 사유 문장(§15.4) |
+| → `visited` | `consult-status` | `visited` | 상담 | **요청서에 없음 → 지금 문구 유지** (`상담 상태가 '내원완료'(으)로 변경되었어요`) |
+| 되돌림 (`booked`→`contacted` 등) | `consult-status` | 되돌아간 상태 | 상담 | **요청서에 없음 → 지금 문구 유지** |
+| 문의 답변 | `inquiry-answer` | `null` | 문의 | 이미 구현됨 (`{병원명} · {답변 60자}`) |
+| 이벤트 · 공지 | `event` / `system` | `null` | 이벤트 / 안내 | 변경 없음 |
+
+> **`visited` 와 되돌림의 문구를 바꾸지 않는 이유**: 요청서가 그 두 경우의 문장을 적지 않았습니다.
+> 지어내면 요청자가 검수하지 않은 문장이 환자에게 나갑니다. 아이콘은 `booked` 가 아니므로 '상담' 이고,
+> 그것은 규칙의 결과이지 예외가 아닙니다.
+
+### 15.4 문구는 **저장 시점에 확정**합니다 (지금 방식 유지)
+
+`title`·`message` 는 알림을 만드는 트랜잭션 안에서 완성된 문자열로 적습니다. 렌더 시점에 조립하지
+않습니다. **병원 이름이 바뀌어도 과거 알림의 문장은 그대로인 것이 맞습니다.**
+
+- 알림은 **그때 보낸 통지의 사본**입니다. 사후에 문장이 달라지면 "환자가 받은 알림" 과 "알림함에 보이는
+  알림" 이 다른 문서가 됩니다 — `audit_logs` 의 `actor_role`·`pii_masked` 를 스냅샷으로 둔 것과
+  같은 논리입니다(§11.2-(2))
+- §4 가 `hospital_name`·`asker_display_name` **스냅샷 컬럼을 두지 않기로** 한 것과 모순이 아닙니다.
+  그 둘은 **현재 상태를 보여주는 투영**이라 바뀐 이름이 보이는 것이 맞고, 알림은 과거 사실의 사본입니다
+- 조립식으로 가면 알림 목록 질의가 상담·병원·문의를 조인해야 하고, **대상이 지워지면 문장이 사라집니다**
+- 대가: 문구를 다듬어도 과거 알림은 옛 문장으로 남습니다. 받아들입니다 — 이미 보낸 통지입니다
+
+**방문 일시도 같은 이유로 `message` 문자열 안에만 있습니다.** `notifications.visit_at` 을 만들지
+않습니다 — 포맷은 서버가 정하기로 했으므로 날짜 값을 다시 쓸 소비자가 없고, 예약이 또 바뀌었을 때
+**과거 알림은 그때의 약속을 말해야** 맞습니다. 현재 일시는 `related_id` 가 가리키는 상담 내역에 있습니다.
+
+### 15.5 취소 사유는 **코드이지 데이터가 아닙니다**
+
+관리자용 라벨(`중복 신청`·`연락이 안 됨`)을 환자에게 그대로 보내지 않습니다. 매핑은 순수 함수 하나입니다.
+
+```
+patientCancelSentence(reason: ConsultCancelReason) -> string | null
+  etc -> null (사유 문장 없이 제목만)
+```
+
+- **`notifications.cancel_reason` 을 만들지 않습니다.** 소비자가 없습니다 — 아이콘은 `cancelled` 하나로
+  갈리고, 사유는 이미 `message` 문장 안에 녹아 있습니다. 사유별 집계가 필요해지면
+  `consult_status_changes.cancel_reason` 이 **이미 그 질문에 답합니다**(§12.4)
+- 문장 자체는 계약(`openapi.yaml` 의 예시)과 화면 문구의 영역입니다. 이 문서가 고정하는 것은
+  **"코드 → 환자 문장" 변환이 알림 행에 들어가기 전에 끝난다"** 하나입니다
+- `etc` 에 자유 텍스트 칸이 없다는 §12.12 미결 2 가 여기서 다시 보입니다 — `기타` 취소 알림은 구조적으로
+  이유를 말할 수 없습니다. `기타` 비율이 높게 나오면 **사유 코드를 늘리는 것이 먼저**입니다
+
+### 15.6 수신자 규칙은 그대로입니다
+
+`audience` 와 `notification_recipients` 는 **한 줄도 바뀌지 않습니다**(§5.3).
+
+- 상태 변경 → `audience='user'` + 신청자 1명에게만 수신자 행. 관리자 자기 알림함에 들어가지 않습니다
+- 상담 접수 → `audience='admin'`, `hospital_id` = 그 병원 + 그 병원 담당자들
+- 문의 답변 → `audience='user'` + 문의자 1명
+- `consult_status` 는 **수신자 결정에 쓰이지 않습니다** — `audience` 와 직교하는 표시용 칸입니다
+
+> 프런트 로컬 구현은 아직 알림함을 계정별로 가르지 않습니다(`notificationApi.ts`·`consultApi.ts` 의
+> 기존 결함 주석). 서버가 수신자 행을 만들면 사라지는 격차이고, 이번 변경이 넓히지 않습니다.
+
+### 15.7 인덱스 — 추가하지 않습니다
+
+아이콘 판정은 **이미 뽑아 온 행 한 줄**에 대한 계산입니다. `WHERE consult_status = ?` 를 거는 질의가
+없습니다. §6.4 의 네 인덱스가 그대로 알림함 목록과 안 읽음 배지를 받습니다.
+
+"예약 알림만 모아보기" 탭이 생기면 그때 `(audience, consult_status, created_at)` 를 검토합니다 —
+지금 그 화면이 없고, 없는 화면을 위한 인덱스는 쓰기 비용만 늘립니다(§6.7 과 같은 판단).
+
+### 15.8 기존 행 — 백필하지 않습니다
+
+마이그레이션은 `ADD COLUMN consult_status varchar NULL` 한 줄이고 **UPDATE 가 없습니다.**
+
+- 기존 `consult-status` 알림의 문구는 `상담 상태가 'X'(으)로 변경되었어요` 인데, 그 `X` 를 **문자열에서
+  파싱해 채우는 것은 추측**입니다(§12.10 과 같은 논리)
+- `related_id` 로 상담을 조인해 **현재 상태**를 넣는 백필도 가능하지만, 알림이 말하는 것은
+  **그때의 변경 후 상태**입니다. 그 뒤에 상태가 또 바뀐 건에는 **틀린 값을 심게 됩니다.** 거절합니다
+- 영향은 **아이콘 하나뿐**입니다: 과거 예약확정 알림이 '예약' 대신 '상담' 아이콘으로 보입니다.
+  판정 함수의 `null` 분기가 곧 변경 전 동작이라 **화면이 깨지지 않습니다**
+- 시드 fixture(`notif1`..`notif7`)도 `null` 로 둡니다. 값을 넣으려면
+  `frontend/src/mocks/fixtures/notifications.ts` 수정이 따라오는데 **그 파일은 프런트 영역**이라
+  이 변경에 묶지 않습니다(§12.12-3 과 같은 처리)
+
+### 15.9 만들지 않는 것
+
+| 안 만든 것 | 대신 | 근거 |
+|---|---|---|
+| `type='consult-booked'` | `consult_status` | `type` 은 이동 경로 축입니다 (§15.2) |
+| 범용 `subtype` | `consult_status` | 허용값이 `type` 에 종속돼 검증을 쓸 수 없습니다 (§15.2) |
+| `notifications.visit_at` | `message` 문자열 | 문구를 서버가 만들기로 한 이상 날짜 값의 소비자가 없습니다 (§15.4) |
+| `notifications.cancel_reason` | `message` + `consult_status_changes.cancel_reason` | 아이콘은 `cancelled` 로 충분하고, 집계는 이력이 이미 답합니다 (§15.5) |
+| `notifications.icon` | `notificationIcon()` | 그림 이름을 저장하면 아이콘 세트를 바꿀 때 과거 행이 전부 틀립니다 |
+| `consult_status` 인덱스 | — | 필터 화면이 없습니다 (§15.7) |
+| `type='inquiry-answer'` 관련 컬럼 | — | 이미 `type` + `related_id` 로 끝납니다. 요청 08 의 문의 쪽은 **데이터 변경 0** 입니다 |
+
+### 15.10 백엔드·계약 인계 체크리스트
+
+- [ ] ① **interface-master 가 계약을 확정**한다 — 아래 "인계 목록". `openapi.yaml`·`docs/api/README.md`
+      는 이 문서의 작성자가 건드리지 않았습니다
+- [ ] ② `schema.prisma` `Notification` **+1 컬럼**: `consultStatus String? @map("consult_status")`
+- [ ] ③ `docs/database/schema.dbml` 의 `Table notifications` 반영.
+      **`type` 의 허용값 주석이 낡았습니다** — `inquiry-answer` 가 빠져 있습니다(2026-10-12 계약 추가).
+      같은 커밋에서 함께 고칩니다
+- [ ] ④ 마이그레이션 — `ADD COLUMN` 한 줄, **백필 없음** (§15.8)
+- [ ] ⑤ 알림 생성 지점 **네 곳**이 값을 적는다. 전부 **기존 트랜잭션 안**이고 새 트랜잭션이 없습니다
+      — 상담 접수(`new`), 상태 변경(`input.status`), 일시 변경(`booked`), 문의 답변(`null`)
+- [ ] ⑥ 문구 생성 순수 함수 2개 + 단위 테스트 — `patientCancelSentence(reason)`(§15.5)와
+      예약 일시 포맷 **하나**. ⚠ **지금 두 표기가 있습니다**: 기존 알림 문구는
+      `10월 9일(금) 14:00`(`formatVisitAtLong`, 계약에 이미 박혀 있음)이고 요청서 08 의 예시는
+      `10/9(목) 14:00` 입니다. **둘 중 하나로 정해 함수 하나만 남깁니다** — 같은 알림함에서
+      예약확정 알림과 일시 변경 알림이 서로 다른 날짜 표기를 쓰면 안 됩니다 (§15.11-4)
+- [ ] ⑦ 프런트 — `notificationIcon()` 순수 함수 + 경계값 테스트(`null`·`booked`·그 밖),
+      `AppNotification.consultStatus` 추가, mock 두 곳(`consultApi.ts`·`inquiryApi.ts`)이 값을 적도록
+- [ ] ⑧ 프런트 — 상담 알림의 이동 대상을 **마이페이지 상담 내역**으로 (요청자 결정 2).
+      `notifications.tsx` 의 `hospitalIdForConsult` 조회와 `useMyConsultRequests` 선조회가 **사라집니다**
+      — 알림이 들고 있는 상담 id 로 바로 갑니다. **데이터 변경 없음**
+- [ ] ⑨ `docs/features/notifications.md` 갱신 (아이콘 다섯 · 종류별 문구 표)
+
+**interface-master 에 넘기는 것** (계약 변경):
+
+| 자리 | 변경 |
+|---|---|
+| `AppNotification` 스키마 | **`consultStatus` 추가** — `ConsultStatus` enum 재사용, **nullable, 키는 항상 있음**. `type='consult-status'` 가 아니면 `null`, 과거 행도 `null` |
+| `NotificationType` enum | **변경 없음** — `consult-status \| inquiry-answer \| event \| system` 그대로 |
+| `GET /notifications` | 파라미터·정렬 변경 없음. 응답 항목에 위 필드 하나 |
+| 예시 문구 자리 | 예약확정 · 연락중 · 취소(사유 4종 + `기타`) 문장을 **계약 예시로 못 박는다.** 지금 서버가 쓰는 `상담 상태가 '…'(으)로 변경되었어요` 는 `visited`·되돌림에서만 남는다 (§15.3) |
+| 알림 생성 엔드포인트 | **여전히 없습니다.** 알림은 상태 변경·답변 등록의 부수효과로만 생깁니다 |
+
+### 15.11 남은 미결
+
+1. **관리자 알림함에도 아이콘을 쓰는가.** 요청 08 은 사용자 화면(U10)만 말합니다. `consult_status` 는
+   `audience='admin'` 행에도 적히므로(접수 알림 = `new`) 데이터는 이미 준비됐지만, 관리자 알림함의
+   아이콘 규칙은 요청이 없어 정하지 않았습니다
+2. **알림함 100건 상한** (`notifications.tsx` 의 `LIST_PAGE_SIZE` 주석). 상담마다 알림이 늘기만 해서
+   언젠가 101번째부터 화면에서 조용히 사라집니다 — 이번 변경이 알림 **종류**를 늘리므로 그 시점이
+   당겨집니다. 페이지 이동 UI 또는 보존 기간(§12.12-3 과 함께 정할 것)이 숙제입니다
+3. **찜한 병원의 새 이벤트 알림** — 요청서의 다섯째 줄입니다. 이벤트 기능 자체가 없어 범위 밖이고,
+   생기면 `type='event'` + `related_type='promotion'` 으로 **스키마 변경 없이** 들어갑니다
+4. **예약 일시 표기를 어느 쪽으로 통일하는가** (⑥). `10월 9일(금) 14:00` 은 계약에 이미 예시로 들어가
+   있고, `10/9(목) 14:00` 은 요청서가 쓴 표기입니다. **데이터에는 영향이 없습니다**(문자열 하나) —
+   interface-master·designer 결정 항목입니다
