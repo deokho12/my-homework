@@ -19,6 +19,7 @@ import {
   type ExploreSortKey,
 } from '@/features/hospital/hooks/useExploreFilters';
 import { SubProcedureChips } from '@/features/procedure/components/SubProcedureChips';
+import { effectiveSubProcedure } from '@/features/procedure/lib/resolveCategoryFilter';
 import { useUserLocation } from '@/hooks/useUserLocation';
 import {
   getCategory,
@@ -79,7 +80,9 @@ function CategoryView({ categoryId, sub }: { categoryId: CategoryId; sub?: strin
   const requestedSub =
     isSubProcedureId(sub) && getSubProcedure(sub).categoryId === categoryId ? sub : null;
   // 준비중 세부는 서버에 물어볼 수 없다 — 칩은 고른 모양으로 두되 목록은 대분류 전체를 준다.
-  const effectiveSub = requestedSub && getSubProcedure(requestedSub).legacyProcedureId ? requestedSub : null;
+  // 되돌림 규칙은 검색 추천의 병원·원장님 그룹과 **같은 함수**를 쓴다(추천 줄에 보인 병원과
+  // 눌러서 열린 이 화면의 병원이 같아야 한다).
+  const effectiveSub = effectiveSubProcedure(requestedSub);
 
   const baseFilters = {
     sort: SORT_TO_SERVER[sortBy],

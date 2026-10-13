@@ -276,18 +276,26 @@ export interface TaxonomyMatch {
   category: ProcedureCategory;
   /** 대분류 자체가 걸렸으면 `null` — 카테고리 페이지를 "전체"로 연다. */
   sub: SubProcedure | null;
+  /**
+   * 검색어가 **처음 걸린 후보 문자열**(표시 이름 또는 동의어). 검색 추천이
+   * `‘금니’ 로 찾았어요` 를 적을 때 쓴다 — 표시 이름(`크라운`)에 검색어가 없으면
+   * 왜 그 줄이 떴는지 설명이 필요하다.
+   */
+  matchedAlias: string;
 }
 
-function normalize(value: string): string {
+/** 검색어·후보를 비교하기 전에 거치는 정규화. 추천 목록의 굵게 표시도 같은 규칙을 쓴다. */
+export function normalizeSearchTerm(value: string): string {
   return value.trim().toLowerCase();
 }
 
-function matches(candidates: readonly string[], query: string): boolean {
-  return candidates.some((candidate) => normalize(candidate).includes(query));
+/** 걸린 후보 문자열(원본 그대로). 안 걸리면 `null`. */
+function findAlias(candidates: readonly string[], query: string): string | null {
+  return candidates.find((candidate) => normalizeSearchTerm(candidate).includes(query)) ?? null;
 }
 
 /**
- * 검색어 → 카테고리(+세부 시술).
+ * 검색어 → 걸린 카테고리·세부 시술 **전부** (화면 순서대로).
  *
  * 매칭 방향은 **`후보.includes(검색어)`** 로 고정한다. 반대로 하면 "연세 바른교정치과" 가
  * `'연세 바른교정치과'.includes('교정')` 으로 교정 카테고리에 납치돼, 병원 이름 검색이
@@ -295,24 +303,42 @@ function matches(candidates: readonly string[], query: string): boolean {
  *
  * 우선순위: ① 대분류 → ② 서버 id 가 있는 세부 → ③ 준비중 세부. ②가 ③보다 먼저인 이유는
  * "이갈이" 같은 말이 양쪽에 걸릴 때 실제 결과가 나오는 쪽으로 보내기 위해서다.
+ *
+ * 상한을 두지 않는다 — 몇 개를 보여줄지는 화면이 정한다(추천 목록은 3개).
  */
-export function searchTaxonomy(query: string): TaxonomyMatch | null {
-  const q = normalize(query);
-  if (q.length === 0) return null;
+export function searchTaxonomyAll(query: string): TaxonomyMatch[] {
+  const q = normalizeSearchTerm(query);
+  if (q.length === 0) return [];
+
+  const result: TaxonomyMatch[] = [];
 
   for (const category of CATEGORIES) {
-    if (matches([category.name, ...category.keywords], q)) return { category, sub: null };
+    // 이름과 동의어 중 **처음 걸린 하나만** 담는다 — 양쪽에 걸려도 줄이 두 번 생기지 않는다.
+    const alias = findAlias([category.name, ...category.keywords], q);
+    if (alias) result.push({ category, sub: null, matchedAlias: alias });
   }
 
   for (const sub of SUB_PROCEDURES) {
     if (sub.legacyProcedureId === null) continue;
-    if (matches([sub.name, ...sub.keywords], q)) return { category: getCategory(sub.categoryId), sub };
+    const alias = findAlias([sub.name, ...sub.keywords], q);
+    if (alias) result.push({ category: getCategory(sub.categoryId), sub, matchedAlias: alias });
   }
 
   for (const sub of SUB_PROCEDURES) {
     if (sub.legacyProcedureId !== null) continue;
-    if (matches([sub.name, ...sub.keywords], q)) return { category: getCategory(sub.categoryId), sub };
+    const alias = findAlias([sub.name, ...sub.keywords], q);
+    if (alias) result.push({ category: getCategory(sub.categoryId), sub, matchedAlias: alias });
   }
 
-  return null;
+  return result;
+}
+
+/**
+ * 검색어 → 카테고리(+세부 시술) **한 개**. Enter 가 가는 곳이자 추천 목록의 첫 줄이다.
+ *
+ * `searchTaxonomyAll` 의 첫 원소로 정의한다 — 규칙이 한 벌이어야 "추천 목록 맨 위"와
+ * "Enter 목적지"가 영원히 같은 곳을 가리킨다.
+ */
+export function searchTaxonomy(query: string): TaxonomyMatch | null {
+  return searchTaxonomyAll(query)[0] ?? null;
 }

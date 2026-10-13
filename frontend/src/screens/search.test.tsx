@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -111,7 +111,7 @@ describe('검색 화면 — 이름으로 전문의를 찾는 검색 (서버 q �
    * `q` 필터로 받아 부르고, 그 결과로 이동하는지가 핵심이다(로스터 크기와 무관하게
    * 항상 서버가 찾는다).
    */
-  it('입력한 이름으로 서버 q 필터를 불러 찾아낸 전문의의 소속 병원으로 이동한다', async () => {
+  it('입력한 이름으로 서버 q 필터를 불러 찾아낸 전문의 상세로 이동한다', async () => {
     vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(pagedHospitals([]));
     const fetchDoctorsSpy = vi.spyOn(doctorApi, 'fetchDoctors').mockImplementation(async (filters = {}) => {
       if (filters.q === '김민준') {
@@ -129,7 +129,9 @@ describe('검색 화면 — 이름으로 전문의를 찾는 검색 (서버 q �
     await userEvent.type(screen.getByPlaceholderText('시술, 병원, 원장님 이름을 검색해보세요'), '김민준');
     await userEvent.click(screen.getByText('🔍'));
 
-    await waitFor(() => expect(pushSpy).toHaveBeenCalledWith('/hospital/h1'));
+    // 목적지는 소속 병원이 아니라 **전문의 상세**다 — 추천 목록의 원장님 줄을 눌렀을 때와
+    // 같은 곳이어야 한다(같은 글자가 경로에 따라 갈리지 않는다).
+    await waitFor(() => expect(pushSpy).toHaveBeenCalledWith('/doctor/d1'));
     expect(fetchDoctorsSpy).toHaveBeenCalledWith(expect.objectContaining({ q: '김민준' }));
     expect(screen.queryByText(/검색 결과가 없어요/)).not.toBeInTheDocument();
   });
@@ -154,7 +156,7 @@ describe('검색 화면 — 이름으로 전문의를 찾는 검색 (서버 q �
 
     renderSearch(`/search?q=${encodeURIComponent('김민준 원장')}`);
 
-    await waitFor(() => expect(pushSpy).toHaveBeenCalledWith('/hospital/h1'));
+    await waitFor(() => expect(pushSpy).toHaveBeenCalledWith('/doctor/d1'));
     expect(fetchDoctorsSpy).toHaveBeenNthCalledWith(1, expect.objectContaining({ q: '김민준 원장' }));
     expect(fetchDoctorsSpy).toHaveBeenNthCalledWith(2, expect.objectContaining({ q: '김민준' }));
   });
@@ -336,5 +338,239 @@ describe('검색 화면 — 시술 검색은 정적 분류 체계로 끝난다',
     await userEvent.click(screen.getByText('충치치료'));
 
     expect(pushSpy).toHaveBeenCalledWith('/category/cavity');
+  });
+});
+
+/* ------------------------------------------------------------- 입력 중 추천 */
+
+const SEARCH_PLACEHOLDER = '시술, 병원, 원장님 이름을 검색해보세요';
+
+function pagedDoctors(items: Doctor[]): Paged<Doctor> {
+  return { items, meta: { page: 1, pageSize: 20, totalItems: items.length, totalPages: 1 } };
+}
+
+describe('검색 화면 — 입력 중 추천 목록', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('"인레" 를 치면 시술 그룹에 인레이가 보조줄과 함께 뜬다', async () => {
+    vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(pagedHospitals([]));
+    vi.spyOn(doctorApi, 'fetchDoctors').mockResolvedValue(pagedDoctors([]));
+
+    renderSearch('/search');
+    await userEvent.type(screen.getByPlaceholderText(SEARCH_PLACEHOLDER), '인레');
+
+    // 제목은 일치 구간이 굵게 갈라지므로(`인레` + `이`) 접근 이름으로 찾는다.
+    expect(await screen.findByRole('option', { name: '인레이, 충치치료 › 인레이' })).toBeInTheDocument();
+    expect(screen.getByText('시술')).toBeInTheDocument();
+    expect(screen.getByText('충치치료 › 인레이')).toBeInTheDocument();
+  });
+
+  it('동의어로 걸리면 왜 떴는지 보조줄이 말한다 — "금니" → 크라운', async () => {
+    vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(pagedHospitals([]));
+    vi.spyOn(doctorApi, 'fetchDoctors').mockResolvedValue(pagedDoctors([]));
+
+    renderSearch('/search');
+    await userEvent.type(screen.getByPlaceholderText(SEARCH_PLACEHOLDER), '금니');
+
+    expect(await screen.findByText('크라운')).toBeInTheDocument();
+    expect(screen.getByText(/‘금니’ 로 찾았어요/)).toBeInTheDocument();
+  });
+
+  it('준비중 세부에는 준비중 배지와 "전체로 열려요" 가 붙는다', async () => {
+    vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(pagedHospitals([]));
+    vi.spyOn(doctorApi, 'fetchDoctors').mockResolvedValue(pagedDoctors([]));
+
+    renderSearch('/search');
+    await userEvent.type(screen.getByPlaceholderText(SEARCH_PLACEHOLDER), '신경치료');
+
+    expect(await screen.findByText('준비중')).toBeInTheDocument();
+    expect(screen.getByText('충치치료 전체로 열려요')).toBeInTheDocument();
+  });
+
+  it('글자를 모두 지우면 인기 검색어가 돌아온다', async () => {
+    vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(pagedHospitals([]));
+    vi.spyOn(doctorApi, 'fetchDoctors').mockResolvedValue(pagedDoctors([]));
+
+    renderSearch('/search');
+    const input = screen.getByPlaceholderText(SEARCH_PLACEHOLDER);
+    await userEvent.type(input, '인레');
+    expect(await screen.findByRole('option', { name: /인레이/ })).toBeInTheDocument();
+    expect(screen.queryByText('인기 검색어')).not.toBeInTheDocument();
+
+    await userEvent.clear(input);
+
+    expect(await screen.findByText('인기 검색어')).toBeInTheDocument();
+    expect(screen.getByText('임플란트')).toBeInTheDocument();
+  });
+
+  it('이름으로 걸린 병원이 시술로 걸린 병원보다 먼저다', async () => {
+    vi.spyOn(hospitalApi, 'fetchHospitals').mockImplementation(async (filters = {}) => {
+      if (filters.q === '인레') return pagedHospitals([baseHospital({ id: 'h-name', name: '인레이치과' })]);
+      return pagedHospitals([baseHospital({ id: 'h-proc', name: '시술로 걸린 치과', procedureIds: ['inlay'] })]);
+    });
+    vi.spyOn(doctorApi, 'fetchDoctors').mockResolvedValue(pagedDoctors([]));
+
+    renderSearch('/search');
+    await userEvent.type(screen.getByPlaceholderText(SEARCH_PLACEHOLDER), '인레');
+
+    await screen.findByText('시술로 걸린 치과');
+    const options = screen.getAllByRole('option');
+    expect(options.map((option) => option.getAttribute('aria-label'))).toEqual([
+      '인레이, 충치치료 › 인레이',
+      '인레이치과, 서울 강남구 · 일반 임플란트',
+      '시술로 걸린 치과, 서울 강남구 · 인레이',
+    ]);
+  });
+
+  it('원장님 행은 소속 병원과 전공을 보여주고, 누르면 전문의 상세로 간다', async () => {
+    vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(pagedHospitals([]));
+    vi.spyOn(hospitalApi, 'fetchHospitalById').mockResolvedValue(baseHospital());
+    vi.spyOn(doctorApi, 'fetchDoctors').mockResolvedValue(pagedDoctors([baseDoctor()]));
+    const pushSpy = vi.spyOn(router, 'push');
+
+    renderSearch('/search');
+    await userEvent.type(screen.getByPlaceholderText(SEARCH_PLACEHOLDER), '김민준');
+
+    const option = await screen.findByRole('option', { name: '김민준 대표원장, 강남 스마일 치과 · 치과보철전문의' });
+    expect(screen.getByText('원장님')).toBeInTheDocument();
+
+    await userEvent.click(option);
+    expect(pushSpy).toHaveBeenCalledWith('/doctor/d1');
+  });
+
+  it('visibleSpecialty 가 null 이면 전공 조각과 가운뎃점이 없다', async () => {
+    vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(pagedHospitals([]));
+    vi.spyOn(hospitalApi, 'fetchHospitalById').mockResolvedValue(baseHospital());
+    vi.spyOn(doctorApi, 'fetchDoctors').mockResolvedValue(
+      pagedDoctors([baseDoctor({ visibleSpecialty: null, isVerifiedSpecialist: false })])
+    );
+
+    renderSearch('/search');
+    await userEvent.type(screen.getByPlaceholderText(SEARCH_PLACEHOLDER), '김민준');
+
+    expect(await screen.findByText('강남 스마일 치과')).toBeInTheDocument();
+    expect(screen.queryByText(/치과보철전문의/)).not.toBeInTheDocument();
+  });
+
+  it('병원 질의가 실패해도 시술 그룹은 그대로 보인다', async () => {
+    vi.spyOn(hospitalApi, 'fetchHospitals').mockRejectedValue(new Error('offline'));
+    vi.spyOn(doctorApi, 'fetchDoctors').mockResolvedValue(pagedDoctors([]));
+
+    renderSearch('/search');
+    await userEvent.type(screen.getByPlaceholderText(SEARCH_PLACEHOLDER), '인레');
+
+    expect(await screen.findByText('병원 추천을 불러오지 못했어요')).toBeInTheDocument();
+    expect(screen.getByText('다시 시도')).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /인레이/ })).toBeInTheDocument();
+  });
+
+  it('1자 입력은 네트워크를 묻지 않고 시술 그룹만 보여준다', async () => {
+    const fetchHospitalsSpy = vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(pagedHospitals([]));
+    const fetchDoctorsSpy = vi.spyOn(doctorApi, 'fetchDoctors').mockResolvedValue(pagedDoctors([]));
+
+    renderSearch('/search');
+    await userEvent.type(screen.getByPlaceholderText(SEARCH_PLACEHOLDER), '임');
+
+    expect(await screen.findByText('두 글자부터 병원·원장님도 찾아드려요')).toBeInTheDocument();
+    expect(screen.getByText('임플란트 분야 전체')).toBeInTheDocument();
+    // 디바운스(250ms)를 넉넉히 넘긴 뒤에도 요청이 없어야 한다.
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    expect(fetchHospitalsSpy).not.toHaveBeenCalled();
+    expect(fetchDoctorsSpy).not.toHaveBeenCalled();
+  });
+
+  it('추천이 0건이면 기존 안내 문구와 인기 검색어가 함께 보인다', async () => {
+    vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(pagedHospitals([]));
+    vi.spyOn(doctorApi, 'fetchDoctors').mockResolvedValue(pagedDoctors([]));
+
+    renderSearch('/search');
+    await userEvent.type(screen.getByPlaceholderText(SEARCH_PLACEHOLDER), 'zzzzz');
+
+    expect(await screen.findByText(/"zzzzz"에 대한 검색 결과가 없어요/)).toBeInTheDocument();
+    expect(screen.getByText('인기 검색어')).toBeInTheDocument();
+  });
+});
+
+describe('검색 화면 — 키보드', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('↓ 두 번 뒤 Enter 는 두 번째 항목의 목적지로 간다', async () => {
+    vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(
+      pagedHospitals([baseHospital({ id: 'h-two', name: '두번째 치과' })])
+    );
+    vi.spyOn(doctorApi, 'fetchDoctors').mockResolvedValue(pagedDoctors([]));
+    const pushSpy = vi.spyOn(router, 'push');
+
+    renderSearch('/search');
+    const input = screen.getByPlaceholderText(SEARCH_PLACEHOLDER);
+    await userEvent.type(input, '인레');
+    await screen.findByText('두번째 치과');
+
+    await userEvent.keyboard('{ArrowDown}{ArrowDown}');
+    expect(input).toHaveAttribute('aria-activedescendant', 'search-suggest-hospital-h-two');
+
+    await userEvent.keyboard('{Enter}');
+    expect(pushSpy).toHaveBeenCalledWith('/hospital/h-two');
+  });
+
+  it('한글 조합 중 Enter 는 검색을 실행하지 않는다', async () => {
+    vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(pagedHospitals([]));
+    vi.spyOn(doctorApi, 'fetchDoctors').mockResolvedValue(pagedDoctors([]));
+    const pushSpy = vi.spyOn(router, 'push');
+
+    renderSearch('/search');
+    const input = screen.getByPlaceholderText(SEARCH_PLACEHOLDER);
+    await userEvent.type(input, '인레');
+    await screen.findByRole('option', { name: /인레이/ });
+
+    // IME 후보 확정 Enter — 예전 primitive TextInput 은 이것으로 검색을 실행해 버렸다.
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: true });
+    expect(pushSpy).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(pushSpy).toHaveBeenCalledWith('/category/cavity?sub=inlay');
+  });
+
+  it('Esc 한 번은 추천을 접고, 두 번은 입력을 비운다', async () => {
+    vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(pagedHospitals([]));
+    vi.spyOn(doctorApi, 'fetchDoctors').mockResolvedValue(pagedDoctors([]));
+
+    renderSearch('/search');
+    const input = screen.getByPlaceholderText(SEARCH_PLACEHOLDER);
+    await userEvent.type(input, '인레');
+    await screen.findByRole('option', { name: /인레이/ });
+
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('option')).not.toBeInTheDocument();
+    expect(screen.getByText('인기 검색어')).toBeInTheDocument();
+    expect(input).toHaveValue('인레');
+
+    await userEvent.keyboard('{Escape}');
+    expect(input).toHaveValue('');
+  });
+
+  it('접힌 뒤 ↓ 는 목록을 다시 펴고, 보이지 않는 줄을 활성으로 만들지 않는다', async () => {
+    vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(pagedHospitals([]));
+    vi.spyOn(doctorApi, 'fetchDoctors').mockResolvedValue(pagedDoctors([]));
+
+    renderSearch('/search');
+    const input = screen.getByPlaceholderText(SEARCH_PLACEHOLDER);
+    await userEvent.type(input, '인레');
+    await screen.findByRole('option', { name: /인레이/ });
+
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('option')).not.toBeInTheDocument();
+    expect(input).not.toHaveAttribute('aria-activedescendant');
+    // 닫힌 동안에는 문서에 없는 목록을 가리키지 않는다.
+    expect(input).not.toHaveAttribute('aria-controls');
+
+    await userEvent.keyboard('{ArrowDown}');
+    expect(await screen.findByRole('option', { name: /인레이/ })).toBeInTheDocument();
+    expect(input).not.toHaveAttribute('aria-activedescendant');
+    expect(input).toHaveAttribute('aria-controls');
   });
 });

@@ -1,14 +1,30 @@
-import { router, Stack, useLocalSearchParams } from '@/navigation';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, Text, TextInput, View, cx } from '@/primitives';
-import { SafeAreaView } from '@/primitives';
+import { router, Stack, useLocalSearchParams } from "@/navigation";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
+import { Pressable, ScrollView, Text, View, cx } from "@/primitives";
+import { SafeAreaView } from "@/primitives";
 
-import { queryClient } from '@/app/providers';
-import { CONTAINER_PADDING } from '@/components/layout/Container';
-import { fetchDoctorById, fetchDoctors } from '@/features/doctor';
-import { fetchHospitals } from '@/features/hospital';
-import { categoryPath, categoryPathForLegacy, searchTaxonomy } from '@/features/procedure';
-import { queryKeys } from '@/lib/queryKeys';
+import { CONTAINER_PADDING } from "@/components/layout/Container";
+import {
+  categoryPath,
+  categoryPathForLegacy,
+  searchTaxonomy,
+} from "@/features/procedure";
+import { SuggestionList } from "@/features/search/components/SuggestionList";
+import {
+  MIN_CHARS_HINT,
+  firstSuggestion,
+  suggestionHref,
+  suggestionOptionId,
+  type Suggestion,
+} from "@/features/search/suggest";
+import { useSuggestions } from "@/features/search/useSuggestions";
+import { useDelayedFlag } from "@/hooks/useDelayedFlag";
 import {
   SPONSORED_SEARCH_SUGGESTIONS,
   TRENDING_SEARCHES,
@@ -16,84 +32,42 @@ import {
   type SearchTarget,
   type SearchTrend,
   type TrendingSearchTerm,
-} from '@/mocks/fixtures/trendingSearches';
-import type { Doctor } from '@/types/domain';
+} from "@/mocks/fixtures/trendingSearches";
 
 /**
  * 검색 화면.
  *
- * 매칭 순서는 **시술 → 병원 이름 → 전문의 이름**이고, 첫 번째만 네트워크가 없다 —
- * 시술 매칭은 정적 분류 체계(`searchTaxonomy`)가 동기로 끝낸다. 예전에는 `useProcedures()`
- * (서버 13종)를 기다려야 해서, 로딩 중에 들어온 `?q=` 자동검색이 빈 배열을 근거로 거짓
- * "결과 없음" 을 띄우지 않도록 게이트를 따로 두어야 했다. 그 게이트는 이제 없다.
+ * 입력이 있는 동안 **인기 검색어가 있던 자리**에 추천 목록(`시술`/`병원`/`원장님`)을 보여주고,
+ * 고르면 그 화면으로 보낸다. Enter 는 **추천 목록의 첫 항목**으로 간다 — 클릭과 Enter 가
+ * `firstSuggestion()`·`suggestionHref()` 한 벌만 보므로 같은 줄이 두 곳으로 갈리지 않는다.
  *
- * 시술이 걸리면 `/category/:categoryId?sub=` 로 보낸다. 병원·전문의 이름은 서버 `q` 필터에
- * 맡긴다(클라이언트가 목록을 훑지 않는다).
+ * 시술 매칭은 정적 분류 체계(`searchTaxonomy` = `searchTaxonomyAll()[0]`)가 동기로 끝낸다 —
+ * 그래서 시술이 걸린 Enter 는 네트워크를 기다리지 않고 즉시 이동한다. 병원·원장님은 서버
+ * `q` 필터와 `resolveCategoryFilter` 가 정한 시술 질의에 맡긴다(클라이언트가 목록을 훑지 않는다).
  */
 const TABS: { key: SearchTab; label: string }[] = [
-  { key: 'all', label: '전체' },
-  { key: 'procedure', label: '시술' },
-  { key: 'hospital', label: '병원' },
-  { key: 'doctor', label: '의사' },
+  { key: "all", label: "전체" },
+  { key: "procedure", label: "시술" },
+  { key: "hospital", label: "병원" },
+  { key: "doctor", label: "의사" },
 ];
 
-/**
- * 이름으로 병원을 찾는다. 서버의 `q` 필터(`nameNormalized.contains`, 부분일치)에 검색을
- * 맡긴다 — 예전에는 `useHospitalStore.getState().hospitals` 를 클라이언트에서 훑었는데,
- * 그 방식은 전문의 이름 검색과 같은 결함(로스터가 페이지 크기를 넘으면 조용히 깨진다)을
- * 그대로 갖고 있었다.
- */
-async function findMatchingHospital(trimmed: string) {
-  const result = await queryClient.fetchQuery({
-    queryKey: queryKeys.hospitals.list({ q: trimmed }),
-    queryFn: () => fetchHospitals({ q: trimmed }),
-    staleTime: 0,
-  });
-  return result.items[0];
-}
-
-/**
- * 이름으로 전문의를 찾는다. 서버의 `q` 필터(`nameNormalized.contains`, 부분일치)에 검색을
- * 맡긴다 — 클라이언트가 목록을 훑지 않으므로 로스터가 페이지 크기(기본 20)를 넘어도
- * 안전하다. `queryClient.fetchQuery` 를 쓰는 이유는 이 함수가 훅이 아니라 이벤트 핸들러에서
- * 부르는 일회성 조회라서다(`src/app/providers.tsx` 의 모듈 수준 `queryClient` 용도 그대로).
- *
- * Trending 문구는 직함을 붙여 온다(예: "김민준 원장") — `q` 는 부분일치라 검색어가 실제
- * 이름보다 길면(직함이 붙어서) 매칭되지 않는다. 그 경우 마지막 낱말을 떼고 한 번 더
- * 시도해 이름이 검색어로 시작하는지 확인한다.
- */
-async function findMatchingDoctor(trimmed: string): Promise<Doctor | undefined> {
-  // `staleTime: 0` 을 강제한다 — 이 조회는 캐시 재사용보다 "지금 서버가 뭐라고 하는지"가
-  // 중요한 일회성 검색 액션이다. 기본 `staleTime`(`src/app/providers.tsx`, 30s)에 맡기면
-  // 같은 검색어를 다시 치거나(다른 검색에서 우연히 같은 키를 썼을 때) 오래된 결과를
-  // 그대로 돌려줄 수 있다.
-  const direct = await queryClient.fetchQuery({
-    queryKey: queryKeys.doctors.list({ q: trimmed }),
-    queryFn: () => fetchDoctors({ q: trimmed }),
-    staleTime: 0,
-  });
-  if (direct.items.length > 0) return direct.items[0];
-
-  const lastSpace = trimmed.lastIndexOf(' ');
-  if (lastSpace === -1) return undefined;
-
-  const namePart = trimmed.slice(0, lastSpace);
-  const fallback = await queryClient.fetchQuery({
-    queryKey: queryKeys.doctors.list({ q: namePart }),
-    queryFn: () => fetchDoctors({ q: namePart }),
-    staleTime: 0,
-  });
-  return fallback.items.find((doctor) => trimmed.startsWith(doctor.name));
-}
+const SUGGEST_LIST_ID = "search-suggest-list";
+const SEARCH_FAILED_NOTICE =
+  "지금은 검색할 수 없어요. 잠시 후 다시 시도해주세요";
 
 /**
  * `term` 은 사용자가 **읽은 글자**다(인기검색어 행의 문구). 시술 항목은 그 글자를 먼저
  * `searchTaxonomy` 에 태운다 — 같은 "충치치료" 를 직접 타이핑하면 대분류 전체(`/category/cavity`)가
  * 열리는데, 행을 누를 때만 서버 id `cavity` 로 번역돼 레진만(`?sub=resin`) 열리면 같은 글자가
  * 경로에 따라 다른 개수를 보여준다. 글자가 없거나(=해석 불가) 안 걸릴 때만 서버 id 로 폴백한다.
+ *
+ * 전문의 행은 `/doctor/{id}` 로 간다 — 추천 목록의 원장님 줄과 **같은 목적지**다. 예전에는
+ * 소속 병원 상세로 보내려고 `GET /doctors/{id}` 를 한 번 더 불렀는데, 그 요청은 `hospitalId`
+ * 하나를 얻으려던 것이라 목적지가 바뀌면서 통째로 필요 없어졌다.
  */
-async function navigateToTarget(target: SearchTarget, term?: string) {
-  if (target.kind === 'procedure') {
+function navigateToTarget(target: SearchTarget, term?: string) {
+  if (target.kind === "procedure") {
     const match = term ? searchTaxonomy(term) : null;
     if (match) {
       router.push(categoryPath(match.category.id, match.sub?.id ?? null));
@@ -101,34 +75,32 @@ async function navigateToTarget(target: SearchTarget, term?: string) {
     }
     // 인기검색어는 서버 시술 id 도 들고 있다 — 글자가 분류에 안 걸리면 그 id 로 보낸다.
     // 서버가 미래에 taxonomy 가 모르는 id 를 내려주면 탐색으로 떨어뜨린다.
-    router.push(categoryPathForLegacy(target.procedureId) ?? '/(tabs)/explore');
+    router.push(categoryPathForLegacy(target.procedureId) ?? "/(tabs)/explore");
     return;
   }
-  if (target.kind === 'hospital') {
+  if (target.kind === "hospital") {
     router.push(`/hospital/${target.hospitalId}`);
     return;
   }
-  try {
-    const doctor = await queryClient.fetchQuery({
-      queryKey: queryKeys.doctors.detail(target.doctorId),
-      queryFn: () => fetchDoctorById(target.doctorId),
-      staleTime: 0,
-    });
-    router.push(`/hospital/${doctor.hospitalId}`);
-  } catch {
-    // 존재하지 않는 전문의면 조용히 무시한다 — 이전 로직(로컬 배열에서 못 찾으면 아무 일도
-    // 하지 않는다)과 같은 동작이다.
-  }
+  router.push(`/doctor/${target.doctorId}`);
 }
 
 function TrendBadge({ trend }: { trend: SearchTrend }) {
-  if (trend.type === 'up') {
-    return <Text className="text-xs font-semibold text-rose-500">▲ {trend.delta}</Text>;
+  if (trend.type === "up") {
+    return (
+      <Text className="text-xs font-semibold text-rose-500">
+        ▲ {trend.delta}
+      </Text>
+    );
   }
-  if (trend.type === 'down') {
-    return <Text className="text-xs font-semibold text-blue-500">▼ {trend.delta}</Text>;
+  if (trend.type === "down") {
+    return (
+      <Text className="text-xs font-semibold text-blue-500">
+        ▼ {trend.delta}
+      </Text>
+    );
   }
-  if (trend.type === 'new') {
+  if (trend.type === "new") {
     return <Text className="text-xs font-semibold text-blue-500">NEW</Text>;
   }
   return <Text className="text-xs text-neutral-300">－</Text>;
@@ -147,8 +119,12 @@ function SearchRow({
       className="flex-row items-center justify-between border-b border-neutral-50 py-3"
     >
       <View className="flex-row items-center gap-4">
-        <Text className="w-5 text-base font-bold text-neutral-400">{item.rank}</Text>
-        <Text className="text-[15px] font-medium text-neutral-800">{item.term}</Text>
+        <Text className="w-5 text-base font-bold text-neutral-400">
+          {item.rank}
+        </Text>
+        <Text className="text-[15px] font-medium text-neutral-800">
+          {item.term}
+        </Text>
       </View>
       <TrendBadge trend={item.trend} />
     </Pressable>
@@ -157,115 +133,279 @@ function SearchRow({
 
 function formatNowLabel(): string {
   const now = new Date();
-  const hh = String(now.getHours()).padStart(2, '0');
-  const mm = String(now.getMinutes()).padStart(2, '0');
+  const hh = String(now.getHours()).padStart(2, "0");
+  const mm = String(now.getMinutes()).padStart(2, "0");
   return `${hh}:${mm} 기준`;
 }
 
 export default function SearchScreen() {
   const { q } = useLocalSearchParams<{ q?: string }>();
-  const inputRef = useRef<TextInput>(null);
-  const [query, setQuery] = useState(q ?? '');
-  const [tab, setTab] = useState<SearchTab>('all');
-  const [notice, setNotice] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [query, setQuery] = useState(q ?? "");
+  const [tab, setTab] = useState<SearchTab>("all");
+  /** 화살표로 고른 줄. `-1` 이면 활성 없음(= Enter 는 첫 항목으로 간다). */
+  const [activeIndex, setActiveIndex] = useState(-1);
+  /** Esc 로 추천을 접은 상태. 글자는 그대로 두고 인기 검색어로 돌아간다. */
+  const [collapsed, setCollapsed] = useState(false);
+  /** 마지막으로 Enter·🔍 를 누른 검색어. 질의 실패 안내를 그 검색어에만 붙인다. */
+  const [submittedTerm, setSubmittedTerm] = useState<string | null>(
+    q?.trim() ?? null,
+  );
   const nowLabel = useMemo(() => formatNowLabel(), []);
-  // 제출 순서 보장용 시퀀스 번호. 병원명·전문의 이름 매칭이 둘 다 비동기(서버 `q` 필터)라,
-  // 사용자가 응답을 받기 전에 다른 검색어를 다시 제출하면 늦게 도착한 응답이 엉뚱한
-  // 병원으로 이동시키거나 방금 도착한 올바른 안내 문구를 덮어쓸 수 있다 — 매 제출마다
-  // 번호를 하나 증가시키고, 응답이 왔을 때 자신이 여전히 "가장 마지막 제출"인지 확인한다.
-  const searchSeqRef = useRef(0);
+
+  const trimmed = query.trim();
+  const suggestions = useSuggestions(query);
+  const { groups, flat, count, isSettled, hasError, networkSkipped, flush } =
+    suggestions;
+
+  /**
+   * 응답을 기다리는 Enter 가 하나라도 있는가.
+   *
+   * state 가 아니라 ref 인 이유: 아래 effect 가 이 값을 끄면서 `router.push` 만 하면 되고,
+   * setState 를 effect 본문에서 하면 연쇄 렌더가 된다. 시퀀스 번호도 필요 없다 — 추천
+   * 그룹은 **항상 지금 입력된 검색어의 것**이라(queryKey 에 검색어가 들어간다) 늦게 온
+   * 이전 검색어의 응답이 이 자리에 올 수 없다.
+   */
+  const pendingSubmitRef = useRef(Boolean(q?.trim()));
 
   useEffect(() => {
     const timeout = setTimeout(() => inputRef.current?.focus(), 200);
     return () => clearTimeout(timeout);
   }, []);
 
-  // 의존성이 없는 안정된 참조다 — 아래 자동검색 effect 가 이 함수를 의존성으로 쓴다.
-  const runSearch = useCallback(
-    async (trimmed: string) => {
-      if (!trimmed) return;
+  /**
+   * 기다리던 Enter(또는 `?q=` 자동 실행)의 이동. 목적지 결정은 `firstSuggestion()` 하나다.
+   * 시술 그룹에 항목이 있으면 네트워크를 기다리지 않는다 — 동기 매칭이라 이미 확정이다.
+   */
+  useEffect(() => {
+    if (!pendingSubmitRef.current) return;
+    if (groups.procedures.length > 0) {
+      pendingSubmitRef.current = false;
+      router.push(suggestionHref(groups.procedures[0]));
+      return;
+    }
+    if (!isSettled) return;
+    pendingSubmitRef.current = false;
+    const target = firstSuggestion(groups);
+    if (target) router.push(suggestionHref(target));
+  }, [groups, isSettled]);
 
-      const seq = ++searchSeqRef.current;
-      const isStale = () => seq !== searchSeqRef.current;
-
-      // 시술 매칭은 정적 taxonomy 라 네트워크가 없다 — 가장 먼저, 동기로 끝난다.
-      const match = searchTaxonomy(trimmed);
-      if (match) {
-        setNotice(null);
-        router.push(categoryPath(match.category.id, match.sub?.id ?? null));
-        return;
-      }
-
-      const matchedHospital = await findMatchingHospital(trimmed);
-      if (isStale()) return;
-      if (matchedHospital) {
-        setNotice(null);
-        await navigateToTarget({ kind: 'hospital', hospitalId: matchedHospital.id });
-        return;
-      }
-
-      const matchedDoctor = await findMatchingDoctor(trimmed);
-      if (isStale()) return;
-      if (matchedDoctor) {
-        setNotice(null);
-        router.push(`/hospital/${matchedDoctor.hospitalId}`);
-        return;
-      }
-
-      setNotice(`"${trimmed}"에 대한 검색 결과가 없어요. 아래 인기 검색어를 살펴보세요`);
-    },
-    []
-  );
-
-  const handleSubmit = () => {
-    void runSearch(query.trim());
+  const go = (suggestion: Suggestion) => {
+    pendingSubmitRef.current = false;
+    router.push(suggestionHref(suggestion));
   };
 
-  // Prefills and auto-runs the search when arriving from a trending-tag link (e.g. the home screen's
-  // popular-search pills), which navigate here with a `q` param instead of typing into the input.
-  useEffect(() => {
-    if (!q) return;
-    void runSearch(q.trim());
-  }, [q, runSearch]);
+  const changeQuery = (next: string) => {
+    setQuery(next);
+    // 글자가 바뀌면 활성 항목은 항상 초기화한다 — 3번째 줄을 고른 채 글자를 지웠는데
+    // 다른 항목이 활성인 상태는 거짓 정보다.
+    setActiveIndex(-1);
+    setCollapsed(false);
+    setSubmittedTerm(null);
+    pendingSubmitRef.current = false;
+  };
+
+  const submit = () => {
+    if (!trimmed) return;
+    setSubmittedTerm(trimmed);
+    setCollapsed(false);
+
+    // 활성 항목이 있으면 그것, 없으면 첫 항목. 활성 번호가 목록 밖이면(응답이 늦게 와서
+    // 줄 수가 줄어든 경우) 첫 항목으로 되돌린다 — Enter 가 아무 일도 하지 않는 것보다 낫다.
+    const target =
+      (activeIndex >= 0 ? flat[activeIndex] : undefined) ??
+      firstSuggestion(groups);
+    if (target) {
+      go(target);
+      return;
+    }
+    if (!isSettled || networkSkipped) {
+      // 디바운스를 즉시 끊고 같은 queryKey 의 응답을 기다린다 — 도착하면 위 effect 가 간다.
+      // 최소 글자 수(2자)는 "입력 중 자동 질의" 에만 거는 규칙이다. Enter 는 명시적
+      // 의사표시라 1자여도 네트워크 경로를 실행한다(오늘과 같다).
+      pendingSubmitRef.current = true;
+      flush();
+      return;
+    }
+    pendingSubmitRef.current = false;
+    // 0건·실패 안내는 아래에서 상태로부터 파생된다.
+  };
+
+  const moveActive = (delta: number) => {
+    if (flat.length === 0) return;
+    // 접힌 목록에서 화살표는 목록을 다시 편다 — 보이지 않는 줄을 활성으로 만들면
+    // `aria-activedescendant` 가 그려지지 않은 id 를 가리킨다.
+    if (collapsed) {
+      setCollapsed(false);
+      return;
+    }
+    setActiveIndex((current) => {
+      // 끝에서 처음으로 순환한다 — 최대 9줄이라 헷갈리지 않고 되돌아가기가 빠르다.
+      const next = current + delta;
+      if (next < 0) return flat.length - 1;
+      if (next >= flat.length) return 0;
+      return next;
+    });
+  };
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    // 한글 조합 중 Enter(후보 확정)는 검색이 아니다.
+    const composing = event.nativeEvent.isComposing || event.keyCode === 229;
+
+    switch (event.key) {
+      case "Enter":
+        if (composing) return;
+        event.preventDefault();
+        submit();
+        return;
+      case "ArrowDown":
+        if (composing) return;
+        event.preventDefault();
+        moveActive(1);
+        return;
+      case "ArrowUp":
+        if (composing) return;
+        event.preventDefault();
+        moveActive(-1);
+        return;
+      case "Home":
+        if (composing || flat.length === 0) return;
+        event.preventDefault();
+        setActiveIndex(0);
+        return;
+      case "End":
+        if (composing || flat.length === 0) return;
+        event.preventDefault();
+        setActiveIndex(flat.length - 1);
+        return;
+      case "Escape":
+        event.preventDefault();
+        // Esc 는 "그만" 이다 — 응답을 기다리던 Enter 도 함께 취소한다.
+        pendingSubmitRef.current = false;
+        if (activeIndex >= 0) setActiveIndex(-1);
+        else if (!collapsed) setCollapsed(true);
+        else changeQuery("");
+        return;
+      default:
+    }
+  };
+
+  // 제출한 검색어의 응답을 아직 기다리는 중인가(= 입력칸 옆 스피너 조건).
+  const awaitingSubmit =
+    submittedTerm !== null && submittedTerm === trimmed && !isSettled;
+  const showSubmitSpinner = useDelayedFlag(awaitingSubmit, 200);
+
+  const hasGroupActivity =
+    count > 0 || suggestions.hospitals.isError || suggestions.doctors.isError;
+  const suggestionsOpen =
+    trimmed.length > 0 && !collapsed && (hasGroupActivity || !isSettled);
+  const activeSuggestion =
+    activeIndex >= 0 ? (flat[activeIndex] ?? null) : null;
+
+  // 추천 0건이면 기존 안내 문구를 그대로 쓰고 **인기 검색어를 되살린다** — 문구가
+  // "아래 인기 검색어를 살펴보세요" 라고 아래를 가리키기 때문이다.
+  // 1자·미완성 자모는 아직 아무것도 못 찾은 것이 아니라 **덜 찾은** 상태라 안내하지 않는다.
+  const emptyNotice =
+    trimmed.length > 0 &&
+    isSettled &&
+    !hasError &&
+    !networkSkipped &&
+    count === 0
+      ? `"${trimmed}"에 대한 검색 결과가 없어요. 아래 인기 검색어를 살펴보세요`
+      : null;
+  // Enter 가 기다리던 질의가 실패한 경우. 예전에는 아무 일도 일어나지 않고 콘솔에
+  // unhandled rejection 만 남았다.
+  const failureNotice =
+    submittedTerm === trimmed && isSettled && hasError
+      ? SEARCH_FAILED_NOTICE
+      : null;
+  const notice = failureNotice ?? emptyNotice;
+
+  // 그룹이 전부 확정된 뒤 한 번만 발표한다 — 시술만 먼저 발표하면 바로 뒤에 다시 읽힌다.
+  const liveMessage =
+    trimmed.length === 0 || !isSettled || collapsed
+      ? ""
+      : networkSkipped
+        ? // 묻지 않은 병원·원장님을 "0개" 로 발표하지 않는다 — 화면의 안내 한 줄과 같은 말을 한다.
+          groups.procedures.length > 0
+          ? `시술 ${groups.procedures.length}개를 찾았어요. ${MIN_CHARS_HINT}`
+          : ""
+        : count === 0
+          ? "추천 결과가 없어요"
+          : `시술 ${groups.procedures.length}개, 병원 ${groups.hospitals.length}개, 원장님 ${groups.doctors.length}개를 찾았어요`;
 
   return (
-    <SafeAreaView className="flex-1 bg-white" edges={['top', 'bottom']}>
+    <SafeAreaView className="flex-1 bg-white" edges={["top", "bottom"]}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      <View className={cx(CONTAINER_PADDING, 'flex-row items-center gap-2 pt-3')}>
-        <Pressable onPress={() => router.back()} hitSlop={8} className="px-1 py-2">
+      <View
+        className={cx(CONTAINER_PADDING, "flex-row items-center gap-2 pt-3")}
+      >
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={8}
+          className="px-1 py-2"
+        >
           <Text className="text-2xl text-neutral-400">‹</Text>
         </Pressable>
         <View className="flex-1 flex-row items-center rounded-full border-[1.5px] border-brand-600 bg-white px-4 py-2.5">
-          <TextInput
+          {/*
+            primitives 의 `TextInput` 은 `onKeyDown`·`aria-*`·composition 이벤트를 아래로
+            넘기지 않는다 — 콤보박스 패턴과 IME 가드에 그것들이 반드시 필요해서 이 입력
+            하나만 평범한 `<input>` 으로 둔다 (AGENTS.md 가 허용한다). primitive 자체는
+            다른 화면 27곳이 쓰므로 손대지 않는다.
+          */}
+          <input
             ref={inputRef}
+            type="text"
             value={query}
-            onChangeText={(text) => {
-              setQuery(text);
-              if (notice) setNotice(null);
-            }}
-            onSubmitEditing={handleSubmit}
+            onChange={(event) => changeQuery(event.target.value)}
+            onKeyDown={handleKeyDown}
             placeholder="시술, 병원, 원장님 이름을 검색해보세요"
-            placeholderTextColor="#a3a3a3"
-            returnKeyType="search"
-            className="flex-1 text-[15px] text-neutral-900"
+            role="combobox"
+            aria-label="시술, 병원, 원장님 검색"
+            aria-expanded={suggestionsOpen}
+            // 목록이 그려져 있을 때만 가리킨다 — 닫힌 동안에는 그 id 가 문서에 없다.
+            aria-controls={suggestionsOpen ? SUGGEST_LIST_ID : undefined}
+            aria-autocomplete="list"
+            aria-activedescendant={
+              activeSuggestion
+                ? suggestionOptionId(activeSuggestion)
+                : undefined
+            }
+            enterKeyHint="search"
+            className="flex-1 bg-transparent text-[15px] text-neutral-900 outline-none placeholder:text-neutral-400"
           />
-          <Pressable onPress={handleSubmit} hitSlop={8}>
+          <Pressable onPress={submit} hitSlop={8}>
             <Text className="text-lg">🔍</Text>
           </Pressable>
+          {/*
+            Enter 가 응답을 기다리는 동안의 표시. 🔍 를 **치우지 않고 옆에** 둔다 — 글리프가
+            사라졌다 돌아오면 그 순간 그 버튼을 잡고 있던 코드(와 사용자의 손가락)가 빈
+            자리를 누르게 된다. 200ms 이상 걸릴 때만 나타난다(목서버 180ms 에서 깜빡임 없음).
+          */}
+          {showSubmitSpinner ? (
+            <span
+              aria-hidden="true"
+              className="ml-1.5 h-3.5 w-3.5 rounded-full border-2 border-neutral-200 border-t-brand-600 motion-safe:animate-spin"
+            />
+          ) : null}
         </View>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerClassName="pb-8">
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerClassName="pb-8"
+      >
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerClassName={cx(CONTAINER_PADDING, 'gap-2 pb-2 pt-4')}
+          contentContainerClassName={cx(CONTAINER_PADDING, "gap-2 pb-2 pt-4")}
         >
           {SPONSORED_SEARCH_SUGGESTIONS.map((suggestion) => (
             <Pressable
               key={suggestion}
-              onPress={() => setQuery(suggestion)}
+              onPress={() => changeQuery(suggestion)}
               className="flex-row items-center gap-1 rounded-full border border-neutral-200 px-3 py-2"
             >
               <Text className="text-xs text-brand-600">✦</Text>
@@ -280,38 +420,69 @@ export default function SearchScreen() {
           </View>
         ) : null}
 
-        <View className={cx(CONTAINER_PADDING, 'mb-1 mt-4 flex-row items-center justify-between')}>
-          <Text className="text-lg font-extrabold text-neutral-900">인기 검색어</Text>
-          <Text className="text-xs text-neutral-400">{nowLabel}</Text>
-        </View>
+        <div aria-live="polite" className="sr-only">
+          {liveMessage}
+        </div>
 
-        <View className={cx(CONTAINER_PADDING, 'mb-2 flex-row border-b border-neutral-100')}>
-          {TABS.map((item) => (
-            <Pressable
-              key={item.key}
-              onPress={() => setTab(item.key)}
-              className={`mr-6 border-b-2 py-3 ${tab === item.key ? 'border-neutral-900' : 'border-transparent'}`}
+        {suggestionsOpen ? (
+          <SuggestionList
+            listId={SUGGEST_LIST_ID}
+            query={trimmed}
+            groups={groups}
+            activeId={
+              activeSuggestion ? suggestionOptionId(activeSuggestion) : null
+            }
+            onSelect={go}
+            hospitals={suggestions.hospitals}
+            doctors={suggestions.doctors}
+            showMinCharsHint={networkSkipped && groups.procedures.length > 0}
+          />
+        ) : (
+          <>
+            <View
+              className={cx(
+                CONTAINER_PADDING,
+                "mb-1 mt-4 flex-row items-center justify-between",
+              )}
             >
-              <Text
-                className={`text-sm font-semibold ${tab === item.key ? 'text-neutral-900' : 'text-neutral-400'}`}
-              >
-                {item.label}
+              <Text className="text-lg font-extrabold text-neutral-900">
+                인기 검색어
               </Text>
-            </Pressable>
-          ))}
-        </View>
+              <Text className="text-xs text-neutral-400">{nowLabel}</Text>
+            </View>
 
-        <View className={CONTAINER_PADDING}>
-          {TRENDING_SEARCHES[tab].map((item) => (
-            <SearchRow
-              key={`${tab}-${item.rank}`}
-              item={item}
-              onSelect={(target, term) => {
-                void navigateToTarget(target, term);
-              }}
-            />
-          ))}
-        </View>
+            <View
+              className={cx(
+                CONTAINER_PADDING,
+                "mb-2 flex-row border-b border-neutral-100",
+              )}
+            >
+              {TABS.map((item) => (
+                <Pressable
+                  key={item.key}
+                  onPress={() => setTab(item.key)}
+                  className={`mr-6 border-b-2 py-3 ${tab === item.key ? "border-neutral-900" : "border-transparent"}`}
+                >
+                  <Text
+                    className={`text-sm font-semibold ${tab === item.key ? "text-neutral-900" : "text-neutral-400"}`}
+                  >
+                    {item.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <View className={CONTAINER_PADDING}>
+              {TRENDING_SEARCHES[tab].map((item) => (
+                <SearchRow
+                  key={`${tab}-${item.rank}`}
+                  item={item}
+                  onSelect={(target, term) => navigateToTarget(target, term)}
+                />
+              ))}
+            </View>
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );

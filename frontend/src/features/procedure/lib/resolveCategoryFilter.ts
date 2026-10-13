@@ -54,6 +54,19 @@ export function resolveCategoryFilter(selection: CategorySelection): CategoryFil
   return { mode: 'client', legacyIds: new Set(legacyIds) };
 }
 
+/**
+ * 준비중 세부를 **대분류 전체로 되돌린다** (준비중이 아니면 그대로).
+ *
+ * 카테고리 화면은 `?sub=root-canal` 로 들어와도 "신경치료는 준비중이에요 — 충치치료
+ * 전체를 보여드려요" 를 띄우고 대분류 전체를 보여준다. 검색 추천의 병원·원장님 그룹도
+ * **같은 되돌림**을 써야 추천 줄에 보인 병원과 눌러서 열린 화면의 병원이 같다.
+ * 되돌림 규칙이 두 곳에 적히면 한쪽만 고쳐져 조용히 갈라진다.
+ */
+export function effectiveSubProcedure(subProcedureId: SubProcedureId | null): SubProcedureId | null {
+  if (subProcedureId === null) return null;
+  return getSubProcedure(subProcedureId).legacyProcedureId === null ? null : subProcedureId;
+}
+
 /** 결정된 방식 → 목록 API 가 받는 필터 조각. 나머지 필터(정렬·칩)는 호출부가 합친다. */
 export function planToListFilters(plan: CategoryFilterPlan): {
   procedureId?: ProcedureId;

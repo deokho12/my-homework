@@ -18,6 +18,7 @@ import {
   isProcedureId,
   isSubProcedureId,
   searchTaxonomy,
+  searchTaxonomyAll,
   subFromLegacy,
 } from '@/features/procedure/taxonomy';
 import { procedures } from '@/mocks/fixtures/procedures';
@@ -194,7 +195,11 @@ describe('categoryPathForLegacy', () => {
 
 describe('searchTaxonomy', () => {
   it('대분류 이름이 가장 먼저 걸린다', () => {
-    expect(searchTaxonomy('임플란트')).toEqual({ category: getCategory('implant'), sub: null });
+    expect(searchTaxonomy('임플란트')).toEqual({
+      category: getCategory('implant'),
+      sub: null,
+      matchedAlias: '임플란트',
+    });
   });
 
   it('세부 시술 이름', () => {
@@ -234,5 +239,59 @@ describe('searchTaxonomy', () => {
 
   it('아무 데도 안 걸리면 null', () => {
     expect(searchTaxonomy('치과')).toBeNull();
+  });
+});
+
+describe('searchTaxonomyAll', () => {
+  /**
+   * **Enter 가 오늘과 같은 곳으로 간다는 보장이 이 한 줄이다.** 추천 목록의 첫 줄과
+   * Enter 목적지가 같은 규칙에서 나오는지를 검색어 표본 전체로 고정한다.
+   */
+  it('searchTaxonomy 는 searchTaxonomyAll 의 첫 원소다', () => {
+    const samples = [
+      '임플란트', '교정', '크라운', '금니', '때우기', '인레', '스케일링', '근관치료', '엔도',
+      '이갈이', '연세 바른교정치과', '강남', 'TMJ', '치과', '', '   ', '사랑니', '잇몸',
+      '보톡스', '라미네이트', '충치치료', '턱관절', '코골이', '미백',
+    ];
+
+    for (const sample of samples) {
+      expect(searchTaxonomy(sample)).toEqual(searchTaxonomyAll(sample)[0] ?? null);
+    }
+  });
+
+  it('부분 입력도 걸린다 — "인레" → 인레이', () => {
+    const matches = searchTaxonomyAll('인레');
+    expect(matches.map((match) => match.sub?.id)).toEqual(['inlay']);
+  });
+
+  it('동의어로 걸리면 걸린 후보 문자열을 함께 돌려준다', () => {
+    expect(searchTaxonomyAll('금니')[0]).toMatchObject({ matchedAlias: '금니' });
+    expect(searchTaxonomyAll('금니')[0].sub?.id).toBe('crown');
+    expect(searchTaxonomyAll('때우기')[0]).toMatchObject({ matchedAlias: '때우기' });
+    expect(searchTaxonomyAll('때우기')[0].sub?.id).toBe('resin');
+  });
+
+  it('대분류가 세부보다 먼저, 서버 시술이 있는 세부가 준비중 세부보다 먼저', () => {
+    const matches = searchTaxonomyAll('교정');
+    expect(matches[0].sub).toBeNull();
+    expect(matches[0].category.id).toBe('orthodontics');
+    expect(matches[1].sub?.id).toBe('bracket-braces');
+    expect(matches.slice(2).map((match) => match.sub?.id)).toEqual([
+      'clear-aligner',
+      'lingual-braces',
+      'partial-ortho',
+    ]);
+  });
+
+  it('같은 항목이 이름과 동의어 양쪽에 걸려도 한 번만 담는다', () => {
+    // 라미네이트는 표시 이름이자 동의어다(`keywords: ['라미네이트', '비니어']`).
+    const ids = searchTaxonomyAll('라미네이트').map((match) => match.sub?.id ?? match.category.id);
+    expect(ids).toEqual([...new Set(ids)]);
+    expect(ids.filter((id) => id === 'laminate')).toHaveLength(1);
+  });
+
+  it('아무 데도 안 걸리면 빈 배열', () => {
+    expect(searchTaxonomyAll('치과')).toEqual([]);
+    expect(searchTaxonomyAll('  ')).toEqual([]);
   });
 });
