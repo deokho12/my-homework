@@ -104,6 +104,16 @@ export function formatVisitAt(iso: string | null | undefined): string | null {
 }
 
 /**
+ * `14:00` — **하루치 목록(`오늘 내원 예정`) 전용**이다. 날짜가 줄마다 같아 시각만 적는다.
+ * 같은 `VISIT_FORMAT` 에서 꺼내므로 `10/9(금) 14:00` 과 **같은 시간대·같은 시계**다.
+ */
+export function formatVisitTime(iso: string | null | undefined): string | null {
+  const parts = dateParts(VISIT_FORMAT, iso);
+
+  return parts ? `${parts.hour}:${parts.minute}` : null;
+}
+
+/**
  * `10월 9일(금) 14:00` — **환자에게 가는 알림 문구 전용**이다 (계약
  * `AppNotification.message`: `예약 일시가 '{...}'(으)로 변경되었어요`).
  * 화면 안에서는 좁은 자리에 들어가는 `formatVisitAt` 을 쓴다.

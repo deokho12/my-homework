@@ -7,6 +7,7 @@ import { SafeAreaView, ScrollView, cx } from '@/primitives';
 import { EmptyState } from '@/components/EmptyState';
 import { QueryState } from '@/components/QueryState';
 import { CONTAINER_PADDING } from '@/components/layout/Container';
+import { useAdminHospital } from '@/features/admin/hooks/useAdminHospital';
 import { useSession } from '@/features/auth/hooks/useSession';
 import {
   AdminInquiryDetail,
@@ -55,13 +56,17 @@ function isTabKey(value: string | undefined): value is TabKey {
 export default function AdminInquiriesPage() {
   const { id: selectedId, status: statusParam } = useLocalSearchParams<{ id?: string; status?: string }>();
   const { isOperator } = useSession();
+  // **선택한 담당 병원 범위다** — 사이드 배지(`미답변 N`)와 같은 병원을 센다.
+  // 운영자는 선택 병원이 없어 전 병원을 그대로 본다.
+  const { hospitalId } = useAdminHospital();
 
   const tab: TabKey = isTabKey(statusParam) ? statusParam : 'unanswered';
 
-  const summary = useInquirySummary();
+  const summary = useInquirySummary(hospitalId ?? undefined);
   const list = useHospitalInquiries({
     pageSize: LIST_PAGE_SIZE,
     status: tab === 'all' ? undefined : tab,
+    hospitalId: hospitalId ?? undefined,
   });
   const detail = useHospitalInquiry(selectedId);
   const answer = useAnswerInquiry();
@@ -145,7 +150,7 @@ export default function AdminInquiriesPage() {
     <SafeAreaView className="flex-1 bg-neutral-50" edges={['bottom']}>
       <Stack.Screen options={{ title: '문의' }} />
       <ScrollView contentContainerClassName={cx(CONTAINER_PADDING, 'pb-10 pt-4')}>
-        <h1 className="mb-1 text-lg font-bold text-neutral-900">문의</h1>
+        {/* 화면 제목은 관리자 상단바의 `h1` 하나다. */}
         <p className="mb-4 text-sm text-neutral-500">
           환자가 병원 상세에서 &lsquo;문의하기&rsquo;로 남긴 질문이에요. 답변하면 환자에게 알림이 갑니다.
         </p>

@@ -103,4 +103,4 @@
 - **상담 예약 목록**과 같은 화면·같은 데이터입니다. (`docs/features/admin-consultations.md`)
 - 상태를 바꾸면 **사용자 알림함**과 **마이페이지 상담 내역**이 함께 바뀝니다. (`docs/features/notifications.md`, `docs/features/mypage.md`)
 - **관리자 알림함**에서 `새로운 상담 신청` 알림을 누르면 이 화면으로 들어옵니다. (`docs/features/admin-notifications.md`)
-- **관리자 홈**의 숫자 카드가 같은 상담 데이터를 셉니다. (`docs/features/admin-home.md`)
+- **대시보드**의 숫자 카드·`오늘 할 일`·사이드 메뉴 배지가 같은 상담 데이터를 셉니다. (`docs/features/admin-home.md`)

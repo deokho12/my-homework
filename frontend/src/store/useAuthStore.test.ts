@@ -4,6 +4,7 @@ import { queryClient } from '@/app/providers';
 import { addFavorite, fetchMyFavorites } from '@/features/favorite';
 import { LEGACY_MOCK_AUTH_KEY, readTokens, writeTokens } from '@/lib/authTokens';
 import { clearCollection } from '@/lib/localCollection';
+import { useAdminHospitalStore } from '@/store/useAdminHospitalStore';
 import { useAuthStore } from '@/store/useAuthStore';
 
 interface StubCall {
@@ -150,6 +151,19 @@ describe('useAuthStore — 로그인', () => {
     await useAuthStore.getState().logIn({ email: 'seed-2@molarmolar.example', password: 'pw' });
 
     expect(await favoriteIds()).toEqual([]);
+  });
+
+  /**
+   * 관리자 화면이 고른 담당 병원도 **계정에 딸린 선택**이다. 남겨 두면 두 담당자가 한 기기에서
+   * 서로의 선택을 물려받고, 담당이 겹치는 계정끼리는 범위 검증도 걸리지 않는다.
+   */
+  it('다른 계정으로 로그인하면 관리자 화면이 고른 담당 병원도 비운다', async () => {
+    useAdminHospitalStore.getState().select('h3');
+    stubFetch({ '/auth/login': () => json(200, SESSION) });
+
+    await useAuthStore.getState().logIn({ email: 'seed-2@molarmolar.example', password: 'pw' });
+
+    expect(useAdminHospitalStore.getState().hospitalId).toBeNull();
   });
 });
 

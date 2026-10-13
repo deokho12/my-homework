@@ -53,6 +53,7 @@
 | **doctor-verification** (인증 검수) | `/doctors/verification-queue`, `/doctors/{id}/verification` | 전문의 인증 검수 | **`operator` 전용** |
 | **reviews** | `/hospitals/{id}/reviews` | 병원 상세 | 없음 (작성 화면이 없다) |
 | **consult-requests** | `/consult-requests`, `/me/consult-requests` | 상담 신청, 관리자 상담 관리/상세, 관리자 홈 숫자, (신설) 내 상담 내역 | `user`(접수) / 담당 `hospital_admin`(처리). `operator` 는 **조회만 + PII 마스킹** |
+| **admin-dashboard** (병원 관리자 대시보드, 2026-10-13) | `/admin/dashboard` | 관리자 대시보드(`/admin`), 사이드 메뉴 배지 | 없음 — **읽기 전용 집계**. `hospital_admin` 전용, 선택 병원 1곳 (§3·§14) |
 | **hospital-inquiries** (병원 문의, 2026-10-12) | `/hospital-inquiries`, `/me/inquiries`, `/hospitals/{id}/inquiries` | 문의하기, 병원 상세 `문의`, 마이페이지 `내 문의`, 관리자 문의, 관리자 홈 숫자 | `user`(접수) / 담당 `hospital_admin`(답변). `operator` 는 **조회만** (§14) |
 | **favorites** | `/me/favorites` | 마이페이지, 병원 상세, 꿀팁 상세 | `user` |
 | **notifications** | `/notifications` | 사용자 알림함, 관리자 알림함, 마이페이지 배지, 관리자 홈 배지 | **없음 — 부수효과로만 생성** |
@@ -158,8 +159,9 @@ partnerInquiries.detail:   (id) => ['partnerInquiries', id]
 
 | 화면 | 문서 | 접근 역할 | 엔드포인트 | 상태 |
 |---|---|---|---|---|
-| 관리자 홈 | `admin-home.md` | `hospital_admin`(담당만)<br>`operator`(전체) | `GET /consult-requests/summary`<br>`GET /hospital-inquiries/summary` (`문의 N` — `operator` 에게는 숫자를 붙이지 않는다, §14)<br>`GET /admin/hospitals` (`scope` 로 범위 구분)<br>`GET /notifications/unread-count?audience=admin` | ✅ 🟡 |
+| 관리자 홈 | `admin-home.md` | `hospital_admin`(담당만)<br>`operator`(전체) | `GET /admin/dashboard?hospitalId=` (`hospital_admin` 시야 — 아래 행)<br>`GET /hospital-inquiries/summary` (`문의 N` — `operator` 에게는 숫자를 붙이지 않는다, §14)<br>`GET /admin/hospitals` (`scope` 로 범위 구분)<br>`GET /notifications/unread-count?audience=admin`<br>**운영자 시야(`OperatorHome`)는 병원 목록·검수 대기만 그린다 — 상담 숫자를 읽지 않는다** (§14) | ✅ 🟡 |
 | | | | 병원 삭제 — **엔드포인트 없음** (🚧). §19 참고 | 🚧 |
+| 관리자 대시보드 (2026-10-13) | 요청 05 | **`hospital_admin` 전용**, **선택한 병원 1곳** (`operator` 는 `403` — §3) | `GET /admin/dashboard?hospitalId=` (숫자 카드·보조 숫자, 목록 4개 — 지연 상담·반려 전문의·최근 상담·오늘 내원 —, 깔때기, 완성도를 **한 응답**으로 — §14, 정확한 필드는 계약 `AdminDashboard`)<br>`GET /notifications/unread-count?audience=admin` (상단 🔔)<br>카드 링크는 `GET /consult-requests` · `GET /hospital-inquiries` 의 필터로 **정확히 재현된다** | 🚧 |
 | 병원 등록 | `admin-hospital-new.md` | **`operator` 전용** | `POST /hospitals` (전문의·담당자 동시 지정)<br>`GET /geo/address-search`<br>`GET /procedures` | ✅ 🟡 |
 | 병원 정보 수정 | `admin-hospital-edit.md` | `hospital_admin`(담당만)<br>`operator`(전체) | `GET /hospitals/{id}`<br>`PATCH /hospitals/{id}`<br>`GET /hospitals/{id}/doctors`<br>`PUT /hospitals/{id}/doctors`<br>`GET /geo/address-search` | ✅ 🟡 |
 | | | | 광고 신청·기간 변경 — **엔드포인트 없음.** 화면이 읽기 전용이고 "담당팀에 문의" 라고 안내한다 (🚧) | 🚧 |
@@ -315,6 +317,28 @@ partnerInquiries.detail:   (id) => ['partnerInquiries', id]
 그래서 응답에 `scope: managed | all` 을 넣었다. 화면이 "내 병원" 과 "전체" 를 구분해야 하고,
 목록이 0건일 때 "담당 병원이 아직 지정되지 않았어요" 와 "등록된 병원이 없어요" 를 구분해야 한다
 (지금은 둘 다 그냥 빈 화면이다 — 확인된 결함).
+
+### 관리자 대시보드는 `scope` 가 아니라 **병원 하나**다 (2026-10-13)
+
+위 세 오퍼레이션은 "담당 병원 전부" 와 "전 병원" 두 범위를 `scope` 로 구분한다.
+**관리자 대시보드(`/admin`)는 그 축을 쓰지 않는다 — 언제나 병원 한 곳이다.**
+
+- `hospital_admin` **전용**이다. `operator` 는 `403 OPERATOR_CANNOT_USE_DASHBOARD`(계약) 이고, 운영자 홈은 기존
+  `GET /admin/hospitals` 목록 + 전문의 검수다. 답할 수도 연락할 수도 없는 역할에게
+  `답변 안 한 문의 N건` 을 보여주지 않는다 — `HospitalInquirySummary` 의 배지를
+  `scope === 'all'` 일 때 생략하기로 한 것과 **같은 규칙**이다 (§14).
+- 담당 병원이 여러 개면 **사이드 메뉴 위 드롭다운으로 하나를 고른다** (1개면 숨김).
+  고른 값이 대시보드·사이드 배지·각 카드의 링크 모두의 축이다.
+- `hospitalId` 를 **생략하면**: 담당 병원이 정확히 1곳일 때만 그 병원으로 응답하고,
+  2곳 이상이면 `422 HOSPITAL_ID_REQUIRED` 다. **서버가 "첫 번째 병원" 을 골라 주지 않는다** —
+  그 순간 화면의 드롭다운 값과 숫자가 갈릴 수 있고, 고른 적 없는 병원의 할 일이 보인다.
+  기본 선택(마지막으로 고른 병원 → 없으면 `managedHospitalIds` 의 첫 번째)은 화면의 몫이다.
+- 담당 병원 밖의 `hospitalId` 는 `403 HOSPITAL_NOT_MANAGED` 다 (`404` 가 아니다 —
+  **병원 존재는 공개 정보**라 숨겨서 얻는 것이 없다. 위 표의 병원 자원 규칙 그대로).
+
+`전체 내 병원` 합산 모드를 두지 않은 이유는 데이터 쪽 근거다 — `병원 정보 완성도` 와
+`오늘 내원 예정` 은 **병원 단위 사실이라 합산할 대상이 아니다**(완성도 70% 와 40% 를 더할 수 없다).
+자세한 판단은 `docs/database/README.md` §13.1.
 
 ### 병원 관리자 계정을 만드는 방법 — 기존 계정 승격
 
@@ -1187,7 +1211,7 @@ JS 키는 origin 제한이 가능하고 **애초에 클라이언트 노출을 �
 | doctor | `deleteDoctor(id)` | `DELETE /doctors/{id}` | 관리자 병원 폼 |
 | consult | `fetchMyConsultRequests()` | `GET /me/consult-requests` | **마이페이지 (신설 화면)** |
 | consult | `fetchMyConsultRequestById(id)` | `GET /me/consult-requests/{id}` | 마이페이지, 사용자 알림 이동 |
-| consult | `fetchConsultSummary()` | `GET /consult-requests/summary` | 관리자 홈 숫자 카드 |
+| consult | ~~`fetchConsultSummary()`~~ | `GET /consult-requests/summary` | **소비 화면 없음** — 프런트 함수·훅은 2026-10-13 에 제거됐다. 병원 관리자 홈은 `GET /admin/dashboard`, 운영자 홈은 상담 숫자를 쓰지 않는다 (§14) |
 | community | `createCommunityAnswer(postId, content)` | `POST /community/posts/{id}/answers` | **커뮤니티 답변 (신설 화면)** |
 | notification | `fetchUnreadCount(audience)` | `GET /notifications/unread-count` | 마이페이지·관리자 홈 배지 |
 | content | `fetchLegalDocument(slug)` | `GET /legal-documents/{slug}` | 약관 3종, 소개 |
@@ -1242,7 +1266,7 @@ JS 키는 origin 제한이 가능하고 **애초에 클라이언트 노출을 �
 | 관리자 알림 이동이 종류를 구분하지 않는다 | `AppNotification.relatedResource` 신설 |
 | `일반의` 가 검수 목록에 포함된다 | `GET /doctors/verification-queue` 가 기본 제외 |
 | 병원 목록·검수 목록이 0건일 때 빈 화면 | `meta.totalItems: 0` 으로 클라이언트가 안내 문구를 그릴 수 있다 (화면 작업) |
-| `이번 달 신규 상담` 이 항상 0 | `GET /consult-requests/summary` 가 `Asia/Seoul` 기준으로 계산. 샘플 데이터 날짜 문제는 별개 |
+| `이번 달 신규 상담` 이 항상 0 | 기간 집계를 서버가 `Asia/Seoul` 기준으로 계산. 샘플 데이터 날짜 문제는 별개<br>(그 카드는 요청 05 에서 `GET /admin/dashboard` 의 `newThisMonth` 로 옮겨갔다 — `GET /consult-requests/summary` 가 아니다, §14) |
 | 의사를 검색하면 병원 화면으로 간다 | `GET /search/resolve` 가 `kind=doctor` + `doctorId` 를 준다 (이동 대상은 제품 결정 → §17) |
 | 추천 검색어 알약 5개가 죽어 있다 | `GET /search/suggestions` 가 `term` 과 `target` 을 분리 (§7) |
 | 카카오 REST 키가 브라우저에 노출 | `GET /geo/address-search` (§10) |
@@ -1630,6 +1654,213 @@ consult_status_changes  (기존 테이블 — 이제 '상태 변경' 이 아니�
 - **`내원완료` 이후의 되돌림을 화면이 경고할지** — 서버는 막지 않는다(자유 전이). 확인창은 화면의 몫이다.
 - **상담 보존 기간** — 감사 보존 기간과 함께 정해야 한다(결정 0001 미결 5). 이번 변경으로
   `visit_at` 이 더해졌을 뿐 성격은 같다.
+
+#### 관리자 대시보드 집계 (2026-10-13)
+
+`docs/features/requests/2026-10-12-05-관리자-레이아웃-대시보드.md` 가 요구하는 화면이다.
+**새 테이블도 새 컬럼도 없다** — 인덱스 하나(`consult_requests(hospital_id, visit_at)`)뿐이고,
+나머지는 전부 기존 컬럼에서 파생한다. 설계 판단과 근거는 `docs/database/README.md` §13 에 있고,
+여기에는 **계약이 받아야 할 것**만 적는다.
+
+**이 절이 지켜야 할 불변식은 하나다:**
+
+> **숫자 카드 = 사이드 메뉴 배지 = 그 카드를 눌렀을 때 열리는 목록이 보여주는 건수.**
+
+이 문서가 이미 두 번 경고한 함정(§14 의 `hospital_inquiries` 카운트 세 벌,
+`ConsultStatusCounts` vs `ConsultSummary`)을 한 화면에 13개 모아 놓은 자리다.
+
+##### 권고: `GET /admin/dashboard?hospitalId=` 집계 **하나**
+
+| 대안 | 판단 |
+|---|---|
+| 기존 요약·목록을 조합한다 (`/consult-requests/summary` + `/hospital-inquiries/summary` + 목록 3번 + 병원 1번) | **7회 왕복**이고, 더 나쁜 것은 **일곱 응답이 일곱 시점**을 가리킨다는 것이다. 카드 ① 의 보조 줄과 사이드 배지와 오늘 할 일 2번이 **같은 숫자여야 하는데** 서로 다른 응답에서 오면 1분 차이로 `신규 5건` 옆에 배지 `6` 이 붙는다 |
+| 기존 `ConsultSummary` 를 키운다 | 일곱 숫자·세 목록·깔때기·**병원 정보 완성도**가 들어간다. 상담 도메인 요약에 병원 완성도가 들어오는 순간 이름이 거짓이 된다 |
+| ✅ **전용 집계 오퍼레이션 하나** | 한 트랜잭션·한 시점. 카드와 배지가 **구조적으로** 어긋날 수 없다 |
+
+새로 만드는 것은 **오퍼레이션 1개와 응답 스키마**뿐이다. 그 안의 투영과 판정은 전부 기존 것을
+재사용한다 — 목록 항목은 `ConsultRequest` **그대로**(마스킹 포함, 아래), 상태 판정은
+`inquiryStatus`, 기간 경계는 `periodRange`, 지연은 `isDelayed`. **새 규칙을 하나도 만들지 않는다.**
+
+- `x-role: [hospital_admin]` — **`operator` 는 `403`**. 근거는 §3 의 "관리자 대시보드는 `scope` 가
+  아니라 병원 하나다".
+- `hospitalId` (선택): 생략 시 담당 병원이 1곳이면 그 병원, 2곳 이상이면 `422 HOSPITAL_ID_REQUIRED`.
+  담당 병원 밖이면 `403 HOSPITAL_NOT_MANAGED`.
+- `Cache-Control: no-store` + `Vary: Authorization` — 응답에 **마스킹된 상담 행**이 들어 있다.
+- `timezone`(`Asia/Seoul`)과 `calculatedAt` 을 함께 내려준다 (`ConsultSummary` 의 선례. 달력 경계로
+  갈리는 숫자가 다섯이다).
+- 응답의 상담 행은 **목록과 같은 투영**이다 — 이름은 전체, **연락처는 마스킹**, `piiMasked: true`
+  (§4 의 "목록은 담당자에게도 번호를 가린다"). 대시보드는 목록보다 더 가벼운 자리이고 감사 로그를
+  남기지 않으므로 **전체 번호가 실릴 수 없다.**
+
+##### 숫자 하나하나의 규칙과, 눌렀을 때 열리는 화면
+
+전부 **선택한 병원 한 곳**, 달력 경계는 **`Asia/Seoul`**, 반열린 구간 `[from, to)` 다.
+
+| 화면 요소 | 필드 | 규칙 | 링크 (= 같은 숫자가 나오는 질의) |
+|---|---|---|---|
+| ① 오늘 들어온 상담 | `todayNew` | `createdAt ∈ today`. **상태 무관** | `/consult-requests?hospitalId=&period=today` → `meta.totalItems` |
+| ① 보조 `신규 전체 N건` | `statusNew` | `status='new'`, 기간 무관 | `…&status=new` → `meta.totalItems` = `statusCounts.new` |
+| ② 처리 대기 | `pending` | `status ∈ {new, contacted}`, 기간 무관 | `…&status=new&status=contacted` → `meta.totalItems` (**`status` 반복 허용 필요** — 아래) |
+| ② 보조 `24시간 지연 N건` | `delayed` | `status='new'` 이고 `now − createdAt ≥ 24h` | **링크 없음** (아래) |
+| ③ 답변 안 한 문의 | `unansweredInquiries` | `answeredAt === null` | `/hospital-inquiries?hospitalId=&status=unanswered` → `meta.totalItems`, 요약의 `unanswered` |
+| ③ 보조 `가장 오래된 것` | `oldestUnansweredAt` | 위 모집단의 `min(createdAt)`, 0건이면 `null` | 〃 |
+| ④ `이번 달 신청 M건 중 N건 예약` | `newThisMonth` / `bookedThisMonth` | **M** = `createdAt ∈ thisMonth`<br>**N** = 그중 **현재 상태**가 `booked` 또는 `visited`<br>**퍼센트 필드는 없다** — 카드가 `M건 중 N건` 만 그린다. 필요해지면 화면이 두 값으로 계산하거나 그날 필드를 더한다 | `…&period=thisMonth` → `meta.totalItems` = **M**<br>`…&period=thisMonth&status=booked&status=visited` → **N** |
+| 오늘 할 일 1 | `delayedConsults[]` | ② 보조와 같은 모집단, `createdAt` 오름차순, **최대 5행** + `외 N건` | 각 행 → 상담 상세 |
+| 오늘 할 일 2 | `statusNew` | ① 보조와 **같은 필드** | `…&status=new` |
+| 오늘 할 일 3 | `unansweredInquiries` | ③과 **같은 필드** | `…&status=unanswered` |
+| 오늘 할 일 4 | `rejectedDoctors` | 그 병원 소속 전문의 중 `verificationStatus === 'rejected'` 인 수 | 의료진 영역 |
+| 최근 상담 예약 | `recentConsults[]` | `createdAt` 내림차순 **5건**, 상태 무관 | `전체 보기` → `/consult-requests?hospitalId=` |
+| 오늘 내원 예정 | `todayVisits[]` | `status='booked'` 이고 `visitAt ∈ today`, **`visitAt` 오름차순** | 각 행 → 상담 상세 (목록 파라미터는 만들지 않는다 — 아래) |
+| 이번 달 상담 흐름 | `funnel` | 아래 | 막대 → 해당 `status` 탭 |
+| 병원 정보 완성도 | `completeness` | 아래 | `남은 항목` → 병원 정보 수정의 해당 입력 칸 |
+| 사이드 배지 `상담 예약` | `statusNew` | ① 보조와 **같은 필드** | — |
+| 사이드 배지 `문의` | `unansweredInquiries` | ③과 **같은 필드** | — |
+
+**같은 숫자는 같은 필드다.** `statusNew` 가 세 자리(카드 보조 줄·오늘 할 일·사이드 배지)에,
+`unansweredInquiries` 가 세 자리에 쓰인다. **클라이언트가 더하거나 다시 세는 자리는 하나도 없다** —
+`pending` 도 서버가 센 값이지 `statusCounts.new + statusCounts.contacted` 가 아니다
+(그 덧셈이 또 하나의 판정 지점이 되는 것을 §14 가 이미 `total` 로 막아 두었다).
+
+##### 기존 오퍼레이션에 필요한 변경 두 개 (둘 다 **additive**)
+
+| 변경 | 왜 | breaking 인가 |
+|---|---|---|
+| `GET /consult-requests` 의 **`status` 를 반복 허용**으로 (`?status=new&status=contacted`, 같은 파라미터끼리 OR) | 카드 ②(`처리 대기`)와 카드 ④의 N 을 **목록에서 재현**할 유일한 방법이다. 지금은 단일 값이라 두 카드의 링크가 카드와 다른 숫자를 연다 | **아니다.** 값 하나를 보내던 기존 요청은 그대로 동작한다 (`procedureId` 가 이미 같은 모양이다). `statusCounts` 는 변함없이 **전 상태**를 내려준다. 계약의 등식 `status 필터를 건 요청에서는 meta.totalItems === statusCounts[그 상태]` 는 **값이 하나일 때**로 좁혀 적어야 한다 |
+| `period` enum 에 **`thisMonth`** 추가 (`이번 달 1일 00:00 KST ~ 다음 달 1일 00:00 KST`) | 카드 ④와 깔때기의 모집단이 그것이고, 링크가 M 을 재현해야 한다 | **아니다.** 요청 파라미터의 enum 값 추가다 |
+
+둘 다 **대시보드 때문에 생긴 소비자**가 있다. 소비자 없는 파라미터는 더하지 않는다.
+
+##### `지연` — 서버가 세지만 **규칙은 상담 목록과 같은 함수 하나다**
+
+§14 의 `consult_requests 확장` 절이 적어 둔 뒤집히는 조건("`지연` 이 탭·필터·카운트가 되는 순간")이
+발동했다. **카운트가 되었으므로 서버가 센다. 컬럼은 여전히 만들지 않고, 두 번째 규칙도 만들지 않는다.**
+
+계약 설명에 그대로 넣을 문구:
+
+> `delayed` 는 **`status === 'new'` 이고 접수 후 24시간 **이상** 경과한 건의 수**다.
+> 상담 목록의 `지연` 배지를 클라이언트가 판정하는 순수 함수(`isDelayed`,
+> `docs/database/README.md` §12.7)와 **같은 부등식**이며, 서버는 그것을 이항해 질의한다:
+> `now − createdAt ≥ 24h` ⟺ `createdAt ≤ now − 24h`.
+> **경계는 포함이다** — 정확히 24시간 경과한 건은 지연이다.
+> 24시간은 **경과 시간**이라 `Asia/Seoul` 이 개입하지 않는다 (`today`·`thisMonth` 와 다른 점).
+> 클라이언트는 **이 숫자를 다시 계산하지 않는다.** 목록의 배지만 같은 함수로 칠하므로,
+> 두 값은 **다른 시점**을 가리킬 수는 있어도 **다른 규칙**을 가리키지 않는다.
+
+보조 줄에 **링크를 걸지 않는다.** `지연` 을 재현하는 목록 파라미터를 만들면 상태도 기간도 아닌
+세 번째 필터 축이 탭 UI 옆에 생긴다. 지연 건은 `오늘 할 일` 에 **개별 줄로 이미 나열**되고
+거기서 상세로 바로 간다.
+
+##### 이번 달 상담 흐름 (`funnel`) — **현재 상태**로 센다
+
+모집단은 카드 ④의 M 과 같다 (`createdAt ∈ thisMonth`). 네 막대가 같은 집합의 부분집합이다.
+
+| 막대 | 규칙 (현재 상태 기준) |
+|---|---|
+| 상담 신청 `requested` | 코호트 전체 (= `newThisMonth`) |
+| 연락 완료 `contacted` | `status ≠ 'new'` **그리고** `(status === 'cancelled' && cancelReason === 'no_answer')` 가 아님 |
+| 예약확정 `booked` | `status ∈ {booked, visited}` — **카드 ④의 N 과 같은 값** |
+| 내원완료 `visited` | `status === 'visited'` |
+| *(별도)* 취소 `cancelled` | `status === 'cancelled'`. 단계가 아니라 옆에 적는 숫자 |
+
+- **이력을 거슬러 세지 않는 이유**: 상담 목록의 **상태 탭과 같은 축**이어야 담당자가 막대를 보고
+  탭을 눌러 숫자를 대조할 수 있다. "도달한 적 있는가" 기준은 **재현할 필터가 없어** 영영 대조되지 않는다.
+- **`연락이 안 됨` 취소를 `연락 완료` 에서 빼는 이유**: 그 사유는 **연락이 닿지 않았다는 병원 자신의
+  기록**이다. 세면 막대가 "연락을 **시도**한 건" 이 되어 쓸모가 없어진다. 나머지 네 사유
+  (`patient_request`·`procedure_unavailable`·`duplicate`·`etc`)는 연락이 닿은 뒤에 나오는 사유라 센다.
+- `cancelReason` 은 §14 가 정한 대로 **이력에서 파생한 현재 값**이다 (`cancelReasonOf`). 과거 취소 건은
+  사유가 `null` 이라 `연락 완료` 에 포함된다 — 소급해 추측하지 않는다.
+- 단조 감소가 구조적으로 보장된다: `visited ⊆ {booked, visited} ⊆ 연락 완료 ⊆ 코호트`.
+- 판정은 순수 함수 하나다 (`funnelOf`, `docs/database/README.md` §13.6).
+
+##### 병원 정보 완성도 (`completeness`) — 서버가 계산한다
+
+**오늘 입력할 수 있는 항목만** 넣는다. 채울 수단이 없는 항목을 넣으면 `남은 항목` 을 눌러도 갈 곳이
+없고 영원히 100%가 되지 않는 바가 된다.
+
+| `key` | 라벨 | 충족 조건 | `target` (수정 화면 입력 칸) |
+|---|---|---|---|
+| `basicInfo` | 기본 정보 | `name`·`region`·`address` 가 trim 후 비어 있지 않고, `latitude`·`longitude` 가 둘 다 0이 아니며, `specialty` 가 trim 후 비어 있지 않음 | `name` |
+| `businessHours` | 진료시간 | 7요일이 모두 있고, `isClosed === false` 인 요일의 `hours` 가 trim 후 공백이 아님 | `businessHours` |
+| `procedures` | 진료 시술 | `procedureIds.length ≥ 1` | `procedureIds` |
+| `thumbnail` | 대표 이미지 | 비어 있지 않고 **서버 기본 이미지가 아님** | `thumbnail` |
+| `introduction` | 병원 소개 | trim 후 **30자 이상** | `introduction` |
+| `directions` | 찾아오시는 길 | trim 후 **10자 이상** | `directions` |
+| `doctors` | 의료진 | 소속 전문의 **1명 이상** (검수 상태 무관) | `doctors` |
+
+- `percent = round(충족 수 / 전체 항목 수 × 100)`, **동일 가중치**. 전부 충족이 아니면 99를 넘기지 않는다.
+- `items` 는 **충족한 것까지 전부**, **고정된 순서**로 내려간다. **배열 순서가 계약이다** —
+  `남은 항목` 은 `items.filter(!done)` 이고 화면이 다시 정렬하지 않는다.
+- `target` 은 **프런트에 이미 있는 폼 필드 키**다 (`HOSPITAL_FIELD_KEYS` —
+  서버 `422` 의 `details[].field` 가 쓰는 바로 그 어휘). 완성도 항목과 검증 오류가 **같은 키로 같은
+  입력 칸**을 가리키므로 화면은 포커스 이동 코드를 하나만 들고 있으면 된다.
+- **서버가 계산하는 이유**: ① 같은 판정이 대시보드 바와 (07 이후) 병원 정보 화면의 섹션별 체크 두 곳에
+  필요하다 ② 항목이 07 에서 둘 늘어난다(앱 배포 없이 바뀌어야 한다) ③ `doctors ≥ 1` 은 다른 리소스라
+  병원 응답만으로 판정할 수 없다 ④ `images`/`thumbnail` 은 수정 화면이 보내지 않거나 서버가 기본값을
+  채우는 자리라 **클라이언트가 든 값과 저장된 값이 갈린다.**
+
+**`시술 0개` 경고는 백분율과 별개 필드다** (`noProcedures: boolean`). 7분의 1은 `86%` 로 보이지만
+실제로는 환자가 시술로 병원을 찾을 수 없는 상태다.
+
+> ⚠️ **문구를 `앱에 노출되지 않아요` 로 적으면 사실이 아니다.** 확인한 결과
+> 시술 0개 병원은 **시술로 찾는 모든 경로**에서 빠지지만(홈 `시술로 찾기` 격자, 탐색의 시술 칩·세부
+> 시술 `?procedureId=`, 가격 비교표의 시술 열, 클라이언트 대분류 전개) **이름 검색·찜 목록·꿀팁
+> 관련 병원·병원 상세 직접 링크·탐색 `추천` 칩에서는 그대로 보이고 상담도 받는다.**
+> 정확한 문구는 **`시술을 등록하지 않으면 환자가 시술로 검색할 때 병원이 나오지 않아요`** 쪽이다.
+>
+> 덧붙여 **계약상 시술 0개 병원은 만들어질 수 없다** — `procedureIds` 에 `minItems: 1` 이 걸려 있어
+> `POST`/`PATCH` 를 통과하지 못한다. 이 경고가 뜨는 경우는 **계약 이전에 들어온 데이터**(시드·이관)
+> 뿐이고, 프런트가 이미 그 상태를 방어하고 있다(`HospitalDetailView`·`HospitalMapView` 의
+> `procedureIds: []` 주석). 그래서 경고를 둔다 — **막혀 있어야 할 상태가 실제로 존재한다.**
+
+##### `GET /consult-requests/summary` 와의 관계 — **아무 화면도 쓰지 않는다**
+
+요청 04 까지의 `/admin` 숫자 카드 둘이 이 오퍼레이션에서 왔다. **거기에 범위 구멍이 있다** —
+`hospitalId` 파라미터가 없어 **담당 병원 전부를 합산**한다. 병원을 두 곳 맡은 담당자는 A 병원 화면을
+보면서 A+B 의 숫자를 본다. 사이드 배지와 카드가 "선택한 병원" 을 말하기로 한 이상 그 합산은 거짓이다.
+
+**결정: 오퍼레이션은 계약에 남기되, 지금은 소비 화면이 없고 서버 구현도 필요 없다.**
+
+- **병원 관리자 홈**은 `GET /admin/dashboard` 하나로 받는다.
+- **운영자 홈**(`frontend/src/features/admin/components/OperatorHome.tsx`)은 **상담 숫자를 그리지
+  않는다** — 같은 레이아웃에 병원 목록과 검수 대기만 보여준다(사용자 결정). 요청 05 리뷰 전까지
+  여기에 "운영자 홈이 전 범위 상담 숫자를 볼 유일한 자리라서 남긴다" 고 적혀 있었으나 **그 화면은
+  그렇게 만들어지지 않았다.** 프런트의 `fetchConsultSummary()` 와 훅도 제거됐다(2026-10-13).
+- **그래서 서버 구현은 소비 화면이 생기는 날까지 필요 없다.** 운영자 홈이 상담 숫자를 요구하게
+  되는 날 구현한다. `x-screens` 는 **빈 목록**이다(`admin-home.md` 를 뺐다).
+- **그래도 지우지 않는 이유**: 삭제는 더 큰 결정이라 이번 범위 밖이고, 아래 모집단 구분(합산 vs
+  선택 병원, `pending` 의 정의 차이)은 그날 다시 필요한 근거다.
+- **`hospitalId` 를 지금 더하지 않는 이유**: 더해도 쓰는 화면이 없다. 소비자 없는 파라미터는
+  "이 숫자를 병원별로 봐도 된다" 는 잘못된 신호가 된다. 운영자 홈이 병원별 숫자를 요구하는 날 더한다.
+- **계약 설명에 넣을 경계 문구**: `ConsultSummary` 는 **담당 병원 전체 합산**이고
+  `pending` 은 **`new` 하나**다. 대시보드의 `pending` 은 **`new + contacted`** 이고 **선택 병원**이다.
+  **이름이 같고 모집단도 뜻도 다르다 — 재사용 관계가 아니다.**
+  (`ConsultStatusCounts` 와 `ConsultSummary` 사이에 이미 적어 둔 것과 같은 종류의 경고다)
+- `HospitalInquirySummary` 는 `hospitalId` 를 이미 받으므로 **유일하게 재사용 가능**하다. 그래도
+  대시보드는 자기 응답의 값을 쓴다 — 한쪽만 재사용하면 "어느 것이 기준인가" 가 다시 결정 사항이 된다.
+  두 값은 **같은 규칙**이라 어긋나도 시점 차이뿐이다.
+
+##### 만들지 않는 것
+
+| 안 만드는 것 | 왜 |
+|---|---|
+| `visitDate`/`visitPeriod` 목록 파라미터 | `오늘 내원 예정` 에는 `전체 보기` 가 없다 — 하루치가 전부이고 각 행은 상세로 간다. **날짜별 내원 목록 화면이 생기는 날** `period` 와 같은 모양으로 더한다(경계는 서버 KST). 인덱스는 먼저 깔린다 |
+| `지연` 필터 파라미터 | 위 |
+| 깔때기의 `연락 완료` 를 재현하는 필터 | 취소 사유가 걸린 조건이라 상태 탭으로 표현되지 않는다. 막대는 `status` 탭으로 보내고, `연락 완료` 만 정확히 열 수 없다는 것을 화면이 받아들인다 |
+| 대시보드 응답의 `delayed` 를 목록 항목에 싣는 것 | 받는 순간부터 거짓이 되기 시작하는 값이다 (이미 정한 규칙) |
+| 알림 종 배지 · 상단 환자 검색 | 기존 `GET /notifications/unread-count` 와 상담 목록의 `q` 를 그대로 쓴다. 집계에 넣지 않는다 |
+| 운영자용 집계 | 운영자는 이 화면을 쓰지 않는다 (§3) |
+
+##### 정하지 않은 것
+
+- **반려 전문의의 건별 줄과 사유 표시** — `rejectionReason` 은 `DoctorAdminView` 에만 있고
+  **병원 소속 전문의를 관리자 시야로 읽는 GET 이 없다**(이미 적어 둔 계약 격차 —
+  `GET /hospitals/{hospitalId}/doctors?view=admin` 후보). **세는 것은 지금 된다** — 공개 `Doctor` 에도
+  `verificationStatus` 가 있다. 건별 줄은 그 GET 이 생기는 날이다.
+- **승인 상태(`승인 완료 · 앱 노출 중` / `승인 대기`)와 담당자 직책** — 사이드 메뉴 하단이 요구하지만
+  `hospitals` 에 승인 상태가, `hospital_admins` 에 직책이 없다. **요청 06 과 함께 설계한다.**
+- **대시보드 응답의 캐시 수명** — `no-store` 로 둔다. 배지가 다른 관리자 화면에서도 보여야 해서
+  클라이언트가 스토어에 들고 있는데, **상태 변경·답변 등록 뒤 무효화 책임**은 화면 쪽 결정이다.
+- **`이번 주`·`지난달 대비` 같은 비교 숫자** — 요청서에 없다. `periodRange` 는 이미 받을 수 있다.
 
 ---
 

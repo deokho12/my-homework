@@ -50,7 +50,6 @@ import { maskPersonName, maskPhoneMiddle } from '@/utils/pii';
  * |---|---|
  * | `createConsultRequest` | `POST /consult-requests` |
  * | `fetchConsultRequests` | `GET /consult-requests` |
- * | `fetchConsultSummary` | `GET /consult-requests/summary` |
  * | `fetchConsultRequestById` | `GET /consult-requests/{consultRequestId}` |
  * | `updateConsultStatus` | `PATCH /consult-requests/{consultRequestId}/status` |
  * | `addConsultMemo` | `POST /consult-requests/{consultRequestId}/memos` |
@@ -169,7 +168,15 @@ export type ConsultStatusCounts = Record<ConsultStatus, number> & { total: numbe
 export interface ConsultRequestFilters {
   page?: number;
   pageSize?: number;
-  status?: ConsultStatus;
+  /**
+   * 상태 필터. **반복 파라미터다** — 여러 개를 주면 그것끼리 OR 다
+   * (`?status=new&status=contacted`, `procedureId` 와 같은 모양).
+   *
+   * 대시보드 카드 ②(`처리 대기 = 신규 + 연락중`)와 ④(`예약확정 + 내원완료`)를 목록에서
+   * **재현할 유일한 방법**이라 넓혔다 (2026-10-13, additive). `statusCounts` 는 영향을 받지
+   * 않는다 — 여전히 **상태만 푼 같은 모집단**에서 전 상태를 센다.
+   */
+  status?: ConsultStatus | ConsultStatus[];
   hospitalId?: string;
   period?: ConsultPeriod;
   createdFrom?: string;
@@ -201,36 +208,7 @@ export interface ConsultStatusUpdateInput {
   cancelReason?: ConsultCancelReason | null;
 }
 
-/** `GET /consult-requests/summary`. 관리자 홈의 숫자 카드 2개. */
-export interface ConsultSummary {
-  newThisMonth: number;
-  pending: number;
-  /** 달 경계 계산에 쓴 시간대. 화면이 기준을 표시할 수 있게 명시한다. */
-  timezone: string;
-  calculatedAt: string;
-}
-
 /* --------------------------------------------------------------- 로컬 구현 보조 */
-
-const SEOUL_TIMEZONE = 'Asia/Seoul';
-
-const seoulMonthFormat = new Intl.DateTimeFormat('en-CA', {
-  timeZone: SEOUL_TIMEZONE,
-  year: 'numeric',
-  month: '2-digit',
-});
-
-/**
- * `2026-07` 형태의 달 키. **기기 시계의 달이 아니라 `Asia/Seoul` 달력 기준이다** —
- * 계약이 요구하는 기준이고, 자정 전후·해외 접속에서 `이번 달 신규 상담` 이 달라지지 않게 한다.
- */
-function seoulMonthKey(date: Date): string {
-  const parts = seoulMonthFormat.formatToParts(date);
-  const year = parts.find((part) => part.type === 'year')?.value ?? '';
-  const month = parts.find((part) => part.type === 'month')?.value ?? '';
-
-  return `${year}-${month}`;
-}
 
 function byCreatedAtDesc(a: { createdAt: string }, b: { createdAt: string }): number {
   return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
@@ -530,6 +508,10 @@ export async function createConsultRequest(input: ConsultRequestCreateInput): Pr
  *
  * `statusCounts` 는 **상태만 푼 같은 모집단**에서 센다. 별도 조회로 두면 두 숫자가 서로 다른
  * 시점을 가리켜 목록과 탭이 어긋난다.
+ *
+ * `status` 가 여러 개면 그것끼리 OR 다 — 그때는 계약의 등식
+ * (`status 필터를 건 요청의 meta.totalItems === statusCounts[그 상태]`)이 **값이 하나일 때로
+ * 좁혀진다.** `statusCounts` 는 변함없이 전 상태를 내려준다.
  */
 export async function fetchConsultRequests(filters: ConsultRequestFilters = {}): Promise<ConsultRequestList> {
   if (filters.period && (filters.createdFrom || filters.createdTo)) {
@@ -543,8 +525,10 @@ export async function fetchConsultRequests(filters: ConsultRequestFilters = {}):
   const { rows, scope } = adminScopedRows(filters.hospitalId);
   const now = new Date();
   const matched = rows.filter((row) => matchesFilters(row, filters, scope, now));
+  // 같은 파라미터끼리는 OR 다. 값이 하나뿐인 기존 요청은 그대로 동작한다.
+  const statuses = filters.status === undefined ? null : [filters.status].flat();
   const items = matched
-    .filter((row) => (filters.status ? row.status === filters.status : true))
+    .filter((row) => (statuses ? statuses.includes(row.status) : true))
     .sort(byCreatedAtDesc)
     .map((row) => toAdminConsultRequest(row, { maskName: scope === 'all', maskPhone: true }));
 
@@ -571,22 +555,6 @@ export async function fetchConsultRequestById(id: string): Promise<AdminConsultR
   const maskAll = scope === 'all';
 
   return toAdminConsultRequest(found, { maskName: maskAll, maskPhone: maskAll });
-}
-
-/** `GET /consult-requests/summary`. 개인정보를 담지 않는 숫자 두 개뿐이다. */
-export async function fetchConsultSummary(): Promise<ConsultSummary> {
-  const now = new Date();
-  const thisMonth = seoulMonthKey(now);
-  // ⚠ 계약은 이 숫자도 담당 병원 범위라고 적지만 로컬 구현은 전체를 센다 — 관리자 홈은
-  // 로그인 전에도 그리는 화면이라 스코프를 걸면 빈 카드가 된다 (`known-issues.md`).
-  const rows = readCollection('consultRequests');
-
-  return {
-    newThisMonth: rows.filter((request) => seoulMonthKey(new Date(request.createdAt)) === thisMonth).length,
-    pending: rows.filter((request) => request.status === 'new').length,
-    timezone: SEOUL_TIMEZONE,
-    calculatedAt: now.toISOString(),
-  };
 }
 
 /**

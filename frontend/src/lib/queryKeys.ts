@@ -33,8 +33,6 @@ export const queryKeys = {
     all: ['consultRequests'] as const,
     /** `GET /consult-requests` (관리자 목록). 상태 필터별로 캐시를 가른다. */
     list: (filters: object = {}) => ['consultRequests', 'list', filters] as const,
-    /** `GET /consult-requests/summary`. 상태 변경이 이 숫자를 바꾸므로 `all` 무효화에 함께 걸린다. */
-    summary: ['consultRequests', 'summary'] as const,
     /** `GET /me/consult-requests`. 관리자 목록과 투영이 달라 캐시도 따로 둔다. */
     mine: (filters: object = {}) => ['consultRequests', 'mine', filters] as const,
     /**
@@ -73,6 +71,17 @@ export const queryKeys = {
      * 목록 없이 숫자만 필요하다. 접두사가 `['notifications', audience]` 라 알림함 단위 무효화에 함께 걸린다.
      */
     unreadCount: (audience: NotificationAudience) => ['notifications', audience, 'unread-count'] as const,
+  },
+  adminDashboard: {
+    all: ['adminDashboard'] as const,
+    /**
+     * `GET /admin/dashboard?hospitalId=`. **병원마다 캐시를 가른다** — 선택 병원을 바꾸면
+     * 숫자·배지·목록이 함께 바뀐다.
+     *
+     * 사이드 메뉴 배지와 대시보드 카드가 **이 한 키를 공유한다**. 둘이 다른 질의에서 숫자를
+     * 받으면 같은 화면에서 `신규 5건` 옆에 배지 `6` 이 붙는다 (`docs/database/README.md` §13.8).
+     */
+    byHospital: (hospitalId: string) => ['adminDashboard', hospitalId] as const,
   },
   favorites: {
     all: ['favorites'] as const,

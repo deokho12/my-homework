@@ -70,9 +70,9 @@ export default function AdminNotificationsScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-neutral-50" edges={['bottom']}>
-      <Stack.Screen options={{ title: '알림' }} />
-      <View className={cx(CONTAINER_PADDING, 'flex-row items-center justify-between pb-2 pt-4')}>
-        <Text className="text-lg font-bold text-neutral-900">알림함</Text>
+      <Stack.Screen options={{ title: '알림함' }} />
+      {/* 제목은 관리자 상단바에 있다 — 여기에는 동작(모두 읽음)만 남긴다. */}
+      <View className={cx(CONTAINER_PADDING, 'flex-row items-center justify-end pb-2 pt-4')}>
         <Pressable onPress={() => markAllAsRead.mutate('admin')} hitSlop={8}>
           <Text className="text-sm font-semibold text-brand-700">모두 읽음</Text>
         </Pressable>

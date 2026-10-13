@@ -13,8 +13,13 @@ import type { ConsultCancelReason, ConsultStatus, ConsultStatusChange } from '@/
  * `consultDisplay.ts`(`isConsultDelayed`)에 있다.
  */
 
-/** 기간 필터 프리셋 (`GET /consult-requests` 의 `period`). */
-export type ConsultPeriod = 'today' | 'thisWeek' | 'last30';
+/**
+ * 기간 필터 프리셋 (`GET /consult-requests` 의 `period`).
+ *
+ * `thisMonth` 는 대시보드 카드 ④(`이번 달 신청 M건 중 N건 예약`)와 깔때기의 모집단이고,
+ * 카드의 링크가 그 M 을 목록에서 재현해야 해서 더해졌다 (`docs/database/README.md` §13.2).
+ */
+export type ConsultPeriod = 'today' | 'thisWeek' | 'last30' | 'thisMonth';
 
 /** 이 요청이 무엇인지. `noop` 은 "부수효과 없음" 이지 오류가 아니다. */
 export type ConsultEventKind = 'noop' | 'status_change' | 'reschedule';
@@ -135,10 +140,12 @@ function mondayBasedWeekday(dateKey: string): number {
  * |---|---|
  * | `today` | 오늘 00:00 ~ 내일 00:00 |
  * | `thisWeek` | 이번 주 **월요일** 00:00 ~ 다음 주 월요일 00:00 |
+ * | `thisMonth` | 이번 달 **1일** 00:00 ~ 다음 달 1일 00:00 |
  * | `last30` | 오늘 00:00 − 29일 ~ 내일 00:00 (**오늘을 포함한** 30일) |
  *
  * 경계를 여기서 못 박는 이유: 주의 시작 요일과 30일의 포함 범위는 문서마다 다르게 읽히는
- * 값이고, 목록과 탭 숫자가 **같은 함수**에서 나오지 않으면 둘이 어긋난다.
+ * 값이고, 목록과 탭 숫자가 **같은 함수**에서 나오지 않으면 둘이 어긋난다. 대시보드의
+ * `이번 달` 숫자와 그 카드가 여는 목록도 같은 이유로 이 함수 하나를 쓴다.
  */
 export function periodRange(period: ConsultPeriod, now: Date): readonly [Date, Date] {
   const today = seoulDateKey(now);
@@ -150,6 +157,15 @@ export function periodRange(period: ConsultPeriod, now: Date): readonly [Date, D
     const monday = addDays(today, -mondayBasedWeekday(today));
 
     return [seoulMidnight(monday), seoulMidnight(addDays(monday, 7))];
+  }
+
+  if (period === 'thisMonth') {
+    const [year, month] = today.split('-').map(Number);
+    const first = `${today.slice(0, 7)}-01`;
+    // 13월은 `Date.UTC` 가 다음 해 1월로 넘긴다 — 해 넘김을 직접 계산하지 않는다.
+    const nextFirst = new Date(Date.UTC(year, month, 1)).toISOString().slice(0, 10);
+
+    return [seoulMidnight(first), seoulMidnight(nextFirst)];
   }
 
   return [seoulMidnight(addDays(today, -29)), seoulMidnight(tomorrow)];

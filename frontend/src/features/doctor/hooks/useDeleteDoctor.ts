@@ -12,6 +12,8 @@ export function useDeleteDoctor() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.doctors.all });
       void queryClient.invalidateQueries({ queryKey: queryKeys.hospitals.all });
+      // 병원·의료진이 바뀌면 대시보드의 `병원 정보 완성도` 도 바뀐다.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.adminDashboard.all });
     },
   });
 }

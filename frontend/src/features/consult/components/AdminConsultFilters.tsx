@@ -4,6 +4,8 @@ import { CATEGORIES, type CategoryId } from '@/features/procedure';
 export const CONSULT_PERIOD_OPTIONS = [
   { value: 'today', label: '오늘' },
   { value: 'thisWeek', label: '이번 주' },
+  // 대시보드 카드 ④(`이번 달 예약확정`)가 자기 숫자를 재현하려고 쓰는 기간이다.
+  { value: 'thisMonth', label: '이번 달' },
   { value: 'last30', label: '최근 30일' },
   { value: 'all', label: '전체' },
 ] as const;

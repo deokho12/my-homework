@@ -9,6 +9,7 @@ import { useDeleteDoctor, useHospitalDoctors, useReplaceHospitalDoctors, useUpda
 import { useHospital, useUpdateHospital } from '@/features/hospital';
 import { mapHospitalFieldErrors, type HospitalFieldErrors } from '@/features/hospital/lib/hospitalFieldErrors';
 import { useProcedureMap } from '@/features/procedure';
+import { useFieldJump } from '@/hooks/useFieldJump';
 import { isApiError } from '@/lib/apiClient';
 import type { Doctor, Hospital, Procedure, ProcedureId } from '@/types/domain';
 import { showAlert } from '@/utils/alert';
@@ -34,7 +35,7 @@ interface LoadedHospital {
 }
 
 export default function AdminHospitalEditPage() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, field } = useLocalSearchParams<{ id: string; field?: string }>();
   const procedureMap = useProcedureMap();
   const { isOperator } = useSession();
 
@@ -57,6 +58,10 @@ export default function AdminHospitalEditPage() {
 
   const data: LoadedHospital | undefined =
     hospitalQuery.data && doctorsQuery.data ? { hospital: hospitalQuery.data, doctors: doctorsQuery.data } : undefined;
+
+  // 대시보드의 완성도 칩·노출 경고와 사이드 메뉴의 `의료진` 이 `?field=` 로 들어온다.
+  // 폼이 마운트된 뒤에야 그 칸이 존재하므로 데이터가 다 온 다음에 움직인다.
+  useFieldJump(field, { ready: data !== undefined });
 
   /**
    * 로스터 저장. `PUT`(전체 교체, 새 전문의가 있을 때만) 또는 `PATCH`/`DELETE` 여러 건

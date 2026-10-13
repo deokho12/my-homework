@@ -5,7 +5,6 @@ import {
   createConsultRequest,
   fetchConsultRequestById,
   fetchConsultRequests,
-  fetchConsultSummary,
   fetchMyConsultRequests,
   updateConsultStatus,
 } from '@/features/consult/api/consultApi';
@@ -548,33 +547,6 @@ describe('addConsultMemo', () => {
     const error = await addConsultMemo('other', '메모').catch((caught: unknown) => caught);
 
     expect(isApiError(error) && error.code).toBe('CONSULT_REQUEST_NOT_FOUND');
-  });
-});
-
-describe('fetchConsultSummary', () => {
-  it("'이번 달' 을 기기 시계가 아니라 Asia/Seoul 달력으로 센다", async () => {
-    vi.useFakeTimers();
-    // 지금은 UTC 로 6월 30일이지만 서울에서는 이미 7월 1일 08:30 이다.
-    vi.setSystemTime(new Date('2026-06-30T23:30:00.000Z'));
-    seed([
-      seedRequest({ id: 'june', createdAt: '2026-06-30T14:00:00.000Z' }),
-      seedRequest({ id: 'july', createdAt: '2026-06-30T15:30:00.000Z' }),
-    ]);
-
-    const summary = await fetchConsultSummary();
-
-    expect(summary.timezone).toBe('Asia/Seoul');
-    expect(summary.newThisMonth).toBe(1);
-  });
-
-  it('pending 은 상태가 new 인 건수다', async () => {
-    seed([
-      seedRequest({ id: 'a', status: 'new' }),
-      seedRequest({ id: 'b', status: 'new' }),
-      seedRequest({ id: 'c', status: 'booked' }),
-    ]);
-
-    expect((await fetchConsultSummary()).pending).toBe(2);
   });
 });
 

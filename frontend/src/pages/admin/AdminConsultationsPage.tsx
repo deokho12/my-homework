@@ -1,5 +1,6 @@
 import { CalendarCheck } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 
 import { Stack, router, useLocalSearchParams } from '@/navigation';
 import { SafeAreaView, ScrollView, cx } from '@/primitives';
@@ -7,6 +8,7 @@ import { SafeAreaView, ScrollView, cx } from '@/primitives';
 import { EmptyState } from '@/components/EmptyState';
 import { QueryState } from '@/components/QueryState';
 import { CONTAINER_PADDING } from '@/components/layout/Container';
+import { useAdminHospital } from '@/features/admin/hooks/useAdminHospital';
 import { useSession } from '@/features/auth/hooks/useSession';
 import {
   AdminConsultDetail,
@@ -76,16 +78,23 @@ function isTabKey(value: string | undefined): value is TabKey {
 
 interface Query {
   status: TabKey;
+  /**
+   * 주소에 `status` 가 **여러 개**일 때의 값 (`?status=new&status=contacted`). 대시보드의
+   * `처리 대기`·`이번 달 예약확정` 카드가 자기 숫자를 재현하려고 쓰는 조합이다.
+   * 1개 이하면 빈 배열이고 탭(`status`)이 화면을 정한다.
+   */
+  statuses: ConsultStatus[];
   period: ConsultPeriodChoice;
   category: CategoryId | '';
   q: string;
 }
 
 /** 주소 문자열. **기본값은 적지 않는다** — 같은 화면이 두 주소를 갖지 않게. */
-function buildQuery({ status, period, category, q }: Query): string {
+function buildQuery({ status, statuses, period, category, q }: Query): string {
   const params = new URLSearchParams();
 
-  if (status !== DEFAULT_TAB) params.set('status', status);
+  if (statuses.length > 1) statuses.forEach((value) => params.append('status', value));
+  else if (status !== DEFAULT_TAB) params.set('status', status);
   if (period !== DEFAULT_PERIOD) params.set('period', period);
   if (category) params.set('category', category);
   if (q) params.set('q', q);
@@ -93,6 +102,24 @@ function buildQuery({ status, period, category, q }: Query): string {
   const search = params.toString();
 
   return search ? `?${search}` : '';
+}
+
+function isConsultStatus(value: string): value is ConsultStatus {
+  return (CONSULT_STATUSES as string[]).includes(value);
+}
+
+/**
+ * 여러 상태로 좁혀 보고 있을 때의 안내 문구.
+ *
+ * 대시보드 카드 ②가 보내는 `신규 + 연락중` 은 그 카드의 이름(`처리 대기`)으로 부른다 —
+ * 담당자가 방금 누른 카드와 같은 말이어야 "왜 이 목록인가" 가 보인다. 그 밖의 조합은
+ * 상태 이름을 그대로 잇는다 (카드 ④의 `예약확정 + 내원완료` 가 그 경우다).
+ */
+function multiStatusNotice(statuses: ConsultStatus[]): string {
+  const labels = statuses.map((status) => CONSULT_STATUS_LABEL[status]).join(' + ');
+  const isPending = statuses.length === 2 && statuses.includes('new') && statuses.includes('contacted');
+
+  return isPending ? `처리 대기(${labels})만 보는 중` : `${labels}만 보는 중`;
 }
 
 /**
@@ -106,8 +133,15 @@ export default function AdminConsultationsPage() {
   const params = useLocalSearchParams<{ id?: string; status?: string; period?: string; category?: string; q?: string }>();
   const selectedId = params.id;
   const { isOperator } = useSession();
+  const { hospitalId } = useAdminHospital();
 
-  const tab: TabKey = isTabKey(params.status) ? params.status : DEFAULT_TAB;
+  // `useLocalSearchParams` 는 같은 이름의 파라미터를 하나로 합친다 — 반복 `status` 는
+  // react-router 의 `getAll` 로 직접 읽는다 (대시보드 카드가 보내는 주소다).
+  const [searchParams] = useSearchParams();
+  const statuses = searchParams.getAll('status').filter(isConsultStatus);
+  const multiStatus = statuses.length > 1;
+
+  const tab: TabKey = !multiStatus && isTabKey(params.status) ? params.status : DEFAULT_TAB;
   const period: ConsultPeriodChoice = isPeriodChoice(params.period) ? params.period : DEFAULT_PERIOD;
   const category: CategoryId | '' = isCategoryId(params.category) ? params.category : '';
   const q = params.q ?? '';
@@ -120,7 +154,7 @@ export default function AdminConsultationsPage() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [memoError, setMemoError] = useState<string | null>(null);
 
-  const query: Query = { status: tab, period, category, q };
+  const query: Query = { status: tab, statuses: multiStatus ? statuses : [], period, category, q };
   const currentPath = selectedId ? `/admin/consultations/${selectedId}` : '/admin/consultations';
 
   useEffect(() => {
@@ -138,8 +172,11 @@ export default function AdminConsultationsPage() {
 
   const list = useConsultRequests({
     pageSize: LIST_PAGE_SIZE,
-    status: tab === 'all' ? undefined : tab,
+    // 주소에 상태가 여러 개면 그것끼리 OR 다 — 어떤 탭도 선택되지 않는다.
+    status: multiStatus ? statuses : tab === 'all' ? undefined : tab,
     period: period === 'all' ? undefined : (period as ConsultPeriod),
+    // **선택한 담당 병원 범위다.** 운영자는 선택 병원이 없어 전 병원을 그대로 본다.
+    hospitalId: hospitalId ?? undefined,
     // 화면의 칩은 9개 대분류지만 서버가 아는 것은 시술 id 다 — 전개는 taxonomy 의 몫이다.
     procedureId: category ? getLegacyIdsOf(category) : undefined,
     q: q || undefined,
@@ -180,7 +217,8 @@ export default function AdminConsultationsPage() {
     leaveDraft(() => {
       resetDrafts();
       // 탭을 바꾸면 선택을 놓는다 — 고른 상담이 그 탭에 없을 수 있다.
-      router.push(`/admin/consultations${buildQuery({ ...query, status: key })}`);
+      // 여러 상태로 좁혀 보던 중이었다면 그 조합도 함께 풀린다.
+      router.push(`/admin/consultations${buildQuery({ ...query, status: key, statuses: [] })}`);
     });
   };
 
@@ -200,8 +238,11 @@ export default function AdminConsultationsPage() {
 
   const resetFilters = () => {
     setSearch('');
-    // 탭은 유지한다 — 되돌리는 것은 기간·시술·검색 셋뿐이다.
-    router.push(`${currentPath}${buildQuery({ status: tab, period: DEFAULT_PERIOD, category: '', q: '' })}`);
+    // 탭은 유지한다 — 되돌리는 것은 기간·시술·검색이다. 여러 상태로 좁혀 보던 중이었다면
+    // 그것도 **조건**이라 함께 푼다 (풀지 않으면 `조건 초기화` 를 눌러도 목록이 그대로다).
+    router.push(
+      `${currentPath}${buildQuery({ status: tab, statuses: [], period: DEFAULT_PERIOD, category: '', q: '' })}`
+    );
   };
 
   const handleSubmitStatus = (input: ConsultStatusUpdateInput, { isReschedule }: { isReschedule: boolean }) => {
@@ -250,19 +291,32 @@ export default function AdminConsultationsPage() {
   // 권할 에러가 아니라 빈 상태다.
   const detailNotFound = detail.isError && isApiError(detail.error) && detail.error.code === 'CONSULT_REQUEST_NOT_FOUND';
   // 조건이 전부 기본값이면 "탭에 아무것도 없다" 이고, 하나라도 걸려 있으면 "조건에 안 맞는다" 다.
-  const filtered = period !== DEFAULT_PERIOD || category !== '' || q !== '';
+  const filtered = period !== DEFAULT_PERIOD || category !== '' || q !== '' || multiStatus;
   const now = new Date();
 
   return (
     <SafeAreaView className="flex-1 bg-neutral-50" edges={['bottom']}>
       <Stack.Screen options={{ title: '상담 예약' }} />
       <ScrollView contentContainerClassName={cx(CONTAINER_PADDING, 'pb-10 pt-4')}>
-        <h1 className="mb-1 text-lg font-bold text-neutral-900">상담 예약</h1>
+        {/* 화면 제목은 관리자 상단바의 `h1` 하나다 — 같은 글자를 여기 또 쓰면 두 번 읽힌다. */}
         <p className="mb-4 text-sm text-neutral-500">
           환자가 앱에서 &lsquo;상담 신청&rsquo;을 누르면 여기로 들어와요. 연락한 뒤 상태를 바꿔 주세요.
         </p>
 
-        <ConsultTabs tab={tab} countOf={countOf} onSelect={selectTab} />
+        <ConsultTabs tab={multiStatus ? null : tab} countOf={countOf} onSelect={selectTab} />
+
+        {multiStatus ? (
+          <div className="mb-3 flex flex-row flex-wrap items-center gap-2 rounded-xl bg-brand-50 px-3 py-2">
+            <p className="text-[13px] font-semibold text-brand-700">{multiStatusNotice(statuses)}</p>
+            <button
+              type="button"
+              onClick={() => selectTab(DEFAULT_TAB)}
+              className="min-h-[44px] rounded-lg border border-brand-200 bg-white px-3 text-[13px] font-semibold text-brand-700"
+            >
+              해제
+            </button>
+          </div>
+        ) : null}
 
         <AdminConsultFilters
           period={period}
@@ -276,7 +330,14 @@ export default function AdminConsultationsPage() {
         <div className="flex flex-col gap-4 md:flex-row md:items-start">
           {/* 이름이 붙은 `section` 은 그 자체로 role=region 이다 — 명시하면 중복이다. */}
           <section aria-label="상담 목록" className={cx('md:w-[380px] md:shrink-0', selectedId && 'hidden md:block')}>
-            <div id="consult-list" role="tabpanel" aria-labelledby={`consult-tab-${tab}`} tabIndex={0}>
+            <div
+              id="consult-list"
+              role="tabpanel"
+              // 여러 상태를 보는 중에는 가리킬 탭이 없다 — 목록이 스스로를 설명한다.
+              aria-labelledby={multiStatus ? undefined : `consult-tab-${tab}`}
+              aria-label={multiStatus ? multiStatusNotice(statuses) : undefined}
+              tabIndex={0}
+            >
               <QueryState
                 isLoading={list.isLoading}
                 isError={list.isError}
@@ -378,7 +439,8 @@ function ConsultTabs({
   countOf,
   onSelect,
 }: {
-  tab: TabKey;
+  /** `null` 이면 **어떤 탭도 선택되지 않았다** (주소에 상태가 여러 개인 경우). */
+  tab: TabKey | null;
   countOf: (key: TabKey) => number | null;
   onSelect: (key: TabKey) => void;
 }) {
@@ -401,7 +463,7 @@ function ConsultTabs({
             role="tab"
             aria-selected={selected}
             aria-controls="consult-list"
-            tabIndex={selected ? 0 : -1}
+            tabIndex={selected || (tab === null && index === 0) ? 0 : -1}
             ref={setRef(item.key)}
             onClick={() => onSelect(item.key)}
             onKeyDown={(event) => onKeyDown(event, index)}

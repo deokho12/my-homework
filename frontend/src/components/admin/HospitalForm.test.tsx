@@ -3,6 +3,8 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { HospitalForm, type RosterSaveAction } from '@/components/admin/HospitalForm';
+import { completenessOf } from '@/features/hospital/lib/completeness';
+import { fieldAnchorId } from '@/hooks/useFieldJump';
 import * as geocoding from '@/services/geocoding';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import type { Doctor, Hospital } from '@/types/domain';
@@ -77,6 +79,46 @@ function baseDoctor(overrides: Partial<Doctor> = {}): Doctor {
 describe('HospitalForm — split 모드 (수정 화면)', () => {
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  /**
+   * 대시보드의 `남은 항목` 칩이 보내는 `?field={target}` 은 **이 폼의 앵커 id** 로 떨어진다.
+   * 폼에서 묶음 하나를 빼거나 이름을 바꾸면 칩이 조용히 아무 데도 가지 않는다 —
+   * 그 순간을 여기서 잡는다 (완성도 항목 7개 전부).
+   */
+  it('완성도 항목 7개가 가리키는 입력 칸이 폼에 전부 있다', async () => {
+    renderWithProviders(
+      <HospitalForm
+        mode="split"
+        initial={baseHospital()}
+        doctors={[baseDoctor()]}
+        canEditRecommended={false}
+        onSaveHospital={vi.fn()}
+        onSaveRoster={vi.fn()}
+      />
+    );
+
+    await waitFor(() => expect(screen.getByText('전문의 1')).toBeInTheDocument());
+
+    const { items } = completenessOf({
+      name: '',
+      region: '',
+      address: '',
+      latitude: 0,
+      longitude: 0,
+      specialty: '',
+      businessHours: [],
+      procedureIds: [],
+      thumbnail: '',
+      introduction: '',
+      directions: '',
+      doctorCount: 0,
+    });
+
+    expect(items).toHaveLength(7);
+    for (const item of items) {
+      expect(document.getElementById(fieldAnchorId(item.target))).not.toBeNull();
+    }
   });
 
   it('병원 필드 저장은 로스터 상태와 무관하다 — "병원 정보 저장" 버튼은 항상 활성이다', async () => {

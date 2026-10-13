@@ -3,6 +3,7 @@ import { Check, Phone } from 'lucide-react';
 import { Badge } from '@/components/Badge';
 import type { AdminConsultRequest, ConsultStatusUpdateInput } from '@/features/consult/api/consultApi';
 import { AdminConsultHistory } from '@/features/consult/components/AdminConsultHistory';
+import { ConsultDelayPill } from '@/features/consult/components/ConsultDelayPill';
 import { AdminConsultMemos } from '@/features/consult/components/AdminConsultMemos';
 import {
   AdminConsultStatusForm,
@@ -87,11 +88,7 @@ export function AdminConsultDetail({
           {request.name}
         </h2>
         <Badge label={CONSULT_STATUS_LABEL[request.status]} tone={CONSULT_STATUS_TONE[request.status]} />
-        {delayed ? (
-          <span className="rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[11px] font-bold text-rose-700">
-            지연
-          </span>
-        ) : null}
+        {delayed ? <ConsultDelayPill /> : null}
       </div>
       {delayed ? <p className="mt-1 text-[13px] text-rose-700">24시간 넘게 신규 상태예요. 먼저 연락해 주세요.</p> : null}
 

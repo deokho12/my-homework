@@ -142,8 +142,8 @@ export default function AdminSpecialistsPage() {
     <SafeAreaView className="flex-1 bg-neutral-50" edges={['bottom']}>
       <Stack.Screen options={{ title: '전문의 인증 검수' }} />
       <View className={cx(CONTAINER_PADDING, 'pb-2 pt-4')}>
-        <Text className="text-lg font-bold text-neutral-900">전문의 인증 검수</Text>
-        <Text className="mt-1 text-sm text-neutral-500">
+        {/* 화면 제목은 관리자 상단바에 있다. */}
+        <Text className="text-sm text-neutral-500">
           업로드된 자격증을 확인하고 승인 또는 반려해주세요
         </Text>
       </View>

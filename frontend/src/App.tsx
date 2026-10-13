@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { BrowserRouter, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 
+import { AdminShell } from '@/components/admin/AdminShell';
 import { AppHeader } from '@/components/AppHeader';
 import { BottomTabBar } from '@/components/BottomTabBar';
 import { TopNavBar } from '@/components/TopNavBar';
@@ -61,7 +62,7 @@ const GUARD_ROLES: Record<RouteGuard, readonly UserRole[] | undefined> = {
   operator: ['operator'],
 };
 
-interface AppRoute {
+export interface AppRoute {
   path: string;
   element: ReactNode;
   options: ScreenOptions;
@@ -71,6 +72,11 @@ interface AppRoute {
    * 없으면 주소만 아는 누구나 고객 실명·전화번호를 본다 (`docs/features/known-issues.md` 🔴).
    */
   guard?: RouteGuard;
+  /**
+   * `'admin'` 이면 환자 앱의 크롬(상단바·헤더·하단탭) 대신 `AdminShell`(사이드 메뉴 + 상단바)을
+   * 씌운다. **관리자 라우트 전부가 이 값을 갖는다** — 하나라도 빠지면 그 화면만 메뉴 없이 뜬다.
+   */
+  shell?: 'admin';
 }
 
 /**
@@ -78,7 +84,8 @@ interface AppRoute {
  * the old `src/app/_layout.tsx`. Screens can still override these at runtime by rendering
  * `<Stack.Screen options={{ ... }} />`, which is how the detail screens set their titles.
  */
-const ROUTES: AppRoute[] = [
+// 내보내는 이유: 관리자 라우트 배선(가드 + 셸)을 테스트가 표에서 직접 읽는다 (`test/adminRoutes.test.ts`).
+export const ROUTES: AppRoute[] = [
   { path: '/', element: <HomeScreen />, options: { headerShown: false }, isTab: true },
   { path: '/explore', element: <ExplorePage />, options: { headerShown: false }, isTab: true },
   { path: '/community', element: <CommunityTabScreen />, options: { headerShown: false }, isTab: true },
@@ -109,19 +116,28 @@ const ROUTES: AppRoute[] = [
   { path: '/auth/login', element: <LoginScreen />, options: { title: '로그인' } },
   { path: '/auth/signup', element: <SignupScreen />, options: { title: '회원가입' } },
 
-  { path: '/admin', element: <AdminHomePage />, options: { title: '병원 관리자' }, guard: 'admin' },
+  {
+    path: '/admin',
+    // 제목은 역할에 따라 화면이 다시 정한다 (`대시보드` / `병원 목록`).
+    element: <AdminHomePage />,
+    options: { title: '대시보드' },
+    guard: 'admin',
+    shell: 'admin',
+  },
   {
     path: '/admin/hospital/new',
     element: <AdminHospitalNewPage />,
     options: { title: '병원 등록' },
     // 병원 생성은 운영자만 한다. 입점 심사가 선행되며, 아무나 병원을 만들 수 없다.
     guard: 'operator',
+    shell: 'admin',
   },
   {
     path: '/admin/hospital/:id',
     element: <AdminHospitalEditPage />,
     options: { title: '병원 정보 수정' },
     guard: 'admin',
+    shell: 'admin',
   },
   {
     path: '/admin/specialists',
@@ -130,6 +146,7 @@ const ROUTES: AppRoute[] = [
     // 전문의 인증 검수는 플랫폼의 판정이다. 병원 담당자에게 열면 자기 병원 전문의를
     // 스스로 승인할 수 있게 된다.
     guard: 'operator',
+    shell: 'admin',
   },
   // 목록과 상세가 같은 화면이다 — `:id` 는 선택된 상담을 뜻할 뿐이다.
   {
@@ -137,12 +154,14 @@ const ROUTES: AppRoute[] = [
     element: <AdminConsultationsPage />,
     options: { title: '상담 예약' },
     guard: 'admin',
+    shell: 'admin',
   },
   {
     path: '/admin/consultations/:id',
     element: <AdminConsultationsPage />,
     options: { title: '상담 예약' },
     guard: 'admin',
+    shell: 'admin',
   },
   // 목록과 상세가 같은 화면이다 — `:id` 는 선택된 문의를 뜻할 뿐이다.
   {
@@ -150,18 +169,21 @@ const ROUTES: AppRoute[] = [
     element: <AdminInquiriesPage />,
     options: { title: '문의' },
     guard: 'admin',
+    shell: 'admin',
   },
   {
     path: '/admin/inquiries/:id',
     element: <AdminInquiriesPage />,
     options: { title: '문의' },
     guard: 'admin',
+    shell: 'admin',
   },
   {
     path: '/admin/notifications',
     element: <AdminNotificationsScreen />,
-    options: { title: '알림' },
+    options: { title: '알림함' },
     guard: 'admin',
+    shell: 'admin',
   },
 
   { path: '/notifications', element: <NotificationsScreen />, options: { title: '알림' }, guard: 'auth' },
@@ -226,11 +248,17 @@ function Shell() {
   );
 }
 
-/** Seeds the shell's screen options from the matched route's static config. */
-function ScreenShell({ options }: { options: ScreenOptions }) {
+/**
+ * Seeds the shell's screen options from the matched route's static config.
+ *
+ * 관리자 라우트는 `AdminShell` 이 유일한 크롬이다 — `Shell` 과 겹쳐 쓰면 헤더가 두 벌이 되고
+ * 제목이 두 번 읽힌다. `Shell` 쪽은 손대지 않는다 (`src/test/appShellLayout.test.tsx` 의
+ * flex 사슬이 그 구조를 고정한다).
+ */
+function ScreenShell({ options, shell }: { options: ScreenOptions; shell?: 'admin' }) {
   return (
     <ScreenOptionsProvider initial={options}>
-      <Shell />
+      {shell === 'admin' ? <AdminShell /> : <Shell />}
     </ScreenOptionsProvider>
   );
 }
@@ -249,7 +277,7 @@ export default function App() {
       <SessionWatcher />
       <Routes>
         {ROUTES.map((route) => (
-          <Route key={route.path} element={<ScreenShell options={route.options} />}>
+          <Route key={route.path} element={<ScreenShell options={route.options} shell={route.shell} />}>
             <Route path={route.path} element={withGuard(route.element, route.guard)} />
           </Route>
         ))}

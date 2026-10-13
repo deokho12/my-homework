@@ -1,5 +1,6 @@
-import { screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useLocation } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import * as doctorApi from '@/features/doctor/api/doctorApi';
@@ -7,7 +8,7 @@ import * as hospitalApi from '@/features/hospital/api/hospitalApi';
 import * as procedureApi from '@/features/procedure/api/procedureApi';
 import { ApiError } from '@/lib/apiClient';
 import { procedures } from '@/mocks/fixtures/procedures';
-import { RouterBridge } from '@/navigation';
+import { RouterBridge, router } from '@/navigation';
 import AdminHospitalEditPage from '@/pages/admin/AdminHospitalEditPage';
 import { useAuthStore } from '@/store/useAuthStore';
 import { renderWithProviders } from '@/test/renderWithProviders';
@@ -102,13 +103,20 @@ function baseDoctorAdminView(overrides: Partial<DoctorAdminView> = {}): DoctorAd
   };
 }
 
-function renderPage() {
+function LocationProbe() {
+  const location = useLocation();
+
+  return <div data-testid="location">{`${location.pathname}${location.search}`}</div>;
+}
+
+function renderPage(route = '/admin/hospital/h1') {
   return renderWithProviders(
     <>
       <RouterBridge />
+      <LocationProbe />
       <AdminHospitalEditPage />
     </>,
-    { route: '/admin/hospital/h1', path: '/admin/hospital/:id' }
+    { route, path: '/admin/hospital/:id' }
   );
 }
 
@@ -324,5 +332,85 @@ describe('AdminHospitalEditPage', () => {
     await waitFor(() => expect(alertSpy).toHaveBeenCalled());
     const message = String(alertSpy.mock.calls[0][0]);
     expect(message).toContain('이서연');
+  });
+});
+
+/**
+ * 대시보드의 완성도 칩·노출 경고와 사이드 메뉴의 `의료진` 이 `?field=` 로 보낸다.
+ * **받는 쪽 코드는 하나뿐이다** (`useFieldJump`) — 보내는 어휘가 서버 `422` 의 필드 키와 같다.
+ */
+describe('AdminHospitalEditPage — ?field= 점프', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    useAuthStore.setState({ user: null, status: 'ready' });
+  });
+
+  function stubLoaded(doctors: Doctor[] = []) {
+    useAuthStore.setState({ user: userWithRole('hospital_admin'), status: 'ready' });
+    vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue(procedures);
+    vi.spyOn(hospitalApi, 'fetchHospitalById').mockResolvedValue(baseHospital());
+    vi.spyOn(doctorApi, 'fetchHospitalDoctors').mockResolvedValue(doctors);
+    // jsdom 은 scrollIntoView 를 구현하지 않는다.
+    Element.prototype.scrollIntoView = vi.fn();
+  }
+
+  it('그 입력 칸으로 포커스를 옮긴다', async () => {
+    stubLoaded();
+
+    renderPage('/admin/hospital/h1?field=directions');
+
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByPlaceholderText(/강남역 11번 출구/)));
+  });
+
+  it('입력 칸이 없는 묶음(취급 시술)은 섹션 자체가 포커스를 받는다', async () => {
+    stubLoaded();
+
+    renderPage('/admin/hospital/h1?field=procedureIds');
+
+    await waitFor(() => expect(document.activeElement).toBe(document.getElementById('hospital-field-procedureIds')));
+  });
+
+  it('의료진 영역은 `의료진` 제목을 달고 그 영역으로 데려간다', async () => {
+    stubLoaded([baseDoctor({ id: 'd1', name: '김보철' })]);
+
+    renderPage('/admin/hospital/h1?field=doctors');
+
+    expect(await screen.findByRole('heading', { name: '의료진' })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(document.getElementById('hospital-field-doctors')).toContainElement(
+        document.activeElement as HTMLElement
+      )
+    );
+  });
+
+  it('점프한 뒤에는 주소에서 파라미터를 지운다 — 새로고침·뒤로가기에 다시 튀지 않게', async () => {
+    stubLoaded();
+
+    renderPage('/admin/hospital/h1?field=name');
+
+    await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/admin/hospital/h1'));
+  });
+
+  /**
+   * 메뉴의 `의료진` 은 평범한 링크라 같은 화면에서 **몇 번이고** 눌릴 수 있다.
+   * 한 번 쓰고 잠기면 두 번째부터는 아무 일도 없이 주소에 `?field=` 만 남는다.
+   */
+  it('같은 칸으로 다시 보내면 다시 움직인다 — 한 번 쓰고 잠기지 않는다', async () => {
+    stubLoaded();
+
+    renderPage('/admin/hospital/h1?field=directions');
+
+    const directions = await screen.findByPlaceholderText(/강남역 11번 출구/);
+    await waitFor(() => expect(document.activeElement).toBe(directions));
+    await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/admin/hospital/h1'));
+
+    // 다른 칸으로 커서를 옮겨 둔 뒤 같은 주소로 다시 들어온다.
+    (document.activeElement as HTMLElement).blur();
+    act(() => {
+      router.push('/admin/hospital/h1?field=directions');
+    });
+
+    await waitFor(() => expect(document.activeElement).toBe(directions));
+    await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/admin/hospital/h1'));
   });
 });

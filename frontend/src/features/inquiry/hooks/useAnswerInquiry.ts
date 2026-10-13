@@ -21,6 +21,8 @@ export function useAnswerInquiry() {
       answerHospitalInquiry(id, input),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.inquiries.all });
+      // 대시보드의 `답변 안 한 문의` 와 사이드 배지(`미답변 N`)도 함께 내려간다.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.adminDashboard.all });
       void queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all });
     },
   });

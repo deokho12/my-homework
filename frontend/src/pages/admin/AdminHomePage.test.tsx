@@ -1,12 +1,21 @@
-import { screen, waitFor } from '@testing-library/react';
+import { act, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import * as dashboardApi from '@/features/admin/api/dashboardApi';
+import * as doctorApi from '@/features/doctor/api/doctorApi';
 import * as hospitalApi from '@/features/hospital/api/hospitalApi';
-import { writeCollection } from '@/lib/localCollection';
 import AdminHomePage from '@/pages/admin/AdminHomePage';
+import { useAdminHospitalStore } from '@/store/useAdminHospitalStore';
 import { useAuthStore } from '@/store/useAuthStore';
+import { baseHospital } from '@/test/hospitalFixture';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import type { ManagedHospitalsResponse, User } from '@/types/domain';
+
+/**
+ * `/admin` 은 **역할에 따라 다른 화면**이다. 각 화면의 내용은
+ * `HospitalDashboard.test.tsx` · `OperatorHome.test.tsx` 가 따로 고정한다 — 여기서는
+ * 갈림길 하나만 본다.
+ */
 
 function userWithRole(role: 'hospital_admin' | 'operator'): User {
   return {
@@ -23,141 +32,83 @@ function emptyManaged(scope: 'managed' | 'all'): ManagedHospitalsResponse {
   return { items: [], meta: { page: 1, pageSize: 20, totalItems: 0, totalPages: 0 }, scope };
 }
 
-describe('AdminHomePage', () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-    useAuthStore.setState({ user: null, status: 'ready' });
+beforeEach(() => {
+  act(() => {
+    useAdminHospitalStore.getState().clear();
   });
-
-  it('로딩 중에는 "없어요" 문구를 보여주지 않는다', async () => {
-    useAuthStore.setState({ user: userWithRole('operator'), status: 'ready' });
-    vi.spyOn(hospitalApi, 'fetchManagedHospitals').mockReturnValue(new Promise(() => {}));
-
-    renderWithProviders(<AdminHomePage />);
-
-    expect(screen.queryByText(/없어요|지정되지 않았어요/)).not.toBeInTheDocument();
-  });
-
-  it('scope=managed 이고 0건이면 "담당 병원이 아직 지정되지 않았어요" 를 보여준다', async () => {
-    useAuthStore.setState({ user: userWithRole('hospital_admin'), status: 'ready' });
-    vi.spyOn(hospitalApi, 'fetchManagedHospitals').mockResolvedValue(emptyManaged('managed'));
-
-    renderWithProviders(<AdminHomePage />);
-
-    await waitFor(() => expect(screen.getByText('담당 병원이 아직 지정되지 않았어요')).toBeInTheDocument());
-    expect(screen.queryByText('등록된 병원이 없어요')).not.toBeInTheDocument();
-  });
-
-  it('scope=all 이고 0건이면 "등록된 병원이 없어요" 를 보여준다', async () => {
-    useAuthStore.setState({ user: userWithRole('operator'), status: 'ready' });
-    vi.spyOn(hospitalApi, 'fetchManagedHospitals').mockResolvedValue(emptyManaged('all'));
-
-    renderWithProviders(<AdminHomePage />);
-
-    await waitFor(() => expect(screen.getByText('등록된 병원이 없어요')).toBeInTheDocument());
-    expect(screen.queryByText('담당 병원이 아직 지정되지 않았어요')).not.toBeInTheDocument();
-  });
-
-  it('hospital_admin 에게는 전문의 인증 검수·새 병원 등록 진입 버튼을 보여주지 않는다', async () => {
-    useAuthStore.setState({ user: userWithRole('hospital_admin'), status: 'ready' });
-    vi.spyOn(hospitalApi, 'fetchManagedHospitals').mockResolvedValue(emptyManaged('managed'));
-
-    renderWithProviders(<AdminHomePage />);
-
-    await waitFor(() => expect(screen.getByText('담당 병원이 아직 지정되지 않았어요')).toBeInTheDocument());
-    expect(screen.queryByText('전문의 인증 검수')).not.toBeInTheDocument();
-    expect(screen.queryByText('새 병원 등록')).not.toBeInTheDocument();
-  });
-
-  it('operator 에게는 전문의 인증 검수·새 병원 등록 진입 버튼을 보여준다', async () => {
-    useAuthStore.setState({ user: userWithRole('operator'), status: 'ready' });
-    vi.spyOn(hospitalApi, 'fetchManagedHospitals').mockResolvedValue(emptyManaged('all'));
-
-    renderWithProviders(<AdminHomePage />);
-
-    await waitFor(() => expect(screen.getByText('전문의 인증 검수')).toBeInTheDocument());
-    expect(screen.getByText('새 병원 등록')).toBeInTheDocument();
+  vi.spyOn(hospitalApi, 'fetchManagedHospitals').mockResolvedValue(emptyManaged('all'));
+  vi.spyOn(hospitalApi, 'fetchHospitalById').mockImplementation(async (id: string) => baseHospital({ id }));
+  vi.spyOn(doctorApi, 'fetchHospitalDoctors').mockResolvedValue([]);
+  vi.spyOn(doctorApi, 'fetchVerificationQueue').mockResolvedValue({
+    items: [],
+    meta: { page: 1, pageSize: 20, totalItems: 0, totalPages: 0 },
   });
 });
 
-/** 문의 입구 (요청서 `2026-10-12-03`). 숫자는 요약의 **미답변 수**이지 안 읽은 수가 아니다. */
-describe('AdminHomePage — 문의 입구', () => {
-  beforeEach(() => {
-    writeCollection('inquiries', []);
-    writeCollection('consultRequests', []);
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
+afterEach(() => {
+  vi.restoreAllMocks();
+  act(() => {
     useAuthStore.setState({ user: null, status: 'ready' });
   });
+});
 
-  it('병원 담당자에게는 담당 병원의 미답변 수를 붙여 보여준다', async () => {
-    writeCollection('inquiries', [
-      {
-        id: 'hi1',
-        hospitalId: 'h1',
-        hospitalName: 'A치과',
-        topic: 'price',
-        content: '비용이 궁금해요',
-        isPublic: true,
-        answer: null,
-        createdAt: '2026-10-01T00:00:00.000Z',
-        ownerUserId: 'u-me',
-        askerDisplayName: '김민준',
+describe('AdminHomePage', () => {
+  it('병원 담당자에게는 대시보드를 보여준다', async () => {
+    act(() => {
+      useAuthStore.setState({ user: userWithRole('hospital_admin'), status: 'ready' });
+    });
+    vi.spyOn(dashboardApi, 'fetchAdminDashboard').mockResolvedValue({
+      hospitalId: 'h1',
+      hospitalName: '강남 스마일 치과',
+      numbers: {
+        todayNew: 0,
+        statusNew: 0,
+        pending: 0,
+        delayed: 0,
+        unansweredInquiries: 0,
+        oldestUnansweredAt: null,
+        newThisMonth: 0,
+        bookedThisMonth: 0,
       },
-      {
-        id: 'hi2',
-        hospitalId: 'h2',
-        hospitalName: 'B치과',
-        topic: 'price',
-        content: '다른 병원 질문',
-        isPublic: true,
-        answer: null,
-        createdAt: '2026-10-02T00:00:00.000Z',
-        ownerUserId: 'u-me',
-        askerDisplayName: '김민준',
-      },
-    ]);
-    useAuthStore.setState({ user: userWithRole('hospital_admin'), status: 'ready' });
-    vi.spyOn(hospitalApi, 'fetchManagedHospitals').mockResolvedValue(emptyManaged('managed'));
+      funnel: { requested: 0, contacted: 0, booked: 0, visited: 0, cancelled: 0 },
+      todo: { delayedConsults: [], delayedRemaining: 0, rejectedDoctors: [] },
+      recentConsults: [],
+      todayVisits: [],
+      completeness: { percent: 100, items: [], noProcedures: false },
+      timezone: 'Asia/Seoul',
+      calculatedAt: '2026-10-13T02:30:00.000Z',
+    });
 
-    renderWithProviders(<AdminHomePage />);
+    renderWithProviders(<AdminHomePage />, { route: '/admin', path: '/admin' });
 
-    expect(await screen.findByText('문의 1')).toBeInTheDocument();
+    expect(await screen.findByText('안녕하세요, 강남 스마일 치과')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: '등록된 병원' })).not.toBeInTheDocument();
   });
 
-  it('상담 화면 입구의 이름은 `상담 예약` 이다 (사이드 메뉴·화면 제목과 같은 말)', async () => {
-    useAuthStore.setState({ user: userWithRole('hospital_admin'), status: 'ready' });
-    vi.spyOn(hospitalApi, 'fetchManagedHospitals').mockResolvedValue(emptyManaged('managed'));
+  it('운영자에게는 병원 목록과 검수 입구를 보여준다 — 대시보드가 아니다', async () => {
+    act(() => {
+      useAuthStore.setState({ user: userWithRole('operator'), status: 'ready' });
+    });
+    const fetchDashboard = vi.spyOn(dashboardApi, 'fetchAdminDashboard');
 
-    renderWithProviders(<AdminHomePage />);
+    renderWithProviders(<AdminHomePage />, { route: '/admin', path: '/admin' });
 
-    expect(await screen.findByText('상담 예약')).toBeInTheDocument();
-    expect(screen.queryByText('상담 관리')).not.toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: '등록된 병원' })).toBeInTheDocument();
+    expect(screen.getByText('전문의 인증 검수 대기')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '새 병원 등록' })).toBeInTheDocument();
+    expect(fetchDashboard).not.toHaveBeenCalled();
   });
 
-  it('운영자에게는 숫자 없이 `문의` 만 보여준다 — 운영자는 답변할 수 없어 할 일 수가 아니다', async () => {
-    writeCollection('inquiries', [
-      {
-        id: 'hi1',
-        hospitalId: 'h1',
-        hospitalName: 'A치과',
-        topic: 'price',
-        content: '비용이 궁금해요',
-        isPublic: true,
-        answer: null,
-        createdAt: '2026-10-01T00:00:00.000Z',
-        ownerUserId: 'u-me',
-        askerDisplayName: '김민준',
-      },
-    ]);
-    useAuthStore.setState({ user: userWithRole('operator'), status: 'ready' });
-    vi.spyOn(hospitalApi, 'fetchManagedHospitals').mockResolvedValue(emptyManaged('all'));
+  it('병원 담당자에게는 운영자 전용 입구가 없다', async () => {
+    act(() => {
+      useAuthStore.setState({ user: userWithRole('hospital_admin'), status: 'ready' });
+    });
+    vi.spyOn(dashboardApi, 'fetchAdminDashboard').mockReturnValue(new Promise(() => {}));
 
-    renderWithProviders(<AdminHomePage />);
+    renderWithProviders(<AdminHomePage />, { route: '/admin', path: '/admin' });
 
-    expect(await screen.findByText('문의')).toBeInTheDocument();
-    expect(screen.queryByText(/^문의 \d+$/)).not.toBeInTheDocument();
+    expect(await screen.findByRole('region', { name: '핵심 숫자' })).toBeInTheDocument();
+    expect(screen.queryByText('전문의 인증 검수 대기')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '새 병원 등록' })).not.toBeInTheDocument();
   });
 });

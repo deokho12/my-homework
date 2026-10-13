@@ -9,6 +9,7 @@ import * as hospitalApi from '@/features/hospital/api/hospitalApi';
 import { readCollection, writeCollection, type StoredConsultRequest } from '@/lib/localCollection';
 import { RouterBridge } from '@/navigation';
 import AdminConsultationsPage from '@/pages/admin/AdminConsultationsPage';
+import { useAdminHospitalStore } from '@/store/useAdminHospitalStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { baseHospital } from '@/test/hospitalFixture';
 import { renderWithProviders } from '@/test/renderWithProviders';
@@ -97,6 +98,9 @@ function detail() {
 beforeEach(() => {
   seed([]);
   signIn('hospital_admin');
+  act(() => {
+    useAdminHospitalStore.getState().clear();
+  });
   vi.spyOn(hospitalApi, 'fetchHospitalById').mockImplementation(async (id: string) =>
     baseHospital({ id, name: HOSPITAL_NAMES[id] ?? `${id} 치과` })
   );
@@ -574,5 +578,128 @@ describe('메모와 처리 이력', () => {
     await user.click(screen.getByRole('button', { name: '연락중으로 저장' }));
 
     expect(await within(detail()).findByText(/연락중 · 김실장 · 환자 알림 발송/)).toBeInTheDocument();
+  });
+});
+
+/**
+ * 대시보드 숫자 카드가 **자기 숫자를 재현하는 주소**로 보낸다 (`?status=new&status=contacted`,
+ * `?period=thisMonth`). 상담 목록은 그 주소를 그대로 읽어야 카드와 목록이 같은 건수를 말한다.
+ */
+describe('여러 상태로 좁혀 보기 (대시보드 카드에서 옴)', () => {
+  beforeEach(() => {
+    seed([
+      row({ id: 'cr-new', name: '박서영', status: 'new', createdAt: hoursAgo(2) }),
+      row({ id: 'cr-contacted', name: '최지훈', status: 'contacted', createdAt: hoursAgo(5) }),
+      row({ id: 'cr-booked', name: '정하윤', status: 'booked', visitAt: '2026-12-09T05:00:00.000Z', createdAt: hoursAgo(8) }),
+      row({ id: 'cr-visited', name: '김민준', status: 'visited', createdAt: hoursAgo(10) }),
+    ]);
+  });
+
+  it('상태가 두 개면 그 둘을 OR 로 보여주고 어떤 탭도 선택하지 않는다', async () => {
+    renderPage('/admin/consultations?status=new&status=contacted');
+
+    await waitFor(() => expect(within(list()).getByText('박서영')).toBeInTheDocument());
+    expect(within(list()).getByText('최지훈')).toBeInTheDocument();
+    expect(within(list()).queryByText('정하윤')).not.toBeInTheDocument();
+
+    for (const tab of screen.getAllByRole('tab')) {
+      expect(tab).toHaveAttribute('aria-selected', 'false');
+    }
+  });
+
+  it('`처리 대기` 조합에는 카드와 같은 말로 안내한다', async () => {
+    renderPage('/admin/consultations?status=new&status=contacted');
+
+    expect(await screen.findByText('처리 대기(신규 + 연락중)만 보는 중')).toBeInTheDocument();
+  });
+
+  it('다른 조합은 상태 이름을 그대로 잇는다 (카드 ④ 가 보내는 주소)', async () => {
+    renderPage('/admin/consultations?period=thisMonth&status=booked&status=visited');
+
+    expect(await screen.findByText('예약확정 + 내원완료만 보는 중')).toBeInTheDocument();
+    await waitFor(() => expect(within(list()).getByText('정하윤')).toBeInTheDocument());
+    expect(within(list()).getByText('김민준')).toBeInTheDocument();
+    expect(within(list()).queryByText('박서영')).not.toBeInTheDocument();
+  });
+
+  it('탭 숫자는 그대로 전 상태를 센다 — 좁혀 본다고 모집단이 바뀌지 않는다', async () => {
+    renderPage('/admin/consultations?status=new&status=contacted');
+
+    expect(await screen.findByRole('tab', { name: '전체 4' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: '예약확정 1' })).toBeInTheDocument();
+  });
+
+  it('`해제` 를 누르면 기본 탭으로 돌아간다', async () => {
+    const user = userEvent.setup();
+    renderPage('/admin/consultations?status=new&status=contacted');
+
+    await user.click(await screen.findByRole('button', { name: '해제' }));
+
+    await waitFor(() => expect(probe()).toBe('/admin/consultations'));
+    expect(await screen.findByRole('tab', { name: '신규 1' })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  /**
+   * `처리 대기` 는 **기간 무관한 숫자**다. 목록의 기본 기간이 `최근 30일` 이라, 카드가
+   * 기간을 함께 풀어 보내지 않으면 **오래 밀린 건일수록** 카드에는 세어지고 목록에서는 빠진다.
+   */
+  it('`처리 대기` 카드 주소는 기간도 풀어서 온다 — 31일 전에 들어온 신규도 보인다', async () => {
+    seed([row({ id: 'cr-stale', name: '오래된환자', status: 'new', createdAt: hoursAgo(24 * 40) })]);
+
+    renderPage('/admin/consultations?status=new&status=contacted&period=all');
+
+    await waitFor(() => expect(within(list()).getByText('오래된환자')).toBeInTheDocument());
+  });
+
+  it('상태가 하나뿐이면 평소처럼 그 탭이 선택된다', async () => {
+    renderPage('/admin/consultations?status=booked');
+
+    expect(await screen.findByRole('tab', { name: '예약확정 1' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.queryByText(/만 보는 중/)).not.toBeInTheDocument();
+  });
+});
+
+describe('기간 `이번 달`', () => {
+  it('선택지에 있고, 고르면 그 달에 접수된 건만 남는다', async () => {
+    const user = userEvent.setup();
+    const now = new Date();
+    const thisMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 15, 3, 0, 0)).toISOString();
+    const lastMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 15, 3, 0, 0)).toISOString();
+
+    seed([
+      row({ id: 'cr-this', name: '이번달', status: 'new', createdAt: thisMonth }),
+      row({ id: 'cr-last', name: '지난달', status: 'new', createdAt: lastMonth }),
+    ]);
+    renderPage('/admin/consultations?period=all');
+
+    await user.selectOptions(await screen.findByLabelText('기간'), 'thisMonth');
+
+    await waitFor(() => expect(probe()).toBe('/admin/consultations?period=thisMonth'));
+    await waitFor(() => expect(within(list()).getByText('이번달')).toBeInTheDocument());
+    expect(within(list()).queryByText('지난달')).not.toBeInTheDocument();
+  });
+});
+
+describe('선택한 담당 병원 범위', () => {
+  it('담당 병원이 둘이어도 고른 병원의 상담만 보여준다', async () => {
+    signIn('hospital_admin', ['h1', 'h2']);
+    // 담당 병원이 2곳이면 셸의 선택기가 이름을 받으러 목록을 부른다.
+    vi.spyOn(hospitalApi, 'fetchManagedHospitals').mockResolvedValue({
+      items: [baseHospital({ id: 'h1' }), baseHospital({ id: 'h2' })],
+      meta: { page: 1, pageSize: 100, totalItems: 2, totalPages: 1 },
+      scope: 'managed',
+    });
+    seed([
+      row({ id: 'cr-h1', hospitalId: 'h1', name: '강남환자', status: 'new', createdAt: hoursAgo(1) }),
+      row({ id: 'cr-h2', hospitalId: 'h2', name: '서초환자', status: 'new', createdAt: hoursAgo(2) }),
+    ]);
+    act(() => {
+      useAdminHospitalStore.getState().select('h2');
+    });
+
+    renderPage();
+
+    await waitFor(() => expect(within(list()).getByText('서초환자')).toBeInTheDocument());
+    expect(within(list()).queryByText('강남환자')).not.toBeInTheDocument();
   });
 });

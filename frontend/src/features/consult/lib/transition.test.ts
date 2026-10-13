@@ -134,6 +134,41 @@ describe('periodRange — Asia/Seoul 달력, 반열린 구간 [from, to)', () =>
       '2026-10-12T15:00:00.000Z', // 서울 10/13 00:00 = 내일 자정
     ]);
   });
+
+  /** 대시보드 카드 ④ 와 깔때기의 모집단 (`docs/database/README.md` §13.2). */
+  it('이번 달은 서울 달력 1일 00:00 부터 다음 달 1일 00:00 까지다', () => {
+    expect(periodRange('thisMonth', mondayNight).map((date) => date.toISOString())).toEqual([
+      '2026-09-30T15:00:00.000Z', // 서울 10/1 00:00
+      '2026-10-31T15:00:00.000Z', // 서울 11/1 00:00
+    ]);
+  });
+
+  it('서울 기준으로 달이 바뀌면 UTC 가 아직 지난달이어도 새 달이다', () => {
+    // UTC 10/31 16:00 = 서울 11/1 01:00.
+    const seoulNovember = new Date('2026-10-31T16:00:00.000Z');
+
+    expect(periodRange('thisMonth', seoulNovember).map((date) => date.toISOString())).toEqual([
+      '2026-10-31T15:00:00.000Z', // 서울 11/1 00:00
+      '2026-11-30T15:00:00.000Z', // 서울 12/1 00:00
+    ]);
+  });
+
+  it('12월은 다음 해 1월 1일이 끝이다', () => {
+    const december = new Date('2026-12-20T00:00:00.000Z');
+
+    expect(periodRange('thisMonth', december).map((date) => date.toISOString())).toEqual([
+      '2026-11-30T15:00:00.000Z', // 서울 12/1 00:00
+      '2026-12-31T15:00:00.000Z', // 서울 2027-1/1 00:00
+    ]);
+  });
+
+  it('달의 첫 순간은 구간에 들어가고 마지막 순간의 1ms 뒤는 들어가지 않는다 (반열린 구간)', () => {
+    const [from, to] = periodRange('thisMonth', mondayNight);
+
+    expect(from.getTime()).toBeLessThanOrEqual(new Date('2026-09-30T15:00:00.000Z').getTime());
+    expect(new Date('2026-10-31T14:59:59.999Z').getTime()).toBeLessThan(to.getTime());
+    expect(new Date('2026-10-31T15:00:00.000Z').getTime()).toBeGreaterThanOrEqual(to.getTime());
+  });
 });
 
 describe('cancelReasonOf', () => {

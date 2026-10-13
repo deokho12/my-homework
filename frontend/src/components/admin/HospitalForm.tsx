@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronUp } from 'lucide-react';
-import { memo, useCallback, useMemo, useState } from 'react';
+import { memo, useCallback, useMemo, useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from '@/primitives';
 
 import { AddressSearchInput } from '@/components/admin/AddressSearchInput';
@@ -10,6 +10,8 @@ import { containerClass } from '@/components/layout/Container';
 import type { DoctorUpdateInput, DoctorUpsertInput } from '@/features/doctor/api/doctorApi';
 import type { HospitalWriteInput } from '@/features/hospital/api/hospitalApi';
 import type { HospitalFieldErrors } from '@/features/hospital/lib/hospitalFieldErrors';
+import { DEFAULT_THUMBNAIL_URL } from '@/features/hospital/lib/completeness';
+import { fieldAnchorId } from '@/hooks/useFieldJump';
 import {
   CATEGORIES,
   LEGACY_TO_SUB,
@@ -306,6 +308,37 @@ function buildDoctorUpdate(entry: SpecialistFormEntry): DoctorUpdateInput {
   return update;
 }
 
+/**
+ * `?field=` 로 들어온 점프가 찾는 **입력 칸 한 묶음**. id 어휘는 서버 `422` 의
+ * `details[].field` · 완성도 항목의 `target` 과 같다 (`useFieldJump`).
+ *
+ * `flex flex-col` 을 주는 이유: `View`(`.rnw-view`)가 하던 세로 배치를 평범한 요소로 옮기면
+ * 기본값이 `display: block` 이라 안쪽 `input` 이 폭을 꽉 채우지 못한다.
+ */
+function Anchor({
+  field,
+  focusable,
+  labelledBy,
+  children,
+}: {
+  field: string;
+  /** 안쪽에 입력 칸이 없는 묶음(시술 체크박스·의료진 0명)은 섹션 자체가 포커스를 받는다. */
+  focusable?: boolean;
+  labelledBy?: string;
+  children: ReactNode;
+}) {
+  return (
+    <section
+      id={fieldAnchorId(field)}
+      tabIndex={focusable ? -1 : undefined}
+      aria-labelledby={labelledBy}
+      className="flex shrink-0 flex-col outline-none"
+    >
+      {children}
+    </section>
+  );
+}
+
 export function HospitalForm(props: HospitalFormProps) {
   const { initial, doctors = [], canEditRecommended, fieldErrors } = props;
   const [name, setName] = useState(initial?.name ?? '');
@@ -441,7 +474,8 @@ export function HospitalForm(props: HospitalFormProps) {
       address: address.trim(),
       latitude: lat,
       longitude: lng,
-      thumbnail: thumbnail.trim() || 'https://picsum.photos/seed/molarmolar-new/800/500',
+      // 완성도 판정이 "담당자가 고른 사진이 아니다" 로 세는 바로 그 값이다 — 상수를 공유한다.
+      thumbnail: thumbnail.trim() || DEFAULT_THUMBNAIL_URL,
       introduction: introduction.trim(),
       priceRange: { min: Number(priceMin) || 0, max: Number(priceMax) || 0 },
       tags: tagsText
@@ -509,66 +543,78 @@ export function HospitalForm(props: HospitalFormProps) {
 
   return (
     <ScrollView contentContainerClassName={containerClass('form', 'pb-10 pt-4')} keyboardShouldPersistTaps="handled">
-      <Text className="mb-2 text-sm font-semibold text-neutral-700">병원명</Text>
-      <TextInput
-        value={name}
-        onChangeText={setName}
-        placeholder="병원명을 입력해주세요"
-        className="mb-4 rounded-xl border border-neutral-200 px-4 py-3 text-[15px]"
-      />
-      <FieldError message={fieldErrors?.name} />
+      <Anchor field="name">
+  <Text className="mb-2 text-sm font-semibold text-neutral-700">병원명</Text>
+        <TextInput
+          value={name}
+          onChangeText={setName}
+          placeholder="병원명을 입력해주세요"
+          className="mb-4 rounded-xl border border-neutral-200 px-4 py-3 text-[15px]"
+        />
+        <FieldError message={fieldErrors?.name} />
+      </Anchor>
 
-      <Text className="mb-2 text-sm font-semibold text-neutral-700">전문 분야 (예: 임플란트 전문의원)</Text>
-      <TextInput
-        value={specialty}
-        onChangeText={setSpecialty}
-        placeholder="전문 분야"
-        className="mb-4 rounded-xl border border-neutral-200 px-4 py-3 text-[15px]"
-      />
-      <FieldError message={fieldErrors?.specialty} />
+      <Anchor field="specialty">
+  <Text className="mb-2 text-sm font-semibold text-neutral-700">전문 분야 (예: 임플란트 전문의원)</Text>
+        <TextInput
+          value={specialty}
+          onChangeText={setSpecialty}
+          placeholder="전문 분야"
+          className="mb-4 rounded-xl border border-neutral-200 px-4 py-3 text-[15px]"
+        />
+        <FieldError message={fieldErrors?.specialty} />
+      </Anchor>
 
-      <Text className="mb-2 text-sm font-semibold text-neutral-700">지역</Text>
-      <TextInput
-        value={region}
-        onChangeText={setRegion}
-        placeholder="예: 서울 강남구"
-        className="mb-4 rounded-xl border border-neutral-200 px-4 py-3 text-[15px]"
-      />
-      <FieldError message={fieldErrors?.region} />
+      <Anchor field="region">
+  <Text className="mb-2 text-sm font-semibold text-neutral-700">지역</Text>
+        <TextInput
+          value={region}
+          onChangeText={setRegion}
+          placeholder="예: 서울 강남구"
+          className="mb-4 rounded-xl border border-neutral-200 px-4 py-3 text-[15px]"
+        />
+        <FieldError message={fieldErrors?.region} />
+      </Anchor>
 
-      <Text className="mb-2 text-sm font-semibold text-neutral-700">주소</Text>
-      <AddressSearchInput
-        initialAddress={initial?.address}
-        onSelect={(result: GeocodeResult) => {
-          setAddress(result.roadAddressName || result.addressName);
-          setLatitude(result.latitude);
-          setLongitude(result.longitude);
-        }}
-      />
-      <FieldError message={fieldErrors?.address} />
+      <Anchor field="address">
+  <Text className="mb-2 text-sm font-semibold text-neutral-700">주소</Text>
+        <AddressSearchInput
+          initialAddress={initial?.address}
+          onSelect={(result: GeocodeResult) => {
+            setAddress(result.roadAddressName || result.addressName);
+            setLatitude(result.latitude);
+            setLongitude(result.longitude);
+          }}
+        />
+        <FieldError message={fieldErrors?.address} />
+      </Anchor>
 
-      <Text className="mb-2 text-sm font-semibold text-neutral-700">대표 이미지 URL (선택)</Text>
-      <TextInput
-        value={thumbnail}
-        onChangeText={setThumbnail}
-        placeholder="https://..."
-        autoCapitalize="none"
-        className="mb-4 rounded-xl border border-neutral-200 px-4 py-3 text-[15px]"
-      />
-      <FieldError message={fieldErrors?.thumbnail} />
+      <Anchor field="thumbnail">
+  <Text className="mb-2 text-sm font-semibold text-neutral-700">대표 이미지 URL (선택)</Text>
+        <TextInput
+          value={thumbnail}
+          onChangeText={setThumbnail}
+          placeholder="https://..."
+          autoCapitalize="none"
+          className="mb-4 rounded-xl border border-neutral-200 px-4 py-3 text-[15px]"
+        />
+        <FieldError message={fieldErrors?.thumbnail} />
+      </Anchor>
 
-      <Text className="mb-2 text-sm font-semibold text-neutral-700">병원 소개</Text>
-      <TextInput
-        value={introduction}
-        onChangeText={setIntroduction}
-        placeholder="병원을 소개해주세요"
-        multiline
-        numberOfLines={4}
-        textAlignVertical="top"
-        className="mb-4 rounded-xl border border-neutral-200 px-4 py-3 text-[15px]"
-        style={{ minHeight: 96 }}
-      />
-      <FieldError message={fieldErrors?.introduction} />
+      <Anchor field="introduction">
+  <Text className="mb-2 text-sm font-semibold text-neutral-700">병원 소개</Text>
+        <TextInput
+          value={introduction}
+          onChangeText={setIntroduction}
+          placeholder="병원을 소개해주세요"
+          multiline
+          numberOfLines={4}
+          textAlignVertical="top"
+          className="mb-4 rounded-xl border border-neutral-200 px-4 py-3 text-[15px]"
+          style={{ minHeight: 96 }}
+        />
+        <FieldError message={fieldErrors?.introduction} />
+      </Anchor>
 
       <Text className="mb-2 text-sm font-semibold text-neutral-700">가격대 (원)</Text>
       <View className="mb-4 flex-row gap-2">
@@ -598,25 +644,29 @@ export function HospitalForm(props: HospitalFormProps) {
       />
       <FieldError message={fieldErrors?.tags} />
 
-      <Text className="mb-2 text-sm font-semibold text-neutral-700">취급 시술 (1개 이상 선택)</Text>
-      <View className="mb-2 rounded-xl border border-neutral-200">
-        {CATEGORIES.map((category) => (
-          <CategorySection
-            key={category.id}
-            category={category}
-            isOpen={expanded[category.id] ?? false}
-            selectedSubIds={selectedSubSet}
-            onToggleSection={toggleSection}
-            onToggleSub={toggleSubProcedure}
-          />
-        ))}
-      </View>
-      {passthroughLegacyIds.length > 0 ? (
-        <Text className="mb-2 text-xs text-neutral-400">
-          화면에 없는 시술 {passthroughLegacyIds.length}개는 저장 시 그대로 유지돼요
-        </Text>
-      ) : null}
-      <FieldError message={fieldErrors?.procedureIds} />
+      <Anchor field="procedureIds" focusable labelledBy="hospital-procedures-h">
+        <h2 id="hospital-procedures-h" className="mb-2 text-sm font-semibold text-neutral-700">
+          취급 시술 (1개 이상 선택)
+        </h2>
+        <View className="mb-2 rounded-xl border border-neutral-200">
+          {CATEGORIES.map((category) => (
+            <CategorySection
+              key={category.id}
+              category={category}
+              isOpen={expanded[category.id] ?? false}
+              selectedSubIds={selectedSubSet}
+              onToggleSection={toggleSection}
+              onToggleSub={toggleSubProcedure}
+            />
+          ))}
+        </View>
+        {passthroughLegacyIds.length > 0 ? (
+          <Text className="mb-2 text-xs text-neutral-400">
+            화면에 없는 시술 {passthroughLegacyIds.length}개는 저장 시 그대로 유지돼요
+          </Text>
+        ) : null}
+        <FieldError message={fieldErrors?.procedureIds} />
+      </Anchor>
 
       <View className="mb-2 mt-4">
         <CheckboxRow
@@ -644,63 +694,71 @@ export function HospitalForm(props: HospitalFormProps) {
       </View>
       <FieldError message={fieldErrors?.isRecommended} />
 
-      <Text className="mb-2 mt-2 text-sm font-semibold text-neutral-700">진료시간 (요일별)</Text>
-      <View className="mb-4 rounded-xl border border-neutral-200 p-3">
-        {businessHours.map((entry, index) => (
-          <View key={entry.day} className="mb-2 flex-row items-center gap-2">
-            <Text className="w-6 text-sm font-semibold text-neutral-700">{entry.day}</Text>
-            <TextInput
-              value={entry.hours}
-              onChangeText={(text) => updateBusinessHour(index, { hours: text })}
-              placeholder="예: 09:30 - 18:30"
-              editable={!entry.isClosed}
-              className={`flex-1 rounded-xl border border-neutral-200 px-3 py-2 text-sm ${
-                entry.isClosed ? 'text-neutral-300' : ''
-              }`}
+      <Anchor field="businessHours">
+  <Text className="mb-2 mt-2 text-sm font-semibold text-neutral-700">진료시간 (요일별)</Text>
+        <View className="mb-4 rounded-xl border border-neutral-200 p-3">
+          {businessHours.map((entry, index) => (
+            <View key={entry.day} className="mb-2 flex-row items-center gap-2">
+              <Text className="w-6 text-sm font-semibold text-neutral-700">{entry.day}</Text>
+              <TextInput
+                value={entry.hours}
+                onChangeText={(text) => updateBusinessHour(index, { hours: text })}
+                placeholder="예: 09:30 - 18:30"
+                editable={!entry.isClosed}
+                className={`flex-1 rounded-xl border border-neutral-200 px-3 py-2 text-sm ${
+                  entry.isClosed ? 'text-neutral-300' : ''
+                }`}
+              />
+              <Pressable
+                onPress={() =>
+                  updateBusinessHour(index, {
+                    isClosed: !entry.isClosed,
+                    hours: !entry.isClosed ? '휴진' : '09:30 - 18:30',
+                  })
+                }
+                className={`rounded-xl px-3 py-2 ${entry.isClosed ? 'bg-neutral-900' : 'bg-neutral-100'}`}
+              >
+                <Text className={`text-xs font-semibold ${entry.isClosed ? 'text-white' : 'text-neutral-500'}`}>
+                  휴진
+                </Text>
+              </Pressable>
+            </View>
+          ))}
+        </View>
+        <FieldError message={fieldErrors?.businessHours} />
+      </Anchor>
+
+      <Anchor field="directions">
+  <Text className="mb-2 text-sm font-semibold text-neutral-700">찾아오시는 길</Text>
+        <TextInput
+          value={directions}
+          onChangeText={setDirections}
+          placeholder="예: 강남역 11번 출구에서 도보 5분"
+          multiline
+          numberOfLines={2}
+          textAlignVertical="top"
+          className="mb-4 rounded-xl border border-neutral-200 px-4 py-3 text-[15px]"
+          style={{ minHeight: 64 }}
+        />
+        <FieldError message={fieldErrors?.directions} />
+      </Anchor>
+
+      <Anchor field="features" focusable labelledBy="hospital-features-h">
+        <h2 id="hospital-features-h" className="mb-2 text-sm font-semibold text-neutral-700">
+          병원 특징
+        </h2>
+        <View className="mb-2">
+          {FEATURE_OPTIONS.map((option) => (
+            <CheckboxRow
+              key={option.key}
+              label={option.label}
+              checked={features[option.key]}
+              onPress={() => toggleFeature(option.key)}
             />
-            <Pressable
-              onPress={() =>
-                updateBusinessHour(index, {
-                  isClosed: !entry.isClosed,
-                  hours: !entry.isClosed ? '휴진' : '09:30 - 18:30',
-                })
-              }
-              className={`rounded-xl px-3 py-2 ${entry.isClosed ? 'bg-neutral-900' : 'bg-neutral-100'}`}
-            >
-              <Text className={`text-xs font-semibold ${entry.isClosed ? 'text-white' : 'text-neutral-500'}`}>
-                휴진
-              </Text>
-            </Pressable>
-          </View>
-        ))}
-      </View>
-      <FieldError message={fieldErrors?.businessHours} />
-
-      <Text className="mb-2 text-sm font-semibold text-neutral-700">찾아오시는 길</Text>
-      <TextInput
-        value={directions}
-        onChangeText={setDirections}
-        placeholder="예: 강남역 11번 출구에서 도보 5분"
-        multiline
-        numberOfLines={2}
-        textAlignVertical="top"
-        className="mb-4 rounded-xl border border-neutral-200 px-4 py-3 text-[15px]"
-        style={{ minHeight: 64 }}
-      />
-      <FieldError message={fieldErrors?.directions} />
-
-      <Text className="mb-2 text-sm font-semibold text-neutral-700">병원 특징</Text>
-      <View className="mb-2">
-        {FEATURE_OPTIONS.map((option) => (
-          <CheckboxRow
-            key={option.key}
-            label={option.label}
-            checked={features[option.key]}
-            onPress={() => toggleFeature(option.key)}
-          />
-        ))}
-      </View>
-      <FieldError message={fieldErrors?.features} />
+          ))}
+        </View>
+        <FieldError message={fieldErrors?.features} />
+      </Anchor>
 
       {props.mode === 'split' ? (
         <View className="mb-2 mt-2">
@@ -708,74 +766,79 @@ export function HospitalForm(props: HospitalFormProps) {
         </View>
       ) : null}
 
-      <View className="mb-2 mt-2 flex-row items-center justify-between">
-        <Text className="text-sm font-semibold text-neutral-700">전문의</Text>
-        <Pressable onPress={addSpecialist}>
-          <Text className="text-sm font-semibold text-brand-700">+ 전문의 추가</Text>
-        </Pressable>
-      </View>
-      <Text className="mb-3 text-xs text-neutral-400">
-        새로 추가한 전문의는 "대기" 상태로 등록되며, 운영자의 자격증 검수 후 배지가 노출돼요.
-      </Text>
-
-      {specialists.map((entry, index) => (
-        <View key={entry.id ?? `new-${index}`} className="mb-3 rounded-xl border border-neutral-200 p-3">
-          <View className="mb-2 flex-row items-center justify-between">
-            <Text className="text-xs font-semibold text-neutral-500">전문의 {index + 1}</Text>
-            <Pressable onPress={() => removeSpecialist(index)}>
-              <Text className="text-xs font-semibold text-rose-500">삭제</Text>
-            </Pressable>
-          </View>
-
-          <View className="mb-2 flex-row gap-2">
-            <TextInput
-              value={entry.name}
-              onChangeText={(text) => updateSpecialist(index, { name: text })}
-              placeholder="이름"
-              className="flex-1 rounded-xl border border-neutral-200 px-3 py-2.5 text-sm"
-            />
-            <TextInput
-              value={entry.title}
-              onChangeText={(text) => updateSpecialist(index, { title: text })}
-              placeholder="직함 (예: 대표원장)"
-              className="flex-1 rounded-xl border border-neutral-200 px-3 py-2.5 text-sm"
-            />
-          </View>
-
-          {entry.id && entry.name.trim().length === 0 ? (
-            <p role="alert" className="mb-2 text-xs text-rose-500">
-              {initialDoctorsById.get(entry.id)?.name ?? '이 전문의'}의 이름 칸이 비어 있어요. 삭제하려면
-              이름이 아니라 위의 "삭제" 를 눌러주세요 — 이대로 저장하면 안내만 하고 저장하지 않아요.
-            </p>
-          ) : null}
-          {entry.specialty === null ? (
-            <Text className="mb-2 text-xs text-amber-600">
-              검수 대기 중이라 전공을 확인할 수 없어요. 저장하려면 전공을 다시 선택해주세요.
-            </Text>
-          ) : null}
-          <View className="mb-2 flex-row flex-wrap">
-            {DENTAL_SPECIALTIES.map((option) => (
-              <Chip
-                key={option}
-                label={option}
-                selected={entry.specialty === option}
-                onPress={() => updateSpecialist(index, { specialty: option })}
-              />
-            ))}
-          </View>
-
-          <TextInput
-            value={entry.certificateUrl}
-            onChangeText={(text) => updateSpecialist(index, { certificateUrl: text, certificateUrlTouched: true })}
-            placeholder="자격증/인증서 이미지 URL"
-            autoCapitalize="none"
-            className="rounded-xl border border-neutral-200 px-3 py-2.5 text-sm"
-          />
-          <Text className="mt-1 text-[11px] text-neutral-400">
-            입력하면 자격증이 교체돼요. 비워 두면 기존 자격증이 그대로 유지돼요.
-          </Text>
+      <Anchor field="doctors" focusable labelledBy="hospital-doctors-h">
+        <View className="mb-2 mt-2 flex-row items-center justify-between">
+          {/* 사이드 메뉴의 `의료진` 과 같은 말이다 — 그 메뉴가 여기로 데려온다 (화면 분리는 요청 07). */}
+          <h2 id="hospital-doctors-h" className="text-sm font-semibold text-neutral-700">
+            의료진
+          </h2>
+          <Pressable onPress={addSpecialist}>
+            <Text className="text-sm font-semibold text-brand-700">+ 전문의 추가</Text>
+          </Pressable>
         </View>
-      ))}
+        <Text className="mb-3 text-xs text-neutral-400">
+          새로 추가한 전문의는 "대기" 상태로 등록되며, 운영자의 자격증 검수 후 배지가 노출돼요.
+        </Text>
+
+        {specialists.map((entry, index) => (
+          <View key={entry.id ?? `new-${index}`} className="mb-3 rounded-xl border border-neutral-200 p-3">
+            <View className="mb-2 flex-row items-center justify-between">
+              <Text className="text-xs font-semibold text-neutral-500">전문의 {index + 1}</Text>
+              <Pressable onPress={() => removeSpecialist(index)}>
+                <Text className="text-xs font-semibold text-rose-500">삭제</Text>
+              </Pressable>
+            </View>
+
+            <View className="mb-2 flex-row gap-2">
+              <TextInput
+                value={entry.name}
+                onChangeText={(text) => updateSpecialist(index, { name: text })}
+                placeholder="이름"
+                className="flex-1 rounded-xl border border-neutral-200 px-3 py-2.5 text-sm"
+              />
+              <TextInput
+                value={entry.title}
+                onChangeText={(text) => updateSpecialist(index, { title: text })}
+                placeholder="직함 (예: 대표원장)"
+                className="flex-1 rounded-xl border border-neutral-200 px-3 py-2.5 text-sm"
+              />
+            </View>
+
+            {entry.id && entry.name.trim().length === 0 ? (
+              <p role="alert" className="mb-2 text-xs text-rose-500">
+                {initialDoctorsById.get(entry.id)?.name ?? '이 전문의'}의 이름 칸이 비어 있어요. 삭제하려면
+                이름이 아니라 위의 "삭제" 를 눌러주세요 — 이대로 저장하면 안내만 하고 저장하지 않아요.
+              </p>
+            ) : null}
+            {entry.specialty === null ? (
+              <Text className="mb-2 text-xs text-amber-600">
+                검수 대기 중이라 전공을 확인할 수 없어요. 저장하려면 전공을 다시 선택해주세요.
+              </Text>
+            ) : null}
+            <View className="mb-2 flex-row flex-wrap">
+              {DENTAL_SPECIALTIES.map((option) => (
+                <Chip
+                  key={option}
+                  label={option}
+                  selected={entry.specialty === option}
+                  onPress={() => updateSpecialist(index, { specialty: option })}
+                />
+              ))}
+            </View>
+
+            <TextInput
+              value={entry.certificateUrl}
+              onChangeText={(text) => updateSpecialist(index, { certificateUrl: text, certificateUrlTouched: true })}
+              placeholder="자격증/인증서 이미지 URL"
+              autoCapitalize="none"
+              className="rounded-xl border border-neutral-200 px-3 py-2.5 text-sm"
+            />
+            <Text className="mt-1 text-[11px] text-neutral-400">
+              입력하면 자격증이 교체돼요. 비워 두면 기존 자격증이 그대로 유지돼요.
+            </Text>
+          </View>
+        ))}
+      </Anchor>
 
       <View className="mt-2">
         {props.mode === 'combined' ? (

@@ -45,3 +45,20 @@ export function formatDateTimeShort(iso: string | null | undefined): string | nu
 
   return parts ? `${parts.month}/${parts.day} ${parts.hour}:${parts.minute}` : null;
 }
+
+const TODAY_LONG_FORMAT = new Intl.DateTimeFormat('ko-KR', {
+  timeZone: SEOUL_TIMEZONE,
+  month: 'long',
+  day: 'numeric',
+  weekday: 'long',
+});
+
+/**
+ * `10월 13일 월요일` — 대시보드 인사 줄. **기기 시계의 날짜가 아니라 서울 달력**이라,
+ * 해외에서 접속한 담당자도 병원의 오늘을 본다 (숫자 카드의 `오늘` 과 같은 기준).
+ */
+export function formatTodayLong(now: Date): string {
+  const parts = dateParts(TODAY_LONG_FORMAT, now.toISOString());
+
+  return parts ? `${parts.month} ${parts.day}일 ${parts.weekday}` : '';
+}

@@ -13,6 +13,7 @@ import {
   writeTokens,
 } from '@/lib/authTokens';
 import { clearCollection } from '@/lib/localCollection';
+import { useAdminHospitalStore } from '@/store/useAdminHospitalStore';
 import type { User } from '@/types/domain';
 
 /**
@@ -81,6 +82,10 @@ function toErrorInfo(error: unknown): AuthErrorInfo {
  */
 function clearAccountScopedState(): void {
   clearCollection('favoriteHospitalIds');
+
+  // 관리자 화면이 고른 담당 병원도 계정에 딸린 선택이다. 남겨 두면 다음 계정이 앞 계정의
+  // 선택을 물려받는다 (담당 병원 밖이면 읽는 쪽이 버리지만, 겹치는 담당자끼리는 그대로 보인다).
+  useAdminHospitalStore.getState().clear();
 
   // 계정별·역할별 서버 상태의 잔상도 유출이다 (`docs/api/README.md` §1).
   queryClient.clear();

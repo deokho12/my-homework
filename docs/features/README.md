@@ -60,7 +60,8 @@
 
 | 화면 | 주소 | 문서 |
 |---|---|---|
-| 관리자 홈 (병원 목록) | `/admin` | [admin-home.md](admin-home.md) |
+| **공통 레이아웃** (사이드 메뉴 + 상단바) | 관리자 화면 전부 | [admin-shell.md](admin-shell.md) |
+| 관리자 홈 (대시보드 / 병원 목록) | `/admin` | [admin-home.md](admin-home.md) |
 | 병원 등록 | `/admin/hospital/new` | [admin-hospital-new.md](admin-hospital-new.md) |
 | 병원 정보 수정 | `/admin/hospital/:id` | [admin-hospital-edit.md](admin-hospital-edit.md) |
 | 전문의 인증 검수 | `/admin/specialists` | [admin-specialists.md](admin-specialists.md) |
