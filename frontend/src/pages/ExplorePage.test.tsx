@@ -304,6 +304,30 @@ describe('ExplorePage', () => {
     expect(fetchProceduresSpy).not.toHaveBeenCalled();
   });
 
+  /**
+   * 홈 배너 "전문의가 검증된 병원만 모았어요" 가 보내는 딥링크. 칩을 직접 켠 것과
+   * **같은 요청**이 나가야 배너가 약속한 목록이 나온다.
+   */
+  it('/explore?specialist=1 은 전문의 칩이 켜진 채로 열린다', async () => {
+    const fetchHospitalsSpy = vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(pagedHospitals([baseHospital()]));
+
+    renderWithProviders(<ExplorePage />, { route: '/explore?specialist=1' });
+
+    await waitFor(() => expect(screen.getByText(/총 \d+곳/)).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: '전문의' })).toHaveAttribute('aria-pressed', 'true');
+    expect(fetchHospitalsSpy).toHaveBeenCalledWith(expect.objectContaining({ hasVerifiedSpecialist: true }));
+  });
+
+  it('모르는 specialist 값은 조용히 무시하고 꺼진 상태로 연다', async () => {
+    const fetchHospitalsSpy = vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(pagedHospitals([baseHospital()]));
+
+    renderWithProviders(<ExplorePage />, { route: '/explore?specialist=yes' });
+
+    await waitFor(() => expect(screen.getByText(/총 \d+곳/)).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: '전문의' })).toHaveAttribute('aria-pressed', 'false');
+    expect(fetchHospitalsSpy.mock.calls.at(-1)?.[0]?.hasVerifiedSpecialist).toBeUndefined();
+  });
+
   /** 옛 시술 id 북마크(`?category=crown`)는 그 시술이 속한 대분류 화면이 된다. */
   it('/explore?category=crown 은 "충치치료" 탭으로 열린다', async () => {
     vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(

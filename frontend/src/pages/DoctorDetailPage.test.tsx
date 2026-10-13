@@ -124,4 +124,37 @@ describe('DoctorDetailPage', () => {
     expect(screen.getByText('상담 신청')).toBeInTheDocument();
     expect(screen.queryByText('상담 마감')).not.toBeInTheDocument();
   });
+
+  /**
+   * 인증 배지 판정은 서버 `doctor/specialty-badge.ts` 의 `hasSpecialistBadge` 한 곳에 있다
+   * (`verificationStatus === 'approved'` AND 일반의가 아님 AND 전공 일치). 화면은
+   * `isVerifiedSpecialist` 를 **읽기만** 한다 — 여기서 다시 판정하면 같은 규칙이 두 곳에 생긴다.
+   */
+  describe('전문의 인증 배지', () => {
+    const NOTICE = '몰라몰라가 자격증을 확인한 의료진에게만 인증 배지가 붙어요';
+
+    it('승인된 전문의에게는 배지와 안내 문구가 함께 보인다', async () => {
+      vi.spyOn(doctorApi, 'fetchDoctorById').mockResolvedValue(baseDoctor({ isVerifiedSpecialist: true }));
+      vi.spyOn(hospitalApi, 'fetchHospitalById').mockResolvedValue(baseHospital());
+
+      renderWithProviders(<DoctorDetailPage />, { route: '/doctor/d1', path: '/doctor/:id' });
+
+      await waitFor(() => expect(screen.getByText('김민준 대표원장')).toBeInTheDocument());
+      expect(screen.getByText('전문의 인증')).toBeInTheDocument();
+      expect(screen.getByText(NOTICE)).toBeInTheDocument();
+    });
+
+    it('승인되지 않은 전문의에게는 배지도 안내 문구도 없다', async () => {
+      vi.spyOn(doctorApi, 'fetchDoctorById').mockResolvedValue(
+        baseDoctor({ isVerifiedSpecialist: false, verificationStatus: 'pending', visibleSpecialty: null })
+      );
+      vi.spyOn(hospitalApi, 'fetchHospitalById').mockResolvedValue(baseHospital());
+
+      renderWithProviders(<DoctorDetailPage />, { route: '/doctor/d1', path: '/doctor/:id' });
+
+      await waitFor(() => expect(screen.getByText('김민준 대표원장')).toBeInTheDocument());
+      expect(screen.queryByText('전문의 인증')).not.toBeInTheDocument();
+      expect(screen.queryByText(NOTICE)).not.toBeInTheDocument();
+    });
+  });
 });

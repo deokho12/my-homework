@@ -56,7 +56,11 @@ export default function DoctorDetailPage() {
                 <ChevronLeft size={22} color="#171717" />
               </Pressable>
 
-              <View className="mb-5 flex-row items-center gap-4">
+              {/*
+                안내 문구가 붙으면 헤더 블록의 아래 여백을 그 문구가 이어받는다
+                (배지가 없는 전문의는 안내도 없으므로 여백이 전과 같다).
+              */}
+              <View className={`${doctor.isVerifiedSpecialist ? 'mb-2' : 'mb-5'} flex-row items-center gap-4`}>
                 <StockImage
                   uri={doctor.photo}
                   alt={`${doctor.name} ${doctor.title} 프로필 사진`}
@@ -65,11 +69,21 @@ export default function DoctorDetailPage() {
                   contentFit="cover"
                 />
                 <View className="flex-1">
-                  <View className="mb-1 flex-row items-center gap-1.5">
-                    <Text className="text-xl font-extrabold text-neutral-900">
+                  {/*
+                    좁은 화면(360px)에서는 배지가 다음 줄로 내려간다 — 이름이 `대표원` / `장` 으로
+                    쪼개지는 것보다 낫다. `break-keep` 은 한글 낱말 중간에서 끊지 않게 한다.
+                  */}
+                  <View className="mb-1 flex-row flex-wrap items-center gap-x-1.5 gap-y-1">
+                    <Text className="break-keep text-xl font-extrabold text-neutral-900">
                       {doctor.name} {doctor.title}
                     </Text>
-                    {doctor.isVerifiedSpecialist ? <Badge label="전문의" tone="brand" /> : null}
+                    {/*
+                      판정은 서버 `doctor/specialty-badge.ts` 한 곳에 있다 — 화면은 읽기만 한다.
+                      탐색 카드의 배지는 `전문의` 그대로다(조건 칩 이름과 같은 낱말이어야
+                      "칩으로 걸러낸 것"과 "배지가 붙은 것"이 이어진다). 여기만 뜻을 설명할
+                      한 줄이 함께 있어 `전문의 인증` 이라고 쓴다.
+                    */}
+                    {doctor.isVerifiedSpecialist ? <Badge label="전문의 인증" tone="brand" /> : null}
                   </View>
                   {doctor.visibleSpecialty ? (
                     <Text className="mb-1 text-sm font-semibold text-brand-700">{doctor.visibleSpecialty}</Text>
@@ -81,6 +95,16 @@ export default function DoctorDetailPage() {
                   </View>
                 </View>
               </View>
+
+              {/*
+                사진+정보 가로 블록 **아래** 전체 폭 한 줄. 정보 칸(`flex-1`) 안에 넣으면
+                360px 에서 한 문장이 세 줄로 쪼개져 사진 옆에 글자 기둥이 선다.
+              */}
+              {doctor.isVerifiedSpecialist ? (
+                <Text className="mb-5 text-xs text-neutral-500">
+                  몰라몰라가 자격증을 확인한 의료진에게만 인증 배지가 붙어요
+                </Text>
+              ) : null}
 
               <Text className="mb-2 text-base font-bold text-neutral-900">주요 진료 분야</Text>
               <View className="mb-5 flex-row flex-wrap gap-1.5">

@@ -282,6 +282,8 @@ export default function ExplorePage() {
                           key={hospital.id}
                           hospital={hospital}
                           activeCategory={selectedCategory !== 'recommended' ? selectedCategory : undefined}
+                          // 허용했을 때만 좌표가 넘어간다 — 카드는 `null` 이면 거리를 그리지 않는다.
+                          userPoint={userLocation.point}
                         />
                       ))}
                     </CardGrid>

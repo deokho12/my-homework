@@ -88,8 +88,15 @@ export function HospitalMapView({
               <Text className="mb-1 text-xs text-neutral-500" numberOfLines={1}>
                 {/* 시술이 없거나(`procedureIds: []`) taxonomy 가 모르는 id 면 이름 자리를 비운다. */}
                 {selected.procedureIds[0] ? displayNameForLegacy(selected.procedureIds[0]) : null}
-                {selected.distanceKm !== undefined ? ` · ${formatDistance(selected.distanceKm)}` : ''} · 후기{' '}
-                {selected.reviewCount}
+                {/*
+                  위치를 허용하지 않았으면 거리를 **빼고** 보여준다. 서버가 준 `distanceKm` 은
+                  지도 중심(= 서울시청 폴백) 기준이라, 부산 사용자에게 "0.9km" 라고 적게 된다.
+                  중심이 가짜라는 사실은 반경 칩 위 안내가 이미 말하고 있다.
+                */}
+                {locationStatus === 'granted' && selected.distanceKm !== undefined
+                  ? ` · ${formatDistance(selected.distanceKm)}`
+                  : ''}{' '}
+                · 후기 {selected.reviewCount}
               </Text>
             </View>
             <Pressable

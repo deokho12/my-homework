@@ -48,9 +48,9 @@ describe('HospitalCard — 찜하기', () => {
 
     renderWithProviders(<HospitalCard hospital={hospital} />);
 
-    await userEvent.click(await screen.findByText('🤍'));
+    await userEvent.click(await screen.findByRole('button', { name: `${hospital.name} 찜하기` }));
 
-    await waitFor(() => expect(screen.getByText('❤️')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('button', { name: `${hospital.name} 찜 해제` })).toBeInTheDocument());
     expect((await fetchMyFavorites()).hospitalIds).toEqual([hospital.id]);
   });
 
@@ -60,12 +60,14 @@ describe('HospitalCard — 찜하기', () => {
 
     renderWithProviders(<HospitalCard hospital={hospital} />);
 
-    await userEvent.click(await screen.findByText('🤍'));
-    await waitFor(() => expect(screen.getByText('❤️')).toBeInTheDocument());
+    const heart = () => screen.getByRole('button', { name: new RegExp(`^${hospital.name} 찜`) });
 
-    await userEvent.click(screen.getByText('❤️'));
+    await userEvent.click(heart());
+    await waitFor(() => expect(heart()).toHaveAttribute('aria-pressed', 'true'));
 
-    await waitFor(() => expect(screen.getByText('🤍')).toBeInTheDocument());
+    await userEvent.click(heart());
+
+    await waitFor(() => expect(heart()).toHaveAttribute('aria-pressed', 'false'));
     expect((await fetchMyFavorites()).hospitalIds).toEqual([]);
   });
 
@@ -81,7 +83,7 @@ describe('HospitalCard — 찜하기', () => {
       </>
     );
 
-    await userEvent.click(await screen.findByText('🤍'));
+    await userEvent.click(await screen.findByRole('button', { name: `${hospital.name} 찜하기` }));
 
     // 클릭이 만든 이동·재렌더가 끝난 뒤에 단언한다. 곧바로 단언하면 `act(...)` 경고가 나고,
     // "아직 저장되지 않았다" 를 우연히 통과할 수도 있다.

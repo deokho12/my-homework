@@ -404,7 +404,7 @@ describe('MyPage — 찜 탭', () => {
     await waitFor(() => expect(tab(/찜/)).toHaveTextContent('찜 1'));
     expect(await screen.findByText('A치과의원')).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole('button', { name: '❤️' }));
+    await userEvent.click(screen.getByRole('button', { name: 'A치과의원 찜 해제' }));
 
     await waitFor(() => expect(screen.queryByText('A치과의원')).not.toBeInTheDocument());
     expect(tab(/찜/)).toHaveTextContent('찜 0');

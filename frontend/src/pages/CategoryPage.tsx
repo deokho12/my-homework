@@ -19,6 +19,7 @@ import {
   type ExploreSortKey,
 } from '@/features/hospital/hooks/useExploreFilters';
 import { SubProcedureChips } from '@/features/procedure/components/SubProcedureChips';
+import { useUserLocation } from '@/hooks/useUserLocation';
 import {
   getCategory,
   getSubProcedure,
@@ -70,6 +71,9 @@ function CategoryView({ categoryId, sub }: { categoryId: CategoryId; sub?: strin
 
   const category = getCategory(categoryId);
   const Icon = CATEGORY_ICONS[categoryId];
+  // 카드가 거리를 보여주므로 화면에 들어올 때 위치를 묻는다(탐색 화면과 같은 시점).
+  // 거부·실패면 `point` 가 `null` 이고 카드는 지역명만 보여준다.
+  const userLocation = useUserLocation();
 
   // 다른 대분류의 세부 시술이 `?sub=` 로 들어오면 무시한다 (`/category/implant?sub=crown`).
   const requestedSub =
@@ -181,7 +185,12 @@ function CategoryView({ categoryId, sub }: { categoryId: CategoryId; sub?: strin
             />
             <CardGrid columns="wide">
               {page.items.map((hospital) => (
-                <HospitalExploreCard key={hospital.id} hospital={hospital} activeCategory={categoryId} />
+                <HospitalExploreCard
+                  key={hospital.id}
+                  hospital={hospital}
+                  activeCategory={categoryId}
+                  userPoint={userLocation.point}
+                />
               ))}
             </CardGrid>
           </ScrollView>

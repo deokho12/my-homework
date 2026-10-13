@@ -92,7 +92,7 @@ export function parseExploreCategoryParam(value: string | undefined): ExploreCat
  * 클라이언트 정렬은 하지 않는다 — 서버가 스폰서 우선 노출을 이미 적용한 배열을 준다.
  */
 export function useExploreFilters() {
-  const params = useLocalSearchParams<{ mode?: string; category?: string }>();
+  const params = useLocalSearchParams<{ mode?: string; category?: string; specialist?: string }>();
 
   const [mode, setMode] = useState<ExploreMode>(params.mode === 'doctor' ? 'doctor' : 'hospital');
   const [selectedCategory, setSelectedCategory] = useState<ExploreCategory>(() =>
@@ -102,15 +102,19 @@ export function useExploreFilters() {
   const [sortBy, setSortBy] = useState<ExploreSortKey>('popular');
   const [onlyConsult, setOnlyConsult] = useState(false);
   const [onlyOneDay, setOnlyOneDay] = useState(false);
-  const [onlySpecialist, setOnlySpecialist] = useState(false);
+  // `?specialist=1` 은 홈 배너 "전문의가 검증된 병원만 모았어요" 가 쓰는 딥링크다.
+  // `mode`·`category` 와 같은 규약 — 마운트 때 한 번만 읽고, 그 뒤 칩을 끄거나 켜도 주소는
+  // 다시 쓰지 않는다. 모르는 값(`?specialist=yes`)은 조용히 꺼진 상태로 연다.
+  const [onlySpecialist, setOnlySpecialist] = useState(params.specialist === '1');
   const [onlyNightConsult, setOnlyNightConsult] = useState(false);
   const [onlyExperienced, setOnlyExperienced] = useState(false);
   const [radiusKm, setRadiusKm] = useState(DEFAULT_RADIUS_KM);
 
   const isMapView = mode === 'hospital' && hospitalView === 'map';
-  // 지도 보기로 전환할 때만 위치 권한을 요청한다 — 리스트 보기에서부터 물으면
-  // 화면을 열자마자 권한 프롬프트가 뜬다(예전 동작은 지도 컴포넌트가 그때만 마운트됐다).
-  const userLocation = useUserLocation(isMapView);
+  // 목록 카드가 거리를 보여주므로 리스트 보기에서도 좌표가 필요하다 — 권한 창은 탐색·카테고리
+  // 두 화면에서만 뜬다(홈·검색·상세는 이 훅을 부르지 않는다). 거부해도 화면은 지역명만 보이고
+  // 지도는 서울시청 폴백으로 그려진다.
+  const userLocation = useUserLocation();
 
   const sort = SORT_TO_SERVER[sortBy];
 

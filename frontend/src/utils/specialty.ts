@@ -26,7 +26,11 @@ export const CATEGORY_SPECIALTIES: Record<CategoryId, readonly DentalSpecialty[]
   extraction: ['구강악안면외과전문의'],
 };
 
-/** 병원·전문의 카드가 "OO전문의 상주" 배지를 강조할지 정하는 유일한 판정. */
+/**
+ * 병원 카드(탐색·카테고리)가 "OO전문의 상주" 배지를 **강조할지** 정하는 유일한 판정.
+ * 배지를 붙일지 말지는 서버가 준 `representativeSpecialty` 가 정한다 — 전문의 카드는
+ * 이 함수를 쓰지 않는다(그 쪽 배지는 서버 `isVerifiedSpecialist` 하나로 갈린다).
+ */
 export function isSpecialtyForCategory(categoryId: CategoryId, specialty: DentalSpecialty): boolean {
   return CATEGORY_SPECIALTIES[categoryId].includes(specialty);
 }

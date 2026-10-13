@@ -412,12 +412,10 @@
 - **뒤로 가기 버튼이 두 개** — 전문의 상세, 시술 꿀팁 상세에서 화면 상단 헤더의 `‹` 와 화면 안 동그란 버튼이 같이 나옵니다. 두 화면의 헤더 제목도 항상 비어 있습니다
 - **이벤트 화면에서 두 번째 줄 카드가 붙습니다** — 카드 사이 위아래 여백이 없습니다
 - **커뮤니티 조회수가 방문마다 올라갑니다** — 같은 사람이 다시 봐도 계속 증가해서 실제 조회 수와 무관합니다
-- **홈 배너를 눌러도 반응이 없습니다** — 링크가 없는 것이 현재 정상 동작입니다. 자동 넘김도 없습니다
 - **광고 노출 기간이 2026년 7~9월로 고정** — 그 기간이 지나면 `광고` 배지와 상단 노출이 조용히 사라집니다
 - **`주요 진료 분야` 가 비면 제목만 남습니다** — 전문의 상세에서, 다른 영역들은 `등록된 ... 없어요` 안내가 있는데 이 영역만 없습니다
 - **앱 다운로드 QR과 스토어 주소가 비어 있습니다** — 홈 화면 하단. 회색 `QR` 상자만 나옵니다
 - **회사 정보가 전부 임시 값입니다** — 대표 `홍길동`, 개인정보관리책임자 `김보안` 등. `frontend/src/mocks/fixtures/placeholder-company-info.ts` 의 값을 바꾸면 홈 화면 하단에 반영됩니다
-- **찜 하트 버튼에 이름이 없습니다** — 병원 카드·병원 상세의 ❤️/🤍 는 그림 글자뿐이라 화면 낭독기가 "찜하기"인지 알 수 없게 읽습니다 (`HospitalCard.tsx`, `HospitalDetailView.tsx`). 2026-10-12 마이페이지 QA 에서 발견한 기존 문제입니다
 - **마이페이지의 `준비중` 메뉴 글자가 매우 흐립니다** — `알림 설정`·`회원정보 수정` 은 누를 수 없는 줄이라 일부러 옅게 칠했지만, 흰 바탕 대비가 낮아 눈이 불편한 분께는 잘 안 보일 수 있습니다. 오른쪽 `준비중` 배지로 상태는 전달됩니다
 
 ---
@@ -436,6 +434,8 @@
 - **문의 행에도 로컬 전용 필드가 셋 있습니다** — `lib/localCollection.ts` 의 `StoredHospitalInquiry.ownerUserId`·`askerDisplayName`·`hospitalName`. 전부 서버라면 토큰·조인으로 얻는 값이고 응답 투영에서 떼거나 마스킹해서 내보냅니다. 서버 전환 시 `currentUser()` 헬퍼와 함께 지웁니다
 - **공개 판정과 상태 판정은 순수 함수 두 개입니다** — `features/inquiry/inquiryVisibility.ts`. 계약(`docs/api/README.md` §14)이 서버에도 같은 모양(`hospital/inquiry-visibility.ts`)을 요구합니다. **백엔드가 이 둘을 각자 구현하면 비공개 문의가 공개 목록에 뜰 수 있습니다** — 규칙 문장을 그대로 옮겨 주세요
 - **이름 마스킹 함수는 `frontend/src/utils/pii.ts` 하나입니다** — 지금은 문의 api 만 부릅니다. 상담의 `operator` 마스킹은 서버 몫이라 로컬에 구현이 없고, 서버가 생기면 둘 다 서버가 합니다
+- **목록 카드의 거리는 지금 화면이 계산합니다** — 서버 `GET /hospitals` 는 `latitude`+`longitude`+`radiusKm` **셋이 다 있을 때만** `distanceKm` 을 줍니다(= 지도 모드). 목록 모드는 반경 필터가 없어 위치를 보내지 않으므로, `HospitalExploreCard` 가 `frontend/src/utils/geo.ts` 의 `distanceKm`(서버 `backend/src/hospital/distance.ts` 의 `haversineKm` 과 같은 식, 같은 클램프)으로 직접 계산합니다. `frontend/src/utils/geo.test.ts` 가 서버 함수로 뽑은 숫자 리터럴과의 일치를 고정합니다. **서버가 반경 없이 좌표만 받아도 `distanceKm` 을 내려주게 되면** 카드의 `hospital.distanceKm ?? (…계산…)` 에서 오른쪽을 지우고 일치 테스트만 남기면 됩니다
+- **카드 안의 `상담신청` 은 아직 중첩 버튼입니다** — 찜 하트는 2026-10-13 작업에서 카드 본문(`Pressable`)의 **형제**로 꺼냈지만(`HospitalExploreCard`·`HospitalCard`), `상담신청` 버튼은 여전히 카드 `Pressable` 안의 `Pressable` 입니다. 낭독기가 중첩 버튼을 제대로 읽지 못하고 클릭이 부모로 버블링되는 같은 문제라, 카드 레이아웃을 손댈 때 함께 꺼내는 편이 좋습니다(`event.stopPropagation()` 으로 막고 있어 **누를 수 있는** `상담신청` 은 문제가 없습니다). 다만 회색 `상담 마감` 은 비활성이라 그 막는 코드가 돌지 않아, **누르면 클릭이 카드로 올라가 병원 상세로 넘어갑니다**(상담 신청은 열리지 않습니다 — QA 2026-10-13 확인, 그 전부터 있던 동작)
 - **`RouterBridge` 가 렌더 중 모듈 변수 대입** — `navigation/index.tsx:57`. 의도된 shim 이지만 React 19 동시성 렌더에서 위험한 패턴입니다
 - **`HospitalForm` 이 React Hook Form 을 쓰지 않습니다** — `frontend/CLAUDE.md` 는 폼 상태를 RHF 로 관리하라고 규정하지만 `components/admin/HospitalForm.tsx`(600여 줄)는 여전히 `useState` 를 씁니다. 주소 검색 연동 + 동적 전문의 로스터 편집이 얽힌 폼이라, 목 제거가 목적이었던 지난 작업 범위에서 RHF 이관은 의도적으로 미뤘습니다(회귀 위험). 코드 동작에는 영향이 없지만 조용히 넘어가지 않도록 여기 기록해 둡니다
 - **관리자 문의의 답변칸도 RHF 가 아닙니다** — `features/inquiry/components/AdminInquiryDetail.tsx` 는 답변 초안을 페이지(`AdminInquiriesPage`)의 `useState` 로 들고 내려줍니다. 초안이 **목록↔상세 전환(CSS 로만 가리는 구조)과 선택 변경 확인창**보다 오래 살아야 해서 폼 바깥에 둔 것이고, 검사 자체는 사용자 문의 폼과 같은 zod 스키마(`inquiryAnswerSchema`)가 합니다. 사용자 쪽 문의 폼(`InquiryForm`)은 규정대로 RHF 를 씁니다

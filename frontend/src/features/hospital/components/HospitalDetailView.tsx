@@ -12,7 +12,7 @@ import { PrimaryButton } from '@/components/PrimaryButton';
 import { QueryState } from '@/components/QueryState';
 import { StockImage } from '@/components/StockImage';
 import { useHospitalDoctors } from '@/features/doctor';
-import { useIsFavorite, useToggleFavorite } from '@/features/favorite';
+import { FavoriteHeartButton } from '@/features/favorite';
 import { HospitalInquirySection } from '@/features/inquiry';
 import { groupLegacyIdsByCategory } from '@/features/procedure';
 import { useHospitalReviews } from '@/features/review';
@@ -83,8 +83,6 @@ export function HospitalDetailView({ hospital }: { hospital: Hospital }) {
   const reviewsQuery = useHospitalReviews(hospital.id);
   const procedureGroups = groupLegacyIdsByCategory(hospital.procedureIds);
   const promotion = getPromotionByHospital(hospital.id);
-  const isFavorite = useIsFavorite(hospital.id);
-  const toggleFavorite = useToggleFavorite();
   const requireAuth = useRequireAuth();
 
   const [hoursExpanded, setHoursExpanded] = useState(false);
@@ -460,12 +458,7 @@ export function HospitalDetailView({ hospital }: { hospital: Hospital }) {
 
       <SafeAreaView edges={['bottom']} className={cx(CONTAINER_PADDING, 'border-t border-neutral-100 bg-white pt-3')}>
         <View className="flex-row items-center gap-2 pb-3">
-          <Pressable
-            onPress={() => requireAuth(() => toggleFavorite.mutate({ hospitalId: hospital.id, isFavorite }))}
-            className="h-14 w-14 items-center justify-center rounded-xl border border-neutral-200"
-          >
-            <Text className="text-xl">{isFavorite ? '❤️' : '🤍'}</Text>
-          </Pressable>
+          <FavoriteHeartButton hospitalId={hospital.id} hospitalName={hospital.name} size="bar" />
           <View className="flex-1">
             <PrimaryButton
               label={hospital.consultAvailable ? '병원 상담신청' : '상담 마감'}
