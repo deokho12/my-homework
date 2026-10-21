@@ -58,8 +58,8 @@ Git Bash 에서 `export PATH="$PATH:/c/Program Files/nodejs"` 를 먼저 실행�
 | `npm start` | `node dist/main.js` |
 | `npm run typecheck` | 서버 코드 + 시드 스크립트 두 tsconfig 를 모두 검사 |
 | `npm run lint` | ESLint (flat config, typescript-eslint) |
-| `npm run test` | Vitest watch |
-| `npm run test:run` | Vitest 1회 실행 (CI 게이트) |
+| `npm run test` | Vitest watch (시작할 때 테스트 DB 를 한 번 다시 만듭니다) |
+| `npm run test:run` | Vitest 1회 실행 (CI 게이트). **전용 DB `prisma/test.db` 를 새로 만들어 씁니다** |
 | `npm run prisma:migrate` | `prisma migrate dev` |
 | `npm run prisma:deploy` | `prisma migrate deploy` (운영/CI) |
 | `npm run prisma:seed` | 시드 (idempotent — 여러 번 돌려도 안전) |
@@ -70,12 +70,26 @@ Git Bash 에서 `export PATH="$PATH:/c/Program Files/nodejs"` 를 먼저 실행�
 | `npm run tokens:cleanup` | `refresh_tokens` 만료·소비 행 정리 (수동 수단. 주 수단은 스케줄) |
 | `npm run verify:guards` | 인가 수동 확인용 서버 (테스트 전용 보호 라우트 포함, 포트 3100) |
 
-`npm run test:run` 은 **`.env` 의 DATABASE_URL(개발용 SQLite)을 그대로 씁니다.**
-그래서 테스트 전에 `prisma:migrate` + `prisma:seed` 가 되어 있어야 합니다.
-시드 데이터(병원·전문의·상담…)는 읽기만 하고, 쓰는 것은 자기가 만든 행뿐입니다 —
-`refresh_tokens`, `audit_logs`, 그리고 CLI 테스트가 만드는 임시 계정입니다.
-(CLI 테스트는 시드 계정의 역할을 잠시 바꿨다가 되돌립니다. 중간에 끊기면
-`npm run prisma:seed` 로 역할 분포를 원복하세요.)
+### 테스트는 전용 DB 를 씁니다 — 개발 DB 를 건드리지 않습니다
+
+`npm run test:run` 은 **`.env` 의 DATABASE_URL 을 쓰지 않습니다.** 테스트 프로세스의
+주소는 `TEST_DATABASE_URL` 이 있으면 그 값, 없으면 `file:./test.db`(= `prisma/test.db`)
+입니다 (docs/database/README.md §8.7). 그 값이 `dev.db` 를 가리키면 테스트는 시작하지
+않고 중단합니다.
+
+- **실행 시작마다 다시 만듭니다** — `prisma/test.db` 삭제 → `prisma migrate deploy` →
+  시드(`SEED_TODAY` = 오늘). `test/global-setup.ts` 가 합니다. 그래서 테스트 전에
+  마이그레이션·시드를 손으로 돌릴 필요가 없고, 매번 같은 상태에서 출발합니다
+- `npm test`(watch)는 **세션당 한 번만** 다시 만듭니다 (파일을 고칠 때마다가 아닙니다)
+- **끝난 뒤 지우지 않습니다.** 실패를 조사할 때 Prisma Studio 로 열어 보세요:
+  `DATABASE_URL="file:./test.db" npx prisma studio`
+- 그래서 개발 중에 화면에서 가입해 본 계정이 테스트를 빨갛게 만들지 않고, 반대로
+  테스트가 개발 DB 에 `refresh_tokens`·`audit_logs` 행을 남기거나(CLI 테스트는 계정의
+  역할을 잠시 바꿉니다) 하지도 않습니다. "테스트 전에 dev.db 를 백업한다" 는 절차는
+  더 이상 필요 없습니다
+- `.env` 는 여전히 읽습니다 — `SEED_PASSWORD` 와 JWT 키가 거기 있습니다. dotenv 는
+  이미 있는 값을 덮지 않으므로 테스트가 먼저 넣은 DATABASE_URL 이 이깁니다
+- 자식 프로세스를 띄우는 테스트(운영자 CLI)도 부모 환경을 물려받아 같은 파일을 봅니다
 
 ---
 
@@ -114,9 +128,11 @@ backend/
 │   ├── seed.ts                # fixture → DB (idempotent, upsert)
 │   ├── seed/
 │   │   ├── accounts.ts        # 개발용 계정 정의 + bcrypt
-│   │   ├── dates.ts           # SEED_TODAY 기준 날짜 정책
+│   │   ├── dates.ts           # SEED_TODAY 기준 날짜 정책 (SeedClock — 순수 함수)
 │   │   └── fixtures.ts        # frontend fixture import 창구 (유일)
-│   └── tsconfig.seed.json     # 시드 전용 (@/* → frontend/src/*)
+│   ├── tsconfig.seed.json     # 시드 전용 (@/* → frontend/src/*)
+│   ├── dev.db                 # 개발용 SQLite (gitignore)
+│   └── test.db                # 테스트 전용 SQLite — 매 실행마다 재생성 (gitignore)
 ├── prisma.config.ts           # Prisma CLI 설정 (seed 명령, .env 로드)
 ├── src/
 │   ├── main.ts                # 부트스트랩
@@ -140,9 +156,11 @@ backend/
 │   │   └── tokens-cleanup.ts  # refresh_tokens 수동 정리 CLI
 │   ├── prisma/                # PrismaService (전역 모듈, lifecycle hook)
 │   └── health/                # GET /health
-└── test/                      # 26 파일 / 289 테스트 (auth·인가 기반 + 병원·전문의 도메인)
+└── test/                      # 29 파일 / 317 테스트 (auth·인가 기반 + 병원·전문의 도메인)
+    ├── global-setup.ts               # ★ test.db 삭제 → migrate deploy → 시드 (실행마다 1회)
     ├── support/
     │   ├── app.ts                   # 테스트 앱 + 시드 계정 로그인 헬퍼
+    │   ├── test-database.ts          # 테스트 DB 주소 규칙 (dev.db 면 중단)
     │   ├── guard-test.module.ts      # ★ 인가 테스트 전용 보호 라우트 (src 에 두지 않습니다)
     │   └── guard-test-server.ts      # `npm run verify:guards` 의 진입점 (curl 확인용)
     ├── authorization.e2e.spec.ts     # 401/403/404 인가 행렬
@@ -330,6 +348,18 @@ npm run operator:revoke -- someone@example.com --actor=me@molarmolar.example --f
   `422 REQUIRED` 입니다 — 등록 폼이 플레이스홀더를 채워 보내(`HospitalForm.tsx`) 화면에서는
   드러나지 않습니다. ② 신규 전문의의 `photo` 가 빈 문자열이 됩니다(`doctor.write.ts`).
   폼에 사진 칸이 없어 항상 빈 값이고 화면은 `StockImage` 폴백으로 버팁니다
+- **미래 `SEED_TODAY` 로 돌리면 테스트 1건이 실패합니다** — `SEED_TODAY=2027-03-01
+  npm run test:run` 은 316/317 입니다. 실패하는 것은
+  `test/signup-agreements.e2e.spec.ts` 의 "약관 3종이 유효한 상태" 로,
+  `legal_documents.effective_at` 이 `SEED_TODAY - 1일`(= 미래)이 되어 **실제 시계로는
+  아직 시행 전**이기 때문입니다. 테스트의 결함이 아니라 사실입니다 — 그 DB 로 서버를
+  띄우면 화면에서도 약관이 비어 보입니다. 그래서 `SEED_TODAY` 를 기준으로 느슨하게
+  고치지 않았습니다(그러면 "지금 유효한 버전이 있다" 는 보장이 사라집니다).
+  과거·오늘 날짜로 돌리면 전부 통과합니다
+- **`test/seed-dates.spec.ts` 가 광고 창 4개를 리터럴로 들고 있습니다** —
+  `prisma/seed/data/hospitals.ts` 는 `@/config/stockImages` 별칭을 쓰고 그 별칭은 시드
+  전용 tsconfig 에만 있어서, vitest 에서 import 할 수 없습니다. 값이 갈라지면
+  `test/seed-data.spec.ts` 가 실제 DB 행(5행이 전부 기준일을 포함)으로 잡습니다
 
 ### 다음 조각
 
@@ -365,11 +395,32 @@ npm run operator:revoke -- someone@example.com --actor=me@molarmolar.example --f
 
 ## 시드 날짜 정책 (QA 가 알아야 하는 부분)
 
-- 상담 7건은 **`SEED_TODAY` 기준 상대 오프셋**으로 들어갑니다. 고정 날짜를 쓰면
-  `/admin` 의 '이번 달 신규 상담' 이 항상 0 이 되기 때문입니다.
-- 프로모션 4건은 `SEED_TODAY` 를 감싸는 기간이라 항상 '진행중' 입니다.
-  기간 만료 UI 를 보려면 `p3` 의 `end_date` 를 과거로 바꾸세요.
-- 재현이 필요하면 `.env` 에 `SEED_TODAY=2026-08-12` 처럼 고정하세요.
-- 후기·꿀팁·커뮤니티·전체 공지 알림은 fixture 날짜 그대로입니다.
+규칙은 **하나**입니다 — fixture 의 모든 날짜를 **기준일 하나로 통째로 밉니다**
+(docs/database/README.md §8.5).
 
-자세한 규칙과 근거는 `prisma/seed/dates.ts` 주석에 있습니다.
+```
+FIXTURE_TODAY = 2026-07-30            목 데이터의 "오늘"
+SEED_TODAY    = env SEED_TODAY 또는 시드 실행 시각의 UTC 날짜
+shift         = SEED_TODAY - FIXTURE_TODAY        (시드 배너에 `shift=+83일` 처럼 찍힙니다)
+```
+
+- **상담·후기·꿀팁·커뮤니티·알림·광고 기간이 전부 같은 양만큼** 움직입니다. 간격과
+  순서가 원본 그대로라 "상담보다 먼저 도착한 상담 알림" 같은 역전이 생기지 않습니다.
+- **광고(`hospital_sponsorships`) 기간도 밀립니다.** 예전에는 fixture 날짜를 그대로
+  넣어서 2026-09-15 에 광고 5건이 전부 만료됐고, 탐색 화면의 스폰서 배치가 사라지고
+  테스트가 빨개졌습니다. fixture 창 4개가 모두 `FIXTURE_TODAY` 를 품고 있으므로 민
+  뒤에도 반드시 기준일을 품습니다 — 시드는 그것을 확인하고, 아니면 중단합니다.
+- **`SEED_TODAY=2026-07-30` 으로 시드하면 shift = 0** 이라 fixture 원본이 그대로
+  들어갑니다 (화면 문서의 날짜를 그대로 재현해야 할 때).
+- fixture 에 **날짜가 없는 것**(프로모션 기간 4건, 전문의 검수 시각, 약관 시행일)만
+  `SEED_TODAY` 기준 오프셋으로 **만들어 줍니다** (§8.4). 프로모션 4건은 기준일을
+  감싸므로 항상 '진행중' 입니다 — 만료 UI 를 보려면 `p3` 의 `end_date` 를 과거로
+  바꾸고, 되돌리려면 시드를 다시 돌리세요(idempotent).
+- **'이번 달' 숫자는 `SEED_TODAY` 의 일(日)에 달려 있습니다.** 가장 최근 상담이
+  기준일 하루 전이므로, 매월 1일에 시드하면 `/admin` 의 '이번 달 신규 상담' 이 0 입니다.
+  대시보드 숫자를 보려면 `SEED_TODAY` 를 그 달 중순 이후로 고정해서 시드하세요.
+  (테스트는 그래서 달력 월이 아니라 "최근 3일 안에 상담이 있다" 로 단정합니다.)
+- 재현이 필요하면 `.env` 에 `SEED_TODAY=2026-08-12` 처럼 고정하세요.
+
+자세한 규칙과 근거는 `prisma/seed/dates.ts` 주석에, 경계값은
+`test/seed-dates.spec.ts`(DB 없는 순수 단위 테스트)에 있습니다.

@@ -2,25 +2,38 @@
  * 시드의 날짜 정책. **한 곳에 모아 둔다** — 두 방식이 섞이면 나중에 아무도
  * 어느 쪽이 의도였는지 알 수 없다 (docs/database/README.md §8.5 의 경고).
  *
- * 정책 (선택한 것)
+ * 규칙은 하나다 — **기준일 하나로 통째로 민다** (docs §8.5)
  * ---------------------------------------------------------------------------
- * 1. **상담 7건은 `SEED_TODAY` 기준 상대 오프셋**으로 넣는다 (docs §8.5 표 그대로).
- *    fixture 의 2026-06~07 고정 날짜를 그대로 넣으면 `/admin` 의
- *    '이번 달 신규 상담' 이 언제 시드해도 0 이 되기 때문이다.
- * 2. 상담의 **상태 변경 이력·메모**, 그리고 그 상담을 가리키는 **알림**은
- *    같은 상담의 delta 만큼 함께 밀어서 원본의 상대 간격을 보존한다.
- *    (알림이 상담보다 먼저 생긴 데이터가 되면 안 된다)
- * 3. **프로모션 4건**은 `SEED_TODAY` 를 감싸는 기간을 부여한다 (docs §8.4).
- * 4. 그 밖의 콘텐츠(후기·꿀팁·커뮤니티, 전체 공지 알림)는 **fixture 날짜를 그대로**
- *    쓴다. 날짜만 있는 값(`'2026-06-02'`)은 `T00:00:00.000Z` 로 승격한다 (docs §3.7).
+ *   FIXTURE_TODAY = 2026-07-30            목 데이터의 "오늘" (consultRequests.ts 주석)
+ *   SEED_TODAY    = env SEED_TODAY 또는 시드 실행 시각의 UTC 날짜
+ *   shift         = SEED_TODAY - FIXTURE_TODAY   (일 단위 정수. UTC 라 DST 가 없다)
+ *
+ *   fixture 에 있는 모든 날짜 += shift
+ *     - 시각('2026-07-28T09:15:00.000Z') → 그대로 더한다 (시:분:초 보존)  → clock.at()
+ *     - 달력일('2026-07-05')             → 더한 뒤 다시 'YYYY-MM-DD' (§3.7) → clock.day()
+ *
+ * 성질이 곧 근거다.
+ *  - 전부 같은 값을 더하므로 **샘플 사이의 간격과 순서가 원본 그대로다.** "상담보다
+ *    먼저 도착한 상담 알림" 같은 역전이 구조적으로 생기지 않는다 (예전에는 상담별
+ *    오프셋을 알림에 다시 적용하는 두 번째 규칙이 필요했다 — 그 규칙을 없앴다).
+ *  - `SEED_TODAY=2026-07-30` 이면 shift = 0 이라 **fixture 원본이 그대로** 들어간다.
+ *  - fixture 광고 창 4개가 모두 FIXTURE_TODAY 를 품고 있으므로, 민 뒤에도 반드시
+ *    SEED_TODAY 를 품는다 → **광고는 언제 시드해도 보인다** (2026-09-15 에 마지막
+ *    광고가 만료돼 테스트가 빨개진 일이 이 규칙을 만든 계기다).
+ *
+ * **fixture 에 날짜가 아예 없는 것**(프로모션 기간·전문의 검수 시각·약관 시행일)은
+ * 밀 원본이 없다. 그것만 `SEED_TODAY` 기준 오프셋을 직접 준다 — `clock.fromToday()`
+ * (docs §8.4). 두 방식이 섞인 것이 아니라 적용 대상이 다르다: 있는 날짜는 민다,
+ * 없는 날짜는 만든다.
  *
  * 모든 `DateTime` 은 UTC 다. `@default(now())` 를 쓰지 않기로 했으므로(docs §3.6)
- * 시드가 전부 명시적으로 넣는다.
+ * 시드가 전부 명시적으로 넣는다. 이 파일은 DB 도 요청도 모르는 **순수 함수**만 둔다 —
+ * 경계값(달·해·윤일)을 DB 없이 검사하기 위해서다 (`test/seed-dates.spec.ts`).
  */
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** consultRequests.ts 주석이 밝힌 목 데이터의 "오늘" (~2026-07-30). */
+/** consultRequests.ts 주석이 밝힌 목 데이터의 "오늘" (~2026-07-30). 미는 기준점이다. */
 export const FIXTURE_TODAY = '2026-07-30';
 
 /**
@@ -60,7 +73,8 @@ export function addDays(date: Date, days: number): Date {
   return new Date(date.getTime() + days * DAY_MS);
 }
 
-export function addMs(date: Date, ms: number): Date {
+/** 내부용. 밖에서 ms 를 직접 더할 일이 없다 — 미는 일은 전부 SeedClock 이 한다. */
+function addMs(date: Date, ms: number): Date {
   return new Date(date.getTime() + ms);
 }
 
@@ -79,20 +93,6 @@ export function parseFixtureDate(value: string): Date {
   return parsed;
 }
 
-/**
- * docs §8.5 의 상담별 오프셋(일). `SEED_TODAY` 에서 이만큼 뺀 날짜로 옮긴다.
- * 원본의 시각(hh:mm:ss)은 유지한다.
- */
-export const CONSULT_DAY_OFFSETS: Record<string, number> = {
-  cr1: -2,
-  cr2: -10,
-  cr3: -15,
-  cr4: -45,
-  cr5: -50,
-  cr6: -1,
-  cr7: -25,
-};
-
 /** docs §8.4 의 프로모션 기간(일). 4건 모두 SEED_TODAY 기준 '진행중' 이 된다. */
 export const PROMOTION_WINDOWS: Record<string, { start: number; end: number }> = {
   p1: { start: -30, end: 30 },
@@ -102,28 +102,36 @@ export const PROMOTION_WINDOWS: Record<string, { start: number; end: number }> =
 };
 
 /**
- * 상담 한 건의 시간 이동량을 계산한다.
+ * 시드가 쓰는 시계. 시드 전체에서 날짜를 만드는 **유일한 통로**다.
  *
- * @returns `shiftedCreatedAt` 과, 그 상담에 딸린 모든 시각에 더할 `deltaMs`
+ * - `at` / `day` — fixture 에 있는 날짜를 민다 (§8.5)
+ * - `fromToday` — fixture 에 날짜가 없어 시드가 만들어 주는 값 (§8.4)
  */
-export function consultShift(
-  consultId: string,
-  originalCreatedAt: string,
-  seedToday: Date,
-): { createdAt: Date; deltaMs: number } {
-  const original = parseFixtureDate(originalCreatedAt);
-  const offsetDays = CONSULT_DAY_OFFSETS[consultId];
+export interface SeedClock {
+  /** SEED_TODAY (UTC 자정) */
+  readonly today: Date;
+  /** SEED_TODAY - 기준일. 일 단위 정수의 ms 값이다 */
+  readonly shiftMs: number;
+  /** fixture 의 시각/날짜 → 민 Date (시:분:초 보존) */
+  at(fixtureIso: string): Date;
+  /** fixture 의 달력일 'YYYY-MM-DD' → 민 'YYYY-MM-DD' */
+  day(fixtureDay: string): string;
+  /** SEED_TODAY ± n일 */
+  fromToday(days: number): Date;
+}
 
-  if (offsetDays === undefined) {
-    // fixture 에 새 상담이 추가되면 여기서 걸린다. 조용히 원본 날짜를 쓰지 않는다.
-    throw new Error(
-      `상담 '${consultId}' 의 날짜 오프셋이 prisma/seed/dates.ts 에 없습니다. ` +
-        `docs/database/README.md §8.5 표에 맞춰 추가하세요.`,
-    );
-  }
+export function createSeedClock(seedToday: Date, anchor: string = FIXTURE_TODAY): SeedClock {
+  const today = startOfUtcDay(seedToday);
+  const shiftMs = today.getTime() - parseFixtureDate(anchor).getTime();
 
-  const timeOfDayMs = original.getTime() - startOfUtcDay(original).getTime();
-  const createdAt = addMs(addDays(seedToday, offsetDays), timeOfDayMs);
+  const at = (fixtureIso: string): Date => addMs(parseFixtureDate(fixtureIso), shiftMs);
 
-  return { createdAt, deltaMs: createdAt.getTime() - original.getTime() };
+  return {
+    today,
+    shiftMs,
+    at,
+    // day 는 at 위에 세운다 — 두 경로가 따로 계산하면 언젠가 갈라진다
+    day: (fixtureDay: string): string => toDateString(at(fixtureDay)),
+    fromToday: (days: number): Date => addDays(today, days),
+  };
 }

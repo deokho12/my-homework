@@ -42,15 +42,7 @@ import { PrismaClient } from '@prisma/client';
 
 import { hospitalAdminAccount, OPERATOR, resolvePasswordHash, userAccount } from './seed/accounts';
 import type { SeedAccount } from './seed/accounts';
-import {
-  addDays,
-  addMs,
-  consultShift,
-  parseFixtureDate,
-  PROMOTION_WINDOWS,
-  resolveSeedToday,
-  toDateString,
-} from './seed/dates';
+import { createSeedClock, PROMOTION_WINDOWS, resolveSeedToday, toDateString } from './seed/dates';
 import {
   consultRequests,
   doctors,
@@ -94,11 +86,16 @@ function dayOfWeek(label: string): number {
 
 async function main(): Promise<void> {
   const seedToday = resolveSeedToday(process.env.SEED_TODAY);
+  // fixture 날짜는 전부 이 시계를 거친다 (docs §8.5 — 기준일 하나로 통째로 민다)
+  const clock = createSeedClock(seedToday);
+  const shiftDays = Math.round(clock.shiftMs / (24 * 60 * 60 * 1000));
   const now = new Date();
   const passwordHash = await resolvePasswordHash(process.env.SEED_PASSWORD);
 
   console.log('─'.repeat(78));
-  console.log(`시드 시작  SEED_TODAY=${toDateString(seedToday)}  (실행 시각 ${now.toISOString()})`);
+  console.log(
+    `시드 시작  SEED_TODAY=${toDateString(seedToday)}  shift=${shiftDays >= 0 ? '+' : '−'}${Math.abs(shiftDays)}일  (실행 시각 ${now.toISOString()})`,
+  );
   console.log('─'.repeat(78));
 
   // ===========================================================================
@@ -270,13 +267,33 @@ async function main(): Promise<void> {
 
     // 광고 캠페인 — 광고 필드 5개를 (병원 × 시술) 행으로 푼다 (docs §5.10).
     // isSponsored=false 인 병원은 행을 만들지 않는다 (h1 이 그 대조군).
+    // 기간 두 개는 §8.5 의 이동 규칙을 거친다 — fixture 값(2026-07~09)을 그대로 넣으면
+    // 그 날이 지난 뒤 광고가 전부 사라진다 (실제로 2026-09-15 에 그렇게 됐다).
     if (hospital.isSponsored && hospital.sponsoredStartDate && hospital.sponsoredEndDate) {
+      const startDate = clock.day(hospital.sponsoredStartDate);
+      const endDate = clock.day(hospital.sponsoredEndDate);
+
+      // 시드 **입력** 점검이다. fixture 창이 FIXTURE_TODAY 를 품지 않게 바뀌면
+      // 민 뒤에도 기준일을 품지 못해 "광고가 언제 시드해도 보인다"(§8.5)가 깨진다.
+      // 서버의 노출 판정(`src/hospital/sponsorship.ts`, KST 날짜 기준)을 복제한 것이
+      // 아니다 — 저쪽은 요청 시점에 행을 걸러 내는 규칙이고, 이쪽은 넣는 값이
+      // 규칙을 만족하는지 보는 검사다. 둘이 같은 판정을 두 번 하는 것이 아니다.
+      const today = toDateString(clock.today);
+
+      if (startDate > today || endDate < today) {
+        throw new Error(
+          `병원 '${hospital.id}' 의 광고 기간이 기준일을 포함하지 않습니다 ` +
+            `(${startDate} ~ ${endDate}, SEED_TODAY=${today}). fixture 창이 ` +
+            `FIXTURE_TODAY 를 품도록 고치세요 — docs/database/README.md §8.5.`,
+        );
+      }
+
       for (const procedureId of hospital.sponsoredCategories) {
         const id = `sp-${hospital.id}-${procedureId}`;
         const payload = {
           rank: hospital.sponsoredRank ?? 1,
-          startDate: hospital.sponsoredStartDate,
-          endDate: hospital.sponsoredEndDate,
+          startDate,
+          endDate,
         };
 
         await prisma.hospitalSponsorship.upsert({
@@ -319,8 +336,9 @@ async function main(): Promise<void> {
   // ===========================================================================
   // 5. 전문의 + 주요 시술 + 경력 + 검수 이력
   // ===========================================================================
-  const submittedAt = addDays(seedToday, -7);
-  const reviewedAt = addDays(seedToday, -6);
+  // fixture 에 검수 날짜가 없다 → 시드가 만든다 (docs §8.4)
+  const submittedAt = clock.fromToday(-7);
+  const reviewedAt = clock.fromToday(-6);
 
   let doctorProcedureCount = 0;
   let doctorCareerCount = 0;
@@ -402,16 +420,14 @@ async function main(): Promise<void> {
 
   // ===========================================================================
   // 6. 상담 신청 + 상태 이력 + 메모
-  //    날짜는 SEED_TODAY 기준 상대 오프셋 (docs §8.5). 계산은 seed/dates.ts.
+  //    fixture 날짜를 그대로 민다 (docs §8.5). 상담별 오프셋 표는 없앴다 —
+  //    전부 같은 shift 라서 상담·이력·메모·알림의 선후 관계가 저절로 보존된다.
   // ===========================================================================
-  /** 상담 id → 시간 이동량(ms). 관련 알림을 같이 밀 때 쓴다. */
-  const consultDelta = new Map<string, number>();
   let statusChangeCount = 0;
   let memoCount = 0;
 
   for (const consult of consultRequests) {
-    const { createdAt, deltaMs } = consultShift(consult.id, consult.createdAt, seedToday);
-    consultDelta.set(consult.id, deltaMs);
+    const createdAt = clock.at(consult.createdAt);
 
     const userId = consultApplicantId.get(consult.id);
 
@@ -421,7 +437,7 @@ async function main(): Promise<void> {
 
     // 마지막 상태 변경 시각을 updated_at 으로 쓴다
     const lastChange = consult.statusHistory.at(-1);
-    const updatedAt = lastChange ? addMs(parseFixtureDate(lastChange.changedAt), deltaMs) : createdAt;
+    const updatedAt = lastChange ? clock.at(lastChange.changedAt) : createdAt;
 
     const data = {
       userId,
@@ -449,7 +465,7 @@ async function main(): Promise<void> {
       const id = `csc-${consult.id}-${index}`;
       const payload = {
         status: change.status,
-        changedAt: addMs(parseFixtureDate(change.changedAt), deltaMs),
+        changedAt: clock.at(change.changedAt),
         // 시드/시스템이 만든 행이므로 담당자 없음 (docs 스키마 주석)
         changedByUserId: null,
       };
@@ -465,7 +481,7 @@ async function main(): Promise<void> {
     for (const memo of consult.memos) {
       const payload = {
         content: memo.content,
-        createdAt: addMs(parseFixtureDate(memo.createdAt), deltaMs),
+        createdAt: clock.at(memo.createdAt),
         authorUserId: null,
       };
 
@@ -495,7 +511,7 @@ async function main(): Promise<void> {
       authorName: review.authorName,
       rating: review.rating,
       content: review.content,
-      createdAt: parseFixtureDate(review.createdAt),
+      createdAt: clock.at(review.createdAt),
     };
 
     await prisma.review.upsert({
@@ -541,8 +557,8 @@ async function main(): Promise<void> {
       originalPrice: promotion.originalPrice,
       salePrice: promotion.salePrice,
       badge: promotion.badge,
-      startDate: toDateString(addDays(seedToday, window.start)),
-      endDate: toDateString(addDays(seedToday, window.end)),
+      startDate: toDateString(clock.fromToday(window.start)),
+      endDate: toDateString(clock.fromToday(window.end)),
     };
 
     await prisma.promotion.upsert({
@@ -566,7 +582,7 @@ async function main(): Promise<void> {
       procedureId: guide.procedureId,
       content: guide.content,
       author: guide.author,
-      createdAt: parseFixtureDate(guide.createdAt),
+      createdAt: clock.at(guide.createdAt),
     };
 
     await prisma.guide.upsert({
@@ -598,7 +614,7 @@ async function main(): Promise<void> {
   let answerCount = 0;
 
   for (const post of qaPosts) {
-    const createdAt = parseFixtureDate(post.createdAt);
+    const createdAt = clock.at(post.createdAt);
     const data = {
       title: post.title,
       content: post.content,
@@ -617,7 +633,7 @@ async function main(): Promise<void> {
     });
 
     for (const answer of post.answers) {
-      const answeredAt = parseFixtureDate(answer.createdAt);
+      const answeredAt = clock.at(answer.createdAt);
       const payload = {
         content: answer.content,
         authorUserId: null,
@@ -659,10 +675,10 @@ async function main(): Promise<void> {
   for (const notification of notifications) {
     const relatedConsult = notification.relatedId ? consultById.get(notification.relatedId) : undefined;
 
-    // 상담과 연결된 알림은 그 상담이 밀린 만큼 같이 민다. 그러지 않으면
-    // "상담보다 먼저 도착한 상담 알림" 이 되어 버린다.
-    const deltaMs = relatedConsult ? (consultDelta.get(relatedConsult.id) ?? 0) : 0;
-    const createdAt = addMs(parseFixtureDate(notification.createdAt), deltaMs);
+    // 전체 공지든 상담 연계든 **같은 shift** 다 (docs §8.5). 상담과 알림이 같은 양만큼
+    // 움직이므로 "상담보다 먼저 도착한 상담 알림" 은 생길 수 없다 — 예전처럼 상담별
+    // delta 를 알림에 다시 적용하는 두 번째 규칙이 필요 없다.
+    const createdAt = clock.at(notification.createdAt);
 
     const hospitalId =
       notification.audience === 'admin' && relatedConsult ? relatedConsult.hospitalId : null;
@@ -722,7 +738,7 @@ async function main(): Promise<void> {
   //     - 본문은 자리표시자임이 화면에서 드러나는 문구다 (prisma/seed/legal.ts)
   //     - user_agreements 는 만들지 않는다: 동의하지 않은 동의 기록을 만들면 안 된다
   // ===========================================================================
-  const legalEffectiveAt = addDays(seedToday, -1);
+  const legalEffectiveAt = clock.fromToday(-1);
 
   for (const document of legalDocuments) {
     const data = {

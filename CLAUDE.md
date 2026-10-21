@@ -42,7 +42,10 @@
 
 1. **커밋 전 완료 게이트를 프론트와 백엔드 둘 다 돌린다.** 바꾸지 않은 쪽도 돌린다
    (계약·타입을 공유하므로 한쪽 변경이 다른 쪽을 깨뜨릴 수 있다). lint 는 0 errors.
-   **백엔드 테스트는 개발 DB(`backend/.env` 의 `DATABASE_URL`)를 그대로 쓴다** — 돌리기 전에 안전장치 2 로 백업한다
+   **백엔드 테스트는 전용 DB(`backend/prisma/test.db`)를 쓴다** — `npm run test:run` 이 시작할 때마다
+   그 파일을 지우고 마이그레이션 + 오늘 날짜 시드를 다시 한다. 개발 DB(`backend/.env` 의 `DATABASE_URL`)는
+   읽지도 쓰지도 않으므로 **테스트 전 백업은 필요 없다** (안전장치 2 는 `prisma migrate`·`prisma:reset`·
+   시드 실행처럼 개발 DB 를 직접 건드릴 때만 적용된다). 자세한 내용은 `docs/database/README.md` §8.7
    ```bash
    (cd frontend && npm run lint && npm run typecheck && npm run test:run && npm run build)
    (cd backend  && npm run lint && npm run typecheck && npm run test:run && npm run build)

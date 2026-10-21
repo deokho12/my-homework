@@ -11,8 +11,26 @@ import { PrismaService } from '../src/prisma/prisma.service';
  * 확인하는 것은 "행이 있다" 가 아니라 **변환이 맞게 됐는가** 다. fixture 의
  * 배열·JSON 이 테이블로 갈라졌기 때문에, 그 변환이 틀리면 여기서 걸린다.
  *
- * 선행 조건: `npm run prisma:migrate && npm run prisma:seed`
+ * DB 는 `test/global-setup.ts` 가 매 실행마다 새로 만들어 시드한 `prisma/test.db`
+ * 다 (docs §8.7). 개발 DB 는 읽지도 쓰지도 않는다.
  */
+
+/**
+ * 시드가 쓴 "오늘". 날짜 단정의 기준은 **실행 시각이 아니라 이 값**이다.
+ *
+ * `test/global-setup.ts` 가 한 번 정해 환경변수로 내려준 값을 그대로 읽는다 — 여기서
+ * 다시 계산하면 같은 판정이 두 곳이 된다. 기본 실행이면 오늘 날짜이고,
+ * `SEED_TODAY=2027-03-01 npm run test:run` 처럼 고정해서 돌릴 때만 실행 시각과 갈라진다.
+ * 그때 단정해야 하는 것은 "샘플이 기준일 주위에 놓였는가" 다 (docs §8.5).
+ */
+const SEED_TODAY = (() => {
+  const value = process.env.SEED_TODAY;
+  if (!value) {
+    throw new Error('SEED_TODAY 가 없습니다 — test/global-setup.ts 가 정해 줘야 합니다.');
+  }
+  return value;
+})();
+
 describe('시드 데이터 (integration)', () => {
   let moduleRef: TestingModule;
   let prisma: PrismaService;
@@ -96,19 +114,31 @@ describe('시드 데이터 (integration)', () => {
     expect(hospital.businessHours[6].isClosed).toBe(true);
   });
 
-  it('광고는 컬럼이 아니라 "오늘이 기간 안인 행" 으로 파생된다', async () => {
-    const today = new Date().toISOString().slice(0, 10);
-
+  it('광고 5행이 전부 기준일을 포함한다 — 시드가 언제 돌아도 스폰서 배치가 보인다', async () => {
+    const all = await prisma.hospitalSponsorship.findMany({ orderBy: { id: 'asc' } });
     const active = await prisma.hospitalSponsorship.findMany({
-      where: { startDate: { lte: today }, endDate: { gte: today } },
+      where: { startDate: { lte: SEED_TODAY }, endDate: { gte: SEED_TODAY } },
+      orderBy: { id: 'asc' },
     });
 
+    // ★ 2026-09-15 에 마지막 fixture 광고가 끝나 이 테스트가 빨개진 적이 있다.
+    //   §8.5 의 "기준일 하나로 통째로 민다" 가 그것을 구조적으로 막는다 —
+    //   fixture 창 4개가 모두 FIXTURE_TODAY 를 품고 있으므로, 같은 값을 더한 뒤에도
+    //   반드시 SEED_TODAY 를 품는다. 그래서 "진행중 = 전부" 다.
+    expect(all).toHaveLength(5);
+    expect(active).toHaveLength(5);
+
+    // (병원 × 시술) 로 풀린 모양 — h5 만 카테고리 2개라 행이 2개다
+    expect(active.map((row) => `${row.hospitalId}:${row.procedureId}`)).toEqual([
+      'h2:laminate',
+      'h3:implant',
+      'h5:gum-disease',
+      'h5:implant',
+      'h6:whitening',
+    ]);
+
     // h1 은 평점 1위인데 광고를 사지 않은 대조군이다 (fixture 주석)
-    expect(active.some((row) => row.hospitalId === 'h1')).toBe(false);
-    // h5 는 카테고리 2개를 사서 행이 2개로 풀렸다
-    expect(active.filter((row) => row.hospitalId === 'h5').map((row) => row.procedureId).sort()).toEqual(
-      ['gum-disease', 'implant'],
-    );
+    expect(all.some((row) => row.hospitalId === 'h1')).toBe(false);
   });
 
   it('전문의 배지 판정식이 데이터만으로 성립한다', async () => {
@@ -166,17 +196,18 @@ describe('시드 데이터 (integration)', () => {
     expect(cr2?.memos.map((m) => m.id)).toEqual(['memo-cr2-1']);
   });
 
-  it('상담이 SEED_TODAY 기준으로 옮겨져 이번 달 신규 상담이 0 이 아니다', async () => {
-    const now = new Date();
-    const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-    const nextMonthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+  it('상담이 기준일 쪽으로 옮겨져 최근 3일 안에 접수된 건이 있다', async () => {
+    // 예전에는 "이번 **달** 신규 상담이 0 이 아니다" 였다. 그 단정은 **매월 1일에
+    // 반드시 실패한다** — 가장 최근 상담(cr6)이 SEED_TODAY-1일, 즉 지난 달이기 때문이다
+    // (docs §8.5 의 "'이번 달' 은 SEED_TODAY 의 일(日)에 달려 있다"). 어느 날 돌려도
+    // 참인 것만 고정한다: 가장 최근 상담은 기준일 하루 전이므로 3일 창에 반드시 든다.
+    const seedToday = new Date(`${SEED_TODAY}T00:00:00.000Z`);
+    const threeDaysAgo = new Date(seedToday.getTime() - 3 * 24 * 60 * 60 * 1000);
 
-    const thisMonth = await prisma.consultRequest.count({
-      where: { createdAt: { gte: monthStart, lt: nextMonthStart } },
-    });
+    const recent = await prisma.consultRequest.count({ where: { createdAt: { gte: threeDaysAgo } } });
     const pending = await prisma.consultRequest.count({ where: { status: 'new' } });
 
-    expect(thisMonth).toBeGreaterThan(0);
+    expect(recent).toBeGreaterThan(0);
     expect(pending).toBeGreaterThan(0);
   });
 
@@ -213,11 +244,11 @@ describe('시드 데이터 (integration)', () => {
   });
 
   it('개발용 계정 19개가 역할별로 있고 비밀번호는 해시로만 저장된다', async () => {
-    // **시드가 만든 계정만 본다.** 개발 DB 는 `npm run dev` 로 띄운 앱과 같은 파일이라
-    // 화면에서 한 번 가입해 보면 그 계정이 여기 섞인다. 전체 건수로 단정하면
-    // (예전 `expect(users).toHaveLength(19)`) 누군가 가입해 보는 것만으로 이 테스트가
-    // 빨개지는데, 그건 시드의 결함이 아니다. 시드 계정은 도메인이 `.example` 이라
-    // 실제 가입 계정과 구분된다.
+    // **시드가 만든 계정만 본다.** 테스트 DB 는 매 실행마다 새로 만들므로(docs §8.7)
+    // 개발 중에 화면에서 가입해 본 계정이 더는 섞이지 않는다 — 그 이유로 걸던 필터는
+    // 아니다. 그래도 남겨 둔다: 같은 실행 안에서 가입 e2e(`auth-accounts.e2e.spec.ts`)가
+    // 만드는 계정이 이 파일보다 먼저 돌 수 있고, 그건 시드의 결함이 아니다.
+    // 시드 계정은 도메인이 `.example` 이라 그 행들과 구분된다.
     const users = (await prisma.user.findMany({ orderBy: { id: 'asc' } })).filter((user) =>
       user.email.endsWith('@molarmolar.example'),
     );

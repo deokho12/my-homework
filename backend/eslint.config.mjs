@@ -45,7 +45,8 @@ export default tseslint.config(
 
   {
     // 시드·부트스트랩 CLI·Prisma 설정은 CLI 스크립트다. stdout 이 곧 UI 이므로 console 을 허용한다.
-    files: ['prisma/**/*.ts', 'prisma.config.ts', 'src/scripts/**/*.ts'],
+    // 테스트 globalSetup 도 같다 — 테스트 DB 재생성 결과와 실패 원인을 터미널에 직접 적는다.
+    files: ['prisma/**/*.ts', 'prisma.config.ts', 'src/scripts/**/*.ts', 'test/global-setup.ts'],
     rules: { 'no-console': 'off' },
   },
 

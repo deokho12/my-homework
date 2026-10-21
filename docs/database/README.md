@@ -766,11 +766,19 @@ PK 가 애플리케이션 생성 문자열이라 **id 를 그대로 옮길 수 �
 
 이 매핑을 그대로 넣으면 화면 문서가 적어 둔 초기 상태가 재현됩니다 — 사용자 알림함 안 읽음 1건(단, 이제 **최지훈 계정에서만** 보입니다), 관리자 알림함 안 읽음 2건(각각 h1·h5 담당자에게).
 
-**광고 캠페인** — `hospitals.ts` 의 광고 필드를 `hospital_sponsorships` 행으로 풉니다. `sponsoredCategories` 의 각 원소마다 1행이며 `start_date`/`end_date`/`rank` 는 해당 병원 값을 복사합니다. `isSponsored=false` 인 병원은 행을 만들지 않습니다(`h1` 이 그 대조군입니다 — 평점 1위인데 광고를 사지 않아 `h3` 의 광고가 위로 올라가는 것을 보여주는 케이스).
+**광고 캠페인** — `hospitals.ts` 의 광고 필드를 `hospital_sponsorships` 행으로 풉니다. `sponsoredCategories` 의 각 원소마다 1행이며 `start_date`/`end_date`/`rank` 는 해당 병원 값을 복사합니다 — **단 기간 두 개는 §8.5 의 이동 규칙을 거칩니다**(고정 날짜로 넣으면 그 날이 지난 뒤 광고가 전부 사라집니다). `isSponsored=false` 인 병원은 행을 만들지 않습니다(`h1` 이 그 대조군입니다 — 평점 1위인데 광고를 사지 않아 `h3` 의 광고가 위로 올라가는 것을 보여주는 케이스).
 
-### 8.4 프로모션 기간 (fixture 에 없는 값)
+### 8.4 fixture 에 날짜가 없는 것 — 시드가 부여합니다
 
-`promotions.ts` 4건에 `start_date`/`end_date` 가 없습니다. 시드가 부여합니다. 4건이 항상 진행중으로 보여야 화면 문서(`이벤트 4개가 카드로 나열됩니다`)와 맞으므로, **시드 기준일을 감싸는 창**을 줍니다.
+아래 셋은 **fixture 에 날짜 자체가 없습니다.** 밀 원본이 없으므로 §8.5 의 이동 규칙이 아니라 `SEED_TODAY` 기준 오프셋을 직접 줍니다. (두 방식이 섞인 것이 아니라, 적용할 대상이 다릅니다 — 있는 날짜는 민다, 없는 날짜는 만든다.)
+
+| 대상 | 부여하는 값 |
+|---|---|
+| `promotions` 4건 | 아래 창 (`SEED_TODAY` 를 감쌉니다) |
+| `doctor_verifications` | `created_at` = `SEED_TODAY - 7일`(제출), `reviewed_at` = `SEED_TODAY - 6일`(검수) |
+| `legal_documents.effective_at` | `SEED_TODAY - 1일` (미래면 "지금 유효한 버전" 이 0건이 됩니다 — §11.3) |
+
+`promotions.ts` 4건에 `start_date`/`end_date` 가 없습니다. 4건이 항상 진행중으로 보여야 화면 문서(`이벤트 4개가 카드로 나열됩니다`)와 맞으므로, **시드 기준일을 감싸는 창**을 줍니다.
 
 ```
 p1  start = SEED_TODAY - 30일,  end = SEED_TODAY + 30일   (진행중)
@@ -781,31 +789,96 @@ p4  start = SEED_TODAY -  7일,  end = SEED_TODAY + 60일   (진행중)
 
 기간 만료 UI 를 QA 하려면 `p3` 의 `end_date` 를 과거로 바꿔 보는 것으로 충분합니다. 이것도 문서에 남겨 QA 가 재현할 수 있게 하세요.
 
-### 8.5 날짜를 상대값으로 둘 것 (권장)
+### 8.5 fixture 날짜는 **기준일 하나로 통째로 민다** (결정)
 
-fixture 의 상담 날짜는 2026년 6~7월 고정이고, 그래서 `/admin` 의 `이번 달 신규 상담` 이 항상 `0` 으로 나옵니다(알려진 문제). 시드에서 **`SEED_TODAY` 기준 상대 오프셋**으로 바꾸는 것을 권장합니다.
+fixture 의 날짜는 전부 2026년 5~9월 고정입니다. 그대로 넣으면 시간이 지날수록 샘플이 썩습니다 — `/admin` 의 `이번 달 신규 상담` 이 0 이 되고, **광고 기간 4건이 전부 만료되어 스폰서 배치가 화면에서 사라집니다**(실제로 2026-09-15 에 마지막 광고가 끝나 `test/seed-data.spec.ts` 가 빨개졌습니다). 날짜별로 손보면 규칙이 여러 개가 되므로, **규칙은 하나입니다.**
 
 ```
-SEED_TODAY = 시드 실행 시각 (또는 env SEED_TODAY)
+FIXTURE_TODAY = 2026-07-30      목 데이터의 "오늘" (consultRequests.ts 주석)
+SEED_TODAY    = env SEED_TODAY (YYYY-MM-DD) 또는 시드 실행 시각의 UTC 날짜
+shift         = SEED_TODAY - FIXTURE_TODAY       (일 단위 정수. UTC 라 DST 가 없습니다)
 
-cr1  SEED_TODAY -  2일   status new         → '이번 달'
-cr2  SEED_TODAY - 10일   status contacted   → '이번 달'
-cr3  SEED_TODAY - 15일   status booked      → '이번 달'
-cr6  SEED_TODAY -  1일   status contacted   → '이번 달'
-cr7  SEED_TODAY - 25일   status new         → '이번 달'
-cr4  SEED_TODAY - 45일   status cancelled   → '지난 달'
-cr5  SEED_TODAY - 50일   status new         → '지난 달'
+fixture 에 있는 모든 날짜 += shift
+  - 시각('2026-07-28T09:15:00.000Z')  → Date 에 그대로 더합니다 (시:분:초 보존)
+  - 달력일('2026-07-05')              → 날짜 단위로 더해 다시 'YYYY-MM-DD' 로 둡니다 (§3.7)
 ```
 
-`status_history` 의 각 행도 같은 오프셋으로 미룹니다(원본의 상대 간격 유지). 원본 fixture 의 "이번 달 5건 / 지난 달 2건 / new 3건" 구성이 보존되면서, 언제 시드해도 대시보드 숫자가 0 이 아닙니다.
+이 규칙의 성질이 곧 근거입니다.
 
-fixture 날짜를 그대로 넣는 선택지도 있습니다(원본 충실). 그 경우 대시보드가 0 으로 보이는 것이 정상임을 QA 문서에 남겨야 합니다. **둘 중 하나를 골라 시드 스크립트 주석에 명시하세요** — 지금 두 방식이 섞여 있으면 나중에 아무도 어느 쪽이 의도인지 알 수 없습니다.
+- **샘플 사이의 간격과 순서가 원본 그대로입니다.** 전부 같은 값을 더하므로 "상담보다 먼저 도착한 상담 알림" 같은 역전이 구조적으로 생기지 않습니다 (예전에는 상담별 오프셋을 알림에 다시 적용하는 두 번째 규칙이 필요했습니다).
+- **`SEED_TODAY=2026-07-30` 이면 shift = 0** 이라 fixture 원본이 그대로 들어갑니다. 원본 충실 재현이 특별 경로 없이 됩니다.
+- **광고·프로모션 기간이 언제 시드해도 유효합니다** (아래 표).
+- 밀기 함수는 DB 를 모르는 순수 함수 하나입니다 (`backend/prisma/seed/dates.ts`). 경계값은 DB 없이 단위 테스트로 고정합니다.
+
+**적용 대상** — fixture 에 날짜가 있는 모든 테이블입니다.
+
+| 테이블 | 밀리는 컬럼 |
+|---|---|
+| `consult_requests` | `created_at`, `updated_at`(= 마지막 상태 변경) |
+| `consult_status_changes` | `changed_at` |
+| `consult_memos` | `created_at` |
+| `notifications` | `created_at` (상담 연계분·전체 공지 모두 같은 shift) |
+| `notification_recipients` | `read_at` (읽은 알림은 도착 시각과 같음) |
+| `reviews` | `created_at` |
+| `guides` | `created_at` |
+| `qa_posts` · `qa_answers` | `created_at`, `updated_at` |
+| `hospital_sponsorships` | `start_date`, `end_date` |
+
+`hospitals`·`doctors`·`users` 의 `created_at`/`updated_at` 은 fixture 에 없는 값이라 **시드 실행 시각**을 그대로 씁니다(밀 원본이 없습니다). `promotions`·`doctor_verifications`·`legal_documents` 는 §8.4.
+
+**상담 7건이 놓이는 자리** (fixture 날짜에서 파생됩니다 — 표를 따로 유지하지 않습니다)
+
+```
+cr6  SEED_TODAY -  1일   contacted
+cr1  SEED_TODAY -  2일   new
+cr2  SEED_TODAY - 10일   contacted
+cr3  SEED_TODAY - 15일   booked
+cr7  SEED_TODAY - 25일   new
+cr4  SEED_TODAY - 35일   cancelled   → 항상 '지난 달' (35 > 한 달 최대 일수)
+cr5  SEED_TODAY - 50일   new         → 항상 '지난 달'
+```
+
+> 이전 판(§8.5 구안)은 `cr4` 를 −45일로 **지정**했습니다. 단일 규칙에서는 fixture 값(2026-06-25)이 그대로 −35일이 됩니다. 의미("지난 달의 취소 건")는 같고, 규칙이 하나 줄어듭니다.
+
+**주의 — '이번 달' 은 `SEED_TODAY` 의 날짜(일)에 달려 있습니다.** 20일에 시드하면 이번 달 5건이지만, 매월 1일에 시드하면 0건입니다(가장 최근 상담도 전날이므로). 이것은 규칙의 결함이 아니라 "이번 달" 이라는 지표의 성질입니다. 대시보드 숫자를 보려면 `SEED_TODAY` 를 그 달 중순 이후로 고정해서 시드하세요. 테스트(`backend/test/seed-data.spec.ts`)는 그래서 달력 월이 아니라 **"최근 3일 안에 상담이 있다"** 로 단정합니다 — 어느 날 돌려도 참인 것만 고정합니다.
+
+**광고 기간** — fixture 의 창 4개는 모두 `FIXTURE_TODAY` 를 안쪽에 두고 있습니다. 같은 값을 더하므로 **shift 후에도 반드시 `SEED_TODAY` 를 포함합니다.** 이것이 "광고가 언제 시드해도 보인다" 의 증명이고, 단위 테스트가 그 전제(창이 기준일을 포함한다)를 지킵니다.
+
+| 병원 | 시술 | fixture 기간 | 기준일로부터 | shift 후 (`SEED_TODAY` 기준) |
+|---|---|---|---|---|
+| `h2` | `laminate` | 2026-07-05 ~ 08-20 | −25일 ~ +21일 | `SEED_TODAY-25` ~ `SEED_TODAY+21` |
+| `h3` | `implant` | 2026-07-10 ~ 08-15 | −20일 ~ +16일 | `SEED_TODAY-20` ~ `SEED_TODAY+16` |
+| `h5` | `implant`, `gum-disease` | 2026-07-01 ~ 08-31 | −29일 ~ +32일 | `SEED_TODAY-29` ~ `SEED_TODAY+32` |
+| `h6` | `whitening` | 2026-07-15 ~ 09-15 | −15일 ~ +47일 | `SEED_TODAY-15` ~ `SEED_TODAY+47` |
+
+`h1`·`h4`·`h7`~`h11` 은 `is_sponsored=false` 라 행이 없습니다 — `h1` 이 대조군입니다(평점 1위인데 광고를 사지 않았습니다). `h5` 만 카테고리 2개라 행이 2개입니다.
+
+광고 판정은 서울 날짜(`seoulToday()`, §3.7)로 하고 `SEED_TODAY` 는 UTC 날짜라, 둘이 하루 어긋날 수 있습니다. 가장 가까운 경계도 기준일에서 15일 떨어져 있어 영향이 없습니다.
+
+**만료 UI 를 QA 하려면** `p3` 의 `end_date` 나 `h6` 의 `end_date` 를 과거로 바꾸세요. 되돌리려면 시드를 다시 돌리면 됩니다(idempotent).
 
 ### 8.6 이전하지 않는 fixture
 
 - `trendingSearches.ts` (인기 검색어 10/10/6/8 + 추천 검색어 6) — 값이 코드에 하드코딩된 고정 샘플이고, 관리 화면이 없으며, 순위 변동(`▲2`)도 실제 집계가 아닙니다. 테이블로 옮기면 "관리하는 곳이 없는 테이블" 이 됩니다 (§9 제안 1)
 - `placeholder-company-info.ts` (회사 정보) — 코드 상수. 사업자 정보가 확정되면 파일만 교체하면 됩니다
 - 홈 배너 3장 — 화면 코드에 하드코딩. 링크도 없어 저장할 필드가 없습니다 (§9 제안 2)
+
+### 8.7 테스트 DB — 개발 DB 와 파일을 나눕니다
+
+예전에는 `npm run test:run` 이 `.env` 의 `DATABASE_URL`(= `backend/prisma/dev.db`)을 그대로 썼습니다. 그래서 **개발용 앱에서 한 번 가입해 보는 것만으로 테스트가 빨개지고**, 반대로 테스트가 개발 DB 에 `refresh_tokens`·`audit_logs` 행을 남기고 CLI 테스트가 시드 계정의 역할을 잠시 바꿨습니다(중간에 끊기면 개발 DB 가 이상한 상태로 남습니다). 한쪽을 지키려고 다른 쪽에 조건을 다는 방식(예: "`.example` 도메인 계정만 센다")으로는 끝이 없습니다 — **파일을 나눕니다.**
+
+| 항목 | 내용 |
+|---|---|
+| 파일 | `backend/prisma/test.db` (`.gitignore` 의 `prisma/test.db*` 가 저널·WAL 까지 뺍니다) |
+| 주소 | `TEST_DATABASE_URL` 이 있으면 그 값, 없으면 `file:./test.db` (상대 경로 기준은 `schema.prisma` 가 있는 `prisma/`) |
+| 수명 | `npm run test:run` / `npm test` 시작마다 **지우고 다시 만듭니다** — 삭제 → `prisma migrate deploy` → 시드(`SEED_TODAY` = 오늘) |
+| 끝난 뒤 | 지우지 않습니다. 실패를 조사할 때 Prisma Studio 로 열어 볼 수 있어야 합니다 |
+
+**보장** — 테스트 프로세스의 `DATABASE_URL` 은 `.env` 가 아니라 위 규칙이 정합니다. `.env` 는 `SEED_PASSWORD`·JWT 키 때문에 여전히 읽지만, **dotenv 는 이미 있는 값을 덮지 않으므로** 테스트가 먼저 넣은 주소가 이깁니다. 그 값이 `dev.db` 를 가리키면 테스트는 시작하지 않고 중단합니다(오타 하나로 개발 DB 를 밟는 경로를 남기지 않습니다). 자식 프로세스를 띄우는 테스트(운영자 CLI)도 부모의 환경을 물려받아 같은 파일을 봅니다.
+
+**왜 `migrate deploy` 인가** — `migrate reset` / `db push --force-reset` 이 아닙니다. 둘은 파괴적 명령이라 Prisma 6 이 AI 에이전트가 실행할 때 사용자 동의 없이는 막고, 막히면 테스트가 "DB 가 없다" 가 아니라 "프롬프트 대기" 로 멈춥니다. 파일을 먼저 지우면 빈 파일에 `deploy` 하는 것으로 충분하고, **CI·운영이 쓰는 경로와 같은 명령**이라 마이그레이션 히스토리가 실제로 적용 가능한지도 함께 검증됩니다.
+
+**결과** — 테스트는 개발 DB 를 읽지도 쓰지도 않습니다. 그래서 "테스트 돌리기 전에 `dev.db` 를 백업한다" 는 절차가 더 이상 필요 없고, 테스트는 매번 **같은 시드 상태**에서 출발합니다(이전 실행이 남긴 행이 없습니다).
 
 ---
 

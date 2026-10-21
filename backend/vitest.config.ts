@@ -17,7 +17,14 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['test/**/*.spec.ts', 'src/**/*.spec.ts'],
-    // .env 로드 + reflect-metadata. 두 개 다 테스트 파일보다 먼저 평가돼야 한다.
+    // 실행 시작마다 `prisma/test.db` 를 지우고 다시 만든다 (docs/database/README.md §8.7).
+    // 매번 다시 만드는 이유: 테스트는 행을 남기고(refresh_tokens·audit_logs·가입 계정)
+    // 역할을 잠시 바꾸기도 한다. 이전 실행이 남긴 상태 위에서 시작하면 "어제는 됐는데"
+    // 가 생긴다. 지우는 비용은 몇 초이고, 개발 DB 는 아예 건드리지 않는다.
+    // `npm test`(watch)는 세션당 한 번만 돈다 — 파일을 고칠 때마다 다시 만들지 않는다.
+    globalSetup: ['./test/global-setup.ts'],
+    // DATABASE_URL(테스트 DB) + .env 로드 + reflect-metadata.
+    // 셋 다 테스트 파일보다 먼저 평가돼야 한다.
     setupFiles: ['./test/setup.ts'],
     // Nest 앱과 Prisma 커넥션을 매 파일에서 새로 만든다. SQLite 는 쓰기를
     // 직렬화하므로 파일 병렬 실행이 락 경합을 만든다 → 단일 스레드로 돈다.
