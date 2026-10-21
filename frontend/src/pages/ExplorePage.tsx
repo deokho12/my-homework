@@ -29,7 +29,7 @@ import { CATEGORY_ICONS, type IconComponent } from '@/utils/procedureIcons';
 
 const SCROLL_SHADOW_THRESHOLD = 8;
 
-/** 대분류 9개 아이콘은 `utils/procedureIcons.ts` 가 소유한다 — 여기서 더하는 건 "추천" 탭뿐이다. */
+/** 대분류 9개 아이콘은 `utils/procedureIcons.tsx` 가 소유한다 — 여기서 더하는 건 "추천" 탭뿐이다. */
 const TAB_ICONS: Record<ExploreCategory, IconComponent> = {
   recommended: Star,
   ...CATEGORY_ICONS,
