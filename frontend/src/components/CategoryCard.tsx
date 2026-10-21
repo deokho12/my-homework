@@ -1,11 +1,8 @@
 import { router } from '@/navigation';
 import { Pressable, Text, type StyleProp, type ViewStyle } from '@/primitives';
 
-import {
-  categoryPath,
-  getLegacyIdsOf,
-  type ProcedureCategory,
-} from '@/features/procedure/taxonomy';
+import { useProcedureAvailability } from '@/features/procedure/hooks/useProcedureAvailability';
+import { categoryPath, type ProcedureCategory } from '@/features/procedure/taxonomy';
 import { CATEGORY_ICONS } from '@/utils/procedureIcons';
 
 interface CategoryCardProps {
@@ -21,13 +18,16 @@ const ICON_COLOR_PRESSED = '#17847a';
 /**
  * 홈 "시술로 찾기" 격자의 한 칸 — 시술 대분류 하나.
  *
- * 서버가 아는 시술이 하나도 없는 대분류(스케일링·예방)는 **숨기지 않고 "준비중"을 붙인다**.
- * 격자에서 빼면 "이 서비스는 스케일링을 아예 안 다룬다"로 읽힌다 — 준비중이라는 사실 자체가
- * 정보다 (`SubProcedureChips` 의 준비중 칩과 같은 판단).
+ * 등록된 병원이 한 곳도 없는 분야는 **숨기지 않고 "준비중"을 붙인다**. 격자에서 빼면
+ * "이 서비스는 스케일링을 아예 안 다룬다"로 읽힌다 — 준비중이라는 사실 자체가 정보다
+ * (`SubProcedureChips`·탐색 탭과 같은 판단).
+ *
+ * 판정은 서버가 준 `isAvailable` 에서 온다 (`features/procedure/availability.ts`). 아직
+ * 받기 전이면 배지를 **달지 않는다** — 첫 프레임에 9칸 전부 "준비중" 이 번쩍이지 않게.
  */
 export function CategoryCard({ category, onPress, style }: CategoryCardProps) {
   const Icon = CATEGORY_ICONS[category.id];
-  const comingSoon = getLegacyIdsOf(category.id).length === 0;
+  const comingSoon = useProcedureAvailability().isCategoryComingSoon(category.id);
 
   return (
     <Pressable

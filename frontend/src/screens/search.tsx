@@ -12,7 +12,7 @@ import { SafeAreaView } from "@/primitives";
 import { CONTAINER_PADDING } from "@/components/layout/Container";
 import {
   categoryPath,
-  categoryPathForLegacy,
+  categoryPathForProcedure,
   searchTaxonomy,
 } from "@/features/procedure";
 import { SuggestionList } from "@/features/search/components/SuggestionList";
@@ -43,7 +43,7 @@ import {
  *
  * 시술 매칭은 정적 분류 체계(`searchTaxonomy` = `searchTaxonomyAll()[0]`)가 동기로 끝낸다 —
  * 그래서 시술이 걸린 Enter 는 네트워크를 기다리지 않고 즉시 이동한다. 병원·원장님은 서버
- * `q` 필터와 `resolveCategoryFilter` 가 정한 시술 질의에 맡긴다(클라이언트가 목록을 훑지 않는다).
+ * `q` 필터와 `selectionToListFilters` 가 정한 시술/분야 질의에 맡긴다(클라이언트가 목록을 훑지 않는다).
  */
 const TABS: { key: SearchTab; label: string }[] = [
   { key: "all", label: "전체" },
@@ -75,7 +75,7 @@ function navigateToTarget(target: SearchTarget, term?: string) {
     }
     // 인기검색어는 서버 시술 id 도 들고 있다 — 글자가 분류에 안 걸리면 그 id 로 보낸다.
     // 서버가 미래에 taxonomy 가 모르는 id 를 내려주면 탐색으로 떨어뜨린다.
-    router.push(categoryPathForLegacy(target.procedureId) ?? "/(tabs)/explore");
+    router.push(categoryPathForProcedure(target.procedureId) ?? "/(tabs)/explore");
     return;
   }
   if (target.kind === "hospital") {

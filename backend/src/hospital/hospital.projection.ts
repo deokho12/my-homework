@@ -150,11 +150,12 @@ export interface ProjectHospitalOptions {
   /** 지도 반경 조회에서만 채운다. */
   distanceKm?: number;
   /**
-   * 시술 칩으로 좁힌 경우의 시술 id. `computeSponsorship` 에 그대로 전달해 카테고리
-   * 일치 검사를 하게 한다 (계약 규칙 2). `추천` 탭이나 필터 없음이면 넘기지 않는다 —
-   * 넘기지 않으면 카테고리 검사를 하지 않는다.
+   * 이 요청이 좁힌 시술 id 집합. `computeSponsorship` 에 그대로 전달해 카테고리
+   * 일치 검사를 하게 한다 (계약 규칙 1·2). 세부 시술 칩이면 원소 1개, 분야 탭이면
+   * 그 분야의 시술 전부, `추천` 탭이나 필터 없음이면 넘기지 않는다 — 넘기지 않으면
+   * 카테고리 검사를 하지 않는다.
    */
-  procedureId?: string;
+  procedureIds?: string[];
 }
 
 /**
@@ -224,7 +225,7 @@ export function projectHospital(row: HospitalRow, options: ProjectHospitalOption
     representativeSpecialty: representativeSpecialty(row.doctors),
     sponsorship: computeSponsorship(
       { isSponsored, sponsoredCategories, startDate: lead?.startDate ?? null, endDate: lead?.endDate ?? null, rating: row.rating },
-      { today: options.today, procedureId: options.procedureId }
+      { today: options.today, procedureIds: options.procedureIds }
     ),
   };
 

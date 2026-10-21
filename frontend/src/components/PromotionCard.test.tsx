@@ -20,7 +20,7 @@ describe('PromotionCard', () => {
     return {
       id: 'promo-1',
       hospitalId: 'h1',
-      procedureId: 'implant',
+      procedureId: 'implant-general',
       title: '임플란트 특가',
       originalPrice: 1500000,
       salePrice: 990000,

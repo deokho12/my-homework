@@ -6,7 +6,7 @@
 | **이전 대상** | PostgreSQL 14+ |
 | **스키마 정의** | [`schema.dbml`](schema.dbml) — 테이블·컬럼·인덱스·주석 |
 | **ORM 스키마** | [`../../backend/prisma/schema.prisma`](../../backend/prisma/schema.prisma) |
-| **요구사항 출처** | 1차(27개 테이블): `frontend/src/types/domain.ts`, `docs/features/*.md` (27개), `frontend/src/mocks/fixtures/*.ts`<br>2차(5개 테이블, §11): `docs/decisions/0001-roles-and-pii.md`, `docs/api/README.md` §4·§14, `backend/src/auth/refresh-token.store.ts`<br>3차(**테이블 추가 없음** — 상담 예약 확장, §12): `docs/features/requests/2026-10-12-04-관리자-상담예약-개선.md`, `docs/api/README.md` §4·§9·§14<br>4차(**테이블·컬럼 추가 없음, 인덱스 1개** — 대시보드 집계, §13): `docs/features/requests/2026-10-12-05-관리자-레이아웃-대시보드.md`, `docs/api/README.md` §3·§14<br>5차(**제안 — 요청자 답 반영 대기 → 요청서 18** (2026-10-13 제안 · 2026-10-21 개정), 테이블 1개·컬럼 9개, §14): `docs/features/requests/2026-10-12-06-병원관리자-직접가입.md`, `docs/decisions/0001-roles-and-pii.md` 결정 2 |
+| **요구사항 출처** | 1차(27개 테이블): `frontend/src/types/domain.ts`, `docs/features/*.md` (27개), `frontend/src/mocks/fixtures/*.ts`<br>2차(5개 테이블, §11): `docs/decisions/0001-roles-and-pii.md`, `docs/api/README.md` §4·§14, `backend/src/auth/refresh-token.store.ts`<br>3차(**테이블 추가 없음** — 상담 예약 확장, §12): `docs/features/requests/2026-10-12-04-관리자-상담예약-개선.md`, `docs/api/README.md` §4·§9·§14<br>4차(**테이블·컬럼 추가 없음, 인덱스 1개** — 대시보드 집계, §13): `docs/features/requests/2026-10-12-05-관리자-레이아웃-대시보드.md`, `docs/api/README.md` §3·§14<br>5차(**제안 — 요청자 답 반영 대기 → 요청서 18** (2026-10-13 제안 · 2026-10-21 개정), 테이블 1개·컬럼 9개, §14): `docs/features/requests/2026-10-12-06-병원관리자-직접가입.md`, `docs/decisions/0001-roles-and-pii.md` 결정 2<br>6차(**테이블 1개·컬럼 1개 + 시술 13행 → 31행 이관**, §17): `docs/features/requests/2026-10-21-14-시술분류-서버로-준비중-풀기.md`, `frontend/src/features/procedure/taxonomy.ts` |
 
 이 문서는 **왜 이렇게 설계했는지**를 남깁니다. 무엇이 있는지는 `schema.dbml` 을 보세요.
 
@@ -23,8 +23,12 @@
 ## 1. 엔티티 관계 개요
 
 ```
-                        ┌───────────────┐
-                        │  procedures   │  시술 마스터 13종 (참조 데이터)
+                   ┌──────────────────────┐
+                   │ procedure_categories │  시술 분야 9개 (§17)
+                   └──────────┬───────────┘
+                              │ 1:N
+                        ┌─────┴─────────┐
+                        │  procedures   │  시술 마스터 31종 (참조 데이터, §17)
                         └───────┬───────┘
         ┌───────────────────────┼───────────────────────────────┐
         │                       │                               │
@@ -434,7 +438,7 @@ AND specialty <> '일반의'
 1. `promotions.start_date` / `end_date` (`'YYYY-MM-DD'`) — 화면이 `기간 한정 할인 혜택을 확인해보세요` 라고 말하는데 기간 필드가 아예 없던 문제. 이제 D-day·마감일 표시와 "기간이 지난 이벤트 자동 제외" 가 가능합니다.
 2. `hospital_sponsorships` 테이블 — fixture 에 하드코딩돼 있던 광고 노출 기간(`sponsoredStartDate`/`sponsoredEndDate`)을 관리 가능한 행으로 옮겼습니다. `isSponsored` 는 컬럼이 아니라 **"오늘이 `[start_date, end_date]` 안인 행의 존재"** 로 파생됩니다. 카테고리 배열이 행으로 풀렸으므로 카테고리별로 다른 기간·다른 순위를 팔 수 있습니다.
 
-`/admin/hospital/:id` 의 `광고 현황 (읽기 전용)` 세 가지 상태가 그대로 나옵니다: 행 없음 → `현재 진행중인 광고가 없어요`, 오늘이 기간 안 → `OO 카테고리 광고 중 · {end_date}까지`, 기간 지남 → `기간 종료`.
+`/admin/hospital/:id` 의 `광고 현황 (읽기 전용)` 세 가지 상태가 그대로 나옵니다: 행 없음 → `현재 진행중인 광고가 없어요`, 오늘이 기간 안 → `OO 광고 중 · {end_date}까지` (OO = 세부 시술 이름. 2026-10-21 요청 14 전에는 `OO 카테고리 광고 중`), 기간 지남 → `기간 종료`.
 
 > 평점 3.5 미만이면 배지는 붙지만 상단 노출은 제외하는 규칙(`MIN_SPONSORED_RATING`)은 그대로 애플리케이션에 둡니다. 신뢰 보호 정책이라 자주 바뀔 값이고, DB 제약으로 굳힐 성격이 아닙니다.
 
@@ -713,7 +717,7 @@ PK 가 애플리케이션 생성 문자열이라 **id 를 그대로 옮길 수 �
 
 | fixture | 대상 |
 |---|---|
-| `procedures.ts` (13) | `procedures` (`sort_order` = 배열 인덱스) |
+| ~~`procedures.ts` (13)~~ → **`backend/prisma/seed/data/procedures.ts` (31)** + `procedure-categories.ts` (9) | `procedures` + `procedure_categories` (`sort_order` = 배열 인덱스). **원본이 서버로 왔습니다 — §17.8** |
 | `hospitals.ts` (11) | `hospitals` + `hospital_procedures` + `hospital_images` + `hospital_tags` + `hospital_event_notes` + `business_hours` + `hospital_sponsorships` |
 | `doctors.ts` (14) | `doctors` + `doctor_procedures` + `doctor_careers` + `doctor_verifications` |
 | `consultRequests.ts` (7) | `consult_requests` + `consult_status_changes` + `consult_memos` |
@@ -727,7 +731,7 @@ PK 가 애플리케이션 생성 문자열이라 **id 를 그대로 옮길 수 �
 
 ### 8.3 새로 만드는 시드 데이터
 
-**시술 마스터** — `procedures` 13행. `sort_order` 는 `procedures.ts` 배열 순서(홈 격자·탐색 칩·커뮤니티 선택이 공유하는 순서).
+**시술 마스터** — `procedure_categories` **9행** + `procedures` **31행** (§17). `sort_order` 는 `backend/prisma/seed/data/*.ts` 의 배열 순서(홈 격자·탐색 탭·관리자 폼·커뮤니티 선택이 공유하는 순서)이고, 그 순서는 화면의 `features/procedure/taxonomy.ts` 와 **같아야 합니다** — 테스트가 고정합니다 (§17.8). *(요청 14 이전: 프론트 fixture `procedures.ts` 13행)*
 
 **사용자** — fixture 에 없으므로 시드가 만듭니다.
 
@@ -3120,6 +3124,11 @@ model HospitalProcedure {
 
 ### 16.2 가격이 붙는 단위 — **서버 시술 13종**이고, 세부 18개는 지금 저장할 수 없습니다
 
+> **2026-10-21 추가 — 이 절의 전제가 §17 로 해소됩니다.** 요청서 14 가 `procedures` 를 **31행**으로
+> 만들고 분야를 테이블로 올립니다(§17). 그래서 요청서 19 를 구현할 때 가격이 붙는 단위는
+> **세부 시술 31개**이고, 아래의 "18개는 저장할 수 없다"·"노출 범위가 바뀐다" 는 **요청 14 이전의
+> 기록**입니다. 설계 판단(= 가격은 `hospital_procedures` 의 컬럼 3개)은 그대로 유효합니다.
+
 | 후보 단위 | 개수 | 판단 |
 |---|---|---|
 | ✅ **서버 시술 id** (`procedures.id`) | 13 | **채택.** FK 가 걸리고, 이미 `hospital_procedures` 가 그 단위다 |
@@ -3642,3 +3651,577 @@ id 가 추측하기 어려운 것은 통제가 아닙니다.
    (지금은 상세에만 있어도 됩니다) **응답 크기가 늘어납니다**
 10. **전체 가격대(`hospitals.price_min/max`)의 폐기 시점과 조건** — §16.4. 지금 정하지 않습니다.
     `procedurePrices` 완성도 충족률이 그 판단 근거입니다
+
+---
+
+## 17. 시술 분류를 서버로 — 분야 9 · 세부 31 · `준비중` 파생 (요청 14)
+
+| | |
+|---|---|
+| **상태** | **설계 확정. 구현 대기** — 이 절 → interface-master(계약) → backend-engineer(서버) → designer/frontend-engineer → code-reviewer → qa-master 순으로 **요청서 14** 에서 진행합니다 *(2026-10-21)* |
+| **요구사항 출처** | `docs/features/requests/2026-10-21-14-시술분류-서버로-준비중-풀기.md`, `docs/features/known-issues.md`(개발자용 메모 "요청서 14 에서 할 일" 1~6), 화면: `home.md`·`category.md`·`explore.md`·`search.md`·`admin-hospital-edit.md` |
+| **새 테이블** | **1개** — `procedure_categories` (9행) |
+| **새 컬럼** | **1개** — `procedures.category_id` (NOT NULL, FK) |
+| **데이터 변경** | `procedures` 13행 → **31행**. 그중 **6행은 id 가 바뀝니다**(기존 자식 행 전부 재지정) |
+| **인덱스** | **추가 0** (§17.10) |
+| **선행** | 요청서 12(혼자 개발 체제). §8.7 의 테스트 DB 분리가 이미 끝나 있어야 합니다 — 이 마이그레이션은 **데이터를 옮기므로** 빈 DB 와 데이터가 있는 DB 양쪽에서 돌아야 하고, 그 둘을 매번 확인하는 자리가 테스트 DB 입니다 |
+| **후속** | **요청서 17**(공공데이터 병원)과 **19**(시술별 가격)가 이 절의 31개 id 위에 붙습니다. 그래서 id 를 지금 정리합니다 (§17.3) |
+
+요청서가 "건드리지 말아달라" 고 한 네 가지가 이 절의 제약입니다.
+
+| 요청서의 제약 | 이 절에서 |
+|---|---|
+| 분야 9개·세부 31개의 **이름과 순서**는 `taxonomy.ts` 그대로 | `procedure_categories.name`·`procedures.name`·`sort_order` 가 그 파일의 값·배열 순서를 **그대로** 받습니다 (§17.4). 두 사본이 갈리지 않게 테스트가 묶습니다 (§17.8) |
+| 원데이는 시술이 아니라 병원 특징 | `hospitals.is_one_day` 그대로. `procedures` 에 '원데이' 행을 만들지 않습니다 |
+| 예전 주소(`/explore?category=<옛 시술 id>`)는 계속 열려야 한다 | **별칭 표**(옛 id → 새 id) 하나로 받습니다. **서버가 아니라 화면이 풉니다** (§17.5) |
+| 기존 병원 11곳의 시술 등록이 사라지면 안 된다 | 마이그레이션이 자식 행을 **지우지 않고 재지정**합니다. 이관 후 행 수가 같다는 것을 단정으로 고정합니다 (§17.6) |
+
+### 17.1 무엇을 서버가 갖게 되는가 — 결정 3개
+
+| # | 결정 | 근거 |
+|---|---|---|
+| 1 | **서버 시술 id = 화면의 세부 시술 id 31개.** 매핑 계층을 없앱니다 | 지금은 서버 13 ↔ 화면 31 사이에 `taxonomy.ts` 의 `legacyProcedureId` 가 있습니다. 같은 하나를 가리키는 이름이 둘이라 화면·서버·계약 어디를 봐도 상대를 한 번 번역해야 합니다 (`known-issues.md` 🔵 "화면에 보이는 시술 이름이 서버에 저장된 이름과 다릅니다") |
+| 2 | **분야는 테이블이다** (`procedure_categories` 9행 + `procedures.category_id`) | 분야를 화면이 계산해서 분야 세 곳의 광고 우선 노출이 꺼지고 100곳 제한이 생겼습니다 (`known-issues.md` 🟠). 분야가 컬럼이면 `GET /hospitals?categoryId=` 한 번으로 끝납니다 (§17.9) |
+| 3 | **`준비중` 은 컬럼이 아니라 파생이다** | 요청서가 규칙을 "앱에 노출되는 병원 중 그 시술을 하는 곳이 1곳 이상" 으로 정했습니다. 그 규칙의 입력은 전부 DB 에 이미 있습니다. 컬럼으로 두면 **병원이 체크할 때마다 갱신해야 하는 두 번째 사실**이 생기고, 갱신을 한 번 빠뜨리면 "병원은 있는데 준비중" 이 됩니다 (§17.7) |
+
+> 인계 목록(`known-issues.md`)의 1번은 "세부 시술 18행 추가 + **준비중 플래그**" 였습니다. 요청서 14 가
+> 세는 규칙을 명시했으므로 **플래그는 만들지 않습니다** — 요청서가 인계 메모를 대체합니다.
+
+### 17.2 `procedure_categories` — 9행, 컬럼 4개
+
+```prisma
+/// 시술 분야 9개. 화면의 `features/procedure/taxonomy.ts` 가 갖고 있던 표가 서버로 왔다.
+model ProcedureCategory {
+  /// implant | prevention | orthodontics | cavity | aesthetic | gum | tmj | botox | extraction
+  id          String @id
+  name        String
+  /// 홈 격자 카드의 한 줄 설명 ('상실된 치아를 인공 치근으로 대체해요')
+  description String
+  /// 홈 격자·탐색 탭·관리자 폼 섹션이 공유하는 고정 노출 순서
+  sortOrder   Int    @map("sort_order")
+
+  procedures Procedure[]
+
+  @@map("procedure_categories")
+}
+```
+
+**두지 않은 컬럼 둘.**
+
+- **아이콘** — 분야 아이콘은 요청 13 에서 **그림(React 컴포넌트, `CATEGORY_ICONS`)** 이 됐습니다. 문자열 컬럼을 둬도 화면이 그것으로 그릴 수 없습니다. 이모지는 `procedures.emoji` 에만 남습니다(커뮤니티 글 작성의 시술 선택이 그것을 씁니다)
+- **동의어(keywords)** — 요청서가 "동의어는 지금처럼 화면 `taxonomy.ts` 에 두어도 된다" 고 했습니다. 검색 추천은 아직 화면이 조합하고(`known-issues.md` 개발자용 메모), 서버가 `GET /search/suggest` 를 갖게 되는 날 **그 요청서에서** 옮기면 됩니다. 소비자 없는 테이블을 먼저 만들지 않습니다 (AGENTS.md)
+
+### 17.3 `procedures` — 31행, id 를 세부 시술 id 로 통일합니다
+
+```prisma
+model Procedure {
+  id               String @id
+  name             String
+  emoji            String
+  shortDescription String @map("short_description")
+  description      String
+  sortOrder        Int    @map("sort_order")
+
+  /// ★ 추가. 분야 9개 중 하나. 분야 없는 시술은 없다
+  categoryId String @map("category_id")
+  category   ProcedureCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  // (기존 관계 8개 그대로)
+  @@index([sortOrder])
+  @@map("procedures")
+}
+```
+
+`sort_order` 는 **31개 전체의 통짜 순서(0~30)** 입니다 — 분야 순서 × 분야 안 순서를 한 번에 담습니다. 분야별 두 번째 순서 컬럼을 두지 않는 이유: `taxonomy.ts` 의 `SUB_PROCEDURES` 배열이 이미 그 순서로 선언돼 있고, 분야 안 순서는 `WHERE category_id=? ORDER BY sort_order` 로 그대로 나옵니다. 컬럼이 둘이면 **둘이 어긋난 상태**(분야 안 순서는 맞는데 전체 순서가 뒤집힌)가 표현 가능해집니다.
+
+**id 6개가 바뀝니다.**
+
+| 옛 서버 id | 새 id | 새 이름 | 왜 바꾸는가 |
+|---|---|---|---|
+| `implant` | `implant-general` | 일반 임플란트 | **분야 id 와 충돌합니다.** `implant` 는 이제 분야(임플란트)의 id 입니다 |
+| `orthodontics` | `bracket-braces` | 일반(브라켓)교정 | 분야 id 충돌 (교정) |
+| `cavity` | `resin` | 레진 | 분야 id 충돌 (충치치료). 옛 `cavity` 는 분야 전체가 아니라 **레진 하나**를 가리켰습니다 |
+| `tmj` | `tmj-treatment` | 턱관절장애 치료 | 분야 id 충돌 (턱관절·스플린트) |
+| `botox` | `bruxism-botox` | 이갈이 보톡스 | 분야 id 충돌 (보톡스). 사각턱 보톡스는 별도 행이 됩니다 |
+| `gum-disease` | `gum-treatment` | 잇몸치료 | 충돌은 없지만 **화면 이름과 id 를 맞춥니다** — 나머지 30개가 전부 세부 시술 id 인데 하나만 옛 이름이면 다음 사람이 그것을 규칙으로 읽습니다 |
+
+나머지 7개는 id 그대로입니다 (`inlay` `crown` `laminate` `whitening` `splint` `snoring-device` `wisdom-tooth`). 이름은 `wisdom-tooth` 만 `사랑니` → `사랑니 발치` 로 바뀝니다.
+
+**왜 "지금" 바꾸는가.** id 변경은 자식 행 재지정을 동반하는 유일하게 번거로운 작업입니다. 그런데
+**요청 17(공공데이터 비급여 가격)과 19(시술별 가격)가 이 id 에 값을 붙입니다.** 가격 행이 붙은
+뒤에 바꾸면 옮길 테이블이 늘고, 바꾸지 않으면 `implant` 가 **어떤 맥락에서는 분야, 어떤 맥락에서는
+세부 시술**인 상태가 영구히 남습니다 — `?categoryId=implant` 와 `?procedureId=implant` 가 서로 다른
+것을 가리키는 API 는 반드시 누군가 틀립니다.
+
+**막는 것이 있었는가 — 없습니다.** `procedures` 를 가리키는 FK 8개는 전부 `ON UPDATE CASCADE`
+(`migrations/20260812121726_init/migration.sql`)지만, 마이그레이션은 **그 캐스케이드에 기대지 않습니다**
+(§17.6) — PK 를 UPDATE 하지 않고 "새 행 삽입 → 자식 재지정 → 옛 행 삭제" 로 갑니다. `foreign_keys`
+pragma 가 켜져 있든 꺼져 있든 결과가 같아야 하기 때문입니다.
+
+### 17.4 31행의 값 — 이름·순서는 `taxonomy.ts`, 문구는 새로 씁니다
+
+`sort_order` 는 아래 표의 행 번호(0부터)입니다. `name`·`category_id`·순서는 `taxonomy.ts` 에서 **그대로** 옮긴 값이고, `emoji`·`short_description`·`description` 은 기존 13개의 문체(fixture `procedures.ts`)에 맞춰 새로 적었습니다. 기존 13개 중 **의미가 좁아진 4개**(`resin`·`gum-treatment`·`bracket-braces`·`bruxism-botox`)는 문구도 고쳤습니다 — 옛 문구가 분야 전체를 설명하고 있어서 세부 시술 이름 아래 그대로 두면 틀린 말이 됩니다.
+
+| # | id | 이름 | 분야 | emoji | 한 줄 소개 | 설명 |
+|---|---|---|---|---|---|---|
+| 0 | `implant-general` | 일반 임플란트 | implant | 🦷 | 자연치아처럼 튼튼하게 | 상실된 치아 자리에 인공 치근을 심고 보철물을 올리는 시술입니다. 재료와 식립 개수에 따라 비용과 기간이 달라져요. |
+| 1 | `bone-graft` | 뼈이식 | implant | 🧱 | 임플란트 심을 자리를 만들어요 | 잇몸뼈(치조골)가 부족할 때 뼈를 채워 임플란트를 심을 수 있는 상태로 만드는 시술입니다. |
+| 2 | `sinus-lift` | 상악동거상술 | implant | ⛰️ | 위턱 어금니 임플란트를 위해 | 위턱 어금니 쪽 뼈가 얇을 때 상악동 점막을 들어 올려 뼈를 보강한 뒤 임플란트를 심는 시술입니다. |
+| 3 | `implant-denture` | 임플란트 틀니 | implant | 🔩 | 틀니를 임플란트로 고정 | 임플란트 몇 개를 심어 틀니를 단단히 고정하는 방식입니다. 잇몸으로만 지지하는 틀니보다 잘 흔들리지 않아요. |
+| 4 | `scaling` | 스케일링 | prevention | 🪥 | 치석을 제거해 잇몸 건강을 지켜요 | 칫솔질로 닿지 않는 치석과 치태를 기구로 제거하는 기본 예방 처치입니다. |
+| 5 | `fluoride` | 불소도포 | prevention | 🧴 | 충치에 강한 치아로 | 치아 표면에 불소를 발라 산에 대한 저항성을 높이고 초기 충치를 예방하는 처치입니다. |
+| 6 | `sealant` | 실란트 | prevention | 🧷 | 어금니 홈을 미리 메워요 | 어금니 씹는 면의 깊은 홈을 메워 음식물이 끼지 않게 하는 충치 예방 처치입니다. |
+| 7 | `halitosis` | 구취관리 | prevention | 🌬️ | 입냄새의 원인을 찾아서 | 입냄새의 구강 내 원인(치주질환·설태·건조)을 찾아 치료하고 관리법을 안내하는 진료입니다. |
+| 8 | `clear-aligner` | 투명교정 | orthodontics | 💎 | 눈에 잘 띄지 않는 교정 | 투명한 장치를 단계별로 바꿔 끼며 치아를 움직이는 교정 방식입니다. 탈착이 가능해요. |
+| 9 | `lingual-braces` | 설측교정 | orthodontics | 🫥 | 장치를 치아 안쪽에 | 교정 장치를 치아 안쪽 면에 붙여 겉으로 보이지 않게 하는 교정 방식입니다. |
+| 10 | `bracket-braces` | 일반(브라켓)교정 | orthodontics | 😁 | 가장 널리 쓰는 교정 방식 | 치아 바깥면에 브라켓을 붙이고 와이어로 치아를 움직이는 교정입니다. 메탈·세라믹 브라켓을 고를 수 있어요. |
+| 11 | `partial-ortho` | 부분교정 | orthodontics | ⏱️ | 필요한 곳만 짧게 | 앞니 등 일부 구간만 움직이는 교정입니다. 전체 교정보다 기간과 비용이 작아요. |
+| 12 | `resin` | 레진 | cavity | 🩹 | 충치 부위를 치아색으로 | 충치를 제거한 자리를 치아 색 레진으로 채우는 보존 치료입니다. 하루에 끝나는 경우가 많아요. |
+| 13 | `inlay` | 인레이 | cavity | 🧩 | 충치 부위만 정밀하게 | 충치로 손상된 부위를 본떠 만든 보철물을 끼워 넣는 시술로, 삭제 범위를 최소화할 수 있어요. |
+| 14 | `onlay` | 온레이 | cavity | 🔷 | 씹는 면까지 덮어서 | 인레이보다 손상 범위가 클 때 치아의 씹는 면(교두)까지 덮어 복원하는 보철입니다. |
+| 15 | `crown` | 크라운 | cavity | 👑 | 손상된 치아를 감싸기 | 신경치료 후이거나 손상이 큰 치아를 전체적으로 감싸 씌워 기능과 모양을 회복하는 보철 시술입니다. |
+| 16 | `root-canal` | 신경치료 | cavity | 🪡 | 치아를 살려서 쓰기 위해 | 충치가 신경까지 닿았을 때 염증이 생긴 치수를 제거하고 내부를 소독·충전하는 치료입니다. |
+| 17 | `laminate` | 라미네이트 | aesthetic | ✨ | 치아 앞면을 얇게 코팅 | 치아 앞면을 얇게 삭제한 뒤 세라믹 조각을 부착해 색과 모양을 개선하는 심미 시술입니다. |
+| 18 | `whitening` | 치아미백 | aesthetic | 🌟 | 치아 색을 밝게 | 약제를 이용해 치아 표면의 착색을 개선하고 색조를 밝게 만드는 심미 시술입니다. |
+| 19 | `gum-contouring` | 잇몸성형 | aesthetic | 💗 | 웃을 때 잇몸이 많이 보인다면 | 잇몸 라인을 다듬어 치아와 잇몸의 비율을 맞추는 심미 시술입니다. |
+| 20 | `gum-treatment` | 잇몸치료 | gum | 🌿 | 잇몸 염증을 가라앉혀요 | 잇몸 속 치석과 염증 조직을 제거해 치주질환의 진행을 막는 치료입니다. |
+| 21 | `periodontal-surgery` | 치주수술 | gum | 🩺 | 깊은 치주질환에는 수술로 | 비수술 치료로 닿지 않는 깊은 치주 조직을 잇몸을 열어 직접 치료하는 수술입니다. |
+| 22 | `gum-graft` | 잇몸이식 | gum | 🌱 | 내려앉은 잇몸을 덮어요 | 잇몸이 퇴축해 치아 뿌리가 드러난 부위에 연조직을 이식해 덮는 시술입니다. |
+| 23 | `tmj-treatment` | 턱관절장애 치료 | tmj | 🦴 | 통증·소리·개구장애 개선 | 턱관절의 통증, 소리, 입 벌림 제한 등을 진단하고 치료하는 턱관절 질환 관리 진료입니다. |
+| 24 | `splint` | 스플린트 | tmj | 🛡️ | 턱관절에 가는 힘을 분산 | 교합을 안정시켜 턱관절과 근육의 부담을 줄이는 구강 내 장치 치료입니다. |
+| 25 | `bruxism-device` | 이갈이장치 | tmj | 🌙 | 자는 동안 치아를 보호 | 수면 중 이갈이로부터 치아 마모와 턱 근육 긴장을 막아 주는 장치입니다. |
+| 26 | `snoring-device` | 코골이장치 | tmj | 😴 | 수면 중 코골이 완화 | 하악을 전방으로 유도해 기도를 확보, 코골이와 수면무호흡을 완화하는 구강 내 장치입니다. |
+| 27 | `bruxism-botox` | 이갈이 보톡스 | botox | 💉 | 이갈이로 뭉친 근육을 풀어요 | 저작근에 보톡스를 주입해 이갈이·이악물기로 인한 근육 긴장과 턱 통증을 완화하는 시술입니다. |
+| 28 | `masseter-botox` | 사각턱(교근) 보톡스 | botox | 💆 | 턱선을 갸름하게 | 발달한 교근에 보톡스를 주입해 턱선을 부드럽게 만드는 시술입니다. |
+| 29 | `wisdom-tooth` | 사랑니 발치 | extraction | 😬 | 통증 전에 미리 발치 | 매복되었거나 통증·염증을 유발하는 사랑니를 안전하게 발치하는 시술입니다. |
+| 30 | `general-extraction` | 일반 발치 | extraction | ✂️ | 보존이 어려운 치아는 빼요 | 살릴 수 없는 치아를 빼내고 이후 보철·임플란트 계획을 함께 세우는 진료입니다. |
+
+분야 9행 (`sort_order` = 0~8, 이름·설명은 `taxonomy.ts` 의 `CATEGORIES` 그대로):
+
+| # | id | 이름 | 설명 |
+|---|---|---|---|
+| 0 | `implant` | 임플란트 | 상실된 치아를 인공 치근으로 대체해요 |
+| 1 | `prevention` | 스케일링·예방 | 치석 제거부터 충치 예방까지 |
+| 2 | `orthodontics` | 교정 | 치열과 교합을 가지런히 |
+| 3 | `cavity` | 충치치료 | 초기 충치부터 신경치료·보철까지 |
+| 4 | `aesthetic` | 심미 | 치아 색과 모양을 아름답게 |
+| 5 | `gum` | 잇몸치료 | 잇몸 염증과 치주 질환 관리 |
+| 6 | `tmj` | 턱관절·스플린트 | 턱 통증·이갈이·코골이 장치 |
+| 7 | `botox` | 보톡스 | 이갈이 완화와 사각턱 개선 |
+| 8 | `extraction` | 사랑니·발치 | 사랑니와 보존이 어려운 치아 발치 |
+
+### 17.5 별칭 표 — 옛 id 는 **화면이** 풉니다, 서버는 모릅니다
+
+바깥에 남아 있는 옛 id 는 두 군데입니다.
+
+| 어디 | 무엇 |
+|---|---|
+| 북마크한 주소 | `/explore?category=crown`, `/explore?category=gum-disease` 등 |
+| 브라우저 저장소 | `lib/localCollection.ts` 의 상담·커뮤니티 행 (상담·커뮤니티 서버는 요청서 15·16) |
+
+```ts
+/** 옛 서버 시술 id → 새 id. 2026-10-21 이전에 발급된 주소·브라우저 행만 이 표를 거친다. */
+export const LEGACY_PROCEDURE_ID_ALIASES: Record<string, SubProcedureId> = {
+  implant: 'implant-general',
+  orthodontics: 'bracket-braces',
+  cavity: 'resin',
+  'gum-disease': 'gum-treatment',
+  tmj: 'tmj-treatment',
+  botox: 'bruxism-botox',
+  // 아래 7개는 id 가 그대로다. 항등 항목을 **남겨 두는 이유**: 이 표가 "서버가 2026-10-21
+  // 이전에 알던 13종" 의 완전한 목록이라는 사실 자체가 문서다. 항목이 6개뿐이면 다음 사람이
+  // 나머지 7개는 어떻게 됐는지 다시 조사한다.
+  inlay: 'inlay', crown: 'crown', laminate: 'laminate', whitening: 'whitening',
+  splint: 'splint', 'snoring-device': 'snoring-device', 'wisdom-tooth': 'wisdom-tooth',
+};
+```
+
+**자리는 `frontend/src/features/procedure/taxonomy.ts` 하나입니다** (지금 `LEGACY_TO_SUB` 가 있는 자리). 두 화면이 각자 변환을 적으면 한쪽만 고쳐져 조용히 갈라집니다 — 이미 `categoryPathForLegacy` 의 주석이 같은 말을 하고 있습니다.
+
+**서버는 옛 id 를 받지 않습니다.** 알 수 없는 시술 id 는 지금처럼 `422 VALIDATION_FAILED(unknown_procedure)` 입니다 (`hospital.service.ts` 의 `assertProceduresExist`). 근거:
+
+- 서버가 별칭을 받으면 **같은 시술을 가리키는 입력이 둘**이 되고, 둘 중 어느 것으로 저장됐는지가 행마다 달라집니다. 저장은 한 가지 값으로만 들어와야 합니다
+- 별칭이 필요한 것은 **이미 발급된 주소와 이미 저장된 브라우저 행** 뿐이고, 둘 다 화면이 읽는 값입니다. 서버에 둘 이유가 없습니다 (AGENTS.md — 계약이 요구하지 않는 규칙을 서버에 만들지 않는다)
+
+**충돌 걱정 하나는 실제로 없습니다.** 옛 id 5개(`implant`·`orthodontics`·`cavity`·`tmj`·`botox`)는 이제 **분야 id** 와 글자가 같습니다. 그런데 `/explore?category=` 는 원래 분야를 받는 자리이고, 다섯 개 모두 **그 시술이 속한 분야와 같은 글자**입니다(`cavity` → 레진 → 충치치료 분야 = `cavity`). 그래서 옛 주소든 새 주소든 **열리는 화면이 같습니다.** `?sub=` 에 옛 id 가 오는 경우만 위 표를 거칩니다.
+
+### 17.6 마이그레이션 — 한 파일, 8단계
+
+**원칙 두 개.** ① `procedures` 의 PK 를 `UPDATE` 하지 않습니다 — `ON UPDATE CASCADE` 가 걸려 있지만 그 동작은 `PRAGMA foreign_keys` 상태에 달려 있고, 마이그레이션 엔진이 어떤 상태로 돌리는지에 결과가 달라지는 스크립트는 "맞는지 읽어서 알 수 없는" 스크립트입니다. **삽입 → 재지정 → 삭제**는 pragma 가 켜져 있든 꺼져 있든 같은 결과를 냅니다. ② **마이그레이션은 기존 행을 새 체계로 옮기는 데 필요한 것만 넣습니다.** 새 18행과 모든 문구의 최종값은 **시드**가 넣습니다 (업서트라 몇 번 돌려도 같습니다). 그래서 빈 DB 에서는 3~6단계가 0행에 영향을 주고 끝납니다.
+
+```sql
+-- 1) 분야 테이블
+CREATE TABLE "procedure_categories" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "name" TEXT NOT NULL,
+    "description" TEXT NOT NULL,
+    "sort_order" INTEGER NOT NULL
+);
+
+-- 2) 분야 9행. FK 대상이라 3단계 백필보다 먼저 있어야 한다 (문구 최종값은 시드가 덮어쓴다)
+INSERT INTO "procedure_categories" ("id","name","description","sort_order") VALUES
+  ('implant','임플란트','상실된 치아를 인공 치근으로 대체해요',0),
+  ('prevention','스케일링·예방','치석 제거부터 충치 예방까지',1),
+  … (9행, §17.4 의 표) ;
+
+-- 3) 컬럼을 먼저 nullable 로 붙인다 (8단계의 테이블 재작성이 NOT NULL 로 굳힌다)
+ALTER TABLE "procedures" ADD COLUMN "category_id" TEXT;
+
+-- 4) 기존 13행의 분야 백필 — 옛 id 기준
+--    (스케일링·예방에 해당하는 옛 행은 없다 — 그래서 UPDATE 도 없다)
+UPDATE "procedures" SET "category_id"='implant'      WHERE "id"='implant';
+UPDATE "procedures" SET "category_id"='orthodontics' WHERE "id"='orthodontics';
+UPDATE "procedures" SET "category_id"='cavity'       WHERE "id" IN ('cavity','inlay','crown');
+UPDATE "procedures" SET "category_id"='aesthetic'    WHERE "id" IN ('laminate','whitening');
+UPDATE "procedures" SET "category_id"='gum'          WHERE "id"='gum-disease';
+UPDATE "procedures" SET "category_id"='tmj'          WHERE "id" IN ('tmj','splint','snoring-device');
+UPDATE "procedures" SET "category_id"='botox'        WHERE "id"='botox';
+UPDATE "procedures" SET "category_id"='extraction'   WHERE "id"='wisdom-tooth';
+
+-- 5) 이름이 바뀌는 6개: 새 행을 **기존 행에서 복제**한다.
+--    INSERT ... SELECT 라서 빈 DB 에서는 0행이 들어간다 (= 새 DB 에 카탈로그를 심지 않는다)
+INSERT INTO "procedures" ("id","name","emoji","short_description","description","sort_order","category_id")
+  SELECT 'implant-general',"name","emoji","short_description","description","sort_order","category_id"
+    FROM "procedures" WHERE "id"='implant';
+  … (bracket-braces←orthodontics, resin←cavity, gum-treatment←gum-disease,
+     tmj-treatment←tmj, bruxism-botox←botox)
+
+-- 6) 자식 재지정 — 8개 테이블. **삭제(7단계)보다 반드시 먼저.**
+--    consult_requests 는 ON DELETE SET NULL 이라, 순서가 뒤집히면 '희망 시술' 이 조용히 비워진다
+--    ⓐ 결정적 id 를 쓰는 3개 테이블은 id 도 함께 고친다 (시드가 id 를 다시 만들기 때문 — §8.1 원칙 2)
+UPDATE "hospital_procedures"
+   SET "procedure_id"='implant-general', "id"='hp-'||"hospital_id"||'-implant-general'
+ WHERE "procedure_id"='implant' AND "id"='hp-'||"hospital_id"||'-implant';
+--    ⓑ 런타임에 만들어진 행(관리자 폼 저장 — id 가 cuid)은 procedure_id 만 고친다
+UPDATE "hospital_procedures" SET "procedure_id"='implant-general' WHERE "procedure_id"='implant';
+--    같은 ⓐ/ⓑ 쌍을 doctor_procedures('dp-'||doctor_id), hospital_sponsorships('sp-'||hospital_id) 에도
+--    ⓒ id 규칙이 없는 5개는 한 줄씩
+UPDATE "consult_requests" SET "procedure_id"='implant-general' WHERE "procedure_id"='implant';
+UPDATE "reviews"          SET "procedure_id"='implant-general' WHERE "procedure_id"='implant';
+UPDATE "promotions"       SET "procedure_id"='implant-general' WHERE "procedure_id"='implant';
+UPDATE "guides"           SET "procedure_id"='implant-general' WHERE "procedure_id"='implant';
+UPDATE "qa_posts"         SET "procedure_id"='implant-general' WHERE "procedure_id"='implant';
+--    → 위 8개 테이블 × 옛 id 6개
+
+-- 7) 옛 6행 삭제. 자식이 하나도 안 남아 있어야 하므로 RESTRICT 가 안전망이 된다
+DELETE FROM "procedures" WHERE "id" IN ('implant','orthodontics','cavity','gum-disease','tmj','botox');
+
+-- 8) category_id 를 NOT NULL + FK 로 굳힌다 (SQLite 는 테이블 재작성이다 — Prisma 가 만드는
+--    'PRAGMA defer_foreign_keys=ON; … new_procedures … DROP … RENAME …' 블록을 그대로 둔다)
+```
+
+| 단계 | 개발 DB(데이터 있음) | 빈 DB(테스트·CI) |
+|---|---|---|
+| 1·2 | 테이블 + 분야 9행 | 같음 |
+| 3·4 | 13행 백필 | 0행 |
+| 5 | 6행 복제 | 0행 |
+| 6 | `hospital_procedures` 등 재지정 | 0행 |
+| 7 | 6행 삭제 | 0행 |
+| 8 | 재작성 (모든 행 `category_id` 있음) | 빈 테이블 재작성 |
+
+**만드는 방법** — `npx prisma migrate dev --create-only`(개발 DB 백업 후, CLAUDE.md 안전장치 2)로 1·3·8단계의 뼈대를 받은 뒤, 2·4~7단계를 그 사이에 손으로 끼웁니다. `migrate reset`·`db push --force-reset` 은 쓰지 않습니다(§8.7 — Prisma 6 이 AI 에이전트에게 막고, 막히면 프롬프트에서 멈춥니다). 테스트 DB 는 매 실행마다 `migrate deploy` + 시드로 다시 만들어지므로(§8.7) **빈 DB 경로는 테스트를 한 번 돌리면 자동으로 검증됩니다.**
+
+**보존 단정(테스트로 고정).** 마이그레이션 전후로 `hospital_procedures` 26행(11곳), `doctor_procedures`, `hospital_sponsorships` 5행, `reviews`·`guides`·`promotions`·`qa_posts`·`consult_requests` 의 **행 수가 같고**, `consult_requests.procedure_id IS NULL` 인 행이 늘지 않아야 합니다. 요청서의 "기존 병원 11곳의 시술 등록이 사라지면 안 됩니다" 가 이 단정입니다.
+
+### 17.7 `준비중` — 저장하지 않고 셉니다
+
+**규칙(요청서 그대로).** 세부 시술은 **앱에 노출되는 병원 중 그 시술을 하는 곳이 1곳 이상이면 열려 있고**, 0곳이면 `준비중` 입니다. 분야는 **속한 세부 시술이 전부 준비중일 때만** 준비중입니다.
+
+**"앱에 노출되는 병원" 의 출처는 하나여야 합니다.** 지금 그 판정은 `buildHospitalWhere` 의 첫 줄
+`{ deletedAt: null }` 뿐입니다(`backend/src/hospital/hospital.filters.ts`). 승인 상태 컬럼은 §14 의
+제안(요청서 18)이고 아직 없습니다. 그래서:
+
+```ts
+/** 공개 목록에 나오는 병원의 조건. `GET /hospitals`·가용성 집계·요청 17 의 공공데이터가 공유한다. */
+export function publicHospitalWhere(): Prisma.HospitalWhereInput {
+  return { deletedAt: null };
+}
+```
+
+`buildHospitalWhere` 가 이 함수로 시작하도록 고칩니다. **같은 판정을 두 곳에 두지 않기 위해서입니다**
+(AGENTS.md) — 요청서 18 이 `approval_status='approved'` 를 더하는 날, 목록에서는 사라졌는데
+`준비중` 은 안 붙는 병원이 생기지 않아야 합니다.
+
+**집계 질의 — 한 번입니다.**
+
+```ts
+// "공개 병원이 1곳 이상 등록한 시술 id"
+const rows = await prisma.hospitalProcedure.groupBy({
+  by: ['procedureId'],
+  where: { hospital: publicHospitalWhere() },
+  _count: { _all: true },
+});
+```
+
+```sql
+-- 같은 뜻의 SQL (읽기용)
+SELECT hp.procedure_id, COUNT(*) AS hospital_count
+  FROM hospital_procedures hp
+  JOIN hospitals h ON h.id = hp.hospital_id
+ WHERE h.deleted_at IS NULL
+ GROUP BY hp.procedure_id;
+```
+
+**판정은 순수 함수입니다** — DB 도 요청도 모르고, 위 집계 결과만 받습니다.
+
+```ts
+export interface ProcedureAvailability {
+  /** 이 시술을 등록한 공개 병원 수 */
+  hospitalCount: number;
+  /** 1곳 이상인가 */
+  isAvailable: boolean;
+}
+
+/** 시술 31개의 가용성. `openIds` 는 위 groupBy 가 돌려준 (id → 병원 수). */
+export function computeProcedureAvailability(
+  procedures: { id: string; categoryId: string }[],
+  hospitalCountById: ReadonlyMap<string, number>,
+): { procedures: Map<string, ProcedureAvailability>; categories: Map<string, ProcedureAvailability> };
+```
+
+분야의 `hospitalCount` 는 **세부 시술 수의 합이 아니라** "그 분야의 시술을 하나라도 하는 병원 수" 가
+맞습니다 — 합으로 세면 임플란트와 뼈이식을 둘 다 하는 병원이 2로 세어집니다. 분야 수치가 화면에
+필요해지면 `groupBy` 를 `(category_id, hospital_id)` distinct 로 바꾸면 됩니다. **지금 화면이 요구하는
+것은 "0인가 아닌가" 뿐이므로**(홈 격자의 `준비중` 배지, 관리자 폼의 비활성) 분야 쪽은
+`isAvailable = 속한 시술 중 하나라도 isAvailable` 만 계산합니다. 숫자는 시술 단위로만 둡니다.
+
+**요청 17 이 들어오면 자동으로 늘어납니다.** 공공데이터 병원도 `hospitals` + `hospital_procedures` 행이라
+같은 질의에 잡힙니다 — 이 절에서 17 을 위해 미리 만드는 것은 없습니다.
+
+**시드 직후 상태** (지금 11곳의 등록을 그대로 옮기므로 작업 전과 같습니다):
+
+| 분야 | 열린 세부 시술 | 준비중 |
+|---|---|---|
+| 임플란트 | `implant-general`(h1·h3·h5·h8) | 뼈이식·상악동거상술·임플란트 틀니 |
+| **스케일링·예방** | **없음** | **4개 전부 — 분야가 준비중** |
+| 교정 | `bracket-braces`(h2·h11) | 투명·설측·부분 |
+| 충치치료 | `resin`(h3·h10) `inlay`(h7·h10) `crown`(h7·h10) | 온레이·신경치료 |
+| 심미 | `laminate`(h1·h2·h6) `whitening`(h6) | 잇몸성형 |
+| 잇몸치료 | `gum-treatment`(h3·h5) | 치주수술·잇몸이식 |
+| 턱관절·스플린트 | `tmj-treatment`(h9) `splint`(h4·h9) `snoring-device`(h4) | 이갈이장치 |
+| 보톡스 | `bruxism-botox`(h1·h9) | 사각턱 보톡스 |
+| 사랑니·발치 | `wisdom-tooth`(h8·h11) | 일반 발치 |
+
+**시드가 스케일링을 넣지 않는 이유.** 요청서의 확인 항목이 "관리자 병원 정보에서 `스케일링` 을
+체크하고 저장하면 … `준비중` 이 아니게 된다" 이고, 다른 항목이 "기존 병원들의 시술 표시가 작업 전과
+같다" 입니다. 시드가 미리 넣으면 **첫 항목은 확인할 수 없게 되고 둘째 항목은 깨집니다.** 샘플에
+스케일링 병원이 있어야 한다는 결정이 나오면 그때 시드 데이터에 추가하면 됩니다 (§17.13-1).
+
+### 17.8 시드 — 시술 원본이 서버로 옵니다
+
+| | 지금 | 요청 14 이후 |
+|---|---|---|
+| 시술 원본 | `frontend/src/mocks/fixtures/procedures.ts` (13) → `backend/prisma/seed/fixtures.ts:31` 이 import | **`backend/prisma/seed/data/procedures.ts` (31)** + **`.../procedure-categories.ts` (9)** |
+| 프론트 fixture | 같은 파일이 MSW·테스트 스텁 겸용 | **남깁니다.** 단 id·이름·순서는 `taxonomy.ts` 에서 **파생**합니다 (아래) |
+| 옛 id 를 들고 있는 다른 fixture | `consultRequests`·`guides`·`promotions`·`qaPosts` (프론트), `hospitals`·`doctors`·`reviews` (백엔드 `seed/data/`) | **값을 새 id 로 고칩니다.** 시드에서 별칭으로 변환하지 않습니다 |
+
+**왜 "fixture 를 고치고, 시드에서 변환하지 않는가".** 변환을 시드에 두면 **프론트 fixture 에는 영원히
+옛 id 가 남습니다.** 그 fixture 는 MSW 응답 스텁이기도 해서, 화면 테스트는 서버가 더 이상 내려주지
+않는 id 를 보며 통과하게 됩니다. 별칭은 **바깥에 이미 나간 값**(주소·브라우저 저장소)에만 쓰는
+장치이고, 우리가 소유한 파일은 그냥 고치는 것이 맞습니다. 바꿀 자리는 적습니다 — 프론트 4개 파일
+10줄, 백엔드 `seed/data/` 3개 파일 22줄.
+
+**새 파일 2개는 import 가 없어야 합니다.** `procedure-categories.ts`·`procedures.ts` 는 타입 선언과
+배열 리터럴만 둡니다(`@/…` 별칭도, `@prisma/client` 타입도 쓰지 않습니다). 이유는 §17.8 의 동기화
+테스트가 **프론트에서 이 파일을 상대 경로로 import** 하기 때문입니다 — 별칭이 하나라도 있으면
+프론트 쪽 해석기가 그것을 풀 수 없습니다. (반대 방향, 즉 백엔드 테스트가 프론트 파일을 읽는 방식은
+택하지 않습니다. `backend/prisma/tsconfig.seed.json` 의 주석이 "서버 코드가 프론트엔드 소스를 import
+할 수 있게 되면 안 된다, 시드만 예외" 라고 못 박아 두었고, 테스트는 `backend/tsconfig.json` 범위입니다.)
+
+**두 사본을 묶는 테스트.**
+
+| 테스트 | 무엇을 고정하나 |
+|---|---|
+| `frontend/src/features/procedure/taxonomy.sync.test.ts` (신규) | `backend/prisma/seed/data/procedures.ts` 와 `taxonomy.ts` 의 **id 배열이 순서까지 같고**, 이름이 같고, `categoryId` 가 같다. 분야도 같은 방식으로 |
+| `frontend/src/features/procedure/taxonomy.test.ts` (기존, 갱신) | 프론트 fixture 의 id 집합 = `SUB_PROCEDURE_IDS`. 옛 `LEGACY_TO_SUB` 단정은 **별칭 표 단정**으로 바뀝니다 (별칭의 값이 전부 실재하는 세부 시술 id 인가) |
+| `backend/test/seed-data.spec.ts` (기존, 갱신) | 시드 후 `procedures` 31행 · `procedure_categories` 9행 · 모든 시술에 분야가 있다 · 31개 id 집합이 시드 데이터 파일과 같다 |
+
+> 사본이 둘인 이유를 `taxonomy.ts` 머리말에 남깁니다 (AGENTS.md — "공유가 안 되면 그 이유를 주석에").
+> **화면은 네트워크를 기다리지 않고 분야 격자를 그립니다.** 홈·탐색 탭·관리자 폼이 첫 프레임에
+> 9개 분야를 그려야 하므로 이름·순서는 번들에 들어 있어야 하고, 그래서 서버 응답만으로는 대체할 수
+> 없습니다. 대신 **갈라지면 테스트가 먼저 깨집니다.**
+
+**프론트 fixture 의 모양** — 이름·순서를 세 번째로 베끼지 않습니다.
+
+```ts
+// frontend/src/mocks/fixtures/procedures.ts
+// 이름·순서·분야는 taxonomy 에서 파생한다. emoji 와 문구만 이 파일이 들고 있다
+// (목 데이터용 값이다 — 서버의 최종 문구는 backend/prisma/seed/data/procedures.ts 에 있다).
+export const procedures: Procedure[] = SUB_PROCEDURES.map((sub) => ({
+  id: sub.id, name: sub.name, ...MOCK_COPY[sub.id],
+}));
+```
+
+`useProcedureMap.test.tsx` 의 `procedures[0]?.id === 'implant'` 결합 가드는 **`'implant-general'`** 이
+됩니다(`screens/community/new.tsx` 의 하드코딩된 로딩 기본값과 같은 값이어야 한다는 성질은 그대로입니다).
+
+**시드 절차의 변경은 두 줄입니다.** ① 시술보다 **분야를 먼저** upsert ② 시술 upsert 에 `categoryId`
+추가(`sortOrder` 는 지금처럼 배열 인덱스). 자식 테이블의 결정적 id(`hp-…`·`dp-…`·`sp-…`)는 새 id 를
+그대로 받으므로 규칙 자체는 바뀌지 않습니다 — 마이그레이션 6단계가 기존 행의 id 를 같은 규칙으로
+맞춰 두기 때문에 **재시드가 중복 행을 만들지 않습니다.**
+
+### 17.9 분야로 거르기 + 광고 우선 노출 — 질의 하나, 순수 함수 한 군데
+
+**필터.** `categoryId` 가 오면 조인으로 거릅니다. 시술 id 목록을 미리 뽑아 `in` 으로 넣지 않습니다 — FK 가 이미 그 관계를 들고 있습니다.
+
+```ts
+// hospital.filters.ts / doctor.filters.ts — 둘이 같은 모양이다
+if (query.categoryId !== undefined) {
+  where.procedures = { some: { procedure: { categoryId: query.categoryId } } };
+}
+if (query.procedureId !== undefined) {
+  where.procedures = { some: { procedureId: query.procedureId } };
+}
+```
+
+`procedureId` 와 `categoryId` 가 함께 오면 **세부 시술이 이깁니다**(더 좁은 조건). 계약이 그렇게 적어야 하고, 서버는 둘 중 하나만 적용합니다.
+
+**광고 자격.** 지금 `computeSponsorship` 은 `procedureId?: string` 하나를 받아
+`sponsoredCategories.includes(procedureId)` 로 봅니다. 분야 필터에서는 "그 분야의 **어느** 시술이든
+광고 중이면 자격 있음" 이어야 하므로, 인자를 **집합**으로 넓힙니다.
+
+```ts
+export interface ComputeSponsorshipOptions {
+  today: string;
+  /**
+   * 이 요청이 좁힌 시술 id 집합. 세부 시술 칩이면 1개, 분야 탭이면 그 분야의 시술 전부.
+   * 넘기지 않으면(추천 탭·필터 없음) 카테고리 일치 검사를 하지 않는다.
+   */
+  procedureIds?: string[];
+}
+// categoryOk = options.procedureIds === undefined
+//           || input.sponsoredCategories.some((id) => options.procedureIds!.includes(id));
+```
+
+- **세부 시술 하나일 때의 동작이 지금과 완전히 같습니다**(원소 1개짜리 집합) — 회귀 없이 넓어집니다
+- 규칙이 **한 함수 안에 하나**로 남습니다. "분야용 자격 판정" 을 따로 만들면 세부 시술 쪽과 갈립니다
+- 분야의 시술 id 집합은 `ProcedureRepository.findIdsByCategory(categoryId)` 로 **요청당 한 번** 읽습니다(31행 테이블이라 비용이 없습니다). 광고 행에 `category_id` 를 복제해 두지 않는 이유는 그것이 **같은 사실의 두 번째 사본**이기 때문입니다 — 시술이 분야를 옮기면 광고 행이 옛 분야에 남습니다
+
+`hospital.service.ts` 의 `sponsoredFirst` 조건에 `categoryId` 를 더합니다:
+`query.procedureId !== undefined || query.categoryId !== undefined || query.recommended === true`.
+**이것으로 `known-issues.md` 🟠 "시술 분야 세 곳은 광고 병원이 위로 안 올라가고 100곳까지만 보입니다"
+가 사라집니다** — 100곳 제한은 화면이 여러 시술을 각각 받아 합치느라 둔 임시 상한이었고, 서버가 분야를
+알면 목록은 처음부터 서버 페이지네이션(`paginate`)을 탑니다. **데이터 쪽에 추가로 필요한 것은 없습니다.**
+
+### 17.10 인덱스 — 추가 0
+
+| 후보 | 판단 |
+|---|---|
+| `procedures(category_id)` | **만들지 않습니다.** 31행 테이블입니다. 분야 조인은 전체 스캔이 인덱스 조회보다 싸고, `hospital_procedures(procedure_id)` 인덱스(이미 있음)가 실제 선택도를 다 담당합니다 |
+| `procedures(category_id, sort_order)` | 같은 이유로 기각. "분야의 세부 시술을 화면 순서로" 는 31행 정렬입니다 |
+| `procedure_categories(sort_order)` | 9행. 기각 |
+
+§6.7("일부러 만들지 않은 인덱스")과 같은 판단입니다. **PostgreSQL 이전 후에도 그대로**입니다 — 다시 볼 조건은 "시술 카탈로그가 수백 행이 되는 경우"(예: 공공데이터 비급여 코드를 시술 행으로 직접 들이는 설계)이고, 요청 17 은 그런 설계가 아닙니다.
+
+### 17.11 전공 ↔ 시술 표 — 한 벌로 맞춥니다
+
+지금 표가 둘입니다: 프론트 `CATEGORY_SPECIALTIES`(분야 → 강조할 전공들, 배지)와 백엔드
+`PROCEDURE_SPECIALTY_MAP`(시술 → 전공 1개, 전문의 등록 시 자동 배정). 둘이 `implant`·`whitening`·
+`cavity` 에서 갈려 있습니다 (`known-issues.md` 개발자용 메모).
+
+**원본은 백엔드의 시술 → 전공 **복수** 표 하나입니다.** 분야 표는 그 **합집합**으로 정의합니다.
+
+```ts
+// backend/src/doctor/specialty-procedures.ts — import 0 (프론트 테스트가 상대 경로로 읽는다)
+export const PROCEDURE_SPECIALTIES: Record<string, readonly string[]> = { … 31행 … };
+```
+
+| 분야 | 시술 | 전공 |
+|---|---|---|
+| 임플란트 | `implant-general` | 치과보철전문의 · 구강악안면외과전문의 |
+| | `bone-graft`·`sinus-lift` | 구강악안면외과전문의 |
+| | `implant-denture` | 치과보철전문의 |
+| 스케일링·예방 | `scaling`·`halitosis` | 치주과전문의 · 통합치의학과전문의 |
+| | `fluoride`·`sealant` | 소아치과전문의 · 통합치의학과전문의 |
+| 교정 | `clear-aligner`·`lingual-braces`·`bracket-braces`·`partial-ortho` | 치과교정전문의 |
+| 충치치료 | `resin`·`root-canal` | 통합치의학과전문의 |
+| | `inlay`·`onlay` | 치과보철전문의 · 통합치의학과전문의 |
+| | `crown` | 치과보철전문의 |
+| 심미 | `laminate` | 치과보철전문의 |
+| | `whitening` | 통합치의학과전문의 · 치과보철전문의 |
+| | `gum-contouring` | 치주과전문의 |
+| 잇몸치료 | `gum-treatment`·`periodontal-surgery`·`gum-graft` | 치주과전문의 |
+| 턱관절·스플린트 | `tmj-treatment`·`splint`·`bruxism-device`·`snoring-device` | 구강악안면외과전문의 |
+| 보톡스 | `bruxism-botox`·`masseter-botox` | 구강악안면외과전문의 |
+| 사랑니·발치 | `wisdom-tooth`·`general-extraction` | 구강악안면외과전문의 |
+
+- **임플란트 분야는 치과보철 + 구강악안면외과 둘 다 강조합니다** — 요청자 결정입니다. 식립(외과)과 보철(상부 구조)이 한 분야 안에 들어 있어 한쪽만 고르면 다른 쪽 전문의가 상주하는 병원의 배지가 꺼집니다 (`specialty.ts` 가 복수 값을 둔 것과 같은 이유)
+- 쓸 수 있는 값은 **기존 7개 전공 + 일반의** 뿐입니다 (`DentalSpecialty`). 새 전공을 만들지 않습니다
+- **구강악안면방사선과전문의는 31개 중 어디에도 없습니다.** 영상 진단은 세부 시술 목록에 없는 활동이라 자동 배정이 0개인 것이 맞습니다 — `known-issues.md` 🟡 "두 전문 분야는 전문의 등록 시 시술이 자동으로 채워지지 않습니다" 중 **소아치과는 해소**되고(불소도포·실란트), 방사선과는 **의도적으로 남습니다**
+
+합집합으로 유도되는 분야 표(= 프론트 `CATEGORY_SPECIALTIES` 의 새 값):
+
+| 분야 | 전공 | 지금과 다른가 |
+|---|---|---|
+| implant | 치과보철 · 구강악안면외과 | **바뀜** (지금 구강악안면외과만) |
+| prevention | 치주과 · 통합치의학과 · 소아치과 | **바뀜** (소아치과 추가) |
+| orthodontics | 치과교정 | 같음 |
+| cavity | 통합치의학과 · 치과보철 | 같음 |
+| aesthetic | 치과보철 · 통합치의학과 · 치주과 | **바뀜** (치주과 추가 — 잇몸성형) |
+| gum | 치주과 | 같음 |
+| tmj / botox / extraction | 구강악안면외과 | 같음 |
+
+**두 파일로 남기되, 한쪽이 다른 쪽의 합집합임을 테스트가 고정합니다** (`taxonomy.sync.test.ts` 에 같이
+둡니다). 프론트가 런타임에 합집합을 계산하게 하려면 시술 → 전공 표가 응답에 실려야 하는데, 배지는
+카드가 그려지는 **첫 프레임**에 필요하고(네트워크를 기다리면 배지가 깜빡입니다) 계약에 소비자 없는
+필드를 하나 더 만드는 일이기도 합니다. 그래서 **사본 + 검사**를 택합니다. 이유를 두 파일 머리말에
+적습니다.
+
+**자동 배정의 부작용 하나는 이 절에서 고치지 않습니다.** `getProceduresForSpecialty` 는 전공만 보고
+시술을 고르고 **병원이 실제로 취급하는 시술과 교집합을 내지 않습니다**(`일반의` 만 예외). 시술이
+13 → 31 로 늘면 구강악안면외과 전문의 한 명에게 11개가 붙고, 그중 상당수는 그 병원이 하지 않는
+시술입니다. **고치는 방법은 한 줄**(모든 전공에 대해 `hospitalProcedureIds` 와 교집합)이지만 등록
+동작이 바뀌는 변경이라 요청서 14 의 범위 밖입니다 — §17.13-2 의 결정 항목으로 올리고,
+`backend/README.md` 의 "미룬 것들" 과 `known-issues.md` 에 기록합니다.
+
+> **→ 결정됨(2026-10-21): 교집합을 요청 14 에 넣었습니다.** 계약 `docs/api/README.md` §22.8 의
+> 리드 결정이고 `getProceduresForSpecialty` 가 이미 그렇게 동작합니다(`일반의` 는 교집합이
+> 전체라 전과 같습니다). 그래서 §17.13-2 와 §17.15-7 의 "미룬다" 는 더 이상 유효하지 않습니다.
+
+### 17.12 만들지 않는 것
+
+| 만들지 않는 것 | 이유 |
+|---|---|
+| `procedures.is_coming_soon` | §17.7 — 세어서 파생합니다. 컬럼이면 병원이 체크할 때마다 갱신해야 하는 두 번째 사실이 됩니다 |
+| `procedures.is_listed` (노출/저장 분리 축) | §16.2 가 "언젠가 필요할 수도" 라고 적어 둔 축입니다. **요청 14 는 31개를 전부 노출합니다** — 노출하지 않을 시술이 없으므로 축이 필요 없습니다 |
+| 동의어(keywords) 테이블 | 요청서가 화면에 두라고 했습니다. 서버 검색 추천을 만드는 요청서에서 다시 봅니다 |
+| 분야 아이콘 컬럼 | 아이콘은 React 컴포넌트입니다 (§17.2) |
+| 서버의 옛 id 별칭 | §17.5 — 저장 값은 한 가지여야 합니다 |
+| `hospital_procedures` 의 분야 복제 | 광고 자격은 조인으로 풉니다 (§17.9) |
+| 공공데이터용 사전 설계 | 요청 17 이 합니다. 이 절은 **그것을 막지 않는 것**까지만 합니다(공공데이터 병원도 같은 두 테이블에 들어오면 §17.7 의 집계에 자동으로 잡힙니다) |
+
+### 17.13 남은 미결 · 요청자에게 물을 것
+
+1. **샘플 병원 11곳에 `스케일링` 을 넣을까요?** — 권고: **넣지 않습니다** (§17.7 의 이유). 넣기로 하면 어느 병원에 넣을지도 함께 정해야 합니다(예: `h3`·`h5`·`h10`)
+2. **전문의 자동 배정을 병원 시술과 교집합할까요?** — 권고: **합니다**(그러지 않으면 병원이 하지 않는 시술이 전문의 프로필에 붙습니다). 다만 요청서 14 의 범위 밖이라 **별도 확인**을 받고 넣습니다 (§17.11)
+3. **커뮤니티 질문하기의 시술 목록이 13 → 31 로 늘어납니다.** 데이터는 그대로이고 화면 결정입니다 — 분야로 묶어 보여줄지(`충치치료 › 레진`) 31개를 평평하게 둘지는 designer·frontend-engineer 가 정합니다 (`known-issues.md` 🔵 "커뮤니티 질문하기의 시술 이름만 옛 목록을 씁니다" 가 이때 사라집니다)
+4. **`bruxism-device`(이갈이장치)와 `splint`(스플린트)는 임상적으로 겹칩니다.** `taxonomy.ts` 가 둘을 따로 뒀고 이름·순서를 바꾸지 말라고 했으므로 그대로 둡니다. 병원이 둘 다 체크할 수 있고, 그것이 틀린 상태는 아닙니다
+5. **문구(한 줄 소개·설명) 31개는 이 절이 초안으로 쓴 값입니다.** 의료 표현이라 요청자 검토를 받는 편이 좋습니다 — 고치더라도 **시드 데이터 파일 한 곳**만 바뀌고 스키마는 그대로입니다
+
+### 17.14 interface-master 에 넘기는 것
+
+| 자리 | 변경 |
+|---|---|
+| `ProcedureId` enum | **13 → 31**. 값은 §17.4 의 id (옛 6개는 **제거** — 서버가 받지 않습니다) |
+| `Procedure` 스키마 | **`categoryId` 추가**(필수). 나머지 필드 그대로 |
+| **신규** `GET /procedure-categories` 또는 `ProcedureCategory` 스키마 | `id`·`name`·`description`·`sortOrder`. 화면이 분야 목록을 서버에서도 받을 수 있어야 합니다(관리자 폼의 31개 섹션) |
+| `GET /procedures` · `GET /procedure-categories` 응답 | **가용성**(`준비중` 판정)을 어디에 실을지 결정이 필요합니다. 권고: `Procedure.isAvailable`(+`hospitalCount`)과 `ProcedureCategory.isAvailable`. 화면 세 곳(홈 격자·탐색 탭·관리자 폼)이 같은 값을 써야 하므로 **한 응답에서 함께 내려주는 편**이 갈라지지 않습니다. 단 가용성은 변하는 값이라 **현재 `Cache-Control: public, max-age=3600` 을 재검토**해야 합니다(권고: `max-age=60` 또는 가용성만 별도 경로) |
+| `GET /hospitals` · `GET /doctors` | **`categoryId` 파라미터 추가** (§17.9). `procedureId` 와 동시에 오면 `procedureId` 우선. `categoryId` 일 때도 광고 우선 노출을 켭니다 |
+| 목록 응답 | 변화 없음. 분야 필터는 **페이지네이션을 그대로 탑니다**(100곳 제한은 화면 쪽 임시 조치였습니다) |
+| `422 details[].code` | 기존 `unknown_procedure` 재사용. 분야용으로 `unknown_category` 가 필요합니다(존재하지 않는 `categoryId`) |
+
+> **이 표는 넘긴 시점의 제안입니다. 확정 계약은 `docs/api/README.md` §22 이고, 세 줄이 다르게
+> 결정됐습니다** — ⓐ `GET /procedure-categories` 는 **만들지 않습니다**(호출할 화면이 없습니다 — §22.4),
+> ⓑ `procedureId` + `categoryId` 는 "우선" 이 아니라 **AND** 입니다(§22.6), ⓒ 모르는 분야는
+> `unknown_category` 가 아니라 **0건**이라 그 에러 코드를 만들지 않았습니다(§22.6).
+> 캐시는 `max-age=60` 이 아니라 **`no-cache` + ETag** 로 갔습니다(§22.5).
+
+### 17.15 backend-engineer 에게 넘기는 것 (체크리스트)
+
+1. `schema.prisma` — `ProcedureCategory` 모델 + `Procedure.categoryId`/`category`
+2. 마이그레이션 1개 (§17.6). **개발 DB 백업 먼저** (CLAUDE.md 안전장치 2)
+3. 시드 — `seed/data/procedure-categories.ts`(9)·`seed/data/procedures.ts`(31) 신설, `seed/fixtures.ts` 에서 프론트 `procedures` import 제거, 분야 → 시술 순서로 upsert, `seed/data/hospitals|doctors|reviews.ts` 의 옛 id 22곳 치환
+4. 순수 함수 — `procedure/availability.ts`(§17.7), `hospital/sponsorship.ts` 의 `procedureIds` 집합화(§17.9), `hospital/public-visibility.ts` 의 `publicHospitalWhere`(§17.7), `doctor/specialty-procedures.ts` 의 31행 표(§17.11)
+5. 필터 — `hospital.filters.ts`·`doctor.filters.ts` 의 `categoryId`, `hospital.service.ts` 의 `sponsoredFirst`
+6. 테스트(먼저 쓰기) — 가용성 경계(0곳/1곳/삭제된 병원만 있는 시술), 분야 필터 + 광고 정렬, 이관 보존 단정(§17.6), 시드 31/9행, 전공 표 합집합
+7. `backend/README.md` 의 "미룬 것들" 에 §17.11 의 자동 배정 교집합을 기록

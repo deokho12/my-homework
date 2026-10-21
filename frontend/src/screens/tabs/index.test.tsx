@@ -1,10 +1,10 @@
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import * as hospitalApi from '@/features/hospital/api/hospitalApi';
 import * as procedureApi from '@/features/procedure/api/procedureApi';
-import { CATEGORIES, getLegacyIdsOf } from '@/features/procedure/taxonomy';
+import { CATEGORIES, SUB_PROCEDURES } from '@/features/procedure/taxonomy';
 import { router } from '@/navigation';
 import HomeScreen from '@/screens/tabs/index';
 import { baseHospital } from '@/test/hospitalFixture';
@@ -38,37 +38,47 @@ describe('HomeScreen — 시술로 찾기', () => {
   /**
    * 인기검색어 pill 에도 "임플란트" 버튼이 있다 — 격자 안에서만 찾는다.
    */
-  function renderHome() {
+  function renderHome(availableIds: readonly string[] | null = null) {
     vi.spyOn(hospitalApi, 'fetchHospitalById').mockResolvedValue(baseHospital());
+    vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue(
+      SUB_PROCEDURES.map((sub) => ({
+        id: sub.id,
+        name: sub.name,
+        emoji: '',
+        shortDescription: '',
+        description: '',
+        categoryId: sub.categoryId,
+        isAvailable: availableIds === null || availableIds.includes(sub.id),
+      }))
+    );
     renderWithProviders(<HomeScreen />);
     return within(screen.getByRole('region', { name: '시술로 찾기' }));
   }
 
-  it('대분류 9칸을 서버 응답 없이 바로 그린다', () => {
-    const fetchProceduresSpy = vi.spyOn(procedureApi, 'fetchProcedures');
-
-    const grid = renderHome();
+  it('분야 9칸을 서버 응답 없이 바로 그린다 — 응답 전에는 준비중 배지가 없다', () => {
+    // 응답은 "전부 준비중" 이지만 아직 도착하지 않은 시점을 본다.
+    const grid = renderHome([]);
 
     expect(grid.getAllByRole('button')).toHaveLength(CATEGORIES.length + 1); // + "전체보기"
     for (const category of CATEGORIES) {
-      // 접근성 이름 규칙 = CategoryCard 와 동일: 서버 시술이 없는 대분류는 ' · 준비중' 이 붙는다.
-      const accessibleName =
-        getLegacyIdsOf(category.id).length === 0 ? `${category.name} · 준비중` : category.name;
-      expect(grid.getByRole('button', { name: accessibleName })).toBeInTheDocument();
+      expect(grid.getByRole('button', { name: category.name })).toBeInTheDocument();
     }
-    expect(fetchProceduresSpy).not.toHaveBeenCalled();
+    // 모르는 상태를 준비중으로 그리면 첫 프레임에 9칸 전부 '준비중' 이 번쩍인다.
+    expect(grid.queryByText('준비중')).not.toBeInTheDocument();
   });
 
-  it('서버가 아는 시술이 하나도 없는 대분류는 "준비중" 으로 보인다', () => {
-    const grid = renderHome();
+  it('등록된 병원이 한 곳도 없는 분야는 "준비중" 으로 보인다', async () => {
+    const grid = renderHome(['implant-general']);
 
-    // 스케일링·예방은 세부 4개가 전부 준비중이다 — 격자에서 빼지 않고 표시만 남긴다.
-    // 눈에 보이는 '준비중' 과 스크린리더가 듣는 이름 둘 다 확인한다 (QA 🟡 접근성 지적 반영).
-    expect(grid.getByRole('button', { name: '스케일링·예방 · 준비중' })).toHaveTextContent('준비중');
+    // 격자에서 빼지 않고 표시만 남긴다. 눈에 보이는 '준비중' 과 스크린리더가 듣는 이름을
+    // 둘 다 확인한다 (QA 🟡 접근성 지적 반영).
+    await waitFor(() =>
+      expect(grid.getByRole('button', { name: '스케일링·예방 · 준비중' })).toHaveTextContent('준비중')
+    );
     expect(grid.getByRole('button', { name: '임플란트' })).not.toHaveTextContent('준비중');
   });
 
-  it('대분류 카드를 누르면 카테고리 화면으로 간다', async () => {
+  it('분야 카드를 누르면 카테고리 화면으로 간다', async () => {
     const pushSpy = vi.spyOn(router, 'push').mockImplementation(() => {});
 
     const grid = renderHome();

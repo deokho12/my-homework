@@ -39,7 +39,7 @@ function consultRow(overrides: Partial<AdminConsultRequest> = {}): AdminConsultR
   return {
     id: 'cr20',
     hospitalId: 'h1',
-    procedureId: 'implant',
+    procedureId: 'implant-general',
     name: '박서영',
     phone: '010-****-4411',
     piiMasked: true,
@@ -284,7 +284,7 @@ describe('HospitalDashboard — 오늘 할 일', () => {
       dashboard({
         todo: {
           delayedConsults: [
-            { id: 'cr12', name: '박서영', procedureId: 'implant', createdAt: '2026-10-11T23:40:00.000Z' },
+            { id: 'cr12', name: '박서영', procedureId: 'implant-general', createdAt: '2026-10-11T23:40:00.000Z' },
           ],
           delayedRemaining: 2,
           rejectedDoctors: [],
@@ -374,7 +374,7 @@ describe('HospitalDashboard — 최근 상담 · 오늘 내원 · 상담 흐름'
     stub(
       dashboard({
         todayVisits: [
-          { id: 'cr3', name: '김민준', procedureId: 'orthodontics', visitAt: '2026-10-13T05:00:00.000Z' },
+          { id: 'cr3', name: '김민준', procedureId: 'bracket-braces', visitAt: '2026-10-13T05:00:00.000Z' },
         ],
       })
     );

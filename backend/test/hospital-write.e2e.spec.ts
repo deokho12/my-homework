@@ -159,7 +159,7 @@ describe('병원 쓰기', () => {
           latitude: 37.5,
           longitude: 127.03,
           thumbnail: 'https://example.test/name-change.jpg',
-          procedureIds: ['implant'],
+          procedureIds: ['implant-general'],
           priceRange: { min: 100000, max: 200000 },
         })
         .expect(201);
@@ -183,7 +183,7 @@ describe('병원 쓰기', () => {
       latitude: 37.5,
       longitude: 127.03,
       thumbnail: 'https://example.test/t.jpg',
-      procedureIds: ['implant'],
+      procedureIds: ['implant-general'],
       priceRange: { min: 100000, max: 200000 },
     };
 
@@ -234,6 +234,29 @@ describe('병원 쓰기', () => {
   });
 
   describe('procedureIds FK 검증 · 태그 정규화 중복 제거', () => {
+    it('폐기된 옛 시술 id 로 쓰면 422 unknown_procedure 다 — 서버는 별칭을 받지 않는다', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/hospitals')
+        .set('Authorization', bearer(operator))
+        .send({
+          name: '__write-spec__ 옛 id 거절용 병원',
+          region: '서울 강남구',
+          address: '서울 강남구 테헤란로 6',
+          latitude: 37.5,
+          longitude: 127.03,
+          thumbnail: 'https://example.test/legacy-id.jpg',
+          priceRange: { min: 100000, max: 200000 },
+          procedureIds: ['implant', 'gum-disease'],
+        });
+
+      expect(response.status).toBe(422);
+      expect(response.body.error.code).toBe('VALIDATION_FAILED');
+      expect(response.body.error.details.map((detail: { code: string }) => detail.code)).toEqual([
+        'unknown_procedure',
+        'unknown_procedure',
+      ]);
+    });
+
     it('PATCH 로 존재하지 않는 procedureId 를 보내면 POST 와 같은 422 다', async () => {
       const response = await patch(SEED_FIXTURES.hospitalManagedByH1Admin, operator, {
         procedureIds: ['does-not-exist-procedure'],
@@ -257,7 +280,7 @@ describe('병원 쓰기', () => {
           latitude: 37.5,
           longitude: 127.03,
           thumbnail: 'https://example.test/tag-dedupe.jpg',
-          procedureIds: ['implant'],
+          procedureIds: ['implant-general'],
           priceRange: { min: 100000, max: 200000 },
         })
         .expect(201);

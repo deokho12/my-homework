@@ -24,7 +24,7 @@ function row(overrides: Partial<DoctorRow> = {}): DoctorRow {
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
     updatedAt: new Date('2026-01-01T00:00:00.000Z'),
     deletedAt: null,
-    procedures: [{ procedureId: 'implant' }],
+    procedures: [{ procedureId: 'implant-general' }],
     careers: [{ content: '서울대 치의학 박사', sortOrder: 0 }],
     ...overrides,
   } as DoctorRow;

@@ -106,6 +106,57 @@ describe('localCollection — zustand persist 이관', () => {
   });
 });
 
+describe('브라우저에 남은 옛 시술 id (요청 14)', () => {
+  /**
+   * 2026-10-21 이전에 저장된 상담·질문 행은 옛 서버 시술 id 를 들고 있다. 그대로 두면
+   * 라벨이 붙지 않고(`procedureDisplayName` 이 null) 관리자 분야 필터에도 걸리지 않는다.
+   * 푸는 자리는 **읽기 한 곳**이다 — 화면·훅·api 가 각자 풀면 한 군데를 빠뜨린다.
+   */
+  it('상담 행의 옛 id 를 읽는 순간 새 id 로 바꾼다', () => {
+    window.localStorage.setItem(
+      'molarmolar-local-consultRequests',
+      JSON.stringify([
+        { id: 'cr-1', hospitalId: 'h1', procedureId: 'cavity' },
+        { id: 'cr-2', hospitalId: 'h1', procedureId: 'gum-disease' },
+      ])
+    );
+    resetCollectionCache();
+
+    expect(readCollection('consultRequests').map((row) => row.procedureId)).toEqual([
+      'resin',
+      'gum-treatment',
+    ]);
+  });
+
+  it('커뮤니티 글도 같은 표를 거친다', () => {
+    window.localStorage.setItem(
+      'molarmolar-local-communityPosts',
+      JSON.stringify([{ id: 'q-1', title: 't', content: 'c', procedureId: 'implant', answers: [] }])
+    );
+    resetCollectionCache();
+
+    expect(readCollection('communityPosts')[0]?.procedureId).toBe('implant-general');
+  });
+
+  it('지금 id·시술 미지정·모르는 값은 그대로 둔다 — 지어내지 않는다', () => {
+    window.localStorage.setItem(
+      'molarmolar-local-consultRequests',
+      JSON.stringify([
+        { id: 'cr-1', procedureId: 'root-canal' },
+        { id: 'cr-2', procedureId: null },
+        { id: 'cr-3', procedureId: 'zirconia-bridge' },
+      ])
+    );
+    resetCollectionCache();
+
+    expect(readCollection('consultRequests').map((row) => row.procedureId)).toEqual([
+      'root-canal',
+      null,
+      'zirconia-bridge',
+    ]);
+  });
+});
+
 describe('pageLocalRows', () => {
   const rows = Array.from({ length: 25 }, (_, index) => index);
 

@@ -55,7 +55,7 @@ function consult(overrides: Partial<StoredConsultRequest> = {}): StoredConsultRe
   return {
     id: 'cr1',
     hospitalId: 'h1',
-    procedureId: 'implant',
+    procedureId: 'implant-general',
     name: '박서영',
     phone: '010-1234-4411',
     preferredTime: '평일 오후',

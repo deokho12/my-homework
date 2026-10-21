@@ -49,6 +49,7 @@ import {
   guides,
   hospitals,
   notifications,
+  procedureCategories,
   procedures,
   promotions,
   qaPosts,
@@ -99,8 +100,20 @@ async function main(): Promise<void> {
   console.log('─'.repeat(78));
 
   // ===========================================================================
-  // 1. 시술 마스터 13종 — sort_order = fixture 배열 순서
+  // 1. 시술 분야 9종 + 시술 마스터 31종 — sort_order = 배열 순서
+  //    **분야를 먼저** 넣는다 — `procedures.category_id` 가 FK 다 (docs §17.8).
   // ===========================================================================
+  for (const [index, category] of procedureCategories.entries()) {
+    const data = { name: category.name, description: category.description, sortOrder: index };
+
+    await prisma.procedureCategory.upsert({
+      where: { id: category.id },
+      create: { id: category.id, ...data },
+      update: data,
+    });
+  }
+  console.log(`  procedure_categories      ${procedureCategories.length}`);
+
   for (const [index, procedure] of procedures.entries()) {
     const data = {
       name: procedure.name,
@@ -108,6 +121,7 @@ async function main(): Promise<void> {
       shortDescription: procedure.shortDescription,
       description: procedure.description,
       sortOrder: index,
+      categoryId: procedure.categoryId,
     };
 
     await prisma.procedure.upsert({

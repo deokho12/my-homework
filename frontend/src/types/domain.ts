@@ -1,17 +1,46 @@
+/**
+ * 세부 시술 31개 (2026-10-21 요청 14 — 13종에서 늘었고 옛 id 6개는 사라졌다).
+ *
+ * 선언 순서 = 화면 순서 = `GET /procedures` 응답 순서 (분야 순서 × 분야 안 순서).
+ * 값과 순서의 원본은 `backend/prisma/seed/data/procedures.ts` 이고, 계약은
+ * `docs/api/openapi.yaml` 의 `ProcedureId` 다.
+ *
+ * 옛 id (`implant`·`orthodontics`·`cavity`·`gum-disease`·`tmj`·`botox`)는 **서버가 받지
+ * 않는다.** 이미 발급된 주소·브라우저 저장소의 옛 값은 `features/procedure/taxonomy.ts`
+ * 의 별칭 표 하나가 푼다.
+ */
 export type ProcedureId =
-  | 'implant'
-  | 'orthodontics'
-  | 'laminate'
+  | 'implant-general'
+  | 'bone-graft'
+  | 'sinus-lift'
+  | 'implant-denture'
+  | 'scaling'
+  | 'fluoride'
+  | 'sealant'
+  | 'halitosis'
+  | 'clear-aligner'
+  | 'lingual-braces'
+  | 'bracket-braces'
+  | 'partial-ortho'
+  | 'resin'
   | 'inlay'
+  | 'onlay'
   | 'crown'
+  | 'root-canal'
+  | 'laminate'
   | 'whitening'
-  | 'wisdom-tooth'
-  | 'cavity'
-  | 'gum-disease'
+  | 'gum-contouring'
+  | 'gum-treatment'
+  | 'periodontal-surgery'
+  | 'gum-graft'
+  | 'tmj-treatment'
   | 'splint'
+  | 'bruxism-device'
   | 'snoring-device'
-  | 'tmj'
-  | 'botox';
+  | 'bruxism-botox'
+  | 'masseter-botox'
+  | 'wisdom-tooth'
+  | 'general-extraction';
 
 export interface Procedure {
   id: ProcedureId;
@@ -19,6 +48,14 @@ export interface Procedure {
   emoji: string;
   shortDescription: string;
   description: string;
+  /** 이 시술이 속한 분야 9개 중 하나 (계약 `ProcedureCategoryId`). */
+  categoryId: string;
+  /**
+   * **`준비중` 의 반대.** 앱에 노출되는 병원 중 이 시술을 하는 곳이 1곳 이상이면 `true` 다
+   * — 서버가 매 요청 집계한다 (계약 §22.3). 저장된 컬럼이 아니므로 화면이 캐시해 두면
+   * 방금 한 저장이 반영되지 않는다 (`useProcedures` 가 `staleTime` 을 두지 않는 이유).
+   */
+  isAvailable: boolean;
 }
 
 export interface PriceRange {

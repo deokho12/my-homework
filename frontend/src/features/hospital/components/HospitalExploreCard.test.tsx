@@ -49,7 +49,7 @@ describe('HospitalExploreCard', () => {
 
   it('시술 배지는 서버 이름이 아니라 세부 시술 이름으로 즉시 그려진다', () => {
     renderWithProviders(
-      <HospitalExploreCard hospital={baseHospital({ procedureIds: ['cavity', 'crown'] })} activeCategory="cavity" />
+      <HospitalExploreCard hospital={baseHospital({ procedureIds: ['resin', 'crown'] })} activeCategory="cavity" />
     );
 
     // `cavity` 의 서버 이름은 "충치치료" 지만 화면에서는 세부 시술 "레진" 이다.
@@ -60,7 +60,7 @@ describe('HospitalExploreCard', () => {
 
   it('taxonomy 가 모르는 서버 id 는 배지를 건너뛴다 (지어낸 이름을 그리지 않는다)', () => {
     renderWithProviders(
-      <HospitalExploreCard hospital={baseHospital({ procedureIds: ['implant', 'future-id' as never] })} />
+      <HospitalExploreCard hospital={baseHospital({ procedureIds: ['implant-general', 'future-id' as never] })} />
     );
 
     expect(screen.getByText('일반 임플란트')).toBeInTheDocument();
@@ -140,7 +140,7 @@ describe('HospitalExploreCard', () => {
           hospital={baseHospital({
             isOneDay: true,
             representativeSpecialty: '치과보철전문의',
-            procedureIds: ['cavity', 'crown'],
+            procedureIds: ['resin', 'crown'],
           })}
         />
       );

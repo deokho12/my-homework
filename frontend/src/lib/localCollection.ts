@@ -1,3 +1,4 @@
+import { resolveLegacyProcedureId } from '@/features/procedure/taxonomy';
 import { consultRequests as seedConsultRequests } from '@/mocks/fixtures/consultRequests';
 import { notifications as seedNotifications } from '@/mocks/fixtures/notifications';
 import { qaPosts as seedQaPosts } from '@/mocks/fixtures/qaPosts';
@@ -183,9 +184,35 @@ export function readCollection<K extends LocalCollectionName>(name: K): LocalCol
     safeSetItem(`${STORAGE_PREFIX}${name}`, JSON.stringify(rows));
   }
 
+  rows = normalizeProcedureIds(name, rows);
   cache.set(name, rows);
 
   return rows;
+}
+
+/**
+ * **옛 시술 id 를 읽는 순간 한 번에 푼다** (2026-10-21 요청 14).
+ *
+ * 이 앱을 오늘 이전에 쓴 브라우저에는 `procedureId: 'implant'` 같은 옛 값을 가진 상담·질문
+ * 행이 남아 있다. 서버 시술 id 가 31개 세부 시술로 바뀌면서 그 값들은 라벨이 안 붙고
+ * (`procedureDisplayName` 이 `null`), 관리자 상담 분야 필터에도 걸리지 않는다.
+ *
+ * **읽을 때 한 곳에서** 바꾼다 — 화면·훅·api 함수가 각자 풀면 한 군데를 빠뜨린다. 쓰기는
+ * 이미 새 id 라 변환이 필요 없고, 변환된 값은 다음 `writeCollection` 때 저장소에도 남는다.
+ */
+function normalizeProcedureIds<K extends LocalCollectionName>(
+  name: K,
+  rows: LocalCollections[K]
+): LocalCollections[K] {
+  if (name !== 'consultRequests' && name !== 'communityPosts') return rows;
+
+  return (rows as readonly { procedureId?: string | null }[]).map((row) => {
+    if (typeof row.procedureId !== 'string') return row;
+    const resolved = resolveLegacyProcedureId(row.procedureId);
+
+    // 풀 수 없는 값은 그대로 둔다 — 지어내지 않는다. 라벨 없는 줄로 보일 뿐이다.
+    return resolved === null || resolved === row.procedureId ? row : { ...row, procedureId: resolved };
+  }) as LocalCollections[K];
 }
 
 /** 시드 배열의 얕은 사본. 캐시가 import 된 fixture 원본을 참조하지 않게 한다. */

@@ -93,7 +93,10 @@ export const queryKeys = {
     agreementVersions: ['legalDocuments', 'agreementVersions'] as const,
   },
   procedures: {
-    /** 13종 고정 마스터 데이터. 필터가 없어 무효화 접두사와 조회 키가 같다. */
+    /**
+     * 세부 시술 31개 + 각 시술의 `isAvailable`. 필터가 없어 무효화 접두사와 조회 키가 같다.
+     * **병원 저장이 이 키를 깬다** — 취급 시술 체크가 `준비중` 판정을 바꾸기 때문이다 (계약 §22.5).
+     */
     all: ['procedures'] as const,
   },
 } as const;

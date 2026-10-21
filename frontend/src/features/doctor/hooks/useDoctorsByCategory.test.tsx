@@ -1,20 +1,23 @@
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import * as doctorApi from '@/features/doctor/api/doctorApi';
 import { useDoctorsByCategory } from '@/features/doctor/hooks/useDoctorsByCategory';
+import { LIST_PAGE_SIZE } from '@/lib/pagination';
 import { queryWrapper } from '@/test/queryWrapper';
-import type { Doctor, Paged, ProcedureId } from '@/types/domain';
+import type { Doctor, Paged } from '@/types/domain';
 
 /** `useHospitalsByCategory.test.tsx` 와 같은 규칙을 전문의 목록에서도 고정한다. */
 
-/** 이 테스트가 보는 필드는 `id` 와 `procedureIds` 둘뿐이다. */
-function doctor(id: string, procedureIds: ProcedureId[]): Doctor {
-  return { id, procedureIds } as unknown as Doctor;
+function doctor(id: string): Doctor {
+  return { id } as unknown as Doctor;
 }
 
-function paged(items: Doctor[]): Paged<Doctor> {
-  return { items, meta: { page: 1, pageSize: 100, totalItems: items.length, totalPages: 1 } };
+function paged(items: Doctor[], meta: Partial<Paged<Doctor>['meta']> = {}): Paged<Doctor> {
+  return {
+    items,
+    meta: { page: 1, pageSize: LIST_PAGE_SIZE, totalItems: items.length, totalPages: 1, ...meta },
+  };
 }
 
 afterEach(() => {
@@ -33,8 +36,8 @@ describe('useDoctorsByCategory', () => {
     expect(spy).toHaveBeenCalledWith(expect.objectContaining({ recommended: true, sort: 'rating' }));
   });
 
-  it('세부 시술(서버 id 있음)은 procedureId 로 서버가 거른다', async () => {
-    const spy = vi.spyOn(doctorApi, 'fetchDoctors').mockResolvedValue(paged([doctor('d2', ['crown'])]));
+  it('세부 시술은 procedureId 로 서버가 거른다', async () => {
+    const spy = vi.spyOn(doctorApi, 'fetchDoctors').mockResolvedValue(paged([doctor('d2')]));
 
     const { result } = renderHook(
       () => useDoctorsByCategory({ kind: 'category', categoryId: 'cavity', subProcedureId: 'crown' }, {}),
@@ -42,14 +45,12 @@ describe('useDoctorsByCategory', () => {
     );
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(spy).toHaveBeenCalledWith(expect.objectContaining({ procedureId: 'crown' }));
-    expect(spy.mock.calls[0][0]).not.toHaveProperty('pageSize');
+    expect(spy).toHaveBeenCalledWith(expect.objectContaining({ procedureId: 'crown', pageSize: LIST_PAGE_SIZE }));
+    expect(spy.mock.calls[0][0]).not.toHaveProperty('categoryId');
   });
 
-  it('서버 id 가 여럿인 대분류는 넉넉히 받아 클라이언트가 거른다', async () => {
-    const spy = vi.spyOn(doctorApi, 'fetchDoctors').mockResolvedValue(
-      paged([doctor('d1', ['implant']), doctor('d2', ['crown']), doctor('d3', ['cavity', 'gum-disease'])])
-    );
+  it('분야 전체는 categoryId 한 번으로 받는다 — 병원 목록과 같은 규칙이다', async () => {
+    const spy = vi.spyOn(doctorApi, 'fetchDoctors').mockResolvedValue(paged([doctor('d2'), doctor('d3')]));
 
     const { result } = renderHook(
       () => useDoctorsByCategory({ kind: 'category', categoryId: 'cavity', subProcedureId: null }, {}),
@@ -57,25 +58,41 @@ describe('useDoctorsByCategory', () => {
     );
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(spy).toHaveBeenCalledWith(expect.objectContaining({ pageSize: 100 }));
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy).toHaveBeenCalledWith(expect.objectContaining({ categoryId: 'cavity' }));
     expect(spy.mock.calls[0][0]).not.toHaveProperty('procedureId');
     expect(result.current.data?.items.map((d) => d.id)).toEqual(['d2', 'd3']);
-    expect(result.current.data?.meta.totalItems).toBe(2);
   });
 
-  it('준비중만 있는 대분류는 요청하지 않고 빈 결과를 바로 준다', async () => {
-    const spy = vi.spyOn(doctorApi, 'fetchDoctors').mockResolvedValue(paged([doctor('d1', ['implant'])]));
+  it('준비중 분야도 물어본다 — 빈 목록은 서버가 준 사실이다', async () => {
+    const spy = vi.spyOn(doctorApi, 'fetchDoctors').mockResolvedValue(paged([]));
 
     const { result } = renderHook(
       () => useDoctorsByCategory({ kind: 'category', categoryId: 'prevention', subProcedureId: null }, {}),
       { wrapper: queryWrapper }
     );
 
-    expect(result.current.plan).toEqual({ mode: 'empty' });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(spy).toHaveBeenCalledWith(expect.objectContaining({ categoryId: 'prevention' }));
     expect(result.current.data?.items).toEqual([]);
-    expect(result.current.isLoading).toBe(false);
+  });
 
-    await Promise.resolve();
-    expect(spy).not.toHaveBeenCalled();
+  it('더 보기가 다음 페이지를 이어 붙인다', async () => {
+    vi.spyOn(doctorApi, 'fetchDoctors')
+      .mockResolvedValueOnce(paged([doctor('d1')], { page: 1, totalItems: 2, totalPages: 2 }))
+      .mockResolvedValueOnce(paged([doctor('d2')], { page: 2, totalItems: 2, totalPages: 2 }));
+
+    const { result } = renderHook(() => useDoctorsByCategory({ kind: 'recommended' }, {}), {
+      wrapper: queryWrapper,
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    await act(async () => {
+      await result.current.fetchNextPage();
+    });
+
+    await waitFor(() => expect(result.current.data?.items).toHaveLength(2));
+    expect(result.current.data?.items.map((d) => d.id)).toEqual(['d1', 'd2']);
+    expect(result.current.hasNextPage).toBe(false);
   });
 });

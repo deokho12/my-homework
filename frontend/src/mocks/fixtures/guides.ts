@@ -15,7 +15,7 @@ export const guides: GuideContent[] = [
     title: '임플란트 통증, 얼마나 아플까?',
     summary: '시술 단계별로 통증이 언제, 얼마나 느껴지는지 정리했어요.',
     thumbnail: sized(PROCEDURE_IN_PROGRESS, 600),
-    procedureId: 'implant',
+    procedureId: 'implant-general',
     author: '몰라몰라 편집팀',
     createdAt: '2026-06-02',
     content:
@@ -27,7 +27,7 @@ export const guides: GuideContent[] = [
     title: '투명교정 vs 일반교정 차이점',
     summary: '생활 패턴과 교정 난이도에 따른 선택 기준을 알려드려요.',
     thumbnail: sized(BRACES_CLOSEUP, 600),
-    procedureId: 'orthodontics',
+    procedureId: 'bracket-braces',
     author: '몰라몰라 편집팀',
     createdAt: '2026-06-10',
     content:
@@ -63,7 +63,7 @@ export const guides: GuideContent[] = [
     title: '충치 방치하면 생기는 일',
     summary: '초기 충치를 그냥 두면 어떻게 진행되는지 단계별로 알려드려요.',
     thumbnail: sized(CLINIC_INTERIOR_1, 600),
-    procedureId: 'cavity',
+    procedureId: 'resin',
     author: '몰라몰라 편집팀',
     createdAt: '2026-07-01',
     content:
@@ -75,7 +75,7 @@ export const guides: GuideContent[] = [
     title: '스케일링 얼마나 자주 해야 할까?',
     summary: '적정 주기와 스케일링 후 관리 방법을 정리했어요.',
     thumbnail: sized(CLINIC_INTERIOR_2, 600),
-    procedureId: 'gum-disease',
+    procedureId: 'gum-treatment',
     author: '몰라몰라 편집팀',
     createdAt: '2026-07-08',
     content:

@@ -4,7 +4,7 @@ import { Pressable, Text, View } from '@/primitives';
 import { Badge } from '@/components/Badge';
 import { StockImage } from '@/components/StockImage';
 import { FavoriteHeartButton } from '@/features/favorite';
-import { displayNameForLegacy } from '@/features/procedure';
+import { procedureDisplayName } from '@/features/procedure';
 import { getPromotionByHospital } from '@/mocks/fixtures/promotions';
 import type { Hospital } from '@/types/domain';
 import { calcDiscountRate, formatPriceRange, formatWon } from '@/utils/format';
@@ -52,9 +52,9 @@ export function HospitalCard({ hospital }: HospitalCardProps) {
             {hospital.isOneDay ? <Badge label="⚡ 원데이 가능" tone="brand" /> : null}
             {hospital.representativeSpecialty ? <Badge label={`${hospital.representativeSpecialty} 상주`} /> : null}
             {hospital.procedureIds.slice(0, 3).map((procedureId) => {
-              // 배지는 서버 이름이 아니라 **세부 시술 이름**이다(`cavity` → "레진").
+              // 배지는 id 가 아니라 **세부 시술 이름**이다(서버가 주는 `resin` → "레진").
               // taxonomy 가 모르는 id 면 배지를 건너뛴다 — 지어낼 이름이 없다.
-              const name = displayNameForLegacy(procedureId);
+              const name = procedureDisplayName(procedureId);
               return name ? <Badge key={procedureId} label={name} /> : null;
             })}
           </View>

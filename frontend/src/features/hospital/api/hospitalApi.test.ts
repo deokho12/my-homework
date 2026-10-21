@@ -27,7 +27,7 @@ function baseWriteInput(overrides: Partial<HospitalWriteInput> = {}): HospitalWr
     introduction: '',
     priceRange: { min: 100000, max: 200000 },
     tags: [],
-    procedureIds: ['implant'],
+    procedureIds: ['implant-general'],
     consultAvailable: true,
     isOneDay: false,
     businessHours: [],

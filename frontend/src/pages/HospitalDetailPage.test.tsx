@@ -135,7 +135,7 @@ describe('HospitalDetailPage', () => {
 
   it('대표 시술을 대분류별로 묶어 보여준다 — 라벨 아래에 세부 시술 이름', async () => {
     // `cavity` 는 화면에서 "레진", `implant` 는 "일반 임플란트" 다 (서버 이름과 다르다).
-    const target = baseHospital({ procedureIds: ['cavity', 'implant'] });
+    const target = baseHospital({ procedureIds: ['resin', 'implant-general'] });
     vi.spyOn(hospitalApi, 'fetchHospitalById').mockResolvedValue(target);
 
     renderWithProviders(<HospitalDetailPage />, {

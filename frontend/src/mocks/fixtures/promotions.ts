@@ -4,7 +4,7 @@ export const promotions: Promotion[] = [
   {
     id: 'p1',
     hospitalId: 'h1',
-    procedureId: 'implant',
+    procedureId: 'implant-general',
     title: '임플란트 1개 진단+식립 패키지',
     originalPrice: 1800000,
     salePrice: 1290000,
@@ -13,7 +13,7 @@ export const promotions: Promotion[] = [
   {
     id: 'p2',
     hospitalId: 'h2',
-    procedureId: 'orthodontics',
+    procedureId: 'bracket-braces',
     title: '투명교정 상담+구강스캔 패키지',
     originalPrice: 6500000,
     salePrice: 5200000,

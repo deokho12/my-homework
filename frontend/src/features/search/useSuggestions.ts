@@ -4,11 +4,9 @@ import { useDoctors } from "@/features/doctor/hooks/useDoctors";
 import { useDoctorsByCategory } from "@/features/doctor/hooks/useDoctorsByCategory";
 import { useHospitals } from "@/features/hospital/hooks/useHospitals";
 import { useHospitalsByCategory } from "@/features/hospital/hooks/useHospitalsByCategory";
-import {
-  effectiveSubProcedure,
-  type CategoryFilterPlan,
-  type CategorySelection,
-} from "@/features/procedure/lib/resolveCategoryFilter";
+import { useProcedureAvailability } from "@/features/procedure/hooks/useProcedureAvailability";
+import { type CategorySelection } from "@/features/procedure/lib/categoryListFilters";
+import { getSubProcedureIdsOf } from "@/features/procedure/taxonomy";
 import {
   EMPTY_SUGGESTION_GROUPS,
   buildProcedureSuggestions,
@@ -92,13 +90,14 @@ export interface UseSuggestionsResult {
   flush: () => void;
 }
 
-/** 서버가 아는 시술 id 들 — 병원 보조줄에서 "걸린 시술"을 맨 앞에 두는 데 쓴다. */
-function matchedLegacyIdsOf(
-  plan: CategoryFilterPlan,
+/** 물어본 시술 id 들 — 병원 보조줄에서 "걸린 시술"을 맨 앞에 두는 데 쓴다. */
+function matchedProcedureIdsOf(
+  selection: CategorySelection,
 ): ReadonlySet<string> | null {
-  if (plan.mode === "server") return new Set([plan.procedureId]);
-  if (plan.mode === "client") return plan.legacyIds;
-  return null;
+  if (selection.kind !== "category") return null;
+  if (selection.subProcedureId !== null) return new Set([selection.subProcedureId]);
+
+  return new Set(getSubProcedureIdsOf(selection.categoryId));
 }
 
 function itemsOf<T>(
@@ -115,9 +114,14 @@ export function useSuggestions(rawQuery: string): UseSuggestionsResult {
     SUGGEST_DEBOUNCE_MS,
   );
 
+  const availability = useProcedureAvailability();
+
   // 시술 그룹은 디바운스하지 않는다 — 동기 계산이라 비용이 0이고, 글자마다 즉시 반응하는
   // 것이 입력 중 추천의 핵심 체감이다.
-  const procedures = useMemo(() => buildProcedureSuggestions(term), [term]);
+  const procedures = useMemo(
+    () => buildProcedureSuggestions(term, availability),
+    [term, availability],
+  );
 
   const wantsNetwork = shouldQueryNetwork(term) || forced;
   const networkTerm = wantsNetwork && debounced === term ? term : null;
@@ -137,9 +141,8 @@ export function useSuggestions(rawQuery: string): UseSuggestionsResult {
     { enabled: fallbackTerm !== null },
   );
 
-  // 시술 첫 항목이 서버에 물어볼 수 있으면 "그 시술을 하는 곳"도 함께 보여준다.
-  // 준비중 세부는 `effectiveSubProcedure` 로 대분류 전체로 되돌린다 — 추천에서 본 병원과
-  // 눌러서 열린 카테고리 화면의 병원이 같아야 한다.
+  // 시술 첫 항목이 있으면 "그 시술을 하는 곳"도 함께 보여준다. 세부를 되돌리지 않는다 —
+  // 추천 줄이 가리키는 카테고리 화면도 **같은 필터**로 물으므로 두 화면의 병원이 같다.
   const topMatch = procedures[0]?.match ?? null;
   const procedureEnabled = enabled && topMatch !== null;
   const selection = useMemo<CategorySelection>(
@@ -148,7 +151,7 @@ export function useSuggestions(rawQuery: string): UseSuggestionsResult {
         ? {
             kind: "category",
             categoryId: topMatch.category.id,
-            subProcedureId: effectiveSubProcedure(topMatch.sub?.id ?? null),
+            subProcedureId: topMatch.sub?.id ?? null,
           }
         : INERT_SELECTION,
     [topMatch],
@@ -180,7 +183,7 @@ export function useSuggestions(rawQuery: string): UseSuggestionsResult {
           )
         : [];
 
-  const matchedLegacyIds = matchedLegacyIdsOf(hospitalsByProcedure.plan);
+  const matchedProcedureIds = matchedProcedureIdsOf(selection);
 
   const groups = useMemo(
     () =>
@@ -192,7 +195,8 @@ export function useSuggestions(rawQuery: string): UseSuggestionsResult {
             hospitalsByProcedure: hospitalProcedureItems,
             doctorsByName: doctorNameItems,
             doctorsByProcedure: doctorProcedureItems,
-            matchedLegacyIds,
+            matchedProcedureIds,
+            availability,
           }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 배열들은 매 렌더 새로 만들어지므로 내용이 바뀌는 원천(data)만 본다.
     [
@@ -204,6 +208,7 @@ export function useSuggestions(rawQuery: string): UseSuggestionsResult {
       doctorsByProcedure.data,
       enabled,
       procedureEnabled,
+      availability,
     ],
   );
 

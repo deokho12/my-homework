@@ -19,7 +19,7 @@ function baseHospital(overrides: Partial<Hospital> = {}): Hospital {
     longitude: 127.0,
     thumbnail: 'https://example.com/thumb.jpg',
     images: [],
-    procedureIds: ['implant'],
+    procedureIds: ['implant-general'],
     priceRange: { min: 100000, max: 200000 },
     rating: 4.8,
     reviewCount: 120,
@@ -60,7 +60,7 @@ function baseDoctor(overrides: Partial<Doctor> = {}): Doctor {
     specialty: '치과보철전문의',
     hospitalId: 'h1',
     photo: 'https://example.com/photo.jpg',
-    procedureIds: ['implant'],
+    procedureIds: ['implant-general'],
     rating: 4.9,
     reviewCount: 180,
     consultCount: 90,
@@ -484,9 +484,9 @@ describe('HospitalForm — combined 모드 (등록 화면)', () => {
 });
 
 /**
- * 취급 시술은 화면에서 **세부 시술**(31개)로 고르고, 서버에는 그 세부가 가리키는
- * **서버 시술 13종**으로만 보낸다 (`features/procedure/taxonomy.ts`). 서버가 모르는 세부
- * 18개는 보이되 비활성이고, 서버만 아는 id 는 화면을 거쳐도 사라지지 않아야 한다.
+ * 취급 시술은 화면에서 **세부 시술 31개**로 고르고, 그 id 가 그대로 서버로 간다
+ * (요청 14 — 서버 시술 id = 세부 시술 id). **31개가 전부 체크 가능하다**: 등록된 병원이
+ * 없는 시술도 여기서 체크해야 비로소 열리기 때문에, 이 화면에는 `준비중` 이 없다.
  */
 describe('HospitalForm — 취급 시술 (대분류 → 세부 시술)', () => {
   afterEach(() => {
@@ -497,7 +497,7 @@ describe('HospitalForm — 취급 시술 (대분류 → 세부 시술)', () => {
     renderWithProviders(
       <HospitalForm
         mode="split"
-        initial={baseHospital({ procedureIds: ['implant', 'crown'] })}
+        initial={baseHospital({ procedureIds: ['implant-general', 'crown'] })}
         doctors={[]}
         canEditRecommended={false}
         onSaveHospital={vi.fn()}
@@ -513,7 +513,7 @@ describe('HospitalForm — 취급 시술 (대분류 → 세부 시술)', () => {
     expect(screen.queryByRole('button', { name: '투명교정' })).not.toBeInTheDocument();
   });
 
-  it('준비중 세부 시술(신경치료)은 눌러도 선택되지 않는다', async () => {
+  it('등록된 병원이 없는 세부 시술(신경치료)도 체크할 수 있다 — 준비중 배지가 없다', async () => {
     renderWithProviders(
       <HospitalForm
         mode="split"
@@ -526,15 +526,17 @@ describe('HospitalForm — 취급 시술 (대분류 → 세부 시술)', () => {
     );
 
     const rootCanal = screen.getByRole('button', { name: '신경치료' });
-    expect(rootCanal).toHaveAttribute('aria-disabled', 'true');
+    expect(rootCanal).not.toHaveAttribute('aria-disabled', 'true');
     expect(rootCanal).toHaveAttribute('aria-pressed', 'false');
 
     await userEvent.click(rootCanal);
 
-    expect(screen.getByRole('button', { name: '신경치료' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: '신경치료' })).toHaveAttribute('aria-pressed', 'true');
+    // 0을 1로 만드는 화면이라 여기에는 `준비중` 표시가 없다.
+    expect(screen.queryByText('준비중')).not.toBeInTheDocument();
   });
 
-  it('세부 시술(레진)을 고르면 저장 payload 에는 서버 id(cavity)만 실린다', async () => {
+  it('세부 시술(레진)을 고르면 저장 payload 에 그 id 가 그대로 실린다', async () => {
     const onSaveHospital = vi.fn();
 
     renderWithProviders(
@@ -559,16 +561,15 @@ describe('HospitalForm — 취급 시술 (대분류 → 세부 시술)', () => {
 
     expect(onSaveHospital).toHaveBeenCalledTimes(1);
     const data = onSaveHospital.mock.calls[0][0];
-    expect(data.procedureIds).toEqual(['cavity']);
-    // 화면 전용 세부 id 는 절대 서버로 가지 않는다 — 서버는 DB 행 존재로 검증해 422 를 낸다.
-    expect(data.procedureIds).not.toContain('resin');
+    // 번역 계층이 없다 — 체크한 세부 시술 id 가 곧 서버가 저장하는 값이다.
+    expect(data.procedureIds).toEqual(['resin']);
   });
 
   it('취급 시술을 전부 해제하면 저장할 수 없다', async () => {
     renderWithProviders(
       <HospitalForm
         mode="split"
-        initial={baseHospital({ procedureIds: ['implant'] })}
+        initial={baseHospital({ procedureIds: ['implant-general'] })}
         doctors={[]}
         canEditRecommended={false}
         onSaveHospital={vi.fn()}
@@ -584,11 +585,16 @@ describe('HospitalForm — 취급 시술 (대분류 → 세부 시술)', () => {
     expect(screen.getByRole('button', { name: '병원 정보 저장' })).toHaveAttribute('aria-disabled', 'true');
   });
 
-  it('모르는 서버 id 만 있어도 "1개 이상" 을 만족해 저장할 수 있다', async () => {
+  /**
+   * 요청 14 전에는 taxonomy 가 모르는 서버 id 를 숨겨 두었다가 저장 때 되돌려 보냈다
+   * (passthrough). 그 장치를 없앴다 — **서버 목록과 `taxonomy.ts` 는 이제 같은 31개**이고
+   * `taxonomy.sync.test.ts` 가 그것을 고정한다. 둘이 갈라지면 저장이 아니라 CI 가 먼저
+   * 멈춘다. 숨은 값을 들고 다니면 "화면에 없는 시술 N개" 라는 설명할 수 없는 줄이 남는다.
+   */
+  it('목록에 없는 id 는 화면에 그리지 않고 저장 대상에도 넣지 않는다', async () => {
     renderWithProviders(
       <HospitalForm
         mode="split"
-        // 알려진 시술은 0개다 — 그래도 이 병원은 "취급 시술이 없는 병원" 이 아니다.
         initial={baseHospital({ procedureIds: ['future-id' as never] })}
         doctors={[]}
         canEditRecommended={false}
@@ -597,34 +603,8 @@ describe('HospitalForm — 취급 시술 (대분류 → 세부 시술)', () => {
       />
     );
 
-    // 알려진 세부 시술 선택은 0개다 — 어느 섹션 헤더에도 "N개 선택" 이 없고, 선택이 있는
-    // 섹션만 펼치는 규칙에 따라 세부 체크박스 자체가 화면에 없다.
     expect(screen.queryByText(/개 선택/)).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '일반 임플란트' })).not.toBeInTheDocument();
-    expect(screen.getByText('화면에 없는 시술 1개는 저장 시 그대로 유지돼요')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '병원 정보 저장' })).not.toHaveAttribute('aria-disabled', 'true');
-  });
-
-  it('taxonomy 가 모르는 서버 id 는 화면에 없어도 저장 시 그대로 보존된다', async () => {
-    const onSaveHospital = vi.fn();
-
-    renderWithProviders(
-      <HospitalForm
-        mode="split"
-        // 백엔드가 나중에 추가한 시술을 재현한다 — 이 화면을 거쳤다고 사라지면 안 된다.
-        initial={baseHospital({ procedureIds: ['implant', 'future-id' as never] })}
-        doctors={[]}
-        canEditRecommended={false}
-        onSaveHospital={onSaveHospital}
-        onSaveRoster={vi.fn()}
-      />
-    );
-
-    expect(screen.getByText('화면에 없는 시술 1개는 저장 시 그대로 유지돼요')).toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole('button', { name: '병원 정보 저장' }));
-
-    const data = onSaveHospital.mock.calls[0][0];
-    expect(data.procedureIds).toEqual(['implant', 'future-id']);
+    // 고른 시술이 0개이므로 "1개 이상" 규칙에 걸려 저장이 막힌다.
+    expect(screen.getByRole('button', { name: '병원 정보 저장' })).toHaveAttribute('aria-disabled', 'true');
   });
 });

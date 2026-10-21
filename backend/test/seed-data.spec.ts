@@ -2,6 +2,8 @@ import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+import { procedureCategories as seedCategories } from '../prisma/seed/data/procedure-categories';
+import { procedures as seedProcedures } from '../prisma/seed/data/procedures';
 import { PrismaModule } from '../src/prisma/prisma.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 
@@ -45,12 +47,46 @@ describe('시드 데이터 (integration)', () => {
     await moduleRef?.close();
   });
 
-  it('시술 마스터가 13종이고 sort_order 가 fixture 순서다', async () => {
+  it('시술 마스터가 31종이고 sort_order 가 시드 데이터 배열 순서다', async () => {
     const rows = await prisma.procedure.findMany({ orderBy: { sortOrder: 'asc' } });
 
-    expect(rows).toHaveLength(13);
-    expect(rows[0]).toMatchObject({ id: 'implant', name: '임플란트', sortOrder: 0 });
-    expect(rows.at(-1)).toMatchObject({ id: 'botox', sortOrder: 12 });
+    expect(rows).toHaveLength(31);
+    expect(rows.map((row) => row.id)).toEqual(seedProcedures.map((procedure) => procedure.id));
+    expect(rows[0]).toMatchObject({ id: 'implant-general', name: '일반 임플란트', sortOrder: 0 });
+    expect(rows.at(-1)).toMatchObject({ id: 'general-extraction', sortOrder: 30 });
+  });
+
+  it('시술 분야가 9종이고 모든 시술에 분야가 있다', async () => {
+    const categories = await prisma.procedureCategory.findMany({ orderBy: { sortOrder: 'asc' } });
+    const procedures = await prisma.procedure.findMany({ orderBy: { sortOrder: 'asc' } });
+
+    expect(categories.map((row) => row.id)).toEqual(seedCategories.map((category) => category.id));
+    expect(categories[0]).toMatchObject({ id: 'implant', name: '임플란트', sortOrder: 0 });
+
+    const categoryIds = new Set(categories.map((row) => row.id));
+
+    expect(procedures.every((row) => categoryIds.has(row.categoryId))).toBe(true);
+    // 분야 배정도 시드 데이터 파일과 같아야 한다 — 화면이 31개를 묶는 유일한 근거다
+    expect(procedures.map((row) => `${row.id}:${row.categoryId}`)).toEqual(
+      seedProcedures.map((procedure) => `${procedure.id}:${procedure.categoryId}`),
+    );
+  });
+
+  it('옛 시술 id 6개가 남아 있지 않다 — 자식 행도 마찬가지다', async () => {
+    const legacyIds = ['implant', 'orthodontics', 'cavity', 'gum-disease', 'tmj', 'botox'];
+
+    expect(await prisma.procedure.count({ where: { id: { in: legacyIds } } })).toBe(0);
+    expect(await prisma.hospitalProcedure.count({ where: { procedureId: { in: legacyIds } } })).toBe(0);
+    expect(await prisma.doctorProcedure.count({ where: { procedureId: { in: legacyIds } } })).toBe(0);
+    expect(await prisma.hospitalSponsorship.count({ where: { procedureId: { in: legacyIds } } })).toBe(0);
+  });
+
+  it('스케일링·예방 분야는 등록한 병원이 없다 — 시드가 넣지 않는다 (요청서 14 확인 항목 1·4)', async () => {
+    const rows = await prisma.hospitalProcedure.count({
+      where: { procedure: { categoryId: 'prevention' } },
+    });
+
+    expect(rows).toBe(0);
   });
 
   it('fixture 의 id 가 그대로 살아 있다 (h1 / d1 / cr1 / q1 / g1 / p1 / r1 / notif1)', async () => {
@@ -101,7 +137,7 @@ describe('시드 데이터 (integration)', () => {
 
     // 배열 → 자식 테이블
     expect(hospital.procedures.map((p) => p.procedureId).sort()).toEqual(
-      ['botox', 'implant', 'laminate'].sort(),
+      ['bruxism-botox', 'implant-general', 'laminate'].sort(),
     );
     expect(hospital.images).toHaveLength(2);
     expect(hospital.tags.map((t) => t.tag)).toContain('당일진료');
@@ -131,9 +167,9 @@ describe('시드 데이터 (integration)', () => {
     // (병원 × 시술) 로 풀린 모양 — h5 만 카테고리 2개라 행이 2개다
     expect(active.map((row) => `${row.hospitalId}:${row.procedureId}`)).toEqual([
       'h2:laminate',
-      'h3:implant',
-      'h5:gum-disease',
-      'h5:implant',
+      'h3:implant-general',
+      'h5:gum-treatment',
+      'h5:implant-general',
       'h6:whitening',
     ]);
 

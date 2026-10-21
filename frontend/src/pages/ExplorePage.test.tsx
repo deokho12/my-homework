@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as doctorApi from '@/features/doctor/api/doctorApi';
 import * as hospitalApi from '@/features/hospital/api/hospitalApi';
 import * as procedureApi from '@/features/procedure/api/procedureApi';
+import { SUB_PROCEDURES } from '@/features/procedure/taxonomy';
 import ExplorePage from '@/pages/ExplorePage';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import type { Doctor, Hospital, Paged } from '@/types/domain';
@@ -14,12 +15,27 @@ import type { Doctor, Hospital, Paged } from '@/types/domain';
  * 배열을 훑어 걸러내지 않는다. `fetchHospitals`/`fetchDoctors` 를 스파이해서 어떤 파라미터로
  * 불렀는지 직접 검증한다 (`src/screens/search.test.tsx` 와 같은 방식).
  */
-function pagedHospitals(items: Hospital[], totalItems = items.length): Paged<Hospital> {
-  return { items, meta: { page: 1, pageSize: 20, totalItems, totalPages: 1 } };
+function pagedHospitals(items: Hospital[], totalItems = items.length, totalPages = 1): Paged<Hospital> {
+  return { items, meta: { page: 1, pageSize: 20, totalItems, totalPages } };
 }
 
-function pagedDoctors(items: Doctor[], totalItems = items.length): Paged<Doctor> {
-  return { items, meta: { page: 1, pageSize: 20, totalItems, totalPages: 1 } };
+/** `GET /procedures` 응답 — `준비중` 라벨의 유일한 입력이다 (요청 14). */
+function stubProcedures(availableIds: readonly string[]) {
+  return vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue(
+    SUB_PROCEDURES.map((sub) => ({
+      id: sub.id,
+      name: sub.name,
+      emoji: '',
+      shortDescription: '',
+      description: '',
+      categoryId: sub.categoryId,
+      isAvailable: availableIds.includes(sub.id),
+    }))
+  );
+}
+
+function pagedDoctors(items: Doctor[], totalItems = items.length, totalPages = 1): Paged<Doctor> {
+  return { items, meta: { page: 1, pageSize: 20, totalItems, totalPages } };
 }
 
 function baseHospital(overrides: Partial<Hospital> = {}): Hospital {
@@ -32,7 +48,7 @@ function baseHospital(overrides: Partial<Hospital> = {}): Hospital {
     longitude: 127.0364,
     thumbnail: 'https://example.com/thumb.jpg',
     images: [],
-    procedureIds: ['implant'],
+    procedureIds: ['implant-general'],
     priceRange: { min: 900000, max: 1800000 },
     rating: 4.8,
     reviewCount: 312,
@@ -72,7 +88,7 @@ function baseDoctor(overrides: Partial<Doctor> = {}): Doctor {
     title: '대표원장',
     hospitalId: 'h1',
     photo: 'https://example.com/photo.jpg',
-    procedureIds: ['implant'],
+    procedureIds: ['implant-general'],
     rating: 4.9,
     reviewCount: 180,
     consultCount: 90,
@@ -175,76 +191,68 @@ describe('ExplorePage', () => {
     expect(fetchHospitalsSpy).toHaveBeenCalledWith(expect.objectContaining({ recommended: true }));
   });
 
-  /**
-   * 서버 시술 **하나**에만 걸리는 대분류(임플란트)는 서버 필터로 끝난다 — 광고 우선 노출이
-   * 유지되는 쪽이다 (`resolveCategoryFilter`).
-   */
-  it('서버 시술 하나짜리 대분류 탭은 procedureId 로 묻는다', async () => {
+  /** 분야 탭은 `categoryId` **한 번**이다 — 요청 14 전에는 분야 셋만 100곳을 받아 걸렀다. */
+  it('분야 탭은 categoryId 로 한 번 묻는다', async () => {
     const fetchHospitalsSpy = vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(pagedHospitals([baseHospital()]));
-
-    renderWithProviders(<ExplorePage />);
-    await userEvent.click(screen.getByRole('button', { name: '임플란트' }));
-
-    await waitFor(() =>
-      expect(fetchHospitalsSpy).toHaveBeenLastCalledWith(expect.objectContaining({ procedureId: 'implant' }))
-    );
-  });
-
-  /**
-   * 서버 시술 **여럿**에 걸리는 대분류(충치치료 = cavity+inlay+crown)는 `procedureId` 한 값으로
-   * 못 옮긴다 — 넉넉히 받아 클라이언트가 교집합으로 거르고 "총 N곳" 도 거른 뒤의 수다.
-   */
-  it('서버 시술 여러 개짜리 대분류 탭은 넉넉히 받아 클라이언트가 거른다', async () => {
-    const fetchHospitalsSpy = vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(
-      pagedHospitals([
-        baseHospital({ id: 'h1', name: '임플란트병원', procedureIds: ['implant'] }),
-        baseHospital({ id: 'h7', name: '크라운병원', procedureIds: ['crown'] }),
-        baseHospital({ id: 'h3', name: '충치병원', procedureIds: ['cavity', 'gum-disease'] }),
-      ])
-    );
 
     renderWithProviders(<ExplorePage />);
     await userEvent.click(screen.getByRole('button', { name: '충치치료' }));
 
-    await waitFor(() => expect(screen.getByText('“충치치료” 병원')).toBeInTheDocument());
+    await waitFor(() =>
+      expect(fetchHospitalsSpy).toHaveBeenLastCalledWith(expect.objectContaining({ categoryId: 'cavity' }))
+    );
     const lastCall = fetchHospitalsSpy.mock.calls.at(-1)?.[0] ?? {};
     expect(lastCall).not.toHaveProperty('procedureId');
-    expect(lastCall.pageSize).toBe(100);
-    expect(screen.getByText('총 2곳')).toBeInTheDocument();
-    expect(screen.queryByText('임플란트병원')).not.toBeInTheDocument();
+    expect(lastCall.pageSize).toBe(20);
   });
 
-  it('세부가 전부 준비중인 대분류 탭은 요청하지 않고 전용 빈 상태를 보여준다', async () => {
-    const fetchHospitalsSpy = vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(pagedHospitals([baseHospital()]));
+  it('등록된 병원이 없는 분야 탭도 물어보고, 빈 상태가 준비중이라고 말한다', async () => {
+    const fetchHospitalsSpy = vi.spyOn(hospitalApi, 'fetchHospitals').mockImplementation(async (filters = {}) =>
+      filters.categoryId === 'prevention' ? pagedHospitals([], 0) : pagedHospitals([baseHospital()])
+    );
+    stubProcedures(['implant-general']);
 
     renderWithProviders(<ExplorePage />);
     await waitFor(() => expect(screen.getByText(/총 \d+곳/)).toBeInTheDocument());
-    const callsBefore = fetchHospitalsSpy.mock.calls.length;
 
-    await userEvent.click(screen.getByRole('button', { name: '스케일링·예방 · 준비중' }));
+    await userEvent.click(await screen.findByRole('button', { name: '스케일링·예방 · 준비중' }));
 
     expect(await screen.findByText('등록된 병원이 아직 없어요')).toBeInTheDocument();
-    expect(fetchHospitalsSpy.mock.calls).toHaveLength(callsBefore);
+    // 탐색 탭은 언제나 분야 전체다(세부 칩이 없다) — 그래서 `이 분야는` 이다.
+    expect(screen.getByText('이 분야는 준비중이에요')).toBeInTheDocument();
+    expect(fetchHospitalsSpy).toHaveBeenLastCalledWith(expect.objectContaining({ categoryId: 'prevention' }));
   });
 
-  it('의사 모드도 같은 대분류 규칙을 쓴다 — 넉넉히 받아 거른 수를 보여준다', async () => {
+  it('의사 모드도 같은 분야 규칙을 쓴다', async () => {
     vi.spyOn(hospitalApi, 'fetchHospitalById').mockResolvedValue(baseHospital());
-    const fetchDoctorsSpy = vi.spyOn(doctorApi, 'fetchDoctors').mockResolvedValue(
-      pagedDoctors([
-        baseDoctor({ id: 'd1', procedureIds: ['implant'] }),
-        baseDoctor({ id: 'd2', name: '이서연', procedureIds: ['inlay'] }),
-      ])
-    );
+    const fetchDoctorsSpy = vi
+      .spyOn(doctorApi, 'fetchDoctors')
+      .mockResolvedValue(pagedDoctors([baseDoctor({ id: 'd1' })]));
 
     renderWithProviders(<ExplorePage />);
     await userEvent.click(screen.getByRole('button', { name: '충치치료' }));
     await userEvent.click(screen.getByRole('button', { name: '의사' }));
 
     await waitFor(() => expect(screen.getByText('“충치치료” 의사')).toBeInTheDocument());
-    const lastCall = fetchDoctorsSpy.mock.calls.at(-1)?.[0] ?? {};
-    expect(lastCall).not.toHaveProperty('procedureId');
-    expect(lastCall.pageSize).toBe(100);
+    expect(fetchDoctorsSpy).toHaveBeenLastCalledWith(expect.objectContaining({ categoryId: 'cavity' }));
     expect(screen.getByText('총 1명')).toBeInTheDocument();
+  });
+
+  it('지도 보기는 한 번에 100곳까지 받고, 그보다 많으면 띠로 알린다', async () => {
+    vi.spyOn(hospitalApi, 'fetchHospitals').mockImplementation(async (filters = {}) =>
+      filters.radiusKm === undefined
+        ? pagedHospitals([baseHospital()], 1)
+        : pagedHospitals([baseHospital({ id: 'h1' })], 137)
+    );
+
+    renderWithProviders(<ExplorePage />);
+    await waitFor(() => expect(screen.getByText(/총 \d+곳/)).toBeInTheDocument());
+
+    await userEvent.click(screen.getByRole('button', { name: '지도 보기' }));
+
+    await waitFor(() =>
+      expect(screen.getByText('병원이 많아 1곳만 지도에 표시해요 · 반경을 좁혀보세요')).toBeInTheDocument()
+    );
   });
 
   it('"총 N곳" 은 meta.totalItems 를 쓴다 — 페이지네이션으로 배열이 잘려도 정확하다', async () => {
@@ -290,18 +298,19 @@ describe('ExplorePage', () => {
 
   /**
    * 예전에는 `/explore?category=implant` 콜드 로드가 서버 시술 목록을 기다리느라 카테고리
-   * 이름 자리에 스켈레톤을 그렸다(그 사이 "추천"이라고 잘못 주장하지 않으려고). 이제 분류는
-   * 정적 taxonomy 라 **기다릴 것이 없다** — 서버에 시술을 **묻지도 않는다**.
+   * 이름 자리에 스켈레톤을 그렸다(그 사이 "추천"이라고 잘못 주장하지 않으려고). 분류 표는
+   * 번들 상수라 **기다릴 것이 없다** — 시술 목록(`준비중` 판정용)은 따로 받되, 탭 이름과
+   * 목록은 그 응답을 기다리지 않는다.
    */
-  it('/explore?category=implant 콜드 로드는 시술 목록을 묻지 않고 바로 그 카테고리 이름을 그린다', async () => {
-    const fetchProceduresSpy = vi.spyOn(procedureApi, 'fetchProcedures');
+  it('/explore?category=implant 콜드 로드는 시술 목록을 기다리지 않고 바로 그 카테고리 이름을 그린다', async () => {
+    stubProcedures([]);
     vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(pagedHospitals([baseHospital()]));
 
     renderWithProviders(<ExplorePage />, { route: '/explore?category=implant' });
 
+    expect(screen.getByRole('button', { name: '임플란트' })).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText('“임플란트” 병원')).toBeInTheDocument());
     expect(screen.queryByText('“추천” 병원')).not.toBeInTheDocument();
-    expect(fetchProceduresSpy).not.toHaveBeenCalled();
   });
 
   /**
@@ -371,5 +380,76 @@ describe('ExplorePage', () => {
     );
     // 반경을 바꾼 뒤에도 칩 자체는 여전히 화면에 있다(막다른 곳이 아니다).
     expect(screen.getByRole('button', { name: '5km' })).toBeInTheDocument();
+  });
+
+  describe('더 보기', () => {
+    it('다음 묶음을 이어 붙이고 진행 줄이 따라간다', async () => {
+      const fetchHospitalsSpy = vi
+        .spyOn(hospitalApi, 'fetchHospitals')
+        .mockResolvedValueOnce(pagedHospitals([baseHospital({ id: 'h1', name: '첫째병원' })], 25, 2))
+        .mockResolvedValueOnce({
+          items: [baseHospital({ id: 'h2', name: '둘째병원' })],
+          meta: { page: 2, pageSize: 20, totalItems: 25, totalPages: 2 },
+        });
+
+      renderWithProviders(<ExplorePage />);
+
+      const more = await screen.findByRole('button', { name: '병원 20곳 더 보기' });
+      expect(screen.getByText('25곳 중 1곳 보는 중')).toBeInTheDocument();
+
+      await userEvent.click(more);
+
+      await waitFor(() => expect(fetchHospitalsSpy).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2 })));
+      // 이어 붙인다 — 앞 묶음이 사라지지 않는다.
+      await waitFor(() => expect(screen.getByText('둘째병원')).toBeInTheDocument());
+      expect(screen.getByText('첫째병원')).toBeInTheDocument();
+      expect(screen.getByText('25곳 중 2곳 보는 중')).toBeInTheDocument();
+    });
+
+    it('다 불러오면 버튼이 사라지고 "모두 봤어요" 한 줄이 남는다', async () => {
+      const firstPage = Array.from({ length: 20 }, (_, index) =>
+        baseHospital({ id: `h${index + 1}`, name: `병원${index + 1}` })
+      );
+
+      vi.spyOn(hospitalApi, 'fetchHospitals')
+        .mockResolvedValueOnce(pagedHospitals(firstPage, 22, 2))
+        .mockResolvedValueOnce({
+          items: [baseHospital({ id: 'h21', name: '병원21' }), baseHospital({ id: 'h22', name: '병원22' })],
+          meta: { page: 2, pageSize: 20, totalItems: 22, totalPages: 2 },
+        });
+
+      renderWithProviders(<ExplorePage />);
+
+      // 남은 수가 한 묶음보다 적으면 라벨도 그 수를 말한다.
+      await userEvent.click(await screen.findByRole('button', { name: '병원 2곳 더 보기' }));
+
+      await waitFor(() => expect(screen.getByText('22곳을 모두 봤어요')).toBeInTheDocument());
+      expect(screen.queryByRole('button', { name: /더 보기/ })).not.toBeInTheDocument();
+    });
+
+    it('의사 모드는 단위가 "명" 이다', async () => {
+      vi.spyOn(hospitalApi, 'fetchHospitalById').mockResolvedValue(baseHospital());
+      vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(pagedHospitals([baseHospital()]));
+      vi.spyOn(doctorApi, 'fetchDoctors').mockResolvedValue(pagedDoctors([baseDoctor()], 42, 3));
+
+      renderWithProviders(<ExplorePage />);
+      await userEvent.click(screen.getByRole('button', { name: '의사' }));
+
+      expect(await screen.findByRole('button', { name: '의사 20명 더 보기' })).toBeInTheDocument();
+      expect(screen.getByText('42명 중 1명 보는 중')).toBeInTheDocument();
+    });
+
+    it('가격 비교표를 켜면 "불러온 N곳끼리 비교한 표" 라고 알린다', async () => {
+      vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(pagedHospitals([baseHospital()], 25, 2));
+
+      renderWithProviders(<ExplorePage />);
+      await waitFor(() => expect(screen.getByText('총 25곳')).toBeInTheDocument());
+
+      await userEvent.click(screen.getByText('가격 비교표 보기'));
+
+      expect(await screen.findByText('불러온 1곳끼리 비교한 표예요')).toBeInTheDocument();
+      // 표 아래에도 「더 보기」가 그대로 있다.
+      expect(screen.getByRole('button', { name: '병원 20곳 더 보기' })).toBeInTheDocument();
+    });
   });
 });

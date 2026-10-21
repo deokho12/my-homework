@@ -41,7 +41,7 @@ function seedRequest(overrides: Partial<StoredConsultRequest> = {}): StoredConsu
   return {
     id: 'cr1',
     hospitalId: 'h1',
-    procedureId: 'implant',
+    procedureId: 'implant-general',
     name: '박서영',
     phone: '010-1234-4411',
     preferredTime: '평일 오전',
@@ -75,7 +75,7 @@ describe('createConsultRequest', () => {
 
     const created = await createConsultRequest({
       hospitalId: 'h1',
-      procedureId: 'implant',
+      procedureId: 'implant-general',
       name: '김민준',
       phone: '010-1111-2222',
       preferredTime: '주말',
@@ -238,7 +238,7 @@ describe('fetchConsultRequests — 필터', () => {
         createdAt: '2026-10-13T16:00:00.000Z', // 서울 10/14 01:00
         name: '박서영',
         phone: '010-1234-4411',
-        procedureId: 'implant',
+        procedureId: 'implant-general',
         status: 'new',
       }),
       seedRequest({
@@ -246,7 +246,7 @@ describe('fetchConsultRequests — 필터', () => {
         createdAt: '2026-10-12T01:00:00.000Z', // 서울 10/12(월) 10:00
         name: '최지훈',
         phone: '010-5555-6789',
-        procedureId: 'cavity',
+        procedureId: 'resin',
         status: 'contacted',
       }),
       seedRequest({
@@ -254,7 +254,7 @@ describe('fetchConsultRequests — 필터', () => {
         createdAt: '2026-09-01T01:00:00.000Z',
         name: '정하윤',
         phone: '010-7777-8888',
-        procedureId: 'orthodontics',
+        procedureId: 'bracket-braces',
         status: 'cancelled',
         statusHistory: [
           { status: 'new', changedAt: '2026-09-01T01:00:00.000Z' },
@@ -288,7 +288,7 @@ describe('fetchConsultRequests — 필터', () => {
   });
 
   it('시술 필터는 여러 id 를 OR 로 묶는다', async () => {
-    const page = await fetchConsultRequests({ procedureId: ['implant', 'orthodontics'] });
+    const page = await fetchConsultRequests({ procedureId: ['implant-general', 'bracket-braces'] });
 
     expect(page.items.map((item) => item.id)).toEqual(['today', 'last-month']);
   });
@@ -583,7 +583,7 @@ describe('fetchMyConsultRequests', () => {
     signIn('user', { id: userId });
     const created = await createConsultRequest({
       hospitalId: 'h1',
-      procedureId: 'implant',
+      procedureId: 'implant-general',
       name: '김민준',
       phone: '010-1111-2222',
       preferredTime: '평일 오전',

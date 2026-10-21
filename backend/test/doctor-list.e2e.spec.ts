@@ -60,6 +60,45 @@ describe('전문의 조회', () => {
       ).toBe(true);
     });
 
+    // --- 분야 필터 (2026-10-21 요청 14) -------------------------------------
+
+    it('procedureId 로 좁힌다', async () => {
+      const response = await request(app.getHttpServer()).get('/api/v1/doctors?procedureId=gum-treatment');
+
+      expect(response.body.items.map((item: { id: string }) => item.id)).toEqual(['d5']);
+    });
+
+    it('categoryId 로 좁힌다 — 그 분야의 시술을 하나라도 하는 전문의', async () => {
+      const response = await request(app.getHttpServer()).get('/api/v1/doctors?categoryId=orthodontics');
+
+      // bracket-braces 를 하는 d2·d13 뿐이다
+      expect(response.body.items.map((item: { id: string }) => item.id).sort()).toEqual(['d13', 'd2']);
+    });
+
+    it('categoryId 와 procedureId 는 AND 다', async () => {
+      const response = await request(app.getHttpServer()).get(
+        '/api/v1/doctors?categoryId=cavity&procedureId=whitening',
+      );
+
+      // whitening 은 심미 분야다 — 충치치료 분야 시술도 함께 하는 전문의는 d8 뿐이다
+      expect(response.body.items.map((item: { id: string }) => item.id)).toEqual(['d8']);
+    });
+
+    it('모르는 categoryId 는 422 가 아니라 0건이다', async () => {
+      const response = await request(app.getHttpServer()).get('/api/v1/doctors?categoryId=does-not-exist');
+
+      expect(response.status).toBe(200);
+      expect(response.body.items).toEqual([]);
+      expect(response.body.meta.totalItems).toBe(0);
+    });
+
+    it('폐기된 옛 시술 id 로 온 필터는 0건이다', async () => {
+      const response = await request(app.getHttpServer()).get('/api/v1/doctors?procedureId=implant');
+
+      expect(response.status).toBe(200);
+      expect(response.body.items).toEqual([]);
+    });
+
     it('자격증 URL 을 절대 담지 않는다', async () => {
       const response = await request(app.getHttpServer()).get('/api/v1/doctors');
 

@@ -6,7 +6,7 @@ import { Chip } from '@/components/Chip';
 import { KakaoMap } from '@/components/map/KakaoMap';
 import { CONTAINER_PADDING } from '@/components/layout/Container';
 import { formatRadiusLabel, MAP_RADIUS_OPTIONS_KM } from '@/features/hospital/hooks/useExploreFilters';
-import { displayNameForLegacy } from '@/features/procedure';
+import { procedureDisplayName } from '@/features/procedure';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 import type { LocationStatus } from '@/hooks/useUserLocation';
 import type { Hospital } from '@/types/domain';
@@ -18,6 +18,8 @@ interface HospitalMapViewProps {
    * 거리로 거르거나 정렬하지 않는다. 각 항목의 `distanceKm` 도 서버가 채워 준다.
    */
   hospitals: Hospital[];
+  /** 서버가 센 전체 개수(`meta.totalItems`). 지도에 그린 수보다 많으면 그 사실을 알린다. */
+  totalCount: number;
   location: { latitude: number; longitude: number };
   locationStatus: LocationStatus;
   radiusKm: number;
@@ -26,6 +28,7 @@ interface HospitalMapViewProps {
 
 export function HospitalMapView({
   hospitals,
+  totalCount,
   location,
   locationStatus,
   radiusKm,
@@ -42,6 +45,16 @@ export function HospitalMapView({
         {locationStatus === 'denied' || locationStatus === 'error' ? (
           <Text className="mb-2 text-xs text-neutral-400">
             위치 권한을 확인할 수 없어 서울시청을 기준으로 보여드려요
+          </Text>
+        ) : null}
+        {/*
+          지도에는 「더 보기」가 없다 — 질의가 한 번에 계약 상한(100곳)까지만 받는다.
+          그보다 많으면 **지도가 전부를 보여주지 못한다는 사실**을 말하고 좁힐 방법(반경 칩이
+          바로 아래 있다)을 함께 알린다.
+        */}
+        {totalCount > hospitals.length ? (
+          <Text className="mb-2 text-xs text-neutral-400">
+            병원이 많아 {hospitals.length}곳만 지도에 표시해요 · 반경을 좁혀보세요
           </Text>
         ) : null}
         <View className="flex-row flex-wrap">
@@ -87,7 +100,7 @@ export function HospitalMapView({
               </Text>
               <Text className="mb-1 text-xs text-neutral-500" numberOfLines={1}>
                 {/* 시술이 없거나(`procedureIds: []`) taxonomy 가 모르는 id 면 이름 자리를 비운다. */}
-                {selected.procedureIds[0] ? displayNameForLegacy(selected.procedureIds[0]) : null}
+                {selected.procedureIds[0] ? procedureDisplayName(selected.procedureIds[0]) : null}
                 {/*
                   위치를 허용하지 않았으면 거리를 **빼고** 보여준다. 서버가 준 `distanceKm` 은
                   지도 중심(= 서울시청 폴백) 기준이라, 부산 사용자에게 "0.9km" 라고 적게 된다.

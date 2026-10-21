@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { orderHospitals } from '../src/hospital/hospital.filters';
+import { buildDoctorWhere } from '../src/doctor/doctor.filters';
+import type { ListDoctorsQuery } from '../src/doctor/doctor.schemas';
+import { buildHospitalWhere, orderHospitals } from '../src/hospital/hospital.filters';
 import type { HospitalResponse } from '../src/hospital/hospital.projection';
+import type { ListHospitalsQuery } from '../src/hospital/hospital.schemas';
+import { publicHospitalWhere } from '../src/hospital/public-visibility';
 
 function hospital(overrides: Partial<HospitalResponse>): HospitalResponse {
   return {
@@ -99,5 +103,69 @@ describe('orderHospitals', () => {
     );
 
     expect(result.map((item) => item.id)).toEqual(['plain', 'ad']);
+  });
+});
+
+/**
+ * 분야·세부 시술 필터 (2026-10-21 요청 14 — docs/api/README.md §22.6).
+ *
+ * `where` 의 모양을 직접 본다. 결과 개수는 `hospital-list.e2e.spec.ts` 가 실제 DB 로
+ * 고정하고, 여기서는 **AND 결합이 정말 둘 다 건다**는 것을 고정한다.
+ */
+describe('buildHospitalWhere', () => {
+  const query = (overrides: Partial<ListHospitalsQuery> = {}): ListHospitalsQuery =>
+    ({ page: 1, pageSize: 20, sort: 'rating', ...overrides }) as ListHospitalsQuery;
+
+  it('공개 조건은 publicHospitalWhere() 에서 온다 — 가용성 집계와 같은 함수다', () => {
+    expect(buildHospitalWhere(query())).toMatchObject(publicHospitalWhere());
+  });
+
+  it('categoryId 는 분야 조인으로 거른다', () => {
+    expect(buildHospitalWhere(query({ categoryId: 'prevention' })).AND).toEqual([
+      { procedures: { some: { procedure: { categoryId: 'prevention' } } } },
+    ]);
+  });
+
+  it('procedureId 하나면 요청 14 이전과 같은 조건이다 (회귀)', () => {
+    expect(buildHospitalWhere(query({ procedureId: 'scaling' })).AND).toEqual([
+      { procedures: { some: { procedureId: 'scaling' } } },
+    ]);
+  });
+
+  it('둘 다 오면 AND 다 — 한쪽을 조용히 버리지 않는다', () => {
+    expect(buildHospitalWhere(query({ categoryId: 'implant', procedureId: 'bone-graft' })).AND).toEqual([
+      { procedures: { some: { procedure: { categoryId: 'implant' } } } },
+      { procedures: { some: { procedureId: 'bone-graft' } } },
+    ]);
+  });
+
+  it('시술 조건이 없으면 AND 를 만들지 않는다', () => {
+    expect(buildHospitalWhere(query()).AND).toBeUndefined();
+  });
+});
+
+describe('buildDoctorWhere', () => {
+  const query = (overrides: Partial<ListDoctorsQuery> = {}): ListDoctorsQuery =>
+    ({ page: 1, pageSize: 20, sort: 'yearsOfExperience', ...overrides }) as ListDoctorsQuery;
+
+  it('categoryId·procedureId 를 병원 목록과 같은 규칙으로 건다', () => {
+    expect(buildDoctorWhere(query({ categoryId: 'gum', procedureId: 'gum-treatment' })).AND).toEqual([
+      { procedures: { some: { procedure: { categoryId: 'gum' } } } },
+      { procedures: { some: { procedureId: 'gum-treatment' } } },
+    ]);
+  });
+
+  it('시술 조건이 없으면 AND 를 만들지 않는다', () => {
+    expect(buildDoctorWhere(query()).AND).toBeUndefined();
+  });
+
+  it('소속 병원 조건은 publicHospitalWhere() 에서 온다 — 병원 목록과 같은 함수다', () => {
+    expect(buildDoctorWhere(query()).hospital).toEqual({ is: publicHospitalWhere() });
+  });
+
+  it('병원 속성 필터는 공개 조건을 대체하지 않고 덧붙인다', () => {
+    expect(buildDoctorWhere(query({ oneDay: true, nightConsult: true })).hospital).toEqual({
+      is: { ...publicHospitalWhere(), isOneDay: true, featureNightConsult: true },
+    });
   });
 });

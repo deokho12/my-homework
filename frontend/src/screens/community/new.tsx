@@ -17,9 +17,9 @@ export default function NewCommunityPostScreen() {
   const createPost = useCreateCommunityPost();
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  // 'implant' 은 서버가 고정한 시술 목록의 첫 항목이다 — 목록이 아직 로딩 중이어도
-  // 안전한 기본값이다.
-  const [procedureId, setProcedureId] = useState<ProcedureId>('implant');
+  // 'implant-general' 은 서버가 고정한 시술 목록(31개)의 첫 항목이다 — 목록이 아직 로딩
+  // 중이어도 안전한 기본값이다 (`useProcedureMap.test` 가 그 결합을 고정한다).
+  const [procedureId, setProcedureId] = useState<ProcedureId>('implant-general');
 
   const canSubmit = title.trim().length > 0 && content.trim().length > 0 && !createPost.isPending;
 

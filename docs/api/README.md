@@ -14,6 +14,9 @@
 > §20·§21 의 제안은 **"요청자 답 반영 대기 → 요청서 18·19"** 이고(답은 그 요청서에 표로 있다),
 > 요구사항만 넘기던 자리는 **그 일을 맡은 요청서 번호**(상담 예약 → 15, 문의 → 16)를 가리킨다.
 > **계약의 동작·필드·enum·required 는 이 개정에서 한 줄도 바뀌지 않았다 — 표현과 표시만 고쳤다.**
+> **개정: 2026-10-21 — 요청서 14 (시술 분류를 서버로). 이번에는 계약이 실제로 바뀐다 (버전 1.3.0).**
+> 판단은 **§22** 에 모아 두었고, 그 결정이 닿는 기존 절(§1·§2·§5·§6·§8·§15·§16·§18-2·§21)은
+> 각 자리에 **무엇이 바뀌었는지 날짜와 함께** 적었다. §20·§21 의 🚧 제안 표시는 그대로다.
 
 ---
 
@@ -40,6 +43,7 @@
 19. [제안 — 화면 문서에 근거가 없는 것](#19-제안--화면-문서에-근거가-없는-것)
 20. [🚧 병원 관리자 직접 가입 — **제안 — 요청자 답 반영 대기 → 요청서 18 (2026-10-13 제안)**](#20--병원-관리자-직접-가입--제안--요청자-답-반영-대기--요청서-18-2026-10-13-제안)
 21. [🚧 병원 정보 확장 — 시술별 가격 · 사진 · 특징 — **제안 — 요청자 답 반영 대기 → 요청서 19 (2026-10-13 제안)**](#21--병원-정보-확장--시술별-가격--사진--특징--제안--요청자-답-반영-대기--요청서-19-2026-10-13-제안)
+22. [시술 분류를 서버로 — 분야 9 · 세부 31 · `준비중` (요청 14, 2026-10-21 · **확정**)](#22-시술-분류를-서버로--분야-9--세부-31--준비중-요청-14-2026-10-21--확정)
 
 ---
 
@@ -53,7 +57,7 @@
 | 리소스 | 경로 | 지원 화면 | 쓰기 주체 |
 |---|---|---|---|
 | **auth / session** | `/auth/*` | 로그인, 회원가입, 마이페이지 | 누구나 (가입·로그인) |
-| **procedures** (시술 13종) | `/procedures` | 홈, 병원 탐색, 커뮤니티 작성, 상담 신청, 꿀팁 상세 | 없음 (읽기 전용 마스터) |
+| **procedures** (분야 9 · 세부 시술 31종, 2026-10-21) | `/procedures` | 홈, 병원 탐색, 시술 카테고리, 커뮤니티 작성, 상담 신청, 꿀팁 상세, 관리자 병원 수정 | 없음 (읽기 전용 마스터) |
 | **hospitals** | `/hospitals`, `/admin/hospitals` | 홈, 병원 탐색, 검색, 병원 상세, 마이페이지 찜, 꿀팁 상세, 관리자 홈/등록/수정 | **생성=`operator`**, 수정=담당 `hospital_admin` (+`operator`) |
 | **hospital-admins** (담당자 배정) | `/hospitals/{id}/admins` | (운영자 콘솔 — 화면 미존재 🚧) | `operator` |
 | **doctors** | `/doctors`, `/hospitals/{id}/doctors` | 병원 탐색(의사 모드), 병원 상세, 전문의 상세, 관리자 병원 수정 | 담당 `hospital_admin` (+`operator`) |
@@ -144,6 +148,7 @@ partnerInquiries.detail:   (id) => ['partnerInquiries', id]
 | | | 앱 다운로드 QR / 회사 정보 — **엔드포인트 없음.** 정적 설정값 | 🚧 |
 | 병원 탐색 | `explore.md` | `GET /hospitals` (병원 모드, 필터·정렬 전체)<br>`GET /doctors` (의사 모드)<br>`GET /procedures` (시술 칩)<br>`GET /promotions` (가격 비교표의 할인가) | ✅ 🟡 |
 | | | 지도 자체는 카카오맵 JS SDK (클라이언트). 반경 필터는 `GET /hospitals?latitude&longitude&radiusKm` | 🚧 🟡 |
+| 시술 카테고리 (2026-10-21) | `category.md` | `GET /procedures` (분야·세부 시술·`준비중`)<br>`GET /hospitals?categoryId=` / `?procedureId=`<br>`GET /doctors?categoryId=` / `?procedureId=` | ✅ |
 | 검색 | `search.md` | `GET /search/resolve?q=` (현재 동작 유지)<br>`GET /search/trending?tab=`<br>`GET /search/suggestions`<br>`GET /search` (결과 목록 화면이 생기면) | ✅ 🟡 |
 | 커뮤니티 | `community.md` | `GET /community/posts` | 🟡 |
 | 마이페이지 | `mypage.md` | `GET /auth/me`<br>`POST /auth/logout`<br>`GET /notifications/unread-count?audience=user`<br>`GET /me/favorites?expand=hospital`<br>`DELETE /me/favorites/{hospitalId}`<br>`GET /me/consult-requests` (신설)<br>`GET /me/inquiries` (신설, 🚧 서버 미구현) | ✅ 🔒 🚧 |
@@ -711,6 +716,14 @@ sort=rating | reviewCount | consultCount
 - `-` 접두사(`sort=-rating`) 같은 방향 문법을 도입하지 않았다. 방향이 필요해지면 그때 `order=asc|desc` 를 추가한다.
 - 동일 값일 때의 순서는 서버가 `id` 로 안정화한다. 그러지 않으면 페이지 경계에서 항목이 중복·누락된다.
 
+**안정 정렬은 "있으면 좋은 것" 이 아니라 계약 요구사항이다 (2026-10-21 요청 14 에서 명시로 승격).**
+비교 사슬의 **마지막은 언제나 `id` 오름차순**이어야 한다 — 병원은 `광고 여부 → sponsoredRank → sort 값
+→ id`, 전문의는 `sort 값 → id`. 요청 14 까지는 분야 목록이 한 페이지(최대 100곳)로 끝나서 티가 나지
+않았지만, 이제 화면이 `더 보기` 로 **페이지 2·3 을 이어 붙인다** — 같은 값끼리의 순서가 요청 사이에
+흔들리면 어떤 병원은 두 번 보이고 어떤 병원은 영영 안 보인다. 현재 구현은 두 곳 다 이미 그렇게
+되어 있다(`orderHospitals` 의 `localeCompare`, Prisma `orderBy: [{sort}, {id:'asc'}]`) — **회귀
+테스트로 고정하는 것**이 요청 14 의 몫이다.
+
 ---
 
 ## 6. 서버 필터 vs 클라이언트 필터
@@ -730,7 +743,8 @@ sort=rating | reviewCount | consultCount
 | 모드 `의사`/`병원` | **서버** (다른 엔드포인트) | 반환 리소스 자체가 다르다. 카드 모양뿐 아니라 데이터가 통째로 바뀐다 |
 | 보기 `리스트`/`지도`/`가격 비교표` | **클라이언트** | 같은 데이터를 다르게 그리는 것뿐이다. 가격 비교표의 최저가 정렬도 이미 받은 `priceRange.min`/할인가로 계산된다 |
 | 시술 칩 `추천` | **서버** (`recommended=true`) | 스폰서 우선 노출 계산에 이 축이 필요하다 (`isEligibleForRecommendedSponsoredPlacement`). 클라이언트 필터로 두면 서버가 어떤 광고를 위로 올릴지 알 수 없다 |
-| 시술 칩 13개 | **서버** (`procedureId=`) | 위와 같다. 스폰서 노출이 **카테고리별**로 계약되어 있어(`sponsoredCategories`) 서버가 선택된 시술을 알아야 순서를 정할 수 있다 |
+| 세부 시술 칩 31개 | **서버** (`procedureId=`) | 위와 같다. 스폰서 노출이 **시술별**로 계약되어 있어(`sponsoredCategories`) 서버가 선택된 시술을 알아야 순서를 정할 수 있다 |
+| 분야 탭 9개 (2026-10-21) | **서버** (`categoryId=`) | 같은 이유 + 조인이다. 화면이 분야를 시술 여러 개로 풀어 요청을 N번 보내면 **합친 결과에는 전역 순서도 총계도 없다** — 실제로 그 경로에만 광고 우선 노출이 없고 100곳 상한이 있었다 (§22) |
 | 시술 칩 `기타` (= 전체) | **서버** (파라미터 없음) | 이 경우에만 스폰서 우선 노출을 적용하지 않는다는 규칙이 있다 |
 | 정렬 3개 | **서버** (`sort=`) | 페이지네이션과 정렬은 분리할 수 없다. 클라이언트가 한 페이지만 받아 정렬하면 전역 순서가 깨진다. 지금은 전량을 받아서 티가 안 나지만 페이지네이션을 넣는 순간 버그가 된다 |
 | 조건 `상담가능` | **서버** | 병원 자체 속성이지만, 나머지 조건과 AND 로 묶여 페이지네이션 총계(`총 N곳`)에 영향을 준다. 일부만 서버로 보내면 `totalItems` 가 화면 표시와 어긋난다 |
@@ -874,9 +888,17 @@ sort=rating | reviewCount | consultCount
 `GET /hospitals` 는 **이미 정렬된 배열**을 준다. 클라이언트는 다시 정렬하지 않는다.
 
 1. `procedureId` 지정 → `isActive && sponsoredCategories.includes(procedureId) && rating>=3.5`
-2. `recommended=true` → `isActive && rating>=3.5`
-3. 위 대상을 `sponsoredRank` 오름차순으로 앞에, 나머지는 `sort` 기준
-4. **필터 없음(`기타`) → 스폰서 우선 노출 없음**
+2. `categoryId` 지정 (2026-10-21) → `isActive && 그 분야의 시술 중 하나라도 sponsoredCategories 에 있음 && rating>=3.5`
+3. `recommended=true` → `isActive && rating>=3.5`
+4. 위 대상을 `sponsoredRank` 오름차순으로 앞에, 나머지는 `sort` 기준
+5. **필터 없음(`기타`) → 스폰서 우선 노출 없음**
+
+**1 과 2 는 같은 함수다.** `computeSponsorship(input, { today, procedureIds? })` 가 시술 id **집합**을
+받는다 — 세부 시술 칩이면 원소 1개, 분야 탭이면 그 분야의 시술 전부, `추천`·필터 없음이면
+`undefined`(카테고리 검사 안 함). 원소 1개일 때의 동작이 요청 14 이전과 **완전히 같아서** 회귀 없이
+넓어진다. "분야용 자격 판정" 을 따로 만들지 않은 이유는 AGENTS.md 의 "같은 판정을 두 곳에 두지
+않는다" 그대로다 — 갈리면 분야 탭과 세부 칩에서 같은 병원의 광고 위치가 달라진다.
+**적용되는 자리는 셋뿐이다: `procedureId` · `categoryId` · `recommended`.**
 
 `GET /doctors`(의사 모드)에는 적용하지 않는다. 광고는 병원 단위 상품이고 현재 동작도 그렇다.
 
@@ -1793,7 +1815,7 @@ consult_status_changes  (기존 테이블 — 이제 '상태 변경' 이 아니�
 | 화면 | 판단 | 파라미터 |
 |---|---|---|
 | 기간 `오늘`/`이번 주`/`최근 30일` | **서버** — 경계가 `Asia/Seoul` 달력이고 기기 시계를 쓰면 안 된다 (`ConsultSummary.timezone` 과 같은 이유) | `period=today\|thisWeek\|last30` (새 선택 파라미터). 기존 `createdFrom`/`createdTo` 와 **함께 오면 `422`** — 서버가 둘 중 하나를 임의로 고르면 화면과 결과가 조용히 어긋난다 |
-| 시술 9개 대분류 | **서버가 받는 것은 시술 id 다.** 대분류 → id 매핑은 클라이언트(`frontend/src/features/procedure/taxonomy.ts`)에 있다 — 서버는 13개 id 만 안다 | `procedureId` **반복 허용** (같은 파라미터 안에서는 OR, 다른 필터와는 AND). 대분류 하나가 서버 id 여러 개로 풀린다 |
+| 시술 9개 분야 | **서버가 받는 것은 세부 시술 id 다** (2026-10-21 이후 31개). 분야 → id 전개는 클라이언트(`frontend/src/features/procedure/taxonomy.ts`)의 몫이다. **이 목록에는 `categoryId` 를 더하지 않았다** — 반복 `procedureId` 로 같은 결과가 나오고, 목록·전문의 쪽에서 `categoryId` 가 필요했던 이유(광고 순서·100곳 상한)가 여기엔 없다 (§22.9) | `procedureId` **반복 허용** (같은 파라미터 안에서는 OR, 다른 필터와는 AND). 분야 하나가 시술 id 여러 개로 풀린다 |
 | 검색 `q` | **서버** (개인정보·페이지네이션) | 기존 `q`. 이름은 `name` 부분일치, 숫자는 `phone_digits` 부분일치. **역할별 범위는 §4** |
 | `지연` 배지 | **클라이언트** (아래) | 없음 |
 
@@ -2121,12 +2143,14 @@ Zod 스키마를 쓸 때 `.strict()` 를 쓰지 않는다 — 필드 하나 추�
 | 1.0.0 | 2026-08-12 | 최초 설계. 화면 문서 27개 기준 |
 | 1.1.0 | 2026-08-12 | `docs/decisions/0001-roles-and-pii.md` 반영. 역할 3개, 운영자 주도 입점 흐름, 상담 PII 마스킹, 감사 로그. **아직 배포 전이라 `v1` 안에서 breaking 변경을 허용했다** — `UserRole` enum 값 변경(`admin` → `hospital_admin`/`operator`)과 `SELF_VERIFICATION_FORBIDDEN` 제거는 배포 후라면 `v2` 사유다 |
 | 1.2.0 | 2026-10-13 | **요청 08 — 알림 `consultStatus`** (§9). `AppNotification` 에 nullable 필드 하나 추가(**additive**), `NotificationType` 변경 없음, 엔드포인트·파라미터 변경 없음. 상담 알림 문구를 상태별 환자용 문장으로 교체하고 **일시 표기를 `10/9(금) 14:00` 하나로 통일**했다 — 문구·예시는 계약의 **설명과 `example`** 이지 스키마가 아니므로 breaking 이 아니다. 이미 나간 알림은 소급 수정하지 않는다 |
+| 1.3.0 | 2026-10-21 | **요청서 14 — 시술 분류를 서버로 (§22).** `ProcedureId` enum **13 → 31 (옛 값 6개 제거 — `v1` 안의 유일한 breaking)**, `ProcedureCategoryId` enum 신규(9), `Procedure` 에 `categoryId`·`isAvailable` 추가(둘 다 required), `GET /hospitals`·`GET /doctors` 에 선택 파라미터 `categoryId`, `GET /procedures` 의 캐시 `public, max-age=3600` → `no-cache`, 분야 필터에도 광고 우선 노출, 목록의 `id` tie-break 를 계약 요구사항으로 승격. **enum 값 제거는 §15 기준으로 `v2` 사유지만 `v1` 안에서 한다** — 1.1.0 과 같은 이유다(소비자가 이 저장소의 프런트 하나뿐이고 외부에 배포된 클라이언트가 없다). 옛 id 는 **화면의 별칭 표**가 받는다 (DB §17.5) |
 | (버전 없음) | 2026-10-21 | **요청서 12 — 혼자 개발 체제 정리.** 협업자가 떠나 서버도 이 저장소에서 직접 만든다. `openapi.yaml`·이 문서의 **"협업자 확인 대기" 표시를 "요청자 답 반영 대기 → 요청서 18(구 06)·19(구 07)"** 로 바꾸고, "협업자 영역/인계" 표현을 그 일을 맡은 요청서 번호(상담·알림 15, 문의·찜·대시보드 16)로 바꿨다. **계약의 동작·필드·enum·required 변경 없음** — 표현·표시만 고쳤으므로 버전을 올리지 않는다 |
 
 > 🚧 **병원 관리자 직접 가입(§20)은 버전을 받지 않았다.** 아직 **제안**이고,
 > **요청자 답 반영 대기 → 요청서 18** 이다 (2026-10-21 개정 — 혼자 개발 체제.
 > 2026-10-13 에는 "협업자 확인 대기" 였다).
-> 반영되면 `1.3.0` 으로 올라가며, 그 안에 **`v1` 안에서 할 수 없는 변경은 없다** —
+> 반영되면 **`1.4.0`** 으로 올라가며(`1.3.0` 은 요청서 14 가 먼저 가져갔다),
+> 그 안에 **`v1` 안에서 할 수 없는 변경은 없다** —
 > 새 오퍼레이션 3개 + 응답 필드 추가 + enum 값 추가뿐이고 기존 필드를 지우거나 바꾸지 않는다.
 > 다만 **동작이 바뀌는 것이 하나 있다**: 공개 질의가 `approvalStatus='approved'` 를 걸기 시작한다.
 > 스키마상 breaking 은 아니지만 **"같은 요청에 다른 결과"** 이므로 §15 의 "기본값 변경으로 결과가
@@ -2151,7 +2175,7 @@ Zod 스키마를 쓸 때 `.strict()` 를 쓰지 않는다 — 필드 하나 추�
 
 | 대상 | 헤더 | 이유 |
 |---|---|---|
-| `GET /procedures` | `public, max-age=3600` + ETag | 13개 고정 마스터 데이터 |
+| `GET /procedures` | **`no-cache`** + ETag (2026-10-21 변경, 이전 `public, max-age=3600`) | 31행 마스터지만 `isAvailable` 이 **병원 저장 즉시 바뀐다.** `max-age` 가 남아 있으면 프런트가 쿼리를 무효화해도 브라우저 HTTP 캐시가 옛 본문을 준다 (§22) |
 | `GET /legal-documents/{slug}` | `public, max-age=3600` | 개정이 드물다 |
 | `GET /guides`, `/guides/{id}` | `public, max-age=300` | 편집 콘텐츠 |
 | `GET /promotions` | `public, max-age=300` | 할인 정보. 너무 길면 종료된 할인이 남는다 |
@@ -2374,16 +2398,20 @@ API 로 정할 수 없고 제품 판단이 필요한 것들이다. **우선순�
 `events.md` 는 `Promotion` 만 다룬다. **이름이 겹쳐 있어 "이벤트를 추가해달라" 는 요청이 어느 쪽인지 알 수 없다.**
 스펙에서는 `Hospital.events` 를 유지하고 주석으로 다른 것임을 명시했다. 이름 정리가 필요하다 (§17-22).
 
-### 2. 시술 개수가 문서마다 다르게 읽힌다
+### 2. 시술 개수가 문서마다 다르게 읽힌다 — **2026-10-21 (요청 14) 에 닫혔다**
+
+(기록) 화면 문서들이 각각 이렇게 적고 있었다:
 
 - `home.md`: "시술 13종"
 - `explore.md`: "시술 칩 15개" (= 13 + `추천` + `기타`)
 - `community-new.md`, `admin-hospital-new.md`: "시술 13개"
 - `known-issues.md` 개발자 메모: `explore.tsx:44-46` 주석이 "12개 시술" 이라고 잘못 적혀 있다
 
-실제로 `domain.ts` 의 `ProcedureId` 는 13개이고 `fixtures/procedures.ts` 도 13개다.
-`explore.md` 의 15개는 특수 탭 2개를 포함한 수이며 문서가 그것을 명시하고 있어 모순은 아니지만,
-읽는 사람이 "시술이 15종" 으로 오해할 여지가 있다. 스펙의 `ProcedureId` enum 은 13개다.
+**지금 기준은 하나다: 분야 9개 · 세부 시술 31개.** 스펙의 `ProcedureId` enum 이 31개이고
+`ProcedureCategoryId` 가 9개이며, 그 값과 순서가 서버 시드(`backend/prisma/seed/data/`)와
+화면 상수(`taxonomy.ts`)와 **같다는 것을 테스트가 고정한다** (DB §17.8). `explore.md` 의
+"칩 N + 2" 는 여전히 특수 탭(`추천`·`기타`)을 포함한 수다 — 시술 수가 아니다.
+화면 문서의 "13종" 표현을 고치는 것은 요청 14 의 화면 작업에 포함된다.
 
 ### 3. 병원의 `specialty` 와 전문의의 `specialty` 가 완전히 다른 개념인데 같은 이름이다
 
@@ -2767,7 +2795,7 @@ enum 은 **그대로 셋**이다 — 일반 가입에 파트너 약관이 섞여
 | | 새로 생기는 것 | 바뀌는 것 | **바뀌지 않는 것** |
 |---|---|---|---|
 | 오퍼레이션 | **0개** | `PATCH /hospitals/{id}`(본문·저장 규칙)<br>`POST /hospitals`(본문)<br>`POST /uploads`(`purpose` 값 1개·인증·응답)<br>`GET /hospitals/{id}`(응답 필드) | `GET /hospitals`(목록)<br>`GET /uploads/{id}/content`<br>검색·지도·전문의·찜 |
-| 스키마 | `HospitalProcedurePrice`<br>`HospitalProcedureInput` | `Hospital`(+`procedures`·`tagline`)<br>`HospitalFeatures`(+키 4)<br>`HospitalCreateRequest`·`HospitalUpdateRequest`(+`procedures`·`tagline`, `images` 실사용)<br>`FilePurpose`(+`hospital_photo`)<br>`UploadedFileRef`(+`publicUrl`)<br>`HospitalCompleteness*`(항목 7→9) | `Hospital.images`·`thumbnail`·`procedureIds` 의 **모양**<br>`PriceRange`<br>`ProcedureId`(13종 그대로) |
+| 스키마 | `HospitalProcedurePrice`<br>`HospitalProcedureInput` | `Hospital`(+`procedures`·`tagline`)<br>`HospitalFeatures`(+키 4)<br>`HospitalCreateRequest`·`HospitalUpdateRequest`(+`procedures`·`tagline`, `images` 실사용)<br>`FilePurpose`(+`hospital_photo`)<br>`UploadedFileRef`(+`publicUrl`)<br>`HospitalCompleteness*`(항목 7→9) | `Hospital.images`·`thumbnail`·`procedureIds` 의 **모양**<br>`PriceRange`<br>`ProcedureId`(**이 제안이 건드리지 않는다.** 2026-10-21 요청 14 가 31종으로 바꿨다 — §22) |
 | 그 밖 | 에러 코드 8개(§11) · 요청 한도 1줄(§16) | — | 페이지네이션·정렬·마스킹·감사 규약 |
 
 **새 오퍼레이션이 0개인 것이 이 제안의 성격이다.** 늘어나는 것은 **이미 있는 저장 경로가 받는 값**
@@ -2802,14 +2830,14 @@ db-master 의 권장과 같은 결론이고, 근거를 계약 쪽 언어로 적�
 `info.description` 의 공통 규약("금액: 정수(원)")과 **한 응답 안의 단위 혼재**다 — `priceRange`(원)와
 시술 가격(만원)이 같이 내려오면 폴백 비교에서 `45` 와 `450000` 중 무엇이 큰지를 **읽는 사람이** 틀린다.
 
-**가격이 붙는 단위는 서버 시술 13종뿐이다** (`ProcedureId`). 세부 31개 중 18개는 서버에 마스터가 없고
-화면에서도 체크가 막혀 있다(`준비중`) — **저장할 값이 애초에 없다.** 나머지 13개는 서버 id 와 1:1 이라
-요청서의 확인 항목("인레이를 체크하고 가격을 넣으면 상세에 인레이와 그 가격이 보인다")이 그대로
-성립한다. 18개까지 받으려면 `procedures` 마스터가 커지고 **홈·탐색·커뮤니티의 노출 목록이 함께
-바뀐다** — 요청서가 "노출 규칙은 그대로" 라고 못 박은 것과 어긋나므로 범위 밖이다 (열린 질문 5).
+**가격이 붙는 단위는 `ProcedureId` 31종 전부다** (2026-10-21 요청 14 로 바뀐 문단 — 전에는
+"서버 시술 13종뿐이고 세부 18개는 마스터가 없어 저장할 값이 애초에 없다" 였고, 그 제약은
+`procedures` 마스터가 31행이 되면서 사라졌다. 열린 질문 5 도 함께 닫힌다). 요청서의 확인
+항목("인레이를 체크하고 가격을 넣으면 상세에 인레이와 그 가격이 보인다")은 그대로 성립하고,
+이제 `스케일링`·`온레이` 처럼 전에 막혀 있던 시술에도 같은 방식으로 가격이 붙는다.
 
 **시술 이름을 응답에 싣지 않았다.** db-master 는 "서버가 아는 시술명" 을 함께 내리자고 넘겼지만,
-이름의 출처는 이미 `GET /procedures`(1시간 캐시되는 13개 마스터)와 프런트 `taxonomy.ts` 다.
+이름의 출처는 이미 `GET /procedures`(31개 마스터)와 프런트 `taxonomy.ts` 다.
 여기에 또 실으면 **같은 라벨이 두 곳에서 갈린다**(칩은 `인레이`, 상세는 `인레이(레진)` 같은 일이
 조용히 생긴다). 필요해지면 그때 더하는 비용이 싸다.
 
@@ -2982,8 +3010,10 @@ URL 로 동기화한다. 쓰는 자리가 하나라 두 값이 갈릴 수 없고
    이관이 따라오는 별도 작업**이다.
 4. **가격의 `0`·상한 규칙.** `min > 0`, 상한 **1억원**은 제안값이다. 풀마우스 임플란트 등을 생각하면
    더 올려야 할 수도 있다. (계약에는 `minimum: 1` / `maximum: 100000000` 으로 적어 두었다.)
-5. **세부 시술 18개에 가격을 적고 싶다는 요구가 오면** — `procedures` 마스터 확장 + "저장은 되지만
-   노출 목록에는 없는 시술" 이라는 축이 함께 필요하다. **07 범위 밖**이다.
+5. ~~**세부 시술 18개에 가격을 적고 싶다는 요구가 오면** — `procedures` 마스터 확장 + "저장은 되지만
+   노출 목록에는 없는 시술" 이라는 축이 함께 필요하다. **07 범위 밖**이다.~~
+   → **닫혔다 (2026-10-21, 요청 14).** 마스터가 31행이 됐고 **31개를 전부 노출한다** — "저장은 되지만
+   노출 목록에 없는 시술" 축은 결국 필요 없었다 (DB §17.12). 가격은 31종 어디에나 붙는다.
 6. **업로드 인증** — 병원 사진은 로그인 뒤에 올리므로 `hospital_photo` 는 **인증 필수**로 못 박을 수
    있고, §20 의 비인증 업로드 결정이 어느 쪽으로 가도 영향받지 않는다. **확인만 받으면 된다.**
 7. **사진 공개 URL 의 형태** — ⓐ 공개 `GET /files/{fileId}` · ⓑ 저장소 공개 URL · ⓒ 정적 경로.
@@ -3011,3 +3041,201 @@ URL 로 동기화한다. 쓰는 자리가 하나라 두 값이 갈릴 수 없고
     (덧붙여 **`POST /uploads` 의 `security` 를 두 줄(`{}` + `bearerAuth`)로 바꿨다** — §20 은
     "조건부로 두지 말라" 고 적었지만, `security: []` 만 두면 계약이 "토큰을 보내면 안 된다" 고
     말하게 된다. 생성기·게이트웨이가 그 줄을 읽으므로 뒤집었고, **값별 규칙은 여전히 설명이 못 박는다.**)
+
+---
+
+## 22. 시술 분류를 서버로 — 분야 9 · 세부 31 · `준비중` (요청 14, 2026-10-21 · **확정**)
+
+> **이 절은 제안이 아니다.** §20·§21 과 달리 `openapi.yaml` 에 **이미 반영되어 있고**, 버전
+> **1.3.0** 이다. 요구사항은 `docs/features/requests/2026-10-21-14-시술분류-서버로-준비중-풀기.md`,
+> 데이터 설계는 `docs/database/README.md` §17, 화면은 `home.md`·`category.md`·`explore.md`·
+> `search.md`·`admin-hospital-edit.md`.
+
+### 22.1 한눈에 — 계약이 어떻게 바뀌었나
+
+| 자리 | 전 (1.2.0) | 후 (1.3.0) |
+|---|---|---|
+| `ProcedureId` | 13 값 | **31 값.** 옛 6개(`implant`·`orthodontics`·`cavity`·`gum-disease`·`tmj`·`botox`) **제거** |
+| `ProcedureCategoryId` | 없음 (분야는 화면 상수였다) | **신규 enum 9개.** 쿼리 파라미터의 값 목록으로만 쓴다 |
+| `Procedure` | `id`·`name`·`emoji`·`shortDescription`·`description` | **+`categoryId`(required) +`isAvailable`(required)** |
+| `GET /procedures` 캐시 | `public, max-age=3600` + ETag | **`no-cache` + ETag** |
+| `GET /hospitals` | `procedureId` | **+`categoryId`** (선택). 광고 우선 노출이 여기에도 걸린다 |
+| `GET /doctors` | `procedureId` | **+`categoryId`** (선택) |
+| 목록 정렬 | "서버가 `id` 로 안정화한다" (§5 의 한 줄) | **계약 요구사항으로 승격** — 두 오퍼레이션 설명에 tie-break 사슬을 명시 |
+| 로스터 자동 배정 | "`procedureIds` 는 전공에서 유도" | **"전공의 시술 ∩ 병원이 취급하는 시술"** (필드 변경 아님 — 문구가 동작을 따라간다) |
+| 에러 코드 | `unknown_procedure` | **그대로.** `unknown_category` 는 **만들지 않았다** (아래 22.6) |
+| 응답 구조·페이지네이션 | — | **변화 없음** |
+
+### 22.2 A. `ProcedureId` 13 → 31, 옛 6개는 **지운다**
+
+서버가 아는 시술과 화면이 보여주는 시술이 달라서 그 사이에 번역 계층
+(`taxonomy.ts` 의 `legacyProcedureId`)이 하나 있었다. 요청 14 는 그 계층을 없앤다 —
+**서버 시술 id = 화면 세부 시술 id 31개.**
+
+**옛 6개를 남기지 않은 이유는 "정리" 가 아니라 충돌이다.** 그중 다섯(`implant`·`orthodontics`·
+`cavity`·`tmj`·`botox`)은 이제 **분야 id 와 글자가 같다.** 둘 다 받으면
+`?categoryId=implant` 와 `?procedureId=implant` 가 **서로 다른 것을 가리키는 API** 가 되고,
+그 상태는 영구히 남는다(요청 17·19 의 가격이 이 id 위에 붙는다). `gum-disease` 는 충돌이
+없지만 혼자 옛 이름이면 다음 사람이 그것을 규칙으로 읽는다.
+
+**이것이 §15 기준의 breaking 변경이다** (enum 값 제거). `v1` 안에서 하는 근거는 1.1.0 과 같다 —
+소비자가 이 저장소의 프런트 하나뿐이고 외부에 배포된 클라이언트가 없다. 대신:
+
+- **서버는 옛 id 를 받지 않는다.** 쓰기(`procedureIds`)는 `422 VALIDATION_FAILED(unknown_procedure)`,
+  목록 필터는 0건이다. 별칭을 서버가 받으면 **같은 시술을 가리키는 저장 값이 둘**이 된다
+- **이미 바깥에 나간 옛 id 는 화면이 푼다** — 북마크된 `/explore?category=...` 와 브라우저 저장소.
+  별칭 표의 자리는 `taxonomy.ts` **하나**다 (DB §17.5)
+
+### 22.3 B. `준비중` 을 서버가 판정한다 — `Procedure.isAvailable`
+
+요청서가 규칙을 정했다: **앱에 노출되는 병원 중 그 시술을 하는 곳이 1곳 이상이면 열림, 0곳이면
+`준비중`.** 이 규칙의 입력은 전부 서버에 있고 화면에는 없다(병원 전량을 받지 않는 한). 그래서
+판정도 서버다.
+
+**컬럼이 아니라 파생이다** (DB §17.7). 저장하면 병원이 체크를 저장할 때마다 갱신해야 하는 두 번째
+사실이 생기고, 한 번 빠뜨리면 "병원은 있는데 준비중" 이 된다. 판정의 출처는 한 곳씩이다:
+
+| 무엇 | 어디 |
+|---|---|
+| "앱에 노출되는 병원" | `hospital/public-visibility.ts` 의 `publicHospitalWhere()` — **`GET /hospitals` 의 공개 목록과 같은 함수**. 요청서 18 이 `approvalStatus='approved'` 를 더하는 날 목록과 가용성이 같이 움직인다 |
+| 0/1 판정 | `procedure/availability.ts` 의 순수 함수 (집계 결과만 받는다) |
+
+**`hospitalCount` 는 내려주지 않는다.** db-master 가 권고했지만 **읽는 화면이 없다** — 홈 격자도
+관리자 폼도 "0인가 아닌가" 만 쓴다. 숫자가 필요해지는 날 같은 집계에서 바로 더할 수 있고, 그때까지
+소비자 없는 필드를 맞다고 믿지 않는다 (AGENTS.md).
+
+**요청 17(공공데이터 병원)을 위해 미리 만드는 것은 없다.** 그 병원들도 `hospitals` +
+`hospital_procedures` 행이라 같은 집계에 자동으로 잡힌다.
+
+### 22.4 C. `GET /procedure-categories` 를 **만들지 않았다**
+
+db-master 는 분야 엔드포인트 또는 `ProcedureCategory` 스키마를 넘겼다. 만들지 않은 이유:
+
+1. **분야의 이름·설명·순서를 서버에서 받아야 하는 화면이 없다.** 홈 격자·탐색 분야 탭·관리자 폼
+   섹션은 **첫 프레임**에 9개를 그려야 한다. 네트워크를 기다리면 격자가 깜빡이고, 그래서 그 표는
+   어차피 번들 상수로 남는다 (`taxonomy.ts`). 엔드포인트를 만들어도 **아무도 호출하지 않는다**
+2. **분야의 `준비중` 도 서버 필드가 필요 없다.** "분야 준비중 = 그 분야의 세부 시술이 전부
+   `isAvailable=false`" 이고, 입력은 이미 `GET /procedures` 응답 안에 있다.
+   **유도는 프런트 함수 하나**에서만 한다 — 두 화면이 각자 계산하면 갈린다 (AGENTS.md)
+3. 두 사본(서버 시드 ↔ `taxonomy.ts`)이 갈리지 않는 것은 **테스트가 고정한다** (DB §17.8).
+   계약이 아니라 테스트가 맞는 도구다 — 값이 틀리면 런타임이 아니라 CI 에서 멈춰야 한다
+
+**그래서 계약에 남는 것은 `ProcedureCategoryId` enum 하나뿐이다** — 쿼리 파라미터가 받는 값의
+목록으로. `ProcedureCategory` 스키마도 참조하는 자리가 없어 만들지 않았다.
+
+> **다시 볼 조건:** 분야를 **운영자가 편집하는 화면**이 생기면(이름·설명·순서·추가) 그때는 서버가
+> 원본이어야 하고 엔드포인트가 필요하다. 그날 `GET /procedure-categories` + 쓰기 오퍼레이션을
+> 함께 설계한다 — 읽기만 먼저 만들어 두면 "서버에 있는데 화면은 상수를 쓴다" 는 상태가 남는다.
+
+### 22.5 D. `GET /procedures` 의 캐시 — `no-cache` (`max-age=3600` 폐기)
+
+`isAvailable` 때문에 이 응답은 더 이상 "거의 변하지 않는 마스터 데이터" 가 아니다.
+**관리자가 스케일링을 체크하고 저장하는 순간 값이 바뀐다** — 요청서 14 의 첫 확인 항목이 그 경로다.
+
+`max-age=3600` 이 남아 있으면 **프런트가 TanStack Query 캐시를 무효화해도 소용이 없다.** 재요청이
+브라우저 HTTP 캐시에서 옛 본문을 받기 때문이다. 담당자는 "저장했는데 홈이 그대로" 를 보고,
+그것은 1시간 뒤에 저절로 낫는다 — 가장 찾기 어려운 종류의 결함이다.
+
+**`no-store` 가 아니라 `no-cache` 를 고른 이유:** 개인정보가 아니므로 저장을 금지할 이유가 없고,
+`no-cache` 는 "저장하되 쓰기 전에 반드시 재검증" 이라 **ETag 로 `304` 를 받을 수 있다.** 31행
+JSON 을 매번 내려보내는 것보다 싸고, 신선도는 `no-store` 와 같다.
+
+- 프런트: 이 쿼리의 `staleTime` 은 짧게(또는 0) 두고, **병원 저장 성공 시 `procedures` 쿼리를
+  무효화한다.** 서버 헤더와 클라이언트 캐시 **둘 다** 고쳐야 확인 항목이 성립한다
+- `GET /hospitals`·`/doctors` 의 `public, max-age=60` 은 **그대로다** — 목록은 1분 늦어도 되지만,
+  `준비중` 배지는 방금 자기가 한 저장의 결과를 보여주는 자리다
+
+### 22.6 E. `categoryId` 파라미터 — AND 결합, 모르는 값은 0건
+
+`GET /hospitals?categoryId=` / `GET /doctors?categoryId=` 를 더했다. 전에는 화면이 분야를 시술
+id 여러 개로 풀어 **요청을 여러 번 보내고 합쳤고**, 그래서 그 경로에만 광고 우선 노출이 없고
+100곳 상한이 있었다 (`known-issues.md` 🟠). 합친 목록에는 **전역 순서도 총계도 없기 때문**이다.
+
+**`procedureId` 와 함께 오면 AND 다.** db-master 는 "`procedureId` 가 이긴다" 를 제안했지만:
+
+- §5 가 이미 **"필터는 전부 AND 결합"** 이라고 못 박았다. 예외를 하나 두면 그 예외를 기억하는
+  사람과 기억하지 못하는 사람이 생긴다
+- **한쪽을 조용히 버리는 규칙은 호출자가 그것을 알 수 없다.** 이 계약은 같은 이유로
+  `period` + `createdFrom` 동시 전송을 `422` 로 막았고, 수정 불가 필드를 조용히 무시하지 않는다
+- 화면은 **둘 중 하나만 보낸다.** 그래서 어느 규칙을 고르든 지금의 화면 동작은 같다 — 고르는
+  기준은 "읽는 사람이 틀리지 않는 쪽" 뿐이다
+
+**모르는 값은 `422` 가 아니라 0건이다.** 현재 `procedureId` 쿼리가 그렇고(서버 스키마가
+`z.string().min(1)` 이라 enum 을 강제하지 않는다) `categoryId` 도 같게 둔다. **그래서
+`unknown_category` 에러 코드를 만들지 않았다** — 분야를 받는 **쓰기 경로가 없고**, 목록 필터에서
+"못 찾았다" 는 정상 상태다. 쓰기(`procedureIds`)는 지금처럼 `422 unknown_procedure` 로 막는다.
+
+> **계약과 구현의 알려진 격차 하나** (AGENTS.md — 미룬 것은 조용히 넘기지 않는다):
+> `openapi.yaml` 은 두 파라미터에 enum 을 적어 두었지만 **서버는 값 목록을 검증하지 않는다.**
+> 요청 14 이전부터 그랬고 이번에도 바꾸지 않는다 — 폐기된 옛 id 로 들어온 북마크가 `422` 가
+> 아니라 빈 목록을 받는 쪽이 화면에 낫다. 두 파라미터 설명에 이 사실을 적어 두었다.
+
+### 22.7 F. 분야에도 광고 우선 노출, 그리고 페이지 사이에서 흔들리지 않는 정렬
+
+- **광고 자격**: `computeSponsorship` 이 `procedureId?: string` 대신 `procedureIds?: string[]` 를
+  받는다. 세부 시술이면 원소 1개(= **지금과 완전히 같은 동작**), 분야면 그 분야의 시술 전부,
+  `추천`·필터 없음이면 `undefined`. 분야용 판정 함수를 따로 만들지 않는다 (§8)
+- **적용 자리는 셋**: `procedureId` · `categoryId` · `recommended`. 필터가 없으면 그대로 적용 안 함
+- **정렬**: 비교 사슬의 끝은 언제나 `id`. 화면이 `더 보기` 로 페이지를 이어 붙이기 시작하므로
+  (100곳 상한이 사라진 자리를 페이지네이션이 메운다) 이 보장이 눈에 보이는 결함으로 바뀐다 (§5)
+- **페이지네이션 규약은 그대로다** — `page`/`pageSize`, 기본 20, 최대 100, `meta.totalItems` 가
+  `총 N곳`. 분야 필터가 추가되어도 **응답 구조는 한 글자도 바뀌지 않는다**
+
+### 22.8 G. 로스터 자동 배정 — **문구가 동작을 따라간다** (새 필드 아님)
+
+`PUT /hospitals/{hospitalId}/doctors` 에서 신규 전문의가 `procedureIds` 를 생략하면 서버가 채운다.
+지금까지는 **전공 표 그대로**였고, `일반의` 만 "병원 취급 시술 전체" 였다. 시술이 13 → 31 로 늘면
+그 규칙은 구강악안면외과 전문의 한 명에게 **그 병원이 하지도 않는 시술 11개**를 붙인다.
+
+**리드 결정: 전공 시술과 병원 시술의 교집합.** `일반의` 는 지금과 같다(그 전공의 시술 = 전체이므로
+교집합도 전체 — **규칙이 하나로 합쳐진다**). 계약에서는 `PUT` 설명과 `DoctorUpsert.procedureIds`
+설명 두 줄이 바뀌고, **요청·응답 필드는 그대로다.**
+
+### 22.9 계약에 넣지 않은 것 (이유와 함께)
+
+| 넣지 않은 것 | 이유 |
+|---|---|
+| `GET /procedure-categories` · `ProcedureCategory` 스키마 | 22.4 — 호출할 화면이 없다. 분야 편집 화면이 생기면 그때 |
+| `Procedure.hospitalCount` | 22.3 — 읽는 화면이 없다 ("0인가 아닌가" 만 쓴다) |
+| `Procedure.sortOrder` | 배열 순서가 곧 그 순서다. 둘 다 내려주면 **어긋난 상태**가 표현 가능해진다 |
+| `ProcedureCategory.isAvailable` (분야 가용성) | 22.4 — `isAvailable` 31개에서 프런트 함수 하나가 유도한다 |
+| `422 unknown_category` | 22.6 — 분야를 받는 쓰기 경로가 없다 |
+| `GET /consult-requests` 의 `categoryId` | 반복 `procedureId` 로 이미 같은 결과가 나오고, 그 목록에는 광고 순서·100곳 상한 문제가 없다 |
+| 동의어(keywords) 응답 | 요청서가 "동의어는 화면에 두어도 된다" 고 했다. 서버 검색 추천(`GET /search/suggestions`)을 만드는 요청서에서 다시 본다 |
+| 서버의 옛 id 별칭 수용 | 22.2 — 저장 값은 한 가지여야 한다 |
+| `GET /procedures` 의 분야 필터(`?categoryId=`) | 31행을 다 받아 화면이 묶는다. 한 번 받는 목록을 쪼갤 이유가 없다 |
+
+### 22.10 넘기는 것
+
+**backend-engineer** (계약 쪽만. 데이터·시드·마이그레이션은 DB §17.15)
+
+1. `GET /procedures` — 응답에 `categoryId`·`isAvailable`, 헤더 `Cache-Control: no-cache` + ETag
+2. 가용성 집계 1회 + 순수 함수 `procedure/availability.ts`, 공개 판정 `publicHospitalWhere()`
+   (`buildHospitalWhere` 가 그 함수로 시작하도록)
+3. `listHospitalsQuerySchema`·`listDoctorsQuerySchema` 에 `categoryId`(선택, 검증은 `procedureId` 와
+   같은 수준), 두 `build*Where` 에 **AND** 로 추가
+4. `computeSponsorship` 의 `procedureIds?: string[]`, `sponsoredFirst` 에 `categoryId` 추가
+5. 로스터 자동 배정 교집합 (22.8)
+6. 테스트: 가용성 경계(0곳 / 1곳 / 삭제된 병원만 있는 시술), 분야 필터 + 광고 정렬,
+   **페이지 1·2 가 겹치지 않는다**(동점 데이터로), 옛 id 로 온 쓰기 요청의 `422`,
+   옛 id 로 온 목록 필터의 0건, `no-cache` 헤더
+
+**frontend-engineer**
+
+1. `GET /procedures` 응답에서 `categoryId`·`isAvailable` 을 읽는다. `taxonomy.ts` 의
+   `legacyProcedureId`/`LEGACY_TO_SUB` 는 **별칭 표**로 역할이 바뀐다 (옛 주소·저장소 전용)
+2. **분야 준비중 유도는 함수 하나**로 (`그 분야의 세부 시술이 전부 isAvailable=false`)
+3. 분야 탭·카테고리 화면은 `?categoryId=` **한 번**으로 받는다 — N번 요청·합치기·100곳 상한 제거
+4. `더 보기` 는 `page+1` 을 이어 붙인다. `meta.totalPages` 로 버튼을 감춘다
+5. 병원 저장 성공 후 `procedures` 쿼리 무효화 (22.5)
+6. 관리자 병원 폼은 31개를 전부 체크 가능하게 (`isAvailable` 을 보지 않는다)
+
+### 22.11 열린 질문
+
+1. **`GET /procedures` 를 비로그인·고빈도로 매번 재검증하는 비용.** 지금은 31행이라 무시할 수
+   있다. 사용자가 늘면 **`isAvailable` 만 따로 내리는 경로**(예: `GET /procedures/availability`,
+   짧은 `max-age`)로 쪼개는 선택지가 있다 — 지금 쪼개면 같은 화면이 두 요청을 기다린다
+2. **분야 편집 화면이 생기면 22.4 가 뒤집힌다.** 그때 `GET /procedure-categories` + 쓰기 +
+   `taxonomy.ts` 상수의 운명을 **한 요청서에서** 같이 정한다
+3. **커뮤니티 질문하기의 시술 선택이 13 → 31 로 늘어난다.** 평평한 31개로 둘지 분야로 묶을지는
+   **화면 결정**이다 (계약은 그대로 — `GET /procedures` 하나로 둘 다 그릴 수 있다)

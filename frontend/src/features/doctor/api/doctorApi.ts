@@ -20,6 +20,8 @@ export type DoctorFilters = {
   pageSize?: number;
   hospitalId?: string;
   procedureId?: string;
+  /** 분야 9개 중 하나. `procedureId` 와 함께 오면 AND 지만 화면은 **둘 중 하나만** 보낸다 (계약 §22.6). */
+  categoryId?: string;
   recommended?: boolean;
   consultAvailable?: boolean;
   oneDay?: boolean;

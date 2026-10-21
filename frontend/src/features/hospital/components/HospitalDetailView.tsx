@@ -14,7 +14,7 @@ import { StockImage } from '@/components/StockImage';
 import { useHospitalDoctors } from '@/features/doctor';
 import { FavoriteHeartButton } from '@/features/favorite';
 import { HospitalInquirySection } from '@/features/inquiry';
-import { groupLegacyIdsByCategory } from '@/features/procedure';
+import { groupProcedureIdsByCategory } from '@/features/procedure';
 import { useHospitalReviews } from '@/features/review';
 import { getPromotionByHospital } from '@/mocks/fixtures/promotions';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
@@ -81,7 +81,7 @@ const EMPTY_FEATURES: HospitalFeatures = {
 export function HospitalDetailView({ hospital }: { hospital: Hospital }) {
   const doctorsQuery = useHospitalDoctors(hospital.id);
   const reviewsQuery = useHospitalReviews(hospital.id);
-  const procedureGroups = groupLegacyIdsByCategory(hospital.procedureIds);
+  const procedureGroups = groupProcedureIdsByCategory(hospital.procedureIds);
   const promotion = getPromotionByHospital(hospital.id);
   const requireAuth = useRequireAuth();
 
@@ -313,7 +313,7 @@ export function HospitalDetailView({ hospital }: { hospital: Hospital }) {
             {/*
               평면 배지 줄이면 "임플란트·라미네이트·보톡스" 가 한 뭉치로 보여 이 병원의 **진료
               범위**가 안 드러난다. 대분류로 묶으면 세 분야를 한다는 사실이 먼저 읽힌다.
-              모르는 서버 id 는 `groupLegacyIdsByCategory` 가 조용히 빼므로, 전부 모르는
+              모르는 서버 id 는 `groupProcedureIdsByCategory` 가 조용히 빼므로, 전부 모르는
               id 거나 `procedureIds: []` 면 그룹이 0개다 — 그때 아무것도 안 그리면 섹션
               제목만 덩그러니 남는다.
             */}

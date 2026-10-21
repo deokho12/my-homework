@@ -16,7 +16,7 @@ function baseQueueItem(overrides: Partial<VerificationQueueItem> = {}): Verifica
     hospitalId: 'h1',
     hospitalName: '강남 스마일 치과',
     photo: 'https://example.com/photo.jpg',
-    procedureIds: ['implant'],
+    procedureIds: ['implant-general'],
     rating: null,
     reviewCount: 0,
     consultCount: 0,

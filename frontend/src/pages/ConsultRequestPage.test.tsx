@@ -317,18 +317,18 @@ describe('ConsultRequestPage', () => {
       );
     });
 
-    it('세부 시술 칩을 고르면 서버가 아는 시술 id 로 보낸다', async () => {
+    it('세부 시술 칩을 고르면 그 시술 id 로 보낸다', async () => {
       const create = vi.spyOn(consultApi, 'createConsultRequest').mockResolvedValue(
-        createdConsult({ procedureId: 'cavity' })
+        createdConsult({ procedureId: 'resin' })
       );
-      await renderLoadedForm(baseHospital({ procedureIds: ['cavity'] }));
+      await renderLoadedForm(baseHospital({ procedureIds: ['resin'] }));
 
       await userEvent.click(screen.getByRole('button', { name: '충치치료 · 레진' }));
       await fillValidForm();
       await userEvent.click(submitButton());
 
       await waitFor(() =>
-        expect(create).toHaveBeenCalledWith(expect.objectContaining({ procedureId: 'cavity' }))
+        expect(create).toHaveBeenCalledWith(expect.objectContaining({ procedureId: 'resin' }))
       );
     });
 

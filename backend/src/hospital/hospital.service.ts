@@ -47,13 +47,16 @@ export class HospitalService {
       ? boundingBox({ latitude: query.latitude!, longitude: query.longitude! }, query.radiusKm!)
       : undefined;
 
-    const rows = await this.hospitals.findMany(buildHospitalWhere(query, bounds));
+    const [rows, sponsorshipProcedureIds] = await Promise.all([
+      this.hospitals.findMany(buildHospitalWhere(query, bounds)),
+      this.resolveSponsorshipProcedureIds(query),
+    ]);
 
-    // 광고 자격 판정에 시술 카테고리가 필요하다. `추천` 탭과 필터 없음은 카테고리를 보지 않는다.
+    // 광고 자격 판정에 시술 집합이 필요하다. `추천` 탭과 필터 없음은 카테고리를 보지 않는다.
     let items = rows.map((row) =>
       projectHospital(row, {
         today,
-        procedureId: query.procedureId,
+        procedureIds: sponsorshipProcedureIds,
         distanceKm: hasCoordinates
           ? haversineKm(
               { latitude: query.latitude!, longitude: query.longitude! },
@@ -76,14 +79,32 @@ export class HospitalService {
       items = items.filter((item) => item.representativeSpecialty !== null);
     }
 
-    // 계약 규칙 4 — 필터가 없으면 광고를 당기지 않는다.
-    const sponsoredFirst = query.procedureId !== undefined || query.recommended === true;
+    // 계약 규칙 4 — 필터가 없으면 광고를 당기지 않는다. 적용 자리는 셋이다:
+    // 세부 시술 · **분야(2026-10-21 요청 14)** · 추천.
+    const sponsoredFirst =
+      query.procedureId !== undefined || query.categoryId !== undefined || query.recommended === true;
     const ordered = orderHospitals(items, { sort: query.sort, sponsoredFirst });
 
     return {
       items: paginate(ordered, query),
       meta: buildPageMeta({ page: query.page, pageSize: query.pageSize, totalItems: ordered.length }),
     };
+  }
+
+  /**
+   * 광고 자격 판정에 넘길 **시술 id 집합** (계약 규칙 1 — docs/api/README.md §22.7).
+   *
+   * - 세부 시술 칩 → 원소 1개 (지금까지의 동작과 완전히 같다)
+   * - 분야 탭 → 그 분야의 시술 전부. 없는 분야면 빈 배열이고, 그러면 광고 자격이
+   *   없는데 목록도 0건이라 결과가 같다
+   * - 둘 다 오면 **더 좁은 쪽**인 `[procedureId]` 다 (필터 자체는 AND 로 둘 다 건다)
+   * - 아무것도 없으면 `undefined` — 카테고리 일치 검사를 하지 않는다 (계약 규칙 2·4)
+   */
+  private async resolveSponsorshipProcedureIds(query: ListHospitalsQuery): Promise<string[] | undefined> {
+    if (query.procedureId !== undefined) return [query.procedureId];
+    if (query.categoryId !== undefined) return this.procedures.findIdsByCategory(query.categoryId);
+
+    return undefined;
   }
 
   async getById(id: string): Promise<HospitalResponse> {

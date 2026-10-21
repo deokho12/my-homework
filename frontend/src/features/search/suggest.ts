@@ -1,11 +1,11 @@
+import type { ProcedureAvailability } from '@/features/procedure/availability';
 import {
   categoryPath,
-  displayNameForLegacy,
+  procedureDisplayName,
   normalizeSearchTerm,
   searchTaxonomyAll,
   type TaxonomyMatch,
 } from '@/features/procedure/taxonomy';
-import { resolveCategoryFilter } from '@/features/procedure/lib/resolveCategoryFilter';
 import type { Doctor, Hospital } from '@/types/domain';
 
 /**
@@ -31,7 +31,7 @@ export interface ProcedureSuggestion {
   match: TaxonomyMatch;
   title: string;
   subtitle: string;
-  /** `resolveCategoryFilter(...).mode === 'empty'` — 카테고리 화면의 빈 상태와 같은 판정이다. */
+  /** 카테고리 화면의 빈 상태와 **같은 판정**이다 (`features/procedure/availability.ts`). */
   comingSoon: boolean;
 }
 
@@ -93,7 +93,9 @@ function procedureSubtitle(match: TaxonomyMatch, comingSoon: boolean, query: str
   const { category, sub } = match;
   const base = sub
     ? comingSoon
-      ? `${category.name} 전체로 열려요`
+      ? // 준비중 세부도 **그 세부가 선택된** 카테고리 화면으로 간다(요청 14 — 분야 전체로
+        // 되돌리지 않는다). 그래서 목적지의 빈 상태와 **같은 말**을 적는다.
+        `${category.name} › ${sub.name} · 등록된 병원이 아직 없어요`
       : `${category.name} › ${sub.name}`
     : comingSoon
       ? '분야 전체 · 등록된 병원이 아직 없어요'
@@ -108,13 +110,14 @@ function procedureSubtitle(match: TaxonomyMatch, comingSoon: boolean, query: str
   return base;
 }
 
-export function toProcedureSuggestion(match: TaxonomyMatch, query: string): ProcedureSuggestion {
-  const comingSoon =
-    resolveCategoryFilter({
-      kind: 'category',
-      categoryId: match.category.id,
-      subProcedureId: match.sub?.id ?? null,
-    }).mode === 'empty';
+export function toProcedureSuggestion(
+  match: TaxonomyMatch,
+  query: string,
+  availability: ProcedureAvailability
+): ProcedureSuggestion {
+  const comingSoon = match.sub
+    ? availability.isSubComingSoon(match.sub.id)
+    : availability.isCategoryComingSoon(match.category.id);
 
   return {
     kind: 'procedure',
@@ -126,11 +129,22 @@ export function toProcedureSuggestion(match: TaxonomyMatch, query: string): Proc
   };
 }
 
-/** 시술 그룹은 동기 계산이다 — 네트워크도 디바운스도 없다. */
-export function buildProcedureSuggestions(query: string, limit = SUGGESTION_GROUP_LIMIT): ProcedureSuggestion[] {
-  return searchTaxonomyAll(query)
-    .slice(0, limit)
-    .map((match) => toProcedureSuggestion(match, query));
+/**
+ * 시술 그룹. 매칭 자체는 동기 계산이고(네트워크도 디바운스도 없다), 가용성은 이미 받아 둔
+ * `GET /procedures` 에서 온다.
+ *
+ * **준비중 줄을 뒤로 민다**(안정 정렬). "이갈이" 처럼 열린 시술과 준비중 시술 양쪽에 걸리는
+ * 말이 있을 때 **결과가 나오는 쪽**을 먼저 보여주기 위해서다 — 그 첫 줄이 Enter 의 목적지이기도
+ * 하다(`firstSuggestion`). 가용성을 아직 모르면 아무것도 준비중이 아니므로 분류 순서 그대로다.
+ */
+export function buildProcedureSuggestions(
+  query: string,
+  availability: ProcedureAvailability,
+  limit = SUGGESTION_GROUP_LIMIT
+): ProcedureSuggestion[] {
+  const all = searchTaxonomyAll(query).map((match) => toProcedureSuggestion(match, query, availability));
+
+  return [...all.filter((item) => !item.comingSoon), ...all.filter((item) => item.comingSoon)].slice(0, limit);
 }
 
 /* ------------------------------------------------------------------ 병합 */
@@ -173,24 +187,24 @@ export function mergeSuggestions<T extends { id: string }>(
 /** 걸린 시술을 맨 앞으로 — "왜 이 병원이 여기 있는지"가 보조줄 첫 낱말이 된다. */
 function orderMatchedFirst(
   procedureIds: readonly string[],
-  matchedLegacyIds: ReadonlySet<string> | null
+  matchedProcedureIds: ReadonlySet<string> | null
 ): readonly string[] {
-  if (!matchedLegacyIds) return procedureIds;
+  if (!matchedProcedureIds) return procedureIds;
   return [
-    ...procedureIds.filter((id) => matchedLegacyIds.has(id)),
-    ...procedureIds.filter((id) => !matchedLegacyIds.has(id)),
+    ...procedureIds.filter((id) => matchedProcedureIds.has(id)),
+    ...procedureIds.filter((id) => !matchedProcedureIds.has(id)),
   ];
 }
 
 export function buildHospitalSuggestions(
   merged: readonly MergedSuggestion<Hospital>[],
-  matchedLegacyIds: ReadonlySet<string> | null
+  matchedProcedureIds: ReadonlySet<string> | null
 ): HospitalSuggestion[] {
   return merged.map(({ item, matchedBy }) => {
-    const ordered = matchedBy === 'procedure' ? orderMatchedFirst(item.procedureIds, matchedLegacyIds) : item.procedureIds;
+    const ordered = matchedBy === 'procedure' ? orderMatchedFirst(item.procedureIds, matchedProcedureIds) : item.procedureIds;
     // 모르는 서버 id 는 건너뛴다(배지와 같은 규칙).
     const names = ordered
-      .map((id) => displayNameForLegacy(id))
+      .map((id) => procedureDisplayName(id))
       .filter((name): name is string => name !== null)
       .slice(0, 2);
 
@@ -220,8 +234,10 @@ export interface SuggestionInput {
   hospitalsByProcedure: readonly Hospital[];
   doctorsByName: readonly Doctor[];
   doctorsByProcedure: readonly Doctor[];
-  /** 시술 첫 항목이 서버에 물은 시술 id 들(`resolveCategoryFilter` 가 정한 것). */
-  matchedLegacyIds: ReadonlySet<string> | null;
+  /** 시술 첫 항목으로 서버에 물은 시술 id 들 (세부면 1개, 분야면 그 분야 전부). */
+  matchedProcedureIds: ReadonlySet<string> | null;
+  /** `준비중` 판정. 카테고리 화면·홈 격자와 **같은 출처**다. */
+  availability: ProcedureAvailability;
   limit?: number;
 }
 
@@ -229,10 +245,10 @@ export function buildSuggestions(input: SuggestionInput): SuggestionGroups {
   const limit = input.limit ?? SUGGESTION_GROUP_LIMIT;
 
   return {
-    procedures: buildProcedureSuggestions(input.query, limit),
+    procedures: buildProcedureSuggestions(input.query, input.availability, limit),
     hospitals: buildHospitalSuggestions(
       mergeSuggestions(input.hospitalsByName, input.hospitalsByProcedure, limit),
-      input.matchedLegacyIds
+      input.matchedProcedureIds
     ),
     doctors: buildDoctorSuggestions(mergeSuggestions(input.doctorsByName, input.doctorsByProcedure, limit)),
   };

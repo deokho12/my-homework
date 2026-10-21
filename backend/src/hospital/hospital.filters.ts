@@ -2,6 +2,7 @@ import type { Prisma } from '@prisma/client';
 
 import type { HospitalResponse } from './hospital.projection';
 import type { ListHospitalsQuery, SortField } from './hospital.schemas';
+import { publicHospitalWhere } from './public-visibility';
 
 /**
  * 쿼리 → Prisma `where`.
@@ -20,10 +21,26 @@ export function buildHospitalWhere(
   query: ListHospitalsQuery,
   bounds?: { minLat: number; maxLat: number; minLon: number; maxLon: number }
 ): Prisma.HospitalWhereInput {
-  const where: Prisma.HospitalWhereInput = { deletedAt: null };
+  // 공개 목록의 조건은 `publicHospitalWhere()` 한 곳에서 온다 — `GET /procedures` 의
+  // `isAvailable` 집계가 같은 함수를 쓴다 (public-visibility.ts 주석, docs §17.7).
+  const where: Prisma.HospitalWhereInput = { ...publicHospitalWhere() };
+
+  // 분야와 세부 시술이 함께 오면 **AND** 다 (계약 §22.6 — 모든 쿼리 필터는 AND).
+  // 한쪽을 조용히 버리면 보낸 파라미터가 무시됐다는 것을 호출자가 알 수 없다.
+  // 조건 둘을 각각 `some` 으로 두면 "그 분야의 시술을 하나 하고, (다른) 그 세부 시술도
+  // 한다" 가 되는데, 세부 시술은 분야의 부분집합이라 결과가 같고 의미도 그것이 맞다.
+  const procedureConditions: Prisma.HospitalProcedureWhereInput[] = [];
+
+  if (query.categoryId !== undefined) {
+    procedureConditions.push({ procedure: { categoryId: query.categoryId } });
+  }
 
   if (query.procedureId !== undefined) {
-    where.procedures = { some: { procedureId: query.procedureId } };
+    procedureConditions.push({ procedureId: query.procedureId });
+  }
+
+  if (procedureConditions.length > 0) {
+    where.AND = procedureConditions.map((condition) => ({ procedures: { some: condition } }));
   }
 
   if (query.recommended !== undefined) where.isRecommended = query.recommended;

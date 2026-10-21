@@ -31,16 +31,38 @@ datasource db {
 // =============================================================================
 
 /// 시술 마스터 13종. ProcedureId 를 DB enum 대신 테이블 + FK 로 표현한다.
+/// 시술 분야 9개 (2026-10-21 요청 14 — docs/database/README.md §17.2).
+/// 화면의 `features/procedure/taxonomy.ts` 가 갖고 있던 표가 서버로 왔다.
+/// 아이콘 컬럼은 두지 않는다 — 분야 아이콘은 React 컴포넌트다 (§17.2).
+model ProcedureCategory {
+  /// implant | prevention | orthodontics | cavity | aesthetic | gum | tmj | botox | extraction
+  id          String @id
+  name        String
+  /// 홈 격자 카드의 한 줄 설명 ('상실된 치아를 인공 치근으로 대체해요')
+  description String
+  /// 홈 격자·탐색 탭·관리자 폼 섹션이 공유하는 고정 노출 순서
+  sortOrder   Int    @map("sort_order")
+
+  procedures Procedure[]
+
+  @@map("procedure_categories")
+}
+
 model Procedure {
-  /// implant | orthodontics | laminate | inlay | crown | whitening |
-  /// wisdom-tooth | cavity | gum-disease | splint | snoring-device | tmj | botox
+  /// 세부 시술 31개. 값은 docs/database/README.md §17.4 의 표와 같다
+  /// (implant-general | bone-graft | … | general-extraction).
   id               String @id
   name             String
   emoji            String
   shortDescription String @map("short_description")
   description      String
-  /// 홈 격자·탐색 칩·커뮤니티 시술 선택이 공유하는 고정 노출 순서
+  /// 홈 격자·탐색 칩·커뮤니티 시술 선택이 공유하는 고정 노출 순서.
+  /// **31개 전체의 통짜 순서(0~30)** 다 — 분야 순서 × 분야 안 순서를 한 줄로 폈다 (§17.3)
   sortOrder        Int    @map("sort_order")
+
+  /// 분야 9개 중 하나. 분야 없는 시술은 없다 (2026-10-21 요청 14)
+  categoryId String            @map("category_id")
+  category   ProcedureCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
 
   hospitals    HospitalProcedure[]
   doctors      DoctorProcedure[]

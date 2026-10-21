@@ -10,28 +10,22 @@ interface ChipProps {
   onPress: () => void;
   /** Optional lucide icon shown to the left of the label — used by the explore category tabs. */
   icon?: IconComponent;
-  /**
-   * 누를 수 없는 칩(아직 준비중인 세부 시술 등). 보이되 동작하지 않는다 — 목록에서 빼면
-   * "그 시술은 아예 없는 것"처럼 보여서, 준비중이라는 사실 자체를 전달하지 못한다.
-   * `Pressable` 이 `aria-disabled` 를 붙이고 `rnw-pressable`(커서·호버)을 뗀다.
-   */
-  disabled?: boolean;
 }
 
-export function Chip({ label, selected, onPress, icon: Icon, disabled }: ChipProps) {
-  const borderAndFill = disabled
-    ? 'border-neutral-100 bg-neutral-50'
-    : selected
-      ? 'border-brand-600 bg-brand-600'
-      : 'border-neutral-200 bg-white';
-  const labelColor = disabled ? 'text-neutral-300' : selected ? 'text-white' : 'text-neutral-600';
-  const iconColor = disabled ? '#d4d4d4' : selected ? '#ffffff' : '#525252';
+/**
+ * 칩은 **항상 누를 수 있다.** 전에는 준비중인 세부 시술을 위한 `disabled` 가 있었지만,
+ * 요청 14 에서 준비중 칩도 눌러서 "등록된 병원이 아직 없어요" 를 보여주기로 하면서
+ * 쓰는 곳이 사라졌다 (`SubProcedureChips.tsx` 의 주석이 그 경위다).
+ */
+export function Chip({ label, selected, onPress, icon: Icon }: ChipProps) {
+  const borderAndFill = selected ? 'border-brand-600 bg-brand-600' : 'border-neutral-200 bg-white';
+  const labelColor = selected ? 'text-white' : 'text-neutral-600';
+  const iconColor = selected ? '#ffffff' : '#525252';
 
   return (
     <Pressable
       onPress={onPress}
       pressed={selected}
-      disabled={disabled}
       className={`mb-2 mr-2 rounded-full border px-3.5 py-2 ${borderAndFill}`}
     >
       <View className="flex-row items-center gap-1.5">

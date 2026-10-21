@@ -16,7 +16,7 @@ function post(overrides: Partial<QAPost> = {}): QAPost {
     id: 'q1',
     title: '임플란트 뼈이식 꼭 해야 하나요?',
     content: '내용',
-    procedureId: 'implant',
+    procedureId: 'implant-general',
     authorName: '익명',
     createdAt: '2026-07-20',
     viewCount: 10,
@@ -82,7 +82,7 @@ describe('createCommunityPost', () => {
     const created = await createCommunityPost({
       title: '교정 통증',
       content: '많이 아픈가요?',
-      procedureId: 'orthodontics',
+      procedureId: 'bracket-braces',
     });
 
     expect(created).toMatchObject({ title: '교정 통증', viewCount: 0, answers: [] });
@@ -92,7 +92,7 @@ describe('createCommunityPost', () => {
   it('작성자 이름을 요청에서 받지 않는다 — 지금은 항상 익명이다', async () => {
     writeCollection('communityPosts', []);
 
-    const created = await createCommunityPost({ title: 'ㅇ', content: 'ㅇ', procedureId: 'implant' });
+    const created = await createCommunityPost({ title: 'ㅇ', content: 'ㅇ', procedureId: 'implant-general' });
 
     expect(created.authorName).toBe('익명');
   });
@@ -100,7 +100,7 @@ describe('createCommunityPost', () => {
   it('createdAt 은 날짜만 저장한다 (기존 데이터와 같은 모양)', async () => {
     writeCollection('communityPosts', []);
 
-    const created = await createCommunityPost({ title: 'ㅇ', content: 'ㅇ', procedureId: 'implant' });
+    const created = await createCommunityPost({ title: 'ㅇ', content: 'ㅇ', procedureId: 'implant-general' });
 
     expect(created.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });

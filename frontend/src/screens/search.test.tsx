@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as doctorApi from '@/features/doctor/api/doctorApi';
 import * as hospitalApi from '@/features/hospital/api/hospitalApi';
 import * as procedureApi from '@/features/procedure/api/procedureApi';
+import { SUB_PROCEDURES } from '@/features/procedure/taxonomy';
 import { RouterBridge, router } from '@/navigation';
 import SearchScreen from '@/screens/search';
 import { renderWithProviders } from '@/test/renderWithProviders';
@@ -14,10 +15,26 @@ function pagedHospitals(items: Hospital[]): Paged<Hospital> {
   return { items, meta: { page: 1, pageSize: 20, totalItems: items.length, totalPages: 1 } };
 }
 
+/** `GET /procedures` 응답 — 추천 목록의 `준비중` 배지는 이 값에서만 나온다 (요청 14). */
+function stubProcedures(availableIds: readonly string[]) {
+  return vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue(
+    SUB_PROCEDURES.map((sub) => ({
+      id: sub.id,
+      name: sub.name,
+      emoji: '',
+      shortDescription: '',
+      description: '',
+      categoryId: sub.categoryId,
+      isAvailable: availableIds.includes(sub.id),
+    }))
+  );
+}
+
 /**
  * `router.push` 는 `RouterBridge` 가 마운트돼 있어야 동작한다(`src/navigation/index.tsx`).
- * 시술 매칭은 정적 분류 체계(`searchTaxonomy`)가 동기로 끝내므로 이 화면은 `fetchProcedures`
- * 를 아예 부르지 않는다 — 그래서 스파이는 "한 번도 부르지 않는다" 를 단언하는 한 곳에만 둔다.
+ * 시술 **매칭**은 정적 분류 체계(`searchTaxonomy`)가 동기로 끝낸다 — 목적지는 서버 응답을
+ * 기다리지 않는다. `GET /procedures` 는 `준비중` 배지에만 쓰이므로 그것을 보는 테스트만
+ * 응답을 스텁한다 (`stubProcedures`).
  *
  * `fetchDoctors` 는 각 테스트가 필요에 맞게 스텁한다 — 전역 `beforeEach` 로 항상 `[]` 를
  * 주면 이름 검색 경로가 실제로 서버 `q` 필터를 타는지 검증할 수 없다(리뷰에서 지적된
@@ -44,7 +61,7 @@ function baseHospital(overrides: Partial<Hospital> = {}): Hospital {
     longitude: 127.0364,
     thumbnail: 'https://example.com/thumb.jpg',
     images: [],
-    procedureIds: ['implant'],
+    procedureIds: ['implant-general'],
     priceRange: { min: 900000, max: 1800000 },
     rating: 4.8,
     reviewCount: 312,
@@ -266,14 +283,14 @@ describe('검색 화면 — 시술 검색은 정적 분류 체계로 끝난다',
    * 검색이 로딩과 경합해 거짓 "결과 없음" 을 띄우지 않도록 게이트가 필요했다. 지금은
    * 분류 체계가 정적이라 **서버에 시술을 묻지 않고** 바로 이동한다.
    */
-  it('시술 목록을 한 번도 부르지 않고 카테고리 화면으로 바로 보낸다', async () => {
-    const fetchProceduresSpy = vi.spyOn(procedureApi, 'fetchProcedures');
+  it('시술 목록을 기다리지 않고 카테고리 화면으로 바로 보낸다', async () => {
+    // 응답이 영원히 오지 않아도 목적지는 정해진다 — 매칭은 번들 상수로 끝난다.
+    vi.spyOn(procedureApi, 'fetchProcedures').mockReturnValue(new Promise(() => {}));
     const pushSpy = vi.spyOn(router, 'push');
 
     renderSearch(`/search?q=${encodeURIComponent('임플란트')}`);
 
     await waitFor(() => expect(pushSpy).toHaveBeenCalledWith('/category/implant'));
-    expect(fetchProceduresSpy).not.toHaveBeenCalled();
     expect(screen.queryByText(/검색 결과가 없어요/)).not.toBeInTheDocument();
   });
 
@@ -378,15 +395,17 @@ describe('검색 화면 — 입력 중 추천 목록', () => {
     expect(screen.getByText(/‘금니’ 로 찾았어요/)).toBeInTheDocument();
   });
 
-  it('준비중 세부에는 준비중 배지와 "전체로 열려요" 가 붙는다', async () => {
+  it('준비중 세부에는 준비중 배지가 붙고, 보조줄이 목적지의 빈 상태와 같은 말을 한다', async () => {
     vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(pagedHospitals([]));
     vi.spyOn(doctorApi, 'fetchDoctors').mockResolvedValue(pagedDoctors([]));
+    // 신경치료를 하는 병원이 한 곳도 없는 서버 상태.
+    stubProcedures(['crown']);
 
     renderSearch('/search');
     await userEvent.type(screen.getByPlaceholderText(SEARCH_PLACEHOLDER), '신경치료');
 
     expect(await screen.findByText('준비중')).toBeInTheDocument();
-    expect(screen.getByText('충치치료 전체로 열려요')).toBeInTheDocument();
+    expect(screen.getByText('충치치료 › 신경치료 · 등록된 병원이 아직 없어요')).toBeInTheDocument();
   });
 
   it('글자를 모두 지우면 인기 검색어가 돌아온다', async () => {

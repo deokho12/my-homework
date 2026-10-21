@@ -34,7 +34,7 @@ function row(overrides: Partial<HospitalRow> = {}): HospitalRow {
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
     updatedAt: new Date('2026-01-01T00:00:00.000Z'),
     deletedAt: null,
-    procedures: [{ procedureId: 'implant' }, { procedureId: 'crown' }],
+    procedures: [{ procedureId: 'implant-general' }, { procedureId: 'crown' }],
     images: [{ url: 'https://example.test/1.jpg', sortOrder: 0 }],
     tags: [{ tag: '야간진료' }],
     eventNotes: [{ content: '첫 상담 무료', sortOrder: 0 }],
@@ -66,7 +66,7 @@ describe('projectHospital', () => {
   it('조인 테이블을 배열 필드로 되돌린다', () => {
     const result = projectHospital(row(), { today });
 
-    expect(result.procedureIds).toEqual(['implant', 'crown']);
+    expect(result.procedureIds).toEqual(['implant-general', 'crown']);
     expect(result.images).toEqual(['https://example.test/1.jpg']);
     expect(result.tags).toEqual(['야간진료']);
     expect(result.events).toEqual(['첫 상담 무료']);
@@ -102,7 +102,7 @@ describe('projectHospital', () => {
     const result = projectHospital(
       row({
         sponsorships: [
-          { procedureId: 'implant', rank: 1, startDate: '2026-07-01', endDate: '2026-09-30' },
+          { procedureId: 'implant-general', rank: 1, startDate: '2026-07-01', endDate: '2026-09-30' },
           { procedureId: 'crown', rank: 1, startDate: '2026-07-01', endDate: '2026-09-30' },
         ],
       }),
@@ -110,7 +110,7 @@ describe('projectHospital', () => {
     );
 
     expect(result.isSponsored).toBe(true);
-    expect(result.sponsoredCategories).toEqual(['implant', 'crown']);
+    expect(result.sponsoredCategories).toEqual(['implant-general', 'crown']);
     expect(result.sponsoredRank).toBe(1);
     expect(result.sponsoredStartDate).toBe('2026-07-01');
     expect(result.sponsoredEndDate).toBe('2026-09-30');
@@ -120,9 +120,9 @@ describe('projectHospital', () => {
     const result = projectHospital(
       row({
         rating: 4.5,
-        sponsorships: [{ procedureId: 'implant', rank: 1, startDate: '2026-07-01', endDate: '2026-09-30' }],
+        sponsorships: [{ procedureId: 'implant-general', rank: 1, startDate: '2026-07-01', endDate: '2026-09-30' }],
       }),
-      { today, procedureId: 'orthodontics' }
+      { today, procedureIds: ['bracket-braces'] }
     );
 
     expect(result.sponsorship).toEqual({ isActive: true, isPlacementEligible: false });

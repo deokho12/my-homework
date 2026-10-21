@@ -1,31 +1,34 @@
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import * as hospitalApi from '@/features/hospital/api/hospitalApi';
 import { useHospitalsByCategory } from '@/features/hospital/hooks/useHospitalsByCategory';
+import { LIST_PAGE_SIZE } from '@/lib/pagination';
 import { queryWrapper } from '@/test/queryWrapper';
-import type { Hospital, Paged, ProcedureId } from '@/types/domain';
+import type { Hospital, Paged } from '@/types/domain';
 
 /**
  * `fetchHospitals` 를 스파이해서 **어떤 파라미터로 불렀는지**를 직접 검증한다
- * (`src/pages/ExplorePage.test.tsx` 와 같은 방식). 이 훅의 일은 "요청을 보낼지, 서버로
- * 거를지, 받아서 거를지" 셋 중 하나를 고르는 것이므로, 호출 인자가 곧 명세다.
+ * (`src/pages/ExplorePage.test.tsx` 와 같은 방식). 이 훅의 일은 선택을 서버 파라미터로
+ * 옮기고 페이지를 이어 붙이는 것이므로, 호출 인자가 곧 명세다.
  */
 
-/** 이 테스트가 보는 필드는 `id` 와 `procedureIds` 둘뿐이다 — 나머지는 필터에 관여하지 않는다. */
-function hospital(id: string, procedureIds: ProcedureId[]): Hospital {
-  return { id, procedureIds } as unknown as Hospital;
+function hospital(id: string): Hospital {
+  return { id } as unknown as Hospital;
 }
 
-function paged(items: Hospital[]): Paged<Hospital> {
-  return { items, meta: { page: 1, pageSize: 100, totalItems: items.length, totalPages: 1 } };
+function paged(items: Hospital[], meta: Partial<Paged<Hospital>['meta']> = {}): Paged<Hospital> {
+  return {
+    items,
+    meta: { page: 1, pageSize: LIST_PAGE_SIZE, totalItems: items.length, totalPages: 1, ...meta },
+  };
 }
 
 afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('useHospitalsByCategory', () => {
+describe('useHospitalsByCategory — 선택 → 서버 파라미터', () => {
   it('추천은 recommended=true 로 부른다', async () => {
     const spy = vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(paged([]));
 
@@ -34,13 +37,13 @@ describe('useHospitalsByCategory', () => {
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.plan).toEqual({ mode: 'recommended' });
     expect(spy).toHaveBeenCalledWith(expect.objectContaining({ recommended: true, sort: 'rating' }));
     expect(spy.mock.calls[0][0]).not.toHaveProperty('procedureId');
+    expect(spy.mock.calls[0][0]).not.toHaveProperty('categoryId');
   });
 
-  it('세부 시술(서버 id 있음)은 procedureId 로 서버가 거른다', async () => {
-    const spy = vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(paged([hospital('h7', ['crown'])]));
+  it('세부 시술은 procedureId 로 서버가 거른다', async () => {
+    const spy = vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(paged([hospital('h7')]));
 
     const { result } = renderHook(
       () => useHospitalsByCategory({ kind: 'category', categoryId: 'cavity', subProcedureId: 'crown' }, {}),
@@ -48,33 +51,14 @@ describe('useHospitalsByCategory', () => {
     );
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.plan).toEqual({ mode: 'server', procedureId: 'crown' });
     expect(spy).toHaveBeenCalledWith(expect.objectContaining({ procedureId: 'crown' }));
-    // 서버가 이미 걸러 줬으므로 클라이언트가 다시 거르지 않는다.
-    expect(spy.mock.calls[0][0]).not.toHaveProperty('pageSize');
+    expect(spy.mock.calls[0][0]).not.toHaveProperty('categoryId');
     expect(result.current.data?.items.map((h) => h.id)).toEqual(['h7']);
   });
 
-  it('서버 id 가 하나뿐인 대분류도 서버 필터로 끝낸다', async () => {
-    const spy = vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(paged([]));
-
-    const { result } = renderHook(
-      () => useHospitalsByCategory({ kind: 'category', categoryId: 'implant', subProcedureId: null }, {}),
-      { wrapper: queryWrapper }
-    );
-
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(spy).toHaveBeenCalledWith(expect.objectContaining({ procedureId: 'implant' }));
-  });
-
-  it('서버 id 가 여럿인 대분류는 넉넉히 받아 클라이언트가 거르고 총 개수를 다시 센다', async () => {
-    const spy = vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(
-      paged([
-        hospital('h1', ['implant']),
-        hospital('h7', ['crown']),
-        hospital('h3', ['cavity', 'gum-disease']),
-      ])
-    );
+  /** 요청 14 전에는 이 선택이 100곳을 받아 화면에서 걸렀다 (광고 순서도 총계도 없었다). */
+  it('분야 전체는 categoryId 한 번으로 받는다 — 받아서 거르지 않는다', async () => {
+    const spy = vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(paged([hospital('h1')]));
 
     const { result } = renderHook(
       () => useHospitalsByCategory({ kind: 'category', categoryId: 'cavity', subProcedureId: null }, {}),
@@ -82,45 +66,22 @@ describe('useHospitalsByCategory', () => {
     );
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.plan.mode).toBe('client');
-    expect(spy).toHaveBeenCalledWith(expect.objectContaining({ pageSize: 100 }));
-    // procedureId 를 보내면 서버가 하나만 받으므로(배열은 422) 아예 안 보낸다.
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy).toHaveBeenCalledWith(expect.objectContaining({ categoryId: 'cavity' }));
     expect(spy.mock.calls[0][0]).not.toHaveProperty('procedureId');
-
-    expect(result.current.data?.items.map((h) => h.id)).toEqual(['h7', 'h3']);
-    expect(result.current.data?.meta.totalItems).toBe(2);
   });
 
-  it('준비중만 있는 대분류는 요청하지 않고 빈 결과를 바로 준다', async () => {
-    const spy = vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(paged([hospital('h1', ['implant'])]));
+  it('준비중 분야도 물어본다 — 빈 목록은 서버가 준 사실이다', async () => {
+    const spy = vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(paged([]));
 
     const { result } = renderHook(
       () => useHospitalsByCategory({ kind: 'category', categoryId: 'prevention', subProcedureId: null }, {}),
       { wrapper: queryWrapper }
     );
 
-    expect(result.current.plan).toEqual({ mode: 'empty' });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(spy).toHaveBeenCalledWith(expect.objectContaining({ categoryId: 'prevention' }));
     expect(result.current.data?.items).toEqual([]);
-    expect(result.current.data?.meta.totalItems).toBe(0);
-    // 꺼진 쿼리가 영원한 로딩으로 보이면 화면에 스피너가 박힌다.
-    expect(result.current.isLoading).toBe(false);
-
-    await Promise.resolve();
-    expect(spy).not.toHaveBeenCalled();
-  });
-
-  it('준비중 세부 시술도 요청하지 않는다', async () => {
-    const spy = vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(paged([]));
-
-    const { result } = renderHook(
-      () => useHospitalsByCategory({ kind: 'category', categoryId: 'cavity', subProcedureId: 'root-canal' }, {}),
-      { wrapper: queryWrapper }
-    );
-
-    expect(result.current.plan).toEqual({ mode: 'empty' });
-    expect(result.current.isLoading).toBe(false);
-    await Promise.resolve();
-    expect(spy).not.toHaveBeenCalled();
   });
 
   it('enabled: false 면 아무것도 부르지 않는다', async () => {
@@ -138,5 +99,94 @@ describe('useHospitalsByCategory', () => {
 
     await Promise.resolve();
     expect(spy).not.toHaveBeenCalled();
+  });
+});
+
+describe('useHospitalsByCategory — 더 보기', () => {
+  it('첫 요청은 page 1 · pageSize 20 이다', async () => {
+    const spy = vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(paged([]));
+
+    const { result } = renderHook(() => useHospitalsByCategory({ kind: 'recommended' }, {}), {
+      wrapper: queryWrapper,
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(spy).toHaveBeenCalledWith(expect.objectContaining({ page: 1, pageSize: LIST_PAGE_SIZE }));
+  });
+
+  it('다음 페이지를 이어 붙이고 meta 는 마지막 페이지 것을 쓴다', async () => {
+    const spy = vi
+      .spyOn(hospitalApi, 'fetchHospitals')
+      .mockResolvedValueOnce(paged([hospital('h1'), hospital('h2')], { page: 1, totalItems: 3, totalPages: 2 }))
+      .mockResolvedValueOnce(paged([hospital('h3')], { page: 2, totalItems: 3, totalPages: 2 }));
+
+    const { result } = renderHook(() => useHospitalsByCategory({ kind: 'recommended' }, {}), {
+      wrapper: queryWrapper,
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.hasNextPage).toBe(true);
+
+    await act(async () => {
+      await result.current.fetchNextPage();
+    });
+
+    expect(spy).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2 }));
+    await waitFor(() => expect(result.current.data?.items).toHaveLength(3));
+    expect(result.current.data?.items.map((h) => h.id)).toEqual(['h1', 'h2', 'h3']);
+    expect(result.current.data?.meta.page).toBe(2);
+    expect(result.current.data?.meta.totalItems).toBe(3);
+    expect(result.current.hasNextPage).toBe(false);
+  });
+
+  it('페이지 경계에 같은 병원이 두 번 와도 한 번만 그린다', async () => {
+    vi.spyOn(hospitalApi, 'fetchHospitals')
+      .mockResolvedValueOnce(paged([hospital('h1'), hospital('h2')], { page: 1, totalItems: 4, totalPages: 2 }))
+      .mockResolvedValueOnce(paged([hospital('h2'), hospital('h3')], { page: 2, totalItems: 4, totalPages: 2 }));
+
+    const { result } = renderHook(() => useHospitalsByCategory({ kind: 'recommended' }, {}), {
+      wrapper: queryWrapper,
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    await act(async () => {
+      await result.current.fetchNextPage();
+    });
+
+    await waitFor(() => expect(result.current.data?.items).toHaveLength(3));
+    expect(result.current.data?.items.map((h) => h.id)).toEqual(['h1', 'h2', 'h3']);
+  });
+
+  it('필터가 바뀌면 새 쿼리라 다시 첫 묶음부터다', async () => {
+    const spy = vi
+      .spyOn(hospitalApi, 'fetchHospitals')
+      .mockResolvedValue(paged([hospital('h1')], { totalItems: 50, totalPages: 3 }));
+
+    const { result, rerender } = renderHook(
+      ({ sort }: { sort: 'rating' | 'reviewCount' }) => useHospitalsByCategory({ kind: 'recommended' }, { sort }),
+      { wrapper: queryWrapper, initialProps: { sort: 'rating' as 'rating' | 'reviewCount' } }
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    await act(async () => {
+      await result.current.fetchNextPage();
+    });
+
+    rerender({ sort: 'reviewCount' });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(spy).toHaveBeenLastCalledWith(expect.objectContaining({ sort: 'reviewCount', page: 1 }));
+    expect(result.current.data?.items).toHaveLength(1);
+  });
+
+  it('호출부가 pageSize 를 지정하면 그것이 이긴다 (지도 100곳)', async () => {
+    const spy = vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(paged([]));
+
+    const { result } = renderHook(() => useHospitalsByCategory({ kind: 'recommended' }, { pageSize: 100 }), {
+      wrapper: queryWrapper,
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(spy).toHaveBeenCalledWith(expect.objectContaining({ pageSize: 100 }));
   });
 });

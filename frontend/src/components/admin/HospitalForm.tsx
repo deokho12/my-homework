@@ -3,7 +3,6 @@ import { memo, useCallback, useMemo, useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from '@/primitives';
 
 import { AddressSearchInput } from '@/components/admin/AddressSearchInput';
-import { Badge } from '@/components/Badge';
 import { Chip } from '@/components/Chip';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { containerClass } from '@/components/layout/Container';
@@ -14,9 +13,6 @@ import { DEFAULT_THUMBNAIL_URL } from '@/features/hospital/lib/completeness';
 import { fieldAnchorId } from '@/hooks/useFieldJump';
 import {
   CATEGORIES,
-  LEGACY_TO_SUB,
-  getLegacyIdsOf,
-  getSubProcedure,
   getSubProceduresOf,
   isProcedureId,
   type CategoryId,
@@ -159,9 +155,11 @@ function CheckboxRow({ label, checked, onPress }: { label: string; checked: bool
 const CATEGORY_ICON_COLOR = '#17847a';
 
 /**
- * 세부 시술 한 줄. `CheckboxRow` 와 같은 글리프(☑️/⬜️)를 쓰되, 서버가 모르는 세부 시술은
- * **지우지 않고 비활성 + "준비중" 배지**로 둔다 — 목록에서 빼면 관리자는 "우리 병원이 하는
- * 그 시술을 이 서비스는 아예 안 다룬다"고 읽고 떠난다. 준비중이라는 사실 자체가 정보다.
+ * 세부 시술 한 줄. `CheckboxRow` 와 같은 글리프(☑️/⬜️)를 쓴다.
+ *
+ * **31개가 전부 켜져 있다** (요청 14). 전에는 서버가 모르는 18개가 비활성 + "준비중" 배지였다
+ * — 이제 서버가 31개를 다 알고, `준비중` 은 "이 시술을 하는 병원이 아직 없다" 는 **결과**일
+ * 뿐이다. 바로 그 0을 1로 만드는 화면에서 체크를 막으면 영원히 준비중으로 남는다.
  *
  * `memo` 인 이유: 이 폼은 단일 `useState` 덩어리라 병원명 한 글자마다 전체가 리렌더된다.
  * 체크박스는 최대 31행이고 아무 글자와도 무관하므로, props 를 전부 **원시값 + 안정 콜백**
@@ -171,27 +169,22 @@ const SubProcedureCheckbox = memo(function SubProcedureCheckbox({
   id,
   name,
   checked,
-  disabled,
   onToggle,
 }: {
   id: SubProcedureId;
   name: string;
   checked: boolean;
-  /** 서버가 모르는 세부 시술(= 준비중)이면 true. */
-  disabled: boolean;
   onToggle: (id: SubProcedureId) => void;
 }) {
   return (
     <Pressable
       onPress={() => onToggle(id)}
       pressed={checked}
-      disabled={disabled}
       accessibilityLabel={name}
       className="mb-3 flex-row items-center gap-2.5"
     >
       <Text className="text-lg">{checked ? '☑️' : '⬜️'}</Text>
-      <Text className={`text-sm font-medium ${disabled ? 'text-neutral-300' : 'text-neutral-700'}`}>{name}</Text>
-      {disabled ? <Badge label="준비중" /> : null}
+      <Text className="text-sm font-medium text-neutral-700">{name}</Text>
     </Pressable>
   );
 });
@@ -218,9 +211,6 @@ const CategorySection = memo(function CategorySection({
 }) {
   const subs = getSubProceduresOf(category.id);
   const selectedCount = subs.filter((sub) => selectedSubIds.has(sub.id)).length;
-  // 세부 시술이 전부 준비중인 대분류(스케일링·예방)는 헤더에서부터 그렇다고 말한다 —
-  // 펼쳐서 네 줄을 다 읽고 나서야 알게 하지 않는다.
-  const allUnavailable = getLegacyIdsOf(category.id).length === 0;
   const Icon = CATEGORY_ICONS[category.id];
 
   return (
@@ -237,7 +227,6 @@ const CategorySection = memo(function CategorySection({
         {selectedCount > 0 ? (
           <Text className="text-xs font-semibold text-brand-700">{selectedCount}개 선택</Text>
         ) : null}
-        {allUnavailable ? <Badge label="준비중" /> : null}
         <View className="flex-1" />
         {isOpen ? <ChevronUp size={16} color="#737373" /> : <ChevronDown size={16} color="#737373" />}
       </Pressable>
@@ -250,7 +239,6 @@ const CategorySection = memo(function CategorySection({
               id={sub.id}
               name={sub.name}
               checked={selectedSubIds.has(sub.id)}
-              disabled={sub.legacyProcedureId === null}
               onToggle={onToggleSub}
             />
           ))}
@@ -355,20 +343,14 @@ export function HospitalForm(props: HospitalFormProps) {
   const [priceMin, setPriceMin] = useState(initial ? String(initial.priceRange.min) : '');
   const [priceMax, setPriceMax] = useState(initial ? String(initial.priceRange.max) : '');
   const [tagsText, setTagsText] = useState(initial?.tags.join(', ') ?? '');
-  // 화면은 **세부 시술**로 고르고, 저장할 때 서버 13종으로 되돌린다. 초기값은 그 역방향 —
-  // 서버가 준 `procedureIds` 를 `LEGACY_TO_SUB` 로 세부 시술 id 로 바꾼다.
+  // 서버 시술 id = 세부 시술 id 라 변환이 없다 (요청 14). 모르는 id 만 걸러낸다 — 서버가
+  // 나중에 시술을 추가하면 taxonomy 를 고치기 전까지 그 id 는 화면에 그릴 수 없다.
   const [selectedSubs, setSelectedSubs] = useState<SubProcedureId[]>(() =>
-    (initial?.procedureIds ?? []).filter(isProcedureId).map((id) => LEGACY_TO_SUB[id])
-  );
-  // taxonomy 가 모르는 서버 id(백엔드가 나중에 추가한 시술)를 들고만 있다가 저장 때 그대로
-  // 돌려보낸다. 안 그러면 이 화면을 한 번 저장하는 것만으로 그 시술이 조용히 사라진다 —
-  // 관리자는 건드린 적도 없는 값이다. 상태로 두는 건 마운트 시점 값을 얼리기 위해서다.
-  const [passthroughLegacyIds] = useState<string[]>(() =>
-    (initial?.procedureIds ?? []).filter((id) => !isProcedureId(id))
+    (initial?.procedureIds ?? []).filter(isProcedureId)
   );
   // 기본 펼침: 신규 등록은 전부(고를 게 없으면 화면이 비어 보인다), 수정은 선택이 있는 섹션만.
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
-    const initialSubs = new Set((initial?.procedureIds ?? []).filter(isProcedureId).map((id) => LEGACY_TO_SUB[id]));
+    const initialSubs = new Set((initial?.procedureIds ?? []).filter(isProcedureId));
     const state: Record<string, boolean> = {};
     for (const category of CATEGORIES) {
       state[category.id] =
@@ -400,16 +382,9 @@ export function HospitalForm(props: HospitalFormProps) {
   }, []);
 
   const selectedSubSet = useMemo(() => new Set(selectedSubs), [selectedSubs]);
-  // 세부 시술 → 서버 id. 여러 세부가 같은 서버 id 를 쓰는 일은 지금 없지만(`taxonomy.test`
-  // 가 고정한다), 중복 제거는 해 둔다 — 서버는 같은 id 가 두 번 오면 422 를 낼 수 있다.
-  const selectedLegacyIds = [
-    ...new Set(
-      selectedSubs
-        .map((id) => getSubProcedure(id).legacyProcedureId)
-        .filter((id): id is ProcedureId => id !== null)
-    ),
-  ];
-  const procedureIds = [...selectedLegacyIds, ...passthroughLegacyIds] as ProcedureId[]; // passthrough 는 서버만 아는 id — `ProcedureId` 유니온 밖이지만 서버 계약상 같은 자리다.
+  // 체크한 세부 시술이 곧 서버로 가는 `procedureIds` 다. 중복 제거는 해 둔다 — 서버는 같은
+  // id 가 두 번 오면 422 를 낼 수 있다.
+  const procedureIds: ProcedureId[] = [...new Set(selectedSubs)];
 
   const addSpecialist = () => {
     setSpecialists((prev) => [
@@ -439,8 +414,7 @@ export function HospitalForm(props: HospitalFormProps) {
   const canSubmitHospital =
     name.trim().length > 0 &&
     region.trim().length > 0 &&
-    // passthrough 만 있어도 "취급 시술이 하나도 없는 병원"은 아니다 — 화면에 안 보일 뿐이다.
-    selectedLegacyIds.length + passthroughLegacyIds.length > 0 &&
+    procedureIds.length > 0 &&
     priceMin.length > 0 &&
     priceMax.length > 0 &&
     latitude !== null &&
@@ -660,11 +634,6 @@ export function HospitalForm(props: HospitalFormProps) {
             />
           ))}
         </View>
-        {passthroughLegacyIds.length > 0 ? (
-          <Text className="mb-2 text-xs text-neutral-400">
-            화면에 없는 시술 {passthroughLegacyIds.length}개는 저장 시 그대로 유지돼요
-          </Text>
-        ) : null}
         <FieldError message={fieldErrors?.procedureIds} />
       </Anchor>
 

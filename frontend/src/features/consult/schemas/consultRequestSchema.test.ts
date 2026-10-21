@@ -76,9 +76,12 @@ describe('consultRequestSchema — 동의·시간·시술·메시지', () => {
     expect(consultRequestSchema.safeParse(valid({ preferredTime: '새벽' })).success).toBe(false);
   });
 
-  it('서버가 아는 시술 id 는 통과하고 모르는 id 는 거절한다', () => {
-    expect(consultRequestSchema.safeParse(valid({ procedureId: 'cavity' })).success).toBe(true);
-    expect(consultRequestSchema.safeParse(valid({ procedureId: 'resin' })).success).toBe(false);
+  it('세부 시술 31개는 통과하고, 옛 id 와 모르는 id 는 거절한다', () => {
+    expect(consultRequestSchema.safeParse(valid({ procedureId: 'resin' })).success).toBe(true);
+    expect(consultRequestSchema.safeParse(valid({ procedureId: 'root-canal' })).success).toBe(true);
+    // 요청 14 에서 사라진 옛 서버 id — 그대로 보내면 서버가 422 를 낸다.
+    expect(consultRequestSchema.safeParse(valid({ procedureId: 'cavity' })).success).toBe(false);
+    expect(consultRequestSchema.safeParse(valid({ procedureId: 'bogus' })).success).toBe(false);
   });
 
   it('메시지는 2000자까지다 (계약 maxLength)', () => {

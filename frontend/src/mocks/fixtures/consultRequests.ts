@@ -8,7 +8,7 @@ export const consultRequests: ConsultRequest[] = [
   {
     id: 'cr1',
     hospitalId: 'h1',
-    procedureId: 'implant',
+    procedureId: 'implant-general',
     name: '김민준',
     phone: '010-1234-5601',
     preferredTime: '평일 오전',
@@ -21,7 +21,7 @@ export const consultRequests: ConsultRequest[] = [
   {
     id: 'cr2',
     hospitalId: 'h2',
-    procedureId: 'orthodontics',
+    procedureId: 'bracket-braces',
     name: '박서준',
     phone: '010-1234-5602',
     preferredTime: '평일 오후',
@@ -54,7 +54,7 @@ export const consultRequests: ConsultRequest[] = [
   {
     id: 'cr4',
     hospitalId: 'h3',
-    procedureId: 'cavity',
+    procedureId: 'resin',
     name: '정하윤',
     phone: '010-1234-5604',
     preferredTime: '평일 오후',
@@ -84,7 +84,7 @@ export const consultRequests: ConsultRequest[] = [
   {
     id: 'cr6',
     hospitalId: 'h5',
-    procedureId: 'gum-disease',
+    procedureId: 'gum-treatment',
     name: '이서연',
     phone: '010-1234-5606',
     preferredTime: '평일 오후',

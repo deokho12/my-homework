@@ -87,7 +87,7 @@ describe('전문의 쓰기', () => {
         latitude: 37.5,
         longitude: 127.03,
         thumbnail: 'https://example.test/doctor-write.jpg',
-        procedureIds: ['implant', 'orthodontics'],
+        procedureIds: ['implant-general', 'bracket-braces'],
         priceRange: { min: 100000, max: 200000 },
       })
       .expect(201);
@@ -137,10 +137,11 @@ describe('전문의 쓰기', () => {
       const specialist = response.body.find((item: { name: string }) => item.name === '전문의A');
       const generalist = response.body.find((item: { name: string }) => item.name === '전문의B');
 
-      // 치과교정전문의 → orthodontics 로 유도된다 (specialty-procedures.ts).
-      expect(specialist.procedureIds).toEqual(['orthodontics']);
-      // 일반의 → 병원이 취급하는 시술 전체(implant·orthodontics)를 받는다.
-      expect([...generalist.procedureIds].sort()).toEqual(['implant', 'orthodontics']);
+      // 치과교정전문의 → **전공 시술 ∩ 병원 시술** (2026-10-21 요청 14). 전공 시술은
+      // 교정 4종이지만 이 병원은 bracket-braces 하나만 한다 — 안 하는 시술은 붙지 않는다.
+      expect(specialist.procedureIds).toEqual(['bracket-braces']);
+      // 일반의 → 병원이 취급하는 시술 전체. 같은 교집합 규칙의 한 경우다.
+      expect([...generalist.procedureIds].sort()).toEqual(['bracket-braces', 'implant-general']);
     });
 
     it('목록에서 빠진 항목은 삭제된다', async () => {

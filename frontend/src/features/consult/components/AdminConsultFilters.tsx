@@ -33,9 +33,10 @@ const FIELD_CLASS =
   'h-11 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm text-neutral-900 outline-none focus:border-brand-600';
 
 /**
- * 기간 · 시술 · 검색. **시술 선택지는 9개 대분류**이고, 서버로 가는 것은 그 대분류가 풀린
- * 시술 id 목록이다 (`getLegacyIdsOf`) — 서버는 13개 시술 id 만 알고, 대분류는 프런트의
- * 매핑 계층이다.
+ * 기간 · 시술 · 검색. **시술 선택지는 9개 분야**이고, 서버로 가는 것은 그 분야에 속한
+ * 시술 id 목록이다 (`getSubProcedureIdsOf`) — 상담 목록 오퍼레이션은 `categoryId` 를
+ * 받지 않는다 (반복 `procedureId` 로 같은 결과가 나오고, 그 목록에는 광고 순서·상한
+ * 문제가 없어서다 — 계약 §22.9).
  */
 export function AdminConsultFilters({
   period,

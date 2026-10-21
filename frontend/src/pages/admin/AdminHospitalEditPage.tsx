@@ -8,25 +8,27 @@ import { useSession } from '@/features/auth/hooks/useSession';
 import { useDeleteDoctor, useHospitalDoctors, useReplaceHospitalDoctors, useUpdateDoctor } from '@/features/doctor';
 import { useHospital, useUpdateHospital } from '@/features/hospital';
 import { mapHospitalFieldErrors, type HospitalFieldErrors } from '@/features/hospital/lib/hospitalFieldErrors';
-import { useProcedureMap } from '@/features/procedure';
+import { procedureDisplayName } from '@/features/procedure';
 import { useFieldJump } from '@/hooks/useFieldJump';
 import { isApiError } from '@/lib/apiClient';
-import type { Doctor, Hospital, Procedure, ProcedureId } from '@/types/domain';
+import type { Doctor, Hospital } from '@/types/domain';
 import { showAlert } from '@/utils/alert';
 
-// 훅은 컴포넌트 본문에서만 부를 수 있으므로, 컴포넌트가 `useProcedureMap()` 으로 얻은
-// 맵을 값으로 넘겨받는다 — 이 함수 자체는 훅을 부르지 않는다.
-function getSponsorshipStatusText(hospital: Hospital, procedureMap: Map<ProcedureId, Procedure>): string {
+// 시술 이름은 `taxonomy.ts` 에서 온다 — 서버 이름과 같은 값이고(요청 14) 네트워크를
+// 기다리지 않는다. 화면 어디서나 같은 이름이 보여야 한다.
+function getSponsorshipStatusText(hospital: Hospital): string {
   // `sponsorship` 은 서버 계산 필드다(`backend/src/hospital/hospital.projection.ts`) — 기기 시계로
   // 기간을 다시 계산하지 않는다. 판정 규칙은 `backend/src/hospital/sponsorship.ts` 한 곳에만 있다.
   if (!hospital.isSponsored || !hospital.sponsorship.isActive) return '현재 진행중인 광고가 없어요';
 
-  const categoryNames = hospital.sponsoredCategories
-    .map((procedureId) => procedureMap.get(procedureId)?.name)
+  // 광고는 **세부 시술 단위**로 걸린다(요청 14) — 이름 뒤에 "카테고리" 를 붙이면
+  // `일반 임플란트 카테고리` 처럼 있지도 않은 분류를 가리키게 된다.
+  const procedureNames = hospital.sponsoredCategories
+    .map((procedureId) => procedureDisplayName(procedureId))
     .filter(Boolean)
     .join(', ');
 
-  return `${categoryNames} 카테고리 광고 중 · ${hospital.sponsoredEndDate}까지`;
+  return `${procedureNames} 광고 중 · ${hospital.sponsoredEndDate}까지`;
 }
 
 interface LoadedHospital {
@@ -36,7 +38,6 @@ interface LoadedHospital {
 
 export default function AdminHospitalEditPage() {
   const { id, field } = useLocalSearchParams<{ id: string; field?: string }>();
-  const procedureMap = useProcedureMap();
   const { isOperator } = useSession();
 
   const hospitalQuery = useHospital(id);
@@ -138,7 +139,7 @@ export default function AdminHospitalEditPage() {
 
           <View className="mx-5 mt-4 rounded-2xl border border-neutral-100 bg-neutral-50 p-4">
             <Text className="mb-1 text-sm font-semibold text-neutral-500">광고 현황 (읽기 전용)</Text>
-            <Text className="text-sm text-neutral-800">{getSponsorshipStatusText(hospital, procedureMap)}</Text>
+            <Text className="text-sm text-neutral-800">{getSponsorshipStatusText(hospital)}</Text>
             <Text className="mt-1 text-xs text-neutral-400">
               광고 신청·결제 기능은 아직 준비중이에요. 변경이 필요하면 담당팀에 문의해주세요.
             </Text>

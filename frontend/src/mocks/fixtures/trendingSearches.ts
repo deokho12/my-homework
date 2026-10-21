@@ -21,16 +21,16 @@ export interface TrendingSearchTerm {
 export type SearchTab = 'all' | 'procedure' | 'hospital' | 'doctor';
 
 const procedureTerms: TrendingSearchTerm[] = [
-  { rank: 1, term: '임플란트', trend: { type: 'up', delta: 2 }, target: { kind: 'procedure', procedureId: 'implant' } },
-  { rank: 2, term: '교정', trend: { type: 'same' }, target: { kind: 'procedure', procedureId: 'orthodontics' } },
+  { rank: 1, term: '임플란트', trend: { type: 'up', delta: 2 }, target: { kind: 'procedure', procedureId: 'implant-general' } },
+  { rank: 2, term: '교정', trend: { type: 'same' }, target: { kind: 'procedure', procedureId: 'bracket-braces' } },
   { rank: 3, term: '라미네이트', trend: { type: 'up', delta: 1 }, target: { kind: 'procedure', procedureId: 'laminate' } },
-  { rank: 4, term: '잇몸치료', trend: { type: 'new' }, target: { kind: 'procedure', procedureId: 'gum-disease' } },
+  { rank: 4, term: '잇몸치료', trend: { type: 'new' }, target: { kind: 'procedure', procedureId: 'gum-treatment' } },
   { rank: 5, term: '사랑니', trend: { type: 'down', delta: 1 }, target: { kind: 'procedure', procedureId: 'wisdom-tooth' } },
-  { rank: 6, term: '충치치료', trend: { type: 'up', delta: 3 }, target: { kind: 'procedure', procedureId: 'cavity' } },
+  { rank: 6, term: '충치치료', trend: { type: 'up', delta: 3 }, target: { kind: 'procedure', procedureId: 'resin' } },
   { rank: 7, term: '크라운', trend: { type: 'new' }, target: { kind: 'procedure', procedureId: 'crown' } },
   { rank: 8, term: '인레이', trend: { type: 'down', delta: 2 }, target: { kind: 'procedure', procedureId: 'inlay' } },
   { rank: 9, term: '치아미백', trend: { type: 'same' }, target: { kind: 'procedure', procedureId: 'whitening' } },
-  { rank: 10, term: '턱관절', trend: { type: 'new' }, target: { kind: 'procedure', procedureId: 'tmj' } },
+  { rank: 10, term: '턱관절', trend: { type: 'new' }, target: { kind: 'procedure', procedureId: 'tmj-treatment' } },
 ];
 
 const hospitalTerms: TrendingSearchTerm[] = [
@@ -54,9 +54,9 @@ const doctorTerms: TrendingSearchTerm[] = [
 ];
 
 const allTerms: TrendingSearchTerm[] = [
-  { rank: 1, term: '임플란트', trend: { type: 'up', delta: 2 }, target: { kind: 'procedure', procedureId: 'implant' } },
+  { rank: 1, term: '임플란트', trend: { type: 'up', delta: 2 }, target: { kind: 'procedure', procedureId: 'implant-general' } },
   { rank: 2, term: '강남 스마일 치과', trend: { type: 'up', delta: 1 }, target: { kind: 'hospital', hospitalId: 'h1' } },
-  { rank: 3, term: '교정', trend: { type: 'same' }, target: { kind: 'procedure', procedureId: 'orthodontics' } },
+  { rank: 3, term: '교정', trend: { type: 'same' }, target: { kind: 'procedure', procedureId: 'bracket-braces' } },
   { rank: 4, term: '김민준 원장', trend: { type: 'up', delta: 1 }, target: { kind: 'doctor', doctorId: 'd1' } },
   { rank: 5, term: '라미네이트', trend: { type: 'up', delta: 1 }, target: { kind: 'procedure', procedureId: 'laminate' } },
   {
@@ -65,7 +65,7 @@ const allTerms: TrendingSearchTerm[] = [
     trend: { type: 'same' },
     target: { kind: 'hospital', hospitalId: 'h6' },
   },
-  { rank: 7, term: '잇몸치료', trend: { type: 'new' }, target: { kind: 'procedure', procedureId: 'gum-disease' } },
+  { rank: 7, term: '잇몸치료', trend: { type: 'new' }, target: { kind: 'procedure', procedureId: 'gum-treatment' } },
   { rank: 8, term: '한소연 원장', trend: { type: 'same' }, target: { kind: 'doctor', doctorId: 'd6' } },
   { rank: 9, term: '연세 바른교정치과', trend: { type: 'up', delta: 2 }, target: { kind: 'hospital', hospitalId: 'h2' } },
   { rank: 10, term: '사랑니', trend: { type: 'down', delta: 1 }, target: { kind: 'procedure', procedureId: 'wisdom-tooth' } },

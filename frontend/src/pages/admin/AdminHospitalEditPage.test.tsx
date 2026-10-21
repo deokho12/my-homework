@@ -35,7 +35,7 @@ function baseHospital(overrides: Partial<Hospital> = {}): Hospital {
     longitude: 127.0,
     thumbnail: 'https://example.com/thumb.jpg',
     images: [],
-    procedureIds: ['implant'],
+    procedureIds: ['implant-general'],
     priceRange: { min: 100000, max: 200000 },
     rating: 4.8,
     reviewCount: 120,
@@ -76,7 +76,7 @@ function baseDoctor(overrides: Partial<Doctor> = {}): Doctor {
     specialty: '치과보철전문의',
     hospitalId: 'h1',
     photo: 'https://example.com/photo.jpg',
-    procedureIds: ['implant'],
+    procedureIds: ['implant-general'],
     rating: 4.9,
     reviewCount: 180,
     consultCount: 90,
@@ -137,6 +137,25 @@ describe('AdminHospitalEditPage', () => {
 
     expect(screen.queryByPlaceholderText('병원명을 입력해주세요')).not.toBeInTheDocument();
     expect(screen.queryByText('병원 정보를 찾을 수 없어요')).not.toBeInTheDocument();
+  });
+
+  /** 광고는 **세부 시술 단위**다(요청 14) — `일반 임플란트 카테고리` 라는 분류는 없다. */
+  it('광고 현황은 세부 시술 이름 그대로 말한다 — "카테고리" 를 붙이지 않는다', async () => {
+    useAuthStore.setState({ user: userWithRole('operator'), status: 'ready' });
+    vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue(procedures);
+    vi.spyOn(hospitalApi, 'fetchHospitalById').mockResolvedValue(
+      baseHospital({
+        isSponsored: true,
+        sponsoredCategories: ['implant-general'],
+        sponsoredEndDate: '2026-11-06',
+        sponsorship: { isActive: true, isPlacementEligible: true },
+      })
+    );
+    vi.spyOn(doctorApi, 'fetchHospitalDoctors').mockResolvedValue([]);
+
+    renderPage();
+
+    expect(await screen.findByText('일반 임플란트 광고 중 · 2026-11-06까지')).toBeInTheDocument();
   });
 
   /**

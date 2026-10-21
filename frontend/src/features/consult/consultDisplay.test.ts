@@ -39,8 +39,8 @@ describe('CONSULT_STATUS_TONE', () => {
 
 describe('consultProcedureLabel', () => {
   it('아는 시술 id 는 `{대분류} · {세부시술}` 로 적는다', () => {
-    expect(consultProcedureLabel('cavity')).toBe('충치치료 · 레진');
-    expect(consultProcedureLabel('implant')).toBe('임플란트 · 일반 임플란트');
+    expect(consultProcedureLabel('resin')).toBe('충치치료 · 레진');
+    expect(consultProcedureLabel('implant-general')).toBe('임플란트 · 일반 임플란트');
   });
 
   it('고르지 않은 상담(null)은 `시술 미지정`', () => {

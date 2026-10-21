@@ -8,18 +8,23 @@ import type { DentalSpecialty } from '@/types/domain';
  * 보철(크라운·인레이)과 보존(레진·신경치료)이 함께 들어가는 칸이 생긴다. 한 전공만
  * 고르면 다른 쪽 전문의가 상주하는 병원의 배지가 조용히 꺼진다.
  *
- * 서버 시술 13종 → 전공 1개로 잇던 옛 표와 조회 함수는 삭제했다 — 화면이 전부 대분류로
- * 넘어가 소비자가 0개가 됐다.
+ * **원본은 서버의 시술 → 전공 표**(`backend/src/doctor/specialty-procedures.ts` 의
+ * `PROCEDURE_SPECIALTIES`)이고, 이 표는 그 **분야별 합집합**이다 (DB §17.11). 전에는 두 표가
+ * `implant`·`whitening`·`aesthetic` 에서 갈려 있었다 — 이제 `taxonomy.sync.test.ts` 가
+ * 합집합임을 고정한다.
  *
- * 서버의 `backend/src/doctor/specialty-procedures.ts` 와는 `implant` 등에서 갈린다
- * (여기: 구강악안면외과 / 서버: 치과보철). 차이는 `docs/features/known-issues.md` 에 기록한다.
+ * **사본을 남기는 이유**: 배지는 병원 카드가 그려지는 **첫 프레임**에 필요하다(네트워크를
+ * 기다리면 배지가 깜빡인다). 런타임에 합집합을 계산하려면 시술 → 전공 표가 응답에 실려야
+ * 하는데, 그것은 소비자 없는 계약 필드를 하나 더 만드는 일이다. 그래서 **사본 + 검사**다.
  */
 export const CATEGORY_SPECIALTIES: Record<CategoryId, readonly DentalSpecialty[]> = {
-  implant: ['구강악안면외과전문의'],
-  prevention: ['치주과전문의', '통합치의학과전문의'],
+  // 식립(외과)과 보철(상부 구조)이 한 분야에 있어 둘 다 강조한다 (요청자 결정).
+  implant: ['치과보철전문의', '구강악안면외과전문의'],
+  prevention: ['치주과전문의', '통합치의학과전문의', '소아치과전문의'],
   orthodontics: ['치과교정전문의'],
-  cavity: ['치과보철전문의', '통합치의학과전문의'],
-  aesthetic: ['치과보철전문의', '통합치의학과전문의'],
+  cavity: ['통합치의학과전문의', '치과보철전문의'],
+  // 치주과는 잇몸성형(`gum-contouring`)으로 들어온다.
+  aesthetic: ['치과보철전문의', '통합치의학과전문의', '치주과전문의'],
   gum: ['치주과전문의'],
   tmj: ['구강악안면외과전문의'],
   botox: ['구강악안면외과전문의'],

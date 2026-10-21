@@ -120,6 +120,10 @@ export class DoctorRepository {
   async findHospitalProcedureIds(hospitalId: string): Promise<string[]> {
     const rows = await this.prisma.hospitalProcedure.findMany({
       where: { hospitalId },
+      // 자동 배정(전공 시술 ∩ 병원 시술)의 결과 순서가 이 순서다. 화면 순서
+      // (`Procedure.sortOrder`)로 읽어 두면 전문의 카드의 시술 칩이 시술 마스터
+      // 목록과 같은 순서로 나온다 — `HOSPITAL_INCLUDE.procedures` 와 같은 규칙이다.
+      orderBy: [{ procedure: { sortOrder: 'asc' } }, { procedureId: 'asc' }],
       select: { procedureId: true },
     });
 

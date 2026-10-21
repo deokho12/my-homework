@@ -39,11 +39,21 @@ openapi: 3.1.0
 #               **확정 계약의 기존 `required`·`enum` 은 이 제안들이 건드리지 않았다** —
 #               새 필드는 `required` 에 넣지 않았고, 기존 필드를 대체하는 것은
 #               "합의되면 이렇게 바뀐다" 로 설명에만 적었다. 그것이 "아직 제안" 의 기계적 표현이다
+#
+# ── 개정: 2026-10-21 — 요청서 14 (시술 분류를 서버로) ─────────────────────────
+#   **확정 계약이다 (제안 아님).** 판단 근거 `docs/api/README.md` §22,
+#   데이터 설계 `docs/database/README.md` §17.
+#   - `ProcedureId` enum 13 → **31** (옛 id 6개 제거 — 유일한 breaking 변경)
+#   - `ProcedureCategoryId` enum **신규**(9). 분야 목록 엔드포인트는 만들지 않았다
+#   - `Procedure` 에 `categoryId`·`isAvailable` 추가 (둘 다 required)
+#   - `GET /procedures` 의 `Cache-Control`: `public, max-age=3600` → **`no-cache`**
+#   - `GET /hospitals`·`GET /doctors` 에 선택 파라미터 **`categoryId`**
+#   - 광고 우선 노출이 `categoryId` 에도 걸리고, 목록 정렬의 **id tie-break 를 계약이 요구**한다
 # ---------------------------------------------------------------------------
 
 info:
   title: 몰라몰라 API
-  version: 1.0.0
+  version: 1.3.0
   summary: 치과 시술 비교·상담 신청 서비스의 백엔드 API
   description: |
     ## 공통 규약
@@ -103,7 +113,7 @@ tags:
   - name: auth
     description: 회원가입·로그인·토큰 재발급·내 정보
   - name: procedures
-    description: 시술 마스터 데이터 (13종)
+    description: 시술 마스터 데이터 (분야 9 · 세부 시술 31종, 2026-10-21 요청 14)
   - name: hospitals
     description: 병원 조회·등록·수정
   - name: doctors
@@ -541,26 +551,43 @@ paths:
     get:
       operationId: listProcedures
       tags: [procedures]
-      summary: 시술 목록 (13종)
+      summary: 시술 목록 (31종)
       description: |
         홈의 `시술로 찾기` 격자, 병원 탐색의 시술 칩, 커뮤니티 질문 작성의 시술 선택,
         상담 신청의 희망 시술이 **모두 이 하나의 목록**을 쓴다 (화면 문서 3곳이 명시적으로 같은 목록이라고 못박고 있다).
 
-        정렬 순서는 서버가 고정한다: `implant → orthodontics → laminate → inlay → crown → whitening →
-        wisdom-tooth → cavity → gum-disease → splint → snoring-device → tmj → botox`.
+        **2026-10-21 (요청 14) — 13종 → 31종.** 서버가 분야(9) ↔ 세부 시술(31) 관계를 직접 갖는다.
+        각 항목은 `categoryId`(분야 9개 중 하나)와 `isAvailable`(`준비중` 의 반대)을 함께 내려준다.
+        옛 id 6개(`implant`·`orthodontics`·`cavity`·`gum-disease`·`tmj`·`botox`)는 **더 이상 없다**
+        — 새 id 는 `ProcedureId` enum 과 `docs/database/README.md` §17.4 의 표가 같다.
+
+        정렬 순서는 서버가 고정한다 — **분야 순서(`ProcedureCategoryId` 선언 순서) × 분야 안의 순서**를
+        한 줄로 편 0~30 이다. **그 순번을 응답에 필드로 싣지는 않는다**: 배열 순서가 곧 그 순서이고,
+        둘을 다 내려주면 어긋난 상태(배열은 A→B 인데 번호는 B가 작은)가 표현 가능해진다.
         병원 탐색의 `추천`·`기타` 칩은 시술이 아니라 특수 탭이므로 여기 포함되지 않는다.
 
-        거의 변하지 않는 마스터 데이터라 `Cache-Control: public, max-age=3600` + ETag 를 붙인다.
-      x-screens: [home.md, explore.md, community-new.md, consult-request.md, tip-detail.md]
+        **분야 목록 엔드포인트(`GET /procedure-categories`)는 만들지 않았다.** 분야의 이름·설명·순서는
+        화면이 첫 프레임에 그려야 해서 번들 안 상수(`frontend/src/features/procedure/taxonomy.ts`)에
+        남고, 서버 시드와 어긋나지 않는 것은 테스트가 고정한다 (DB §17.8). 분야의 `준비중` 은
+        **그 분야의 세부 시술이 전부 `isAvailable=false`** 라는 뜻이라 이 응답만으로 화면이 유도한다
+        (`docs/api/README.md` §22).
+
+        **캐시: `Cache-Control: no-cache` + ETag 다** (2026-10-21 변경 — 이전 값은
+        `public, max-age=3600`). `isAvailable` 은 병원 관리자가 시술 체크를 저장하는 순간 바뀌는 값이고,
+        `max-age` 가 남아 있으면 프런트가 쿼리를 무효화해도 **브라우저 HTTP 캐시가 옛 본문을 돌려준다**
+        — 요청서 14 의 확인 항목("관리자에서 스케일링을 체크·저장하면 홈의 스케일링·예방이 준비중이
+        아니게 된다")이 바로 그 경로다. `no-store` 가 아니라 `no-cache` 인 이유: 개인정보가 아니고,
+        매 요청 재검증하되 **ETag 로 304 를 받을 수 있는 쪽**이 31행을 매번 내려보내는 것보다 싸다.
+      x-screens: [home.md, explore.md, community-new.md, consult-request.md, tip-detail.md, admin-hospital-edit.md]
       x-screen-status: "✅"
       responses:
         '200':
-          description: 시술 목록
+          description: 시술 목록 (31개. 배열 순서가 화면 순서다 — 분야 순서 × 분야 안 순서)
           headers:
             Cache-Control:
               schema:
                 type: string
-                example: public, max-age=3600
+                example: no-cache
             ETag:
               schema:
                 type: string
@@ -587,7 +614,8 @@ paths:
         |---|---|
         | 모드 `병원` | 이 엔드포인트 (모드 `의사` 는 `GET /doctors`) |
         | 시술 칩 `추천` | `recommended=true` |
-        | 시술 칩 13개 | `procedureId=implant` |
+        | 분야 탭 9개 (홈 격자·카테고리 화면) | `categoryId=implant` (2026-10-21 신규) |
+        | 세부 시술 칩 31개 | `procedureId=implant-general` |
         | 시술 칩 `기타` (= 전체) | 아무 것도 안 보냄 |
         | 정렬 `인기순` | `sort=rating` (기본값) |
         | 정렬 `후기순` | `sort=reviewCount` |
@@ -605,9 +633,18 @@ paths:
         의 규칙을 그대로 옮긴 것이고, 그 파일은 삭제됐다):
 
         1. `procedureId` 지정 시: 광고 기간 중 && `sponsoredCategories` 에 그 시술 포함 && `rating >= 3.5`
+           - **`categoryId` 지정 시 (2026-10-21 신규)**: 광고 기간 중 && `sponsoredCategories` 에 그
+             분야의 시술이 **하나라도** 포함 && `rating >= 3.5`. 규칙 1 과 **같은 함수**가 판정한다
+             (`computeSponsorship` 이 시술 id **집합**을 받는다 — 세부 시술이면 원소 1개, 분야면 그
+             분야의 시술 전부). 둘이 함께 오면 집합은 `[procedureId]` 다(더 좁은 쪽).
         2. `recommended=true` 시: 광고 기간 중 && `rating >= 3.5`
         3. 위 대상들을 `sponsoredRank` 오름차순으로 맨 앞에 배치, 나머지는 `sort` 기준
         4. **필터가 없을 때(`기타`)는 광고 우선 노출을 적용하지 않는다**
+
+        **정렬은 페이지 사이에서 안정적이어야 한다 (계약 요구사항).** 최종 비교는 항상 `id` 오름차순으로
+        끝난다 — 광고 여부 → `sponsoredRank` → `sort` 값 → `id`. 같은 값끼리의 순서가 요청마다 흔들리면
+        `page=2` 에서 1페이지 항목이 다시 나오거나 사라진다. 화면이 `더 보기` 로 페이지를 이어 붙이기
+        시작했으므로(요청 14) 이 보장이 눈에 보이는 결함으로 바뀐다.
 
         `광고` 배지 조건과 상단 노출 조건은 다르다. 배지는 `sponsorship.isActive`(기간만),
         상단 노출은 `sponsorship.isPlacementEligible`(기간 + 평점 3.5 + 카테고리). 두 값을 각각 내려준다 —
@@ -615,16 +652,37 @@ paths:
 
         `sponsoredRank` / `sponsoredStartDate` / `sponsoredEndDate` 원본 필드도 함께 유지한다
         (기존 `Hospital` 타입 보존). 다만 정렬 판단에는 `sponsorship` 계산 필드를 쓴다.
-      x-screens: [explore.md, home.md, mypage.md, tip-detail.md, admin-home.md]
+      x-screens: [explore.md, home.md, category.md, mypage.md, tip-detail.md, admin-home.md]
       x-screen-status: "✅ 🟡"
       parameters:
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/PageSize'
         - name: procedureId
           in: query
-          description: 이 시술을 취급하는 병원만. 병원 탐색의 시술 칩 13개.
+          description: |
+            이 **세부 시술**을 취급하는 병원만. 병원 탐색·카테고리 화면의 세부 시술 칩 31개.
+
+            **enum 에 없는 값은 거절하지 않는다 — 결과가 0건일 뿐이다** (현재 구현도 그렇다:
+            `z.string().min(1)`). 그래서 폐기된 옛 id(`implant` 등)를 보내면 `422` 가 아니라 빈 목록이
+            온다. 쓰기 경로(`procedureIds`)만 `422 VALIDATION_FAILED(unknown_procedure)` 로 막는다 —
+            목록 필터는 "못 찾았다" 가 정상 상태이고, 쓰기는 "잘못 저장된다" 가 되기 때문이다.
           schema:
             $ref: '#/components/schemas/ProcedureId'
+        - name: categoryId
+          in: query
+          description: |
+            **2026-10-21 (요청 14) 신규.** 이 **분야**의 시술을 하나라도 취급하는 병원만.
+            홈 격자·카테고리 화면·탐색 분야 탭이 쓴다. 이전에는 화면이 분야를 시술 id 여러 개로 풀어
+            각각 요청하고 합쳤고, 그래서 그 경로에만 광고 우선 노출이 없고 100곳 상한이 있었다
+            (`docs/features/known-issues.md` 🟠). 이제 **한 번의 요청이고 페이지네이션을 그대로 탄다.**
+
+            `procedureId` 와 **함께 오면 AND 다** — "그 분야의 시술을 하나라도 하고, 그 세부 시술도
+            하는 병원". 계약의 모든 쿼리 필터가 AND 이고(README §5), 한쪽을 조용히 버리는 규칙은
+            보낸 파라미터가 무시됐다는 것을 호출자가 알 수 없게 만든다. 화면은 둘 중 하나만 보낸다.
+
+            `procedureId` 와 마찬가지로 **모르는 값은 `422` 가 아니라 0건**이다.
+          schema:
+            $ref: '#/components/schemas/ProcedureCategoryId'
         - name: recommended
           in: query
           description: 운영자가 추천으로 표시한 병원만. 시술 칩 `추천`.
@@ -898,7 +956,7 @@ paths:
         >
         > | | 지금 | 제안 |
         > |---|---|---|
-        > | 요청 | `"procedureIds": ["implant", "inlay"]` | `"procedures": [{procedureId, priceMin?, priceMax?, priceOnRequest?}, …]` |
+        > | 요청 | `"procedureIds": ["implant-general", "inlay"]` | `"procedures": [{procedureId, priceMin?, priceMax?, priceOnRequest?}, …]` |
         > | 저장 | **전체 교체** | **머지** — upsert + 목록에 없는 행만 delete |
         > | 필드 생략 | 시술 불변 | **시술도 가격도 불변** (부분 수정의 뜻 그대로) |
         > | 둘 다 보냄 | — | **`422`** (우선순위 규칙을 만들지 않는다) |
@@ -1112,7 +1170,11 @@ paths:
         지금은 승인된 전문의의 전공을 바꿔도 승인이 유지되어, 검수 없이 다른 과의 `전문의` 배지가 노출된다.
 
         `photo` / `yearsOfExperience` / `career` / `procedureIds` 를 보내지 않으면:
-        - 신규 → 서버가 기본값을 채운다 (`procedureIds` 는 전공에서 유도, `일반의` 는 병원 취급 시술 전체)
+        - 신규 → 서버가 기본값을 채운다. **`procedureIds` 는 "그 전공의 시술 ∩ 그 병원이 취급하는
+          시술" 이다** (2026-10-21 요청 14 — 전에는 교집합 없이 전공 표 그대로였다). `일반의` 는
+          지금까지처럼 **병원 취급 시술 전체**이고, 그것도 같은 교집합 규칙의 한 경우다
+          (일반의의 전공 시술 = 전체). 시술이 13 → 31 로 늘면서 교집합이 없으면 구강악안면외과
+          전문의 한 명에게 그 병원이 하지도 않는 시술 11개가 붙는다 (DB §17.11)
         - 기존 → 기존 값을 유지한다
 
         인가: `hospital_admin` 은 담당 병원만 (`403 HOSPITAL_NOT_MANAGED`), `operator` 는 전 병원.
@@ -1475,7 +1537,10 @@ paths:
         하려면 병원 전체 목록이 필요하다. 서버 필터로 둔다.
 
         스폰서 우선 노출은 `의사` 모드에 적용되지 않는다 (현재 동작과 동일 — 광고는 병원 단위 상품이다).
-      x-screens: [explore.md]
+
+        **정렬은 페이지 사이에서 안정적이어야 한다 (계약 요구사항):** `sort` 값 내림차순 → `id`
+        오름차순. 병원 목록과 같은 이유다(`더 보기` 로 페이지를 이어 붙인다).
+      x-screens: [explore.md, category.md]
       x-screen-status: "✅"
       security:
         - {}
@@ -1489,8 +1554,16 @@ paths:
             type: string
         - name: procedureId
           in: query
+          description: 이 **세부 시술**을 하는 전문의만. 모르는 값은 `422` 가 아니라 0건이다 (`GET /hospitals` 와 같다).
           schema:
             $ref: '#/components/schemas/ProcedureId'
+        - name: categoryId
+          in: query
+          description: |
+            **2026-10-21 (요청 14) 신규.** 이 **분야**의 시술을 하나라도 하는 전문의만.
+            `procedureId` 와 함께 오면 **AND**, 모르는 값은 0건 — `GET /hospitals` 와 같은 규칙이다.
+          schema:
+            $ref: '#/components/schemas/ProcedureCategoryId'
         - name: recommended
           in: query
           schema:
@@ -1883,7 +1956,7 @@ paths:
                 summary: 병원 상담신청
                 value:
                   hospitalId: h1
-                  procedureId: implant
+                  procedureId: implant-general
                   name: 김민준
                   phone: 010-1234-5678
                   preferredTime: 평일 저녁
@@ -1896,7 +1969,7 @@ paths:
                 value:
                   hospitalId: h1
                   doctorId: d1
-                  procedureId: implant
+                  procedureId: implant-general
                   name: 김민준
                   phone: 010-1234-5678
                   preferredTime: 주말
@@ -1937,8 +2010,8 @@ paths:
                 hospitalThumbnail: https://cdn.molamola.kr/hospitals/h1/thumb.jpg
                 doctorId: null
                 doctorName: null
-                procedureId: implant
-                procedureName: 임플란트
+                procedureId: implant-general
+                procedureName: 일반 임플란트
                 name: 김민준
                 phone: 010-1234-5678
                 preferredTime: 평일 저녁
@@ -2158,13 +2231,17 @@ paths:
           in: query
           description: |
             시술 필터 (2026-10-13). **반복 허용** —
-            `?procedureId=implant&procedureId=orthodontics`. 같은 파라미터끼리는 **OR**,
+            `?procedureId=implant-general&procedureId=bracket-braces`. 같은 파라미터끼리는 **OR**,
             다른 필터와는 AND 다.
 
-            화면의 칩은 **9개 대분류**지만 서버가 아는 것은 **시술 id 13개**뿐이다. 대분류 → id 전개는
-            클라이언트(`frontend/src/features/procedure/taxonomy.ts`)의 몫이고 서버는 **풀린 id 목록**을
-            받는다. 대분류를 서버로 올리는 것은 그 분류를 **관리하는 화면**이 생길 때의 일이다 —
-            지금 올리면 프런트 상수와 서버 데이터가 조용히 어긋날 자리만 생긴다.
+            화면의 칩은 **9개 분야**이고 서버는 **세부 시술 id 31개**를 받는다. 분야 → id 전개는
+            클라이언트(`frontend/src/features/procedure/taxonomy.ts`)의 몫이다.
+
+            **여기에는 `categoryId` 를 더하지 않았다** (2026-10-21 요청 14). 분야 파라미터는
+            `GET /hospitals`·`GET /doctors` 에만 있다 — 그 둘은 분야 하나가 시술 여러 개로 풀리면서
+            **광고 우선 노출이 꺼지고 100곳 상한이 생기는** 실제 결함이 있었고, 상담 목록은 반복
+            `procedureId` 로 이미 정확히 같은 결과를 얻는다. 소비자가 없는 파라미터를 미리 만들지
+            않는다 (AGENTS.md).
 
             `시술 미지정`(`procedureId` 가 `null` 인 건)만 보는 칩은 **이 파라미터로 표현할 수 없다.**
             지금 화면에 없어서 값을 만들지 않았다 (🚧 생기면 계약에 별도 값이 필요하다).
@@ -2243,8 +2320,8 @@ paths:
                     hospitalName: 강남 스마일 치과
                     doctorId: null
                     doctorName: null
-                    procedureId: implant
-                    procedureName: 임플란트
+                    procedureId: implant-general
+                    procedureName: 일반 임플란트
                     name: 박서영
                     phone: 010-****-4411
                     piiMasked: true
@@ -3676,7 +3753,7 @@ paths:
                   delayedConsults:
                     - id: cr12
                       name: 박서영
-                      procedureId: implant
+                      procedureId: implant-general
                       createdAt: '2026-10-11T23:40:00.000Z'
                     - id: cr15
                       name: 남궁민수
@@ -3692,8 +3769,8 @@ paths:
                     hospitalName: 강남 스마일 치과
                     doctorId: null
                     doctorName: null
-                    procedureId: implant
-                    procedureName: 임플란트
+                    procedureId: implant-general
+                    procedureName: 일반 임플란트
                     name: 박서영
                     phone: 010-****-4411
                     piiMasked: true
@@ -3718,7 +3795,7 @@ paths:
                 todayVisits:
                   - id: cr3
                     name: 김민준
-                    procedureId: orthodontics
+                    procedureId: bracket-braces
                     visitAt: '2026-10-13T05:00:00.000Z'
                 completeness:
                   percent: 86
@@ -5098,8 +5175,8 @@ paths:
                     query: 임플
                     target:
                       kind: procedure
-                      procedureId: implant
-                      label: 임플란트
+                      procedureId: implant-general
+                      label: 일반 임플란트
                 hospital:
                   summary: 병원 이름
                   value:
@@ -5610,34 +5687,89 @@ components:
           example: 1
 
     # ---------------------------------------------------------------- 시술
+    ProcedureCategoryId:
+      type: string
+      description: |
+        **2026-10-21 (요청 14) 신규.** 시술 분야 9개. 선언 순서가 **화면 순서**(홈 격자·탐색 분야 탭·
+        관리자 폼 섹션)이고, `GET /procedures` 가 31개를 내려주는 바깥 순서이기도 하다.
+
+        **분야의 이름·설명을 내려주는 엔드포인트는 없다** — 화면이 네트워크를 기다리지 않고 첫
+        프레임에 격자를 그려야 해서 그 표는 번들 상수(`frontend/src/features/procedure/taxonomy.ts`)에
+        남고, 서버 시드와 갈리지 않는 것은 테스트가 고정한다 (DB §17.8, README §22).
+        이 enum 은 **쿼리 파라미터의 값 목록**으로만 존재한다.
+      enum:
+        - implant
+        - prevention
+        - orthodontics
+        - cavity
+        - aesthetic
+        - gum
+        - tmj
+        - botox
+        - extraction
+
     ProcedureId:
       type: string
       description: |
-        시술 13종. 병원 탐색의 시술 칩 15개 중 `추천`·`기타` 는 시술이 아니라 특수 탭이라 여기 없다.
+        세부 시술 31종. 병원 탐색의 시술 칩 중 `추천`·`기타` 는 시술이 아니라 특수 탭이라 여기 없고,
+        분야 9개는 `ProcedureCategoryId` 다.
+
+        **2026-10-21 (요청 14): 13 → 31, 그리고 옛 id 6개가 제거됐다** —
+        `implant`→`implant-general`, `orthodontics`→`bracket-braces`, `cavity`→`resin`,
+        `gum-disease`→`gum-treatment`, `tmj`→`tmj-treatment`, `botox`→`bruxism-botox`.
+        앞의 다섯은 **분야 id 와 글자가 겹쳐서** 바꿨다 (`?categoryId=implant` 와
+        `?procedureId=implant` 가 서로 다른 것을 가리키면 누군가 반드시 틀린다).
+        **서버는 옛 id 를 받지 않는다** — 쓰기는 `422 VALIDATION_FAILED(unknown_procedure)`,
+        목록 필터는 0건이다. 이미 발급된 주소·브라우저 저장소의 옛 id 는 **화면이**
+        별칭 표(`taxonomy.ts`) 하나로 푼다 (DB §17.5).
+
+        값과 순서는 `docs/database/README.md` §17.4 의 표, 그리고 `taxonomy.ts` 의
+        `SUB_PROCEDURE_IDS` 와 같다 (세 사본이 갈리지 않는 것은 테스트가 고정한다).
       enum:
-        - implant
-        - orthodontics
-        - laminate
+        - implant-general
+        - bone-graft
+        - sinus-lift
+        - implant-denture
+        - scaling
+        - fluoride
+        - sealant
+        - halitosis
+        - clear-aligner
+        - lingual-braces
+        - bracket-braces
+        - partial-ortho
+        - resin
         - inlay
+        - onlay
         - crown
+        - root-canal
+        - laminate
         - whitening
-        - wisdom-tooth
-        - cavity
-        - gum-disease
+        - gum-contouring
+        - gum-treatment
+        - periodontal-surgery
+        - gum-graft
+        - tmj-treatment
         - splint
+        - bruxism-device
         - snoring-device
-        - tmj
-        - botox
+        - bruxism-botox
+        - masseter-botox
+        - wisdom-tooth
+        - general-extraction
 
     Procedure:
       type: object
-      required: [id, name, emoji, shortDescription, description]
+      description: |
+        `GET /procedures` 의 항목. **2026-10-21 (요청 14) 에 `categoryId`·`isAvailable` 두 필드가
+        늘었고 둘 다 `required` 다** (응답 필드 추가는 additive — README §15).
+      required: [id, name, emoji, shortDescription, description, categoryId, isAvailable]
       properties:
         id:
           $ref: '#/components/schemas/ProcedureId'
         name:
           type: string
-          example: 임플란트
+          example: 일반 임플란트
         emoji:
           type: string
           example: 🦷
@@ -5646,6 +5778,33 @@ components:
           example: 자연치아처럼 튼튼하게
         description:
           type: string
+        categoryId:
+          allOf:
+            - $ref: '#/components/schemas/ProcedureCategoryId'
+          description: |
+            이 시술이 속한 분야. **분야 없는 시술은 없다.** 화면이 31개를 분야별로 묶을 때,
+            그리고 "분야 준비중" 을 유도할 때 쓰는 유일한 근거다.
+          example: implant
+        isAvailable:
+          type: boolean
+          description: |
+            **`준비중` 의 반대.** `true` = 이 시술을 등록한 **앱에 노출되는 병원이 1곳 이상**,
+            `false` = 0곳 → 홈 격자·탐색 탭이 `준비중` 배지를 붙이고 이동을 막는다.
+            **관리자 병원 폼은 이 값을 보지 않는다 — 31개를 전부 체크할 수 있다.** 그래야 0곳인
+            시술을 처음 등록할 수 있다 (요청 14 의 확인 항목 1번이 그 경로다).
+
+            저장된 컬럼이 아니라 **요청 시점에 세는 파생값**이다. 컬럼이면 병원이 체크를 저장할
+            때마다 갱신해야 하는 두 번째 사실이 생기고, 한 번 빠뜨리면 "병원은 있는데 준비중" 이
+            된다 (DB §17.7).
+
+            서버 쪽 판정의 출처는 **한 곳씩**이다 — "앱에 노출되는 병원" 은
+            `hospital/public-visibility.ts` 의 `publicHospitalWhere()`(`GET /hospitals` 의 공개
+            목록과 **같은 함수**), 0/1 판정은 `procedure/availability.ts` 의 순수 함수.
+            요청 17 의 공공데이터 병원도 같은 두 테이블에 들어오므로 **자동으로 세어진다.**
+
+            **`hospitalCount`(그 시술을 하는 병원 수)는 내려주지 않는다** — 읽는 화면이 없다.
+            필요해지면 같은 집계에서 바로 더할 수 있다 (AGENTS.md).
+          example: true
 
     # ---------------------------------------------------------------- 병원
     PriceRange:
@@ -5804,8 +5963,9 @@ components:
 
         **시술 이름을 함께 내려주지 않는다.** 이름의 출처는 `GET /procedures`(캐시되는 마스터)와
         프런트 `taxonomy.ts` 하나이고, 여기에 또 실으면 같은 라벨이 두 곳에서 갈린다.
-        **대분류 묶음·`준비중` 배지·`원데이` 표시도 화면의 몫**이다 (요청서 07 이 "노출 규칙은
-        그대로" 라고 못 박은 자리다).
+        **분야 묶음·`준비중` 배지·`원데이` 표시도 화면의 몫**이다 (요청서 07 이 "노출 규칙은
+        그대로" 라고 못 박은 자리다). 그 둘의 근거는 `GET /procedures` 의 `categoryId`·`isAvailable`
+        이고, 여기에 복제하지 않는다 (2026-10-21 요청 14).
       required: [procedureId, priceMin, priceMax, priceOnRequest]
       properties:
         procedureId:
@@ -5858,9 +6018,10 @@ components:
         `0` 을 센티널로 쓸 자리도 없다. **만원 배수를 강제하지 않는다** — 입력 UI 가 만원 칸인 것은
         화면 사정이고, 천원 단위 입력이 생기는 날 계약부터 막힌다. 상한값은 **제안**이다 (열린 질문 4).
 
-        **가격을 붙일 수 있는 단위는 서버 시술 13종(`ProcedureId`)뿐이다.** 세부 시술 31개 중 18개는
-        서버에 마스터가 없고 화면에서도 체크가 막혀 있다(`준비중`). 나머지 13개는 서버 id 와 1:1 이라
-        "세부 시술별 가격" 과 "서버 시술별 가격" 이 **지금은 같은 것**이다 (DB §16.2).
+        **가격을 붙일 수 있는 단위는 `ProcedureId` 31종 전부다** (2026-10-21 요청 14 로 바뀐 문장 —
+        전에는 "서버 시술 13종뿐이고 세부 18개는 마스터가 없다" 였다). 서버가 31개를 알게 됐고
+        관리자 폼의 체크도 31개가 전부 열렸으므로 **"세부 시술별 가격" 과 "서버 시술별 가격" 이
+        이제 완전히 같은 것**이다 (DB §16.2 의 제약이 해소됐다. §21.11 열린 질문 5 도 함께).
       required: [procedureId]
       properties:
         procedureId:
@@ -6031,9 +6192,10 @@ components:
             `procedureIds` 가 이 배열에서 파생된다. 병원 상세의 `시술·가격` 섹션이 읽는 값이고,
             전체 가격대(`priceRange`)와의 우선순위는 `priceRange` 설명의 표 하나로 정해진다.
 
-            **대분류 9개로 묶는 것·`준비중` 배지·`원데이` 표시는 화면의 몫이다** — 서버는 시술 13종의
-            평면 목록만 내려준다 (요청서 07: "세부 시술 → 카테고리 노출 규칙은 그대로",
-            "원데이는 시술이 아니라 병원 특징").
+            **분야 9개로 묶는 것·`준비중` 배지·`원데이` 표시는 화면의 몫이다** — 이 배열은 시술 31종의
+            평면 목록이다 (요청서 07: "세부 시술 → 카테고리 노출 규칙은 그대로", "원데이는 시술이
+            아니라 병원 특징"). 묶는 근거(`categoryId`)와 `준비중` 판정(`isAvailable`)은
+            **`GET /procedures`** 가 내려준다 (2026-10-21 요청 14) — 여기에 다시 싣지 않는다.
 
             **지금은 목록 응답(`GET /hospitals`)에도 실린다고 가정하지 마라** — 상세
             (`GET /hospitals/{id}`)가 유일한 소비자다. 탐색 `가격 비교표` 를 시술별 가격으로
@@ -6064,7 +6226,7 @@ components:
             않는다. 적는 순간 **"그 시술의 가격" 이라는 거짓말**이 된다. 비교하려고 만든 기능이 비교를
             망치는 자리다.
 
-            **다른 소비자는 지금 그대로다**: 병원 카드의 가격 줄은 한 줄이라 시술 13개를 담을 자리가
+            **다른 소비자는 지금 그대로다**: 병원 카드의 가격 줄은 한 줄이라 시술 31개를 담을 자리가
             없고, 탐색 `가격 비교표` 도 이 값을 쓴다 (바꿀지는 열린 질문 9).
             **마이그레이션 직후 기존 11곳은 전부 ③ 이라 화면이 지금과 똑같다** (백필이 없다).
         rating:
@@ -6738,8 +6900,8 @@ components:
         procedureIds:
           type: array
           description: |
-            생략하면 서버가 전공에서 유도한다. `일반의` 는 병원이 취급하는 시술 전체가 된다
-            (현재 동작과 동일).
+            생략하면 서버가 **"전공의 시술 ∩ 병원이 취급하는 시술"** 로 채운다 (2026-10-21 요청 14).
+            `일반의` 는 지금까지처럼 병원이 취급하는 시술 전체가 된다.
           items:
             $ref: '#/components/schemas/ProcedureId'
 
@@ -8379,7 +8541,7 @@ components:
 
             **문구는 `앱에 노출되지 않아요` 로 적지 않는다 — 사실이 아니다.**
             시술 0개 병원은 **시술로 찾는 모든 경로**에서 빠지지만(홈 `시술로 찾기` 격자, 탐색의
-            시술 칩·세부 시술 `?procedureId=`, 가격 비교표의 시술 열, 클라이언트 대분류 전개)
+            시술 칩·세부 시술 `?procedureId=`·분야 `?categoryId=`, 가격 비교표의 시술 열)
             **이름 검색·찜 목록·꿀팁 관련 병원·병원 상세 직접 링크·탐색 `추천` 칩에서는 그대로 보이고
             상담도 받는다.** 정확한 문구는 **`시술을 등록하지 않으면 환자가 시술로 검색할 때 병원이
             나오지 않아요`** 쪽이다. 문구는 디자이너·프런트가 정하되 **"앱에 아예 안 보인다" 로
@@ -8475,7 +8637,7 @@ components:
         > | 8 | `directions` | 찾아오시는 길 | (그대로) | `directions` |
         > | 9 | `doctors` | 의료진 | (그대로) | `doctors` |
         >
-        > **`procedurePrices` 를 "하나라도 적었으면 충족" 으로 하지 않은 이유**: 시술 13개 중 1개만
+        > **`procedurePrices` 를 "하나라도 적었으면 충족" 으로 하지 않은 이유**: 체크한 시술 중 1개만
         > 적고 100% 가 되면 그 항목은 "환자가 비교할 수 있다" 는 **거짓 신호**가 된다. 반대로
         > "전부" 가 가혹하지 않은 이유는 **`상담 후 안내` 가 클릭 한 번**이기 때문이다 —
         > 가격을 공개하지 않기로 한 병원도 100% 에 도달한다.

@@ -1,6 +1,6 @@
 import type { BadgeTone } from '@/components/Badge';
 import { seoulDateKey } from '@/features/consult/lib/transition';
-import { categoryFromLegacy, subFromLegacy } from '@/features/procedure';
+import { categoryOfProcedure, findSubProcedure } from '@/features/procedure';
 import { dateParts, formatDateTimeShort } from '@/lib/dateFormat';
 import {
   CONSULT_CANCEL_REASON_LABEL,
@@ -40,14 +40,15 @@ export const CONSULT_STATUS_TONE: Record<ConsultStatus, BadgeTone> = {
 export const NO_PROCEDURE_LABEL = '시술 미지정';
 
 /**
- * 서버 시술 id → `{대분류} · {세부시술}` (`cavity` → `충치치료 · 레진`).
+ * 시술 id → `{분야} · {세부시술}` (`resin` → `충치치료 · 레진`).
  *
  * taxonomy 가 모르는 id 면 `null` — 호출부는 그 줄을 그리지 않는다. 상담 신청 화면의 칩
- * 라벨도 같은 함수를 쓴다 (`pages/ConsultRequestPage.tsx`).
+ * 라벨도 같은 함수를 쓴다 (`pages/ConsultRequestPage.tsx`). 브라우저에 남아 있던 옛 id 는
+ * 여기 오기 전에 `localCollection` 이 풀어 둔다.
  */
 export function procedurePairLabel(procedureId: ProcedureId): string | null {
-  const category = categoryFromLegacy(procedureId);
-  const sub = subFromLegacy(procedureId);
+  const category = categoryOfProcedure(procedureId);
+  const sub = findSubProcedure(procedureId);
 
   return category && sub ? `${category.name} · ${sub.name}` : null;
 }

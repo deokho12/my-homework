@@ -21,6 +21,10 @@ export const listHospitalsQuerySchema = z
     page: z.coerce.number().int().min(1).default(1),
     pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
     procedureId: z.string().min(1).optional(),
+    // 분야 필터 (2026-10-21 요청 14). 검증 수준은 `procedureId` 와 같다 — **enum 을 강제하지
+    // 않는다.** 모르는 값은 `422` 가 아니라 0건이어야 한다(계약 §22.6): 폐기된 옛 id 로
+    // 들어온 북마크가 에러 화면이 아니라 빈 목록을 받는 쪽이 낫다.
+    categoryId: z.string().min(1).optional(),
     recommended: booleanParam,
     consultAvailable: booleanParam,
     oneDay: booleanParam,

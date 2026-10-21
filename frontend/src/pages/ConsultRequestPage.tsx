@@ -21,7 +21,7 @@ import {
   type ProcedureChoice,
 } from '@/features/consult';
 import { useHospital } from '@/features/hospital';
-import { groupLegacyIdsByCategory } from '@/features/procedure';
+import { groupProcedureIdsByCategory } from '@/features/procedure';
 import { isApiError } from '@/lib/apiClient';
 import { CONSULT_STATUS_LABEL, type Hospital } from '@/types/domain';
 import { showAlert } from '@/utils/alert';
@@ -29,17 +29,15 @@ import { showAlert } from '@/utils/alert';
 /**
  * 병원이 취급하는 시술 → `{대분류} · {세부시술}` 칩 목록.
  *
- * 중복 제거·순서 고정·모르는 id 제거는 `groupLegacyIdsByCategory` 가 이미 하고, **라벨 문구는
+ * 중복 제거·순서 고정·모르는 id 제거는 `groupProcedureIdsByCategory` 가 이미 하고, **라벨 문구는
  * `procedurePairLabel` 하나가 정한다** — 마이페이지 상담 내역이 같은 규칙으로 적는다.
  */
 function procedureChoicesOf(hospital: Hospital): ProcedureChoice[] {
-  return groupLegacyIdsByCategory(hospital.procedureIds).flatMap((group) =>
+  return groupProcedureIdsByCategory(hospital.procedureIds).flatMap((group) =>
     group.subs.flatMap((sub) => {
-      // 서버 id 에서 역변환된 세부 시술이라 `legacyProcedureId` 는 반드시 있다.
-      const id = sub.legacyProcedureId;
-      const label = id ? procedurePairLabel(id) : null;
+      const label = procedurePairLabel(sub.id);
 
-      return id && label ? [{ id, label }] : [];
+      return label ? [{ id: sub.id, label }] : [];
     })
   );
 }

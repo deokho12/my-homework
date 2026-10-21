@@ -48,7 +48,7 @@ function row(overrides: Partial<StoredConsultRequest> = {}): StoredConsultReques
   return {
     id: 'cr1',
     hospitalId: 'h1',
-    procedureId: 'implant',
+    procedureId: 'implant-general',
     name: '박서영',
     phone: '010-1234-4411',
     preferredTime: '평일 오후',
@@ -230,8 +230,8 @@ describe('목록과 상태 탭', () => {
 describe('필터', () => {
   beforeEach(() => {
     seed([
-      row({ id: 'cr-a', name: '박서영', phone: '010-1234-4411', procedureId: 'implant', createdAt: hoursAgo(2) }),
-      row({ id: 'cr-b', name: '최지훈', phone: '010-5555-6789', procedureId: 'cavity', createdAt: hoursAgo(3) }),
+      row({ id: 'cr-a', name: '박서영', phone: '010-1234-4411', procedureId: 'implant-general', createdAt: hoursAgo(2) }),
+      row({ id: 'cr-b', name: '최지훈', phone: '010-5555-6789', procedureId: 'resin', createdAt: hoursAgo(3) }),
     ]);
   });
 
@@ -250,6 +250,24 @@ describe('필터', () => {
     await user.selectOptions(await screen.findByLabelText('기간'), 'today');
 
     await waitFor(() => expect(probe()).toBe('/admin/consultations?period=today'));
+  });
+
+  /**
+   * 요청 14 전에는 스케일링·예방에 서버 시술이 하나도 없어 **빈 배열**이 나갔고, 그러면
+   * 필터가 없는 것과 같아 **모든 상담**이 보였다. 지금은 그 분야의 세부 4개가 나간다.
+   */
+  it('스케일링·예방을 고르면 그 분야의 세부 시술로 거른다 — 전체가 보이지 않는다', async () => {
+    const user = userEvent.setup();
+    seed([
+      row({ id: 'cr-s', name: '정하늘', procedureId: 'scaling', createdAt: hoursAgo(1) }),
+      row({ id: 'cr-a', name: '박서영', procedureId: 'implant-general', createdAt: hoursAgo(2) }),
+    ]);
+    renderPage();
+
+    await user.selectOptions(await screen.findByLabelText('시술'), 'prevention');
+
+    await waitFor(() => expect(within(list()).getByText('정하늘')).toBeInTheDocument());
+    expect(within(list()).queryByText('박서영')).not.toBeInTheDocument();
   });
 
   it('시술 필터는 대분류를 고르면 목록을 줄인다', async () => {

@@ -56,7 +56,7 @@ describe('useCreateHospital', () => {
       introduction: '',
       priceRange: { min: 0, max: 0 },
       tags: [],
-      procedureIds: ['implant'],
+      procedureIds: ['implant-general'],
       consultAvailable: true,
       isOneDay: false,
       businessHours: [],

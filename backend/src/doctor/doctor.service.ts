@@ -6,7 +6,7 @@ import type { PageMeta } from '../common/pagination';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { ProcedureRepository } from '../procedure/procedure.repository';
 import { buildDoctorWhere } from './doctor.filters';
-import { GENERAL_PRACTITIONER, projectDoctorAdmin, projectDoctorPublic } from './doctor.projection';
+import { projectDoctorAdmin, projectDoctorPublic } from './doctor.projection';
 import type { DoctorAdminResponse, DoctorPublicResponse } from './doctor.projection';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { DoctorRepository } from './doctor.repository';
@@ -108,10 +108,11 @@ export class DoctorService {
 
     await this.assertProceduresExist(collectExplicitProcedureIds(items));
 
-    // 신규 `일반의` 가 `procedureIds` 를 안 보냈을 때만 병원의 시술 전체가 필요하다 —
-    // 그 밖의 경우엔 조회 자체를 건너뛴다.
+    // 신규 항목이 `procedureIds` 를 안 보냈으면 병원의 시술 목록이 필요하다 — 자동
+    // 배정이 **전공 시술 ∩ 병원 시술** 이기 때문이다 (2026-10-21 요청 14, 계약 §22.8).
+    // 전에는 `일반의` 일 때만 필요했다. 그 밖의 경우엔 조회 자체를 건너뛴다.
     const needsHospitalProcedures = items.some(
-      (item) => item.id === undefined && item.procedureIds === undefined && item.specialty === GENERAL_PRACTITIONER,
+      (item) => item.id === undefined && item.procedureIds === undefined,
     );
     const hospitalProcedureIds = needsHospitalProcedures
       ? await this.doctors.findHospitalProcedureIds(hospitalId)

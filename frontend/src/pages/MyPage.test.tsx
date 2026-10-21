@@ -173,7 +173,7 @@ describe('MyPage — 상담 내역 탭', () => {
   });
 
   it('한 줄에 병원명·시술·상태·보조 문구가 함께 보인다', async () => {
-    await consultBy('u-me', { procedureId: 'cavity' as ProcedureId, preferredTime: '평일 저녁' });
+    await consultBy('u-me', { procedureId: 'resin' as ProcedureId, preferredTime: '평일 저녁' });
 
     renderMyPage();
 

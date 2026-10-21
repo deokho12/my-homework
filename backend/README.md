@@ -123,12 +123,16 @@ Git Bash 에서 `export PATH="$PATH:/c/Program Files/nodejs"` 를 먼저 실행�
 ```
 backend/
 ├── prisma/
-│   ├── schema.prisma          # 27개 모델 (확정. 바꾸려면 db-master 와 논의)
-│   ├── migrations/            # 20260812121726_init
+│   ├── schema.prisma          # 28개 모델 (확정. 바꾸려면 db-master 와 논의)
+│   ├── migrations/            # init · auth/audit/partner/legal · procedure_categories_and_31_procedures
 │   ├── seed.ts                # fixture → DB (idempotent, upsert)
 │   ├── seed/
 │   │   ├── accounts.ts        # 개발용 계정 정의 + bcrypt
 │   │   ├── dates.ts           # SEED_TODAY 기준 날짜 정책 (SeedClock — 순수 함수)
+│   │   ├── data/
+│   │   │   ├── procedure-categories.ts  # ★ 시술 분야 9개 (원본. import 0)
+│   │   │   ├── procedures.ts            # ★ 세부 시술 31개 (원본. import 0)
+│   │   │   └── hospitals|doctors|reviews.ts
 │   │   └── fixtures.ts        # frontend fixture import 창구 (유일)
 │   ├── tsconfig.seed.json     # 시드 전용 (@/* → frontend/src/*)
 │   ├── dev.db                 # 개발용 SQLite (gitignore)
@@ -147,7 +151,7 @@ backend/
 │   ├── auth/                  # 인증·인가 + 리프레시 토큰 저장소·정리 (아래 절 참고)
 │   ├── audit/                 # audit_logs (append-only. 리포지토리에 update/delete 없음)
 │   ├── legal/                 # 약관 버전 조회 (가입 동의 검증용)
-│   ├── procedure/             # 시술 목록 (13종, 마스터 데이터)
+│   ├── procedure/             # 시술 목록 (31종 + 분야 9개, `isAvailable` 집계)
 │   ├── hospital/              # 병원 조회·등록·수정 + 관리자 로스터 + 스폰서 계산 + 거리 계산
 │   ├── doctor/                # 전문의 조회·로스터 교체·수정·삭제 + 인증 검수
 │   ├── review/                # 병원 후기 조회 (작성 엔드포인트 없음 — 화면에 없다)
@@ -156,7 +160,7 @@ backend/
 │   │   └── tokens-cleanup.ts  # refresh_tokens 수동 정리 CLI
 │   ├── prisma/                # PrismaService (전역 모듈, lifecycle hook)
 │   └── health/                # GET /health
-└── test/                      # 29 파일 / 317 테스트 (auth·인가 기반 + 병원·전문의 도메인)
+└── test/                      # 33 파일 / 383 테스트 (auth·인가 기반 + 병원·전문의 도메인 + 시술 분류)
     ├── global-setup.ts               # ★ test.db 삭제 → migrate deploy → 시드 (실행마다 1회)
     ├── support/
     │   ├── app.ts                   # 테스트 앱 + 시드 계정 로그인 헬퍼
@@ -172,7 +176,10 @@ backend/
     ├── audit-log.spec.ts             # 스냅샷 · append-only · 쓰기 실패 정책
     ├── operator-cli.spec.ts          # 부트스트랩 CLI + `--actor` 필수 + "HTTP 승격 경로 없음"
     ├── health.e2e.spec.ts            # 헬스체크 200/503 + DB 를 실제로 읽는지 + 접두어 밖인지
-    └── seed-data.spec.ts             # 시드 데이터 + 변환 검증
+    ├── seed-data.spec.ts             # 시드 데이터 + 변환 검증
+    ├── procedure-migration.spec.ts   # 옛 시술 id 이관 보존 단정 (임시 DB 에 마이그레이션을 직접 적용)
+    ├── procedure-availability.spec.ts     # `준비중` 경계값 (순수 함수)
+    └── procedure-availability.e2e.spec.ts # 체크 → 저장 → 준비중 해제 경로 전체
 ```
 
 ### 라우팅
@@ -331,11 +338,14 @@ npm run operator:revoke -- someone@example.com --actor=me@molarmolar.example --f
   `useHospital(hospitalId)` 를 불러 N+1 조회가 됩니다. TanStack Query 가 중복 제거하므로
   현재 페이지 크기(20)에서는 견딜 만하지만, 근본 해결은 `GET /hospitals` 의 ids 배치 필터나
   `Doctor` 에 `hospitalName`/`consultAvailable` 추가입니다 — 계약 변경이라 다음 조각
-- **시술→전공 매핑이 프론트·백엔드 양쪽에 있습니다** — `PROCEDURE_SPECIALTY_MAP` 을
-  `backend/src/doctor/specialty-procedures.ts` 로 옮겼지만, `frontend/src/utils/specialty.ts`
-  에도 사본이 남아 있습니다(`HospitalExploreCard` 가 시술 카테고리와 병원 대표 전공이
-  맞는지 판단하는 데 씁니다). 근본 해결은 서버가 그 판정을 응답에 담는 것(예:
-  `matchesRequestedProcedure`) — 계약 변경이라 다음 조각
+- **시술→전공 매핑이 프론트·백엔드 양쪽에 있습니다** — 원본은
+  `backend/src/doctor/specialty-procedures.ts` 의 `PROCEDURE_SPECIALTIES`(31행)이고,
+  `frontend/src/utils/specialty.ts` 의 `CATEGORY_SPECIALTIES`(분야 → 강조 전공)는 그
+  **합집합**입니다. 사본을 남긴 이유는 배지가 카드의 첫 프레임에 필요해 네트워크를
+  기다릴 수 없기 때문이고(두 파일 머리말), **두 표가 갈리지 않는 것은 프론트의 동기화
+  테스트가 고정합니다** — `frontend/src/features/procedure/taxonomy.sync.test.ts` 가
+  분야별 합집합과 31개 키 집합을 단정합니다(요청 14 에서 추가됐습니다). 그래서 이
+  파일은 **import 가 0 이어야 합니다** — 프론트 쪽 해석기가 상대 경로로 읽습니다
 - **`POST /hospitals` 는 쓰기 금지 필드를 조용히 버립니다** (Task 21 QA 에서 발견).
   `PATCH` 는 원본 본문을 따로 받아 `422 FIELD_NOT_WRITABLE` 로 거절하는데, `POST` 는
   `assertWritableHospitalFields` 를 부르지 않아 광고·집계 필드를 보내도 `201` 이 나갑니다.
@@ -349,7 +359,7 @@ npm run operator:revoke -- someone@example.com --actor=me@molarmolar.example --f
   드러나지 않습니다. ② 신규 전문의의 `photo` 가 빈 문자열이 됩니다(`doctor.write.ts`).
   폼에 사진 칸이 없어 항상 빈 값이고 화면은 `StockImage` 폴백으로 버팁니다
 - **미래 `SEED_TODAY` 로 돌리면 테스트 1건이 실패합니다** — `SEED_TODAY=2027-03-01
-  npm run test:run` 은 316/317 입니다. 실패하는 것은
+  npm run test:run` 에서 1건이 실패하고 나머지는 전부 통과합니다. 실패하는 것은
   `test/signup-agreements.e2e.spec.ts` 의 "약관 3종이 유효한 상태" 로,
   `legal_documents.effective_at` 이 `SEED_TODAY - 1일`(= 미래)이 되어 **실제 시계로는
   아직 시행 전**이기 때문입니다. 테스트의 결함이 아니라 사실입니다 — 그 DB 로 서버를
@@ -360,6 +370,33 @@ npm run operator:revoke -- someone@example.com --actor=me@molarmolar.example --f
   `prisma/seed/data/hospitals.ts` 는 `@/config/stockImages` 별칭을 쓰고 그 별칭은 시드
   전용 tsconfig 에만 있어서, vitest 에서 import 할 수 없습니다. 값이 갈라지면
   `test/seed-data.spec.ts` 가 실제 DB 행(5행이 전부 기준일을 포함)으로 잡습니다
+
+요청 14(시술 분류)에서 의도적으로 만들지 않은 것들입니다. 근거는 `docs/api/README.md` §22.9 에 있습니다.
+
+- **`GET /procedure-categories` 가 없습니다** — 분야의 이름·설명·순서를 서버에서 받아야 하는
+  화면이 없습니다(홈 격자·탐색 탭·관리자 폼은 첫 프레임에 9개를 그려야 해서 번들 상수를 씁니다).
+  **다시 볼 조건:** 분야를 운영자가 편집하는 화면이 생기는 날 — 그때 읽기·쓰기를 함께 설계합니다
+- **`Procedure.hospitalCount` 를 내려주지 않습니다** — 화면은 "0인가 아닌가" 만 씁니다.
+  숫자가 필요해지면 `countPublicHospitalsByProcedure()` 의 같은 집계에서 바로 더하면 됩니다
+- **서버가 `procedureId`·`categoryId` 쿼리의 값 목록을 검증하지 않습니다** (`z.string().min(1)`).
+  계약(`openapi.yaml`)은 enum 을 적어 두었지만 **일부러 맞추지 않았습니다** — 폐기된 옛 id 로
+  들어온 북마크가 `422` 가 아니라 빈 목록을 받는 쪽이 화면에 낫습니다 (계약 §22.6 에 같은 말이
+  적혀 있습니다). 요청 14 이전부터 그랬습니다
+- **분야 가용성을 서버가 계산하지 않습니다** — "분야 준비중 = 그 분야의 세부 시술이 전부
+  `isAvailable=false`" 이고, 유도는 **프런트 함수 하나**가 합니다 (계약 §22.4)
+- **`GET /hospitals` 는 조건에 맞는 행을 전부 읽고 메모리에서 페이징합니다** —
+  `HospitalRepository.findMany` 가 `skip`/`take` 없이 `HOSPITAL_INCLUDE`(자식 테이블 7종)를
+  통째로 읽고, `HospitalService.list` 가 투영·거리·배지 정제 후 `orderHospitals` 로 전역
+  재정렬한 다음 `paginate` 합니다. **광고 우선 노출이 전역 재정렬이라 DB 에서 자르면
+  적용할 수 없기 때문**이고(Task 6 의 판단), 요청 14 이전에는 프런트가 100행 상한을 걸어
+  이 비용이 드러나지 않았습니다. 요청 14 가 그 상한을 없애고 요청 17 이 공공데이터 병원을
+  일괄 적재하면 `?categoryId=` 가 **가장 넓은 조회**가 됩니다 — 분야 하나가 수백~수천 병원을
+  잡습니다. **다시 볼 조건:** 병원 수가 1000 을 크게 넘거나 `?categoryId=` 응답이 눈에 띄게
+  느려지는 날. **고칠 방향:** 광고 분할을 DB 쪽으로 옮깁니다 — 자격 있는 광고 병원을
+  `sponsoredRank` 순으로 먼저 조회하고, 나머지를 `orderBy` + `skip`/`take` 로 페이지 단위만
+  읽어 이어 붙이는 2단 쿼리입니다(총 개수는 `count`). 거리 필터와 `hasVerifiedSpecialist`
+  정제는 지금도 앱에서 하므로, 그 두 쿼리에는 bounding box 까지만 밀어 넣고 정밀 필터는
+  남는 구조가 됩니다
 
 ### 다음 조각
 
@@ -372,6 +409,59 @@ npm run operator:revoke -- someone@example.com --actor=me@molarmolar.example --f
 | 2 | 찜·상담접수·알림 (검수가 이미 만들고 있는 알림 행을 읽는 API 포함) |
 | 3 | 관리자 상담 처리 (`@HospitalScope({ resource: 'consultRequest' })` 는 이미 준비됨) |
 | 4 | 커뮤니티·콘텐츠·검색 (`frontend/src/mocks/db.ts` 의 남은 테이블 3개: `consultRequests`·`communityPosts`·`notifications`) |
+
+## 시술 분류 — 분야 9 · 세부 31 · `준비중` (요청 14)
+
+설계는 `docs/database/README.md` §17, 계약 판단은 `docs/api/README.md` §22 입니다.
+
+| | |
+|---|---|
+| 원본 | `prisma/seed/data/procedure-categories.ts`(9) · `prisma/seed/data/procedures.ts`(31). **두 파일은 import 가 0 입니다** — 프론트의 동기화 테스트가 상대 경로로 읽습니다 (§17.8) |
+| 테이블 | `procedure_categories`(9행) + `procedures.category_id`(NOT NULL, FK). 인덱스 추가는 없습니다(31행 테이블 — §17.10) |
+| 순서 | `procedures.sort_order` 는 **31개 통짜 순서(0~30)** 입니다. 분야 순서 × 분야 안 순서를 한 줄로 편 값이고, 배열 순서가 곧 `GET /procedures` 의 순서입니다 |
+| `준비중` | **컬럼이 아닙니다.** 요청마다 셉니다 — 공개 병원(`hospital/public-visibility.ts` 의 `publicHospitalWhere()`)이 1곳 이상 등록했으면 `isAvailable=true`. 판정은 순수 함수 `procedure/availability.ts` 입니다 |
+| 캐시 | `GET /procedures` 는 `Cache-Control: no-cache` + ETag 입니다(`max-age=3600` 폐기). 담당자가 시술을 체크·저장하면 값이 그 자리에서 바뀌어야 합니다 (계약 §22.5) |
+| 분야 필터 | `GET /hospitals`·`GET /doctors` 의 `categoryId`. `procedureId` 와 함께 오면 **AND**, 모르는 값은 `422` 가 아니라 **0건**입니다. 광고 우선 노출은 `procedureId`·`categoryId`·`recommended` 셋 다 켭니다 |
+| 로스터 자동 배정 | 신규 전문의가 `procedureIds` 를 생략하면 **전공 시술 ∩ 병원 시술** 입니다 (`일반의` 는 그 교집합이 전체라 전과 같습니다 — 계약 §22.8) |
+
+### 옛 id 6개는 서버가 받지 않습니다
+
+`implant→implant-general` · `orthodontics→bracket-braces` · `cavity→resin` ·
+`gum-disease→gum-treatment` · `tmj→tmj-treatment` · `botox→bruxism-botox`.
+쓰기는 `422 VALIDATION_FAILED(unknown_procedure)`, 목록 필터는 0건입니다. 이미 발급된
+주소·브라우저 저장소의 옛 값은 **화면의 별칭 표**(`frontend/src/features/procedure/taxonomy.ts`)
+하나가 풉니다 — 저장되는 값이 둘이 되면 안 되기 때문입니다 (§17.5).
+
+### 마이그레이션 `20261021082350_procedure_categories_and_31_procedures`
+
+한 파일 8단계입니다: ① 분야 테이블 ② 분야 9행 ③ `category_id` 를 nullable 로 추가
+④ 기존 13행 백필 ⑤ id 가 바뀌는 6행을 **복제**(`INSERT … SELECT`) ⑥ 자식 8개 테이블
+재지정(결정적 id `hp-`·`dp-`·`sp-` 는 id 도 함께 — 재시드가 중복을 만들지 않게)
+⑦ 옛 6행 삭제 ⑧ `NOT NULL` + FK 로 테이블 재작성.
+
+- **PK 를 `UPDATE` 하지 않습니다.** FK 8개가 `ON UPDATE CASCADE` 지만 그 동작은
+  `PRAGMA foreign_keys` 상태에 달려 있습니다. 삽입 → 재지정 → 삭제는 pragma 와 무관하게
+  같은 결과입니다
+- **⑥ 이 ⑦ 보다 먼저여야 합니다.** `consult_requests.procedure_id` 는 `ON DELETE SET NULL`
+  이라 순서가 뒤집히면 '희망 시술' 이 조용히 비워집니다
+- **새 18행은 마이그레이션이 아니라 시드가 넣습니다.** 그래서 빈 DB 에서는 ③~⑦ 이 0행에
+  영향을 주고 끝납니다 (빈 DB 경로는 테스트 DB 가 매 실행마다 검증합니다)
+- 보존 단정은 `test/procedure-migration.spec.ts` 가 임시 DB 에 **직전 마이그레이션까지만**
+  적용 → 옛 id 행 삽입 → 이 마이그레이션 적용 순으로 고정합니다
+
+개발 DB 적용 결과(전/후): `procedures` 13→31, `procedure_categories` 0→9,
+`hospital_procedures` 26→26, `hospital_sponsorships` 5→5, `doctor_procedures` 25→25,
+`consult_requests` 7→7(`procedure_id IS NULL` 0→0), `reviews` 5, `guides` 8,
+`promotions` 4, `qa_posts` 4 — 전부 그대로입니다.
+
+### 시드가 스케일링을 넣지 않습니다
+
+요청서 14 의 확인 항목이 "관리자에서 스케일링을 체크·저장하면 준비중이 아니게 된다"
+이고 다른 항목이 "기존 병원들의 시술 표시가 작업 전과 같다" 입니다. 시드가 미리 넣으면
+**첫 항목을 확인할 수 없고 둘째 항목이 깨집니다** (§17.7). 그래서 시드 직후
+스케일링·예방 분야 4종은 전부 `준비중` 입니다.
+
+---
 
 ## 개발용 계정
 

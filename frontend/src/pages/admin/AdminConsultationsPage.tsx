@@ -33,7 +33,7 @@ import {
   isConsultDraftDirty,
   type ConsultStatusDraft,
 } from '@/features/consult/components/AdminConsultStatusForm';
-import { getLegacyIdsOf, isCategoryId, type CategoryId } from '@/features/procedure';
+import { getSubProcedureIdsOf, isCategoryId, type CategoryId } from '@/features/procedure';
 import { useRovingTabs } from '@/hooks/useRovingTabs';
 import { isApiError } from '@/lib/apiClient';
 import { CONSULT_STATUSES, CONSULT_STATUS_LABEL, type ConsultStatus } from '@/types/domain';
@@ -177,8 +177,9 @@ export default function AdminConsultationsPage() {
     period: period === 'all' ? undefined : (period as ConsultPeriod),
     // **선택한 담당 병원 범위다.** 운영자는 선택 병원이 없어 전 병원을 그대로 본다.
     hospitalId: hospitalId ?? undefined,
-    // 화면의 칩은 9개 대분류지만 서버가 아는 것은 시술 id 다 — 전개는 taxonomy 의 몫이다.
-    procedureId: category ? getLegacyIdsOf(category) : undefined,
+    // 화면의 칸은 9개 분야지만 이 오퍼레이션은 분야 조건을 받지 않는다 (계약 §22.9) —
+    // 그 분야의 시술 id 를 전부 보내 OR 로 거른다. 전개는 taxonomy 의 몫이다.
+    procedureId: category ? getSubProcedureIdsOf(category) : undefined,
     q: q || undefined,
   });
   const detail = useConsultRequest(selectedId);

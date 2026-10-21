@@ -17,7 +17,8 @@ export class HospitalRepository {
   /**
    * 필터에 맞는 병원을 **전부** 읽는다. `skip`/`take` 를 쓰지 않는 이유는
    * 광고 우선 노출이 전역 재정렬이라 페이징 후에 적용할 수 없기 때문이다
-   * (계획 Task 6 의 판단 절 참고). 병원 수가 수천이 되면 이 구조를 바꿔야 한다.
+   * (계획 Task 6 의 판단 절 참고). 병원 수가 수천이 되면 이 구조를 바꿔야 한다 —
+   * 다시 볼 조건과 고칠 방향은 `backend/README.md` 의 "미룬 것들" 에 적어 두었다.
    */
   async findMany(where: Prisma.HospitalWhereInput): Promise<HospitalRow[]> {
     return this.prisma.hospital.findMany({
@@ -27,6 +28,13 @@ export class HospitalRepository {
     }) as unknown as Promise<HospitalRow[]>;
   }
 
+  /**
+   * id 단건 조회. 여기의 `{ deletedAt: null }` 은 **`publicHospitalWhere()` 와 다른 규칙**이라
+   * 일부러 그 함수를 쓰지 않는다 — 이 메서드는 공개 상세뿐 아니라 `POST`·`PATCH /hospitals` 가
+   * 쓰기 직후 응답을 만들 때도 쓴다(`HospitalService.create`/`update` → `getById`). 노출 조건이
+   * 하나 늘어나는 날(요청 18 의 `approvalStatus`) 공개 함수를 여기 끼우면 운영자가 방금 만든
+   * 병원이 `404` 로 돌아온다. 그날 갈라야 할 것은 이 조회가 아니라 **공개 상세 경로**다.
+   */
   async findById(id: string): Promise<HospitalRow | null> {
     return this.prisma.hospital.findFirst({
       where: { id, deletedAt: null },

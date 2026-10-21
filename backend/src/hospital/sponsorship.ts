@@ -32,10 +32,16 @@ export interface ComputeSponsorshipOptions {
   /** `Asia/Seoul` 기준 오늘 (`YYYY-MM-DD`). */
   today: string;
   /**
-   * 시술 칩으로 좁힌 경우의 시술 id. `추천` 탭이나 필터 없음이면 넘기지 않는다.
-   * 넘기지 않으면 카테고리 일치 검사를 하지 않는다 (계약 규칙 2).
+   * 이 요청이 좁힌 **시술 id 집합**. 세부 시술 칩이면 원소 1개, 분야 탭이면 그 분야의
+   * 시술 전부다 (2026-10-21 요청 14 — 전에는 `procedureId?: string` 하나였다).
+   * `추천` 탭이나 필터 없음이면 넘기지 않는다 — 넘기지 않으면 카테고리 일치 검사를
+   * 하지 않는다 (계약 규칙 2·4).
+   *
+   * **분야용 판정 함수를 따로 만들지 않는다.** 원소 1개짜리 집합이 지금까지의 동작과
+   * 완전히 같으므로, 규칙은 이 함수 하나에 남는다 (AGENTS.md — 같은 판정을 두 곳에
+   * 두지 않는다).
    */
-  procedureId?: string;
+  procedureIds?: string[];
 }
 
 export function computeSponsorship(
@@ -54,8 +60,9 @@ export function computeSponsorship(
   }
 
   const ratingOk = input.rating >= MIN_SPONSORED_RATING;
+  const requested = options.procedureIds;
   const categoryOk =
-    options.procedureId === undefined || input.sponsoredCategories.includes(options.procedureId);
+    requested === undefined || input.sponsoredCategories.some((id) => requested.includes(id));
 
   return { isActive: true, isPlacementEligible: ratingOk && categoryOk };
 }

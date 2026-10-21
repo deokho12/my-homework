@@ -3,23 +3,23 @@ import { describe, expect, it } from 'vitest';
 import {
   CATEGORIES,
   CATEGORY_IDS,
-  LEGACY_TO_SUB,
+  LEGACY_PROCEDURE_ID_ALIASES,
   SUB_PROCEDURES,
   SUB_PROCEDURE_IDS,
   categoryPath,
-  categoryPathForLegacy,
-  displayNameForLegacy,
+  categoryPathForProcedure,
+  procedureDisplayName,
+  findSubProcedure,
   getCategory,
-  getLegacyIdsOf,
-  getSubProcedure,
+  getSubProcedureIdsOf,
   getSubProceduresOf,
-  groupLegacyIdsByCategory,
+  groupProcedureIdsByCategory,
   isCategoryId,
   isProcedureId,
   isSubProcedureId,
+  resolveLegacyProcedureId,
   searchTaxonomy,
   searchTaxonomyAll,
-  subFromLegacy,
 } from '@/features/procedure/taxonomy';
 import { procedures } from '@/mocks/fixtures/procedures';
 import { CATEGORY_ICONS } from '@/utils/procedureIcons';
@@ -68,47 +68,59 @@ describe('분류 데이터의 모양', () => {
   });
 });
 
-describe('서버 시술 13종과의 연결', () => {
-  it('LEGACY_TO_SUB 는 13개이고 세부 시술의 legacyProcedureId 와 양방향으로 맞는다', () => {
-    const entries = Object.entries(LEGACY_TO_SUB);
-    expect(entries).toHaveLength(13);
-
-    for (const [legacyId, subId] of entries) {
-      expect(isSubProcedureId(subId)).toBe(true);
-      expect(getSubProcedure(subId).legacyProcedureId).toBe(legacyId);
-    }
-
-    // 반대 방향: legacyProcedureId 가 있는 세부는 전부 표에 등장한다.
-    const linked = SUB_PROCEDURES.filter((s) => s.legacyProcedureId !== null);
-    expect(linked).toHaveLength(13);
-    for (const sub of linked) {
-      const legacyId = sub.legacyProcedureId;
-      if (legacyId === null) continue;
-      expect(LEGACY_TO_SUB[legacyId]).toBe(sub.id);
-    }
-  });
-
-  it('같은 서버 id 를 두 세부 시술이 나눠 갖지 않는다', () => {
-    const used = SUB_PROCEDURES.map((s) => s.legacyProcedureId).filter((id) => id !== null);
-    expect(new Set(used).size).toBe(used.length);
-  });
-
+describe('서버가 아는 시술 집합', () => {
   /**
-   * `mocks/fixtures/procedures.ts` 는 백엔드 seed 가 import 하는 파일이다
-   * (`backend/prisma/seed/fixtures.ts`). 서버 시술 목록이 늘거나 줄면 이 단언이 먼저 깨져서,
-   * 분류 표를 손보지 않은 채 배포되는 일을 막는다. **읽기만 한다 — fixture 는 수정하지 않는다.**
+   * `mocks/fixtures/procedures.ts` 는 `GET /procedures` 응답의 목이다 — 서버 원본과의
+   * 동기화는 `taxonomy.sync.test.ts` 가 본다.
    */
-  it('서버 시술 집합(fixture)과 LEGACY_TO_SUB 의 키 집합이 같다', () => {
-    expect(new Set(Object.keys(LEGACY_TO_SUB))).toEqual(new Set(procedures.map((p) => p.id)));
+  it('목 응답의 id 순서가 세부 시술 31개와 같다', () => {
+    expect(procedures.map((p) => p.id)).toEqual([...SUB_PROCEDURE_IDS]);
   });
 
-  it('isProcedureId 는 서버 13종만 통과시킨다', () => {
+  it('isProcedureId 는 세부 시술 31개만 통과시킨다 (= isSubProcedureId)', () => {
     expect(isProcedureId('crown')).toBe(true);
-    expect(isProcedureId('gum-disease')).toBe(true);
-    // 세부 시술 id 지 서버 id 가 아니다.
-    expect(isProcedureId('root-canal')).toBe(false);
+    expect(isProcedureId('root-canal')).toBe(true);
+    // 요청 14 에서 사라진 옛 서버 id. 서버로 보내면 422 다.
+    expect(isProcedureId('gum-disease')).toBe(false);
     expect(isProcedureId('bogus')).toBe(false);
     expect(isProcedureId(undefined)).toBe(false);
+
+    for (const id of SUB_PROCEDURE_IDS) {
+      expect(isProcedureId(id)).toBe(isSubProcedureId(id));
+    }
+  });
+});
+
+describe('옛 id 별칭 표', () => {
+  it('2026-10-21 이전의 서버 시술 13종이 전부 들어 있다', () => {
+    expect(Object.keys(LEGACY_PROCEDURE_ID_ALIASES)).toHaveLength(13);
+  });
+
+  it('별칭의 목적지가 전부 실재하는 세부 시술이다', () => {
+    for (const subId of Object.values(LEGACY_PROCEDURE_ID_ALIASES)) {
+      expect(isSubProcedureId(subId)).toBe(true);
+    }
+  });
+
+  it('이름이 바뀐 6개를 푼다', () => {
+    expect(resolveLegacyProcedureId('implant')).toBe('implant-general');
+    expect(resolveLegacyProcedureId('orthodontics')).toBe('bracket-braces');
+    expect(resolveLegacyProcedureId('cavity')).toBe('resin');
+    expect(resolveLegacyProcedureId('gum-disease')).toBe('gum-treatment');
+    expect(resolveLegacyProcedureId('tmj')).toBe('tmj-treatment');
+    expect(resolveLegacyProcedureId('botox')).toBe('bruxism-botox');
+  });
+
+  it('지금 id 는 그대로 통과한다', () => {
+    for (const id of SUB_PROCEDURE_IDS) {
+      expect(resolveLegacyProcedureId(id)).toBe(id);
+    }
+  });
+
+  it('모르는 값과 빈 값은 null', () => {
+    expect(resolveLegacyProcedureId('zirconia-bridge')).toBeNull();
+    expect(resolveLegacyProcedureId(undefined)).toBeNull();
+    expect(resolveLegacyProcedureId(null)).toBeNull();
   });
 });
 
@@ -122,37 +134,36 @@ describe('키 집합이 갈라지지 않는다', () => {
   });
 });
 
-describe('getLegacyIdsOf', () => {
-  it('세부가 전부 준비중인 대분류는 빈 배열', () => {
-    expect(getLegacyIdsOf('prevention')).toEqual([]);
+describe('getSubProcedureIdsOf', () => {
+  it('세부 선언 순서를 그대로 준다 — 준비중도 빠지지 않는다', () => {
+    expect(getSubProcedureIdsOf('cavity')).toEqual(['resin', 'inlay', 'onlay', 'crown', 'root-canal']);
+    expect(getSubProcedureIdsOf('prevention')).toEqual(['scaling', 'fluoride', 'sealant', 'halitosis']);
   });
 
-  it('세부 선언 순서를 유지하고 준비중은 뺀다', () => {
-    // 레진·인레이·[온레이 준비중]·크라운·[신경치료 준비중]
-    expect(getLegacyIdsOf('cavity')).toEqual(['cavity', 'inlay', 'crown']);
-  });
-
-  it('서버 id 가 하나뿐인 대분류', () => {
-    expect(getLegacyIdsOf('gum')).toEqual(['gum-disease']);
-    expect(getLegacyIdsOf('implant')).toEqual(['implant']);
+  it('모든 분야의 합이 31개이고 중복이 없다', () => {
+    const all = CATEGORY_IDS.flatMap((id) => getSubProcedureIdsOf(id));
+    expect(all).toHaveLength(31);
+    expect(new Set(all).size).toBe(31);
   });
 });
 
-describe('역매핑', () => {
-  it('subFromLegacy / displayNameForLegacy 는 세부 시술 이름을 준다', () => {
-    expect(subFromLegacy('cavity')?.id).toBe('resin');
-    expect(displayNameForLegacy('cavity')).toBe('레진');
-    expect(displayNameForLegacy('orthodontics')).toBe('일반(브라켓)교정');
-    expect(displayNameForLegacy('botox')).toBe('이갈이 보톡스');
+describe('id → 세부 시술', () => {
+  it('findSubProcedure / procedureDisplayName 는 세부 시술 이름을 준다', () => {
+    expect(findSubProcedure('resin')?.id).toBe('resin');
+    expect(procedureDisplayName('resin')).toBe('레진');
+    expect(procedureDisplayName('bracket-braces')).toBe('일반(브라켓)교정');
+    expect(procedureDisplayName('bruxism-botox')).toBe('이갈이 보톡스');
   });
 
-  it('모르는 서버 id 는 null (배지를 건너뛴다)', () => {
-    expect(subFromLegacy('zirconia-bridge')).toBeNull();
-    expect(displayNameForLegacy('zirconia-bridge')).toBeNull();
+  it('모르는 id 와 옛 id 는 null — 호출부가 배지를 건너뛴다', () => {
+    expect(findSubProcedure('zirconia-bridge')).toBeNull();
+    expect(procedureDisplayName('zirconia-bridge')).toBeNull();
+    // 옛 id 는 여기서 풀지 않는다 — 경계에서 `resolveLegacyProcedureId` 가 푼다.
+    expect(procedureDisplayName('gum-disease')).toBeNull();
   });
 
-  it('groupLegacyIdsByCategory 는 대분류 선언 순서로 묶는다', () => {
-    const groups = groupLegacyIdsByCategory(['botox', 'implant', 'laminate']);
+  it('groupProcedureIdsByCategory 는 대분류 선언 순서로 묶는다', () => {
+    const groups = groupProcedureIdsByCategory(['bruxism-botox', 'implant-general', 'laminate']);
     expect(groups.map((g) => g.category.id)).toEqual(['implant', 'aesthetic', 'botox']);
     expect(groups.map((g) => g.subs.map((s) => s.id))).toEqual([
       ['implant-general'],
@@ -161,12 +172,12 @@ describe('역매핑', () => {
     ]);
   });
 
-  it('groupLegacyIdsByCategory 는 모르는 id 와 중복을 버리고 빈 그룹을 안 만든다', () => {
-    const groups = groupLegacyIdsByCategory(['crown', 'crown', 'inlay', 'zirconia-bridge']);
+  it('groupProcedureIdsByCategory 는 모르는 id 와 중복을 버리고 빈 그룹을 안 만든다', () => {
+    const groups = groupProcedureIdsByCategory(['crown', 'crown', 'inlay', 'zirconia-bridge']);
     expect(groups).toHaveLength(1);
     expect(groups[0].category.id).toBe('cavity');
     expect(groups[0].subs.map((s) => s.id)).toEqual(['inlay', 'crown']);
-    expect(groupLegacyIdsByCategory([])).toEqual([]);
+    expect(groupProcedureIdsByCategory([])).toEqual([]);
   });
 });
 
@@ -181,15 +192,15 @@ describe('categoryPath', () => {
   });
 });
 
-describe('categoryPathForLegacy', () => {
-  it('서버 시술 id 는 그 세부 시술이 선택된 카테고리 경로가 된다', () => {
-    expect(categoryPathForLegacy('crown')).toBe('/category/cavity?sub=crown');
-    expect(categoryPathForLegacy('implant')).toBe('/category/implant?sub=implant-general');
-    expect(categoryPathForLegacy('gum-disease')).toBe('/category/gum?sub=gum-treatment');
+describe('categoryPathForProcedure', () => {
+  it('시술 id 는 그 세부 시술이 선택된 카테고리 경로가 된다', () => {
+    expect(categoryPathForProcedure('crown')).toBe('/category/cavity?sub=crown');
+    expect(categoryPathForProcedure('implant-general')).toBe('/category/implant?sub=implant-general');
+    expect(categoryPathForProcedure('gum-treatment')).toBe('/category/gum?sub=gum-treatment');
   });
 
   it('모르는 id 는 null — 호출부가 대체 목적지를 정한다', () => {
-    expect(categoryPathForLegacy('nope')).toBeNull();
+    expect(categoryPathForProcedure('nope')).toBeNull();
   });
 });
 
@@ -214,11 +225,12 @@ describe('searchTaxonomy', () => {
     expect(searchTaxonomy('엔도')?.category.id).toBe('cavity');
   });
 
-  it('서버 id 가 있는 세부가 준비중 세부보다 먼저다', () => {
-    // '이갈이' 는 이갈이장치(준비중)와 이갈이 보톡스(서버 id 있음) 양쪽에 걸린다.
+  it('세부끼리는 선언 순서다 — 준비중 여부는 여기서 보지 않는다', () => {
+    // '이갈이' 는 이갈이장치(tmj)와 이갈이 보톡스(botox) 양쪽에 걸린다. 가용성으로 다시
+    // 줄 세우는 것은 검색 추천의 몫이다 (`features/search/suggest.ts`).
     const match = searchTaxonomy('이갈이');
-    expect(match?.category.id).toBe('botox');
-    expect(match?.sub?.id).toBe('bruxism-botox');
+    expect(match?.category.id).toBe('tmj');
+    expect(match?.sub?.id).toBe('bruxism-device');
   });
 
   it('병원 이름은 카테고리에 납치되지 않는다', () => {
@@ -271,14 +283,14 @@ describe('searchTaxonomyAll', () => {
     expect(searchTaxonomyAll('때우기')[0].sub?.id).toBe('resin');
   });
 
-  it('대분류가 세부보다 먼저, 서버 시술이 있는 세부가 준비중 세부보다 먼저', () => {
+  it('대분류가 세부보다 먼저, 세부끼리는 선언 순서', () => {
     const matches = searchTaxonomyAll('교정');
     expect(matches[0].sub).toBeNull();
     expect(matches[0].category.id).toBe('orthodontics');
-    expect(matches[1].sub?.id).toBe('bracket-braces');
-    expect(matches.slice(2).map((match) => match.sub?.id)).toEqual([
+    expect(matches.slice(1).map((match) => match.sub?.id)).toEqual([
       'clear-aligner',
       'lingual-braces',
+      'bracket-braces',
       'partial-ortho',
     ]);
   });

@@ -27,9 +27,18 @@ describe('isSpecialtyForCategory', () => {
     expect(isSpecialtyForCategory('cavity', '치과보철전문의')).toBe(true);
   });
 
-  it('임플란트는 구강악안면외과만 인정한다', () => {
-    expect(isSpecialtyForCategory('implant', '치과보철전문의')).toBe(false);
+  it('임플란트는 보철과 외과를 **둘 다** 인정한다 (식립과 상부 구조가 한 분야에 있다)', () => {
+    expect(isSpecialtyForCategory('implant', '치과보철전문의')).toBe(true);
     expect(isSpecialtyForCategory('implant', '구강악안면외과전문의')).toBe(true);
+    expect(isSpecialtyForCategory('implant', '치과교정전문의')).toBe(false);
+  });
+
+  it('스케일링·예방은 소아치과도 인정한다 (불소도포·실란트)', () => {
+    expect(isSpecialtyForCategory('prevention', '소아치과전문의')).toBe(true);
+  });
+
+  it('심미는 치주과도 인정한다 (잇몸성형)', () => {
+    expect(isSpecialtyForCategory('aesthetic', '치주과전문의')).toBe(true);
   });
 
   it('일반의는 어느 대분류에서도 강조되지 않는다', () => {

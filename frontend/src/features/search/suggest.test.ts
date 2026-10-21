@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { effectiveSubProcedure } from '@/features/procedure/lib/resolveCategoryFilter';
+import { buildProcedureAvailability } from '@/features/procedure/availability';
+import { SUB_PROCEDURE_IDS } from '@/features/procedure/taxonomy';
 import {
   buildDoctorSuggestions,
   buildHospitalSuggestions,
@@ -27,7 +28,7 @@ function hospital(overrides: Partial<Hospital> = {}): Hospital {
     longitude: 127,
     thumbnail: '',
     images: [],
-    procedureIds: ['implant'],
+    procedureIds: ['implant-general'],
     priceRange: { min: 0, max: 0 },
     rating: 4.8,
     reviewCount: 1,
@@ -87,9 +88,33 @@ function groupsOf(partial: Partial<SuggestionGroups>): SuggestionGroups {
   return { procedures: [], hospitals: [], doctors: [], ...partial };
 }
 
+/**
+ * `GET /procedures` 가 내려준 가용성. 인자로 준 id 만 열려 있고 나머지는 준비중이다 —
+ * `준비중` 은 서버가 센 값이라 테스트가 직접 쥔다.
+ */
+function availabilityWith(availableIds: readonly string[]) {
+  return buildProcedureAvailability(
+    SUB_PROCEDURE_IDS.map((id) => ({
+      id,
+      name: id,
+      emoji: '',
+      shortDescription: '',
+      description: '',
+      categoryId: 'cavity',
+      isAvailable: availableIds.includes(id),
+    }))
+  );
+}
+
+/** 31개 전부 열린 상태. "준비중" 을 보지 않는 단언들이 쓴다. */
+const ALL_AVAILABLE = availabilityWith(SUB_PROCEDURE_IDS);
+
+/** 아직 `GET /procedures` 가 오지 않은 상태 — 아무것도 준비중이 아니다. */
+const UNKNOWN_AVAILABILITY = buildProcedureAvailability(undefined);
+
 describe('시술 그룹', () => {
   it('"인레" → 인레이, 보조줄은 "충치치료 › 인레이"', () => {
-    const [first] = buildProcedureSuggestions('인레');
+    const [first] = buildProcedureSuggestions('인레', ALL_AVAILABLE);
 
     expect(first.title).toBe('인레이');
     expect(first.subtitle).toBe('충치치료 › 인레이');
@@ -97,29 +122,33 @@ describe('시술 그룹', () => {
   });
 
   it('동의어로 걸리면 왜 떴는지 보조줄 끝에 적는다', () => {
-    expect(buildProcedureSuggestions('금니')[0]).toMatchObject({
+    expect(buildProcedureSuggestions('금니', ALL_AVAILABLE)[0]).toMatchObject({
       title: '크라운',
       subtitle: '충치치료 › 크라운 · ‘금니’ 로 찾았어요',
     });
-    expect(buildProcedureSuggestions('때우기')[0]).toMatchObject({ title: '레진' });
+    expect(buildProcedureSuggestions('때우기', ALL_AVAILABLE)[0]).toMatchObject({ title: '레진' });
   });
 
   it('대분류 매치는 "분야 전체"', () => {
-    expect(buildProcedureSuggestions('교정')[0]).toMatchObject({
+    expect(buildProcedureSuggestions('교정', ALL_AVAILABLE)[0]).toMatchObject({
       title: '교정',
       subtitle: '교정 분야 전체',
       comingSoon: false,
     });
   });
 
-  it('준비중 세부는 눌렀을 때 열릴 화면을 미리 말한다', () => {
-    const [first] = buildProcedureSuggestions('신경치료');
+  it('준비중 세부도 그 세부로 열린다 — 목적지의 빈 상태와 같은 말을 한다', () => {
+    const [first] = buildProcedureSuggestions('신경치료', availabilityWith([]));
 
-    expect(first).toMatchObject({ title: '신경치료', subtitle: '충치치료 전체로 열려요', comingSoon: true });
+    expect(first).toMatchObject({
+      title: '신경치료',
+      subtitle: '충치치료 › 신경치료 · 등록된 병원이 아직 없어요',
+      comingSoon: true,
+    });
   });
 
   it('대분류 전체가 준비중이면 카테고리 화면의 빈 상태와 같은 말을 한다', () => {
-    const [first] = buildProcedureSuggestions('스케일링');
+    const [first] = buildProcedureSuggestions('스케일링', availabilityWith([]));
 
     expect(first).toMatchObject({
       title: '스케일링·예방',
@@ -128,16 +157,33 @@ describe('시술 그룹', () => {
     });
   });
 
+  it('준비중 줄은 뒤로 밀린다 — 결과가 나오는 쪽이 먼저다 (Enter 목적지이기도 하다)', () => {
+    // '이갈이' 는 이갈이장치(tmj, 선언 순서가 앞)와 이갈이 보톡스(botox) 양쪽에 걸린다.
+    const soon = buildProcedureSuggestions('이갈이', availabilityWith(['bruxism-botox']));
+
+    expect(soon[0]).toMatchObject({ title: '이갈이 보톡스', comingSoon: false });
+    expect(soon[1]).toMatchObject({ title: '이갈이장치', comingSoon: true });
+  });
+
+  it('가용성을 아직 모르면(로딩·실패) 아무것도 준비중이 아니고 분류 순서 그대로다', () => {
+    const unknown = buildProcedureSuggestions('이갈이', UNKNOWN_AVAILABILITY);
+
+    expect(unknown.map((item) => item.title)).toEqual(['이갈이장치', '이갈이 보톡스']);
+    expect(unknown.every((item) => !item.comingSoon)).toBe(true);
+  });
+
   it('그룹당 3개까지만 만든다', () => {
-    expect(buildProcedureSuggestions('교정')).toHaveLength(3);
+    expect(buildProcedureSuggestions('교정', ALL_AVAILABLE)).toHaveLength(3);
   });
 });
 
 describe('suggestionHref', () => {
   it('시술은 categoryPath 한 함수로만 만든다 — 준비중 세부도 ?sub= 를 붙인다', () => {
-    expect(suggestionHref(buildProcedureSuggestions('인레')[0])).toBe('/category/cavity?sub=inlay');
-    expect(suggestionHref(buildProcedureSuggestions('신경치료')[0])).toBe('/category/cavity?sub=root-canal');
-    expect(suggestionHref(buildProcedureSuggestions('교정')[0])).toBe('/category/orthodontics');
+    expect(suggestionHref(buildProcedureSuggestions('인레', ALL_AVAILABLE)[0])).toBe('/category/cavity?sub=inlay');
+    expect(suggestionHref(buildProcedureSuggestions('신경치료', ALL_AVAILABLE)[0])).toBe(
+      '/category/cavity?sub=root-canal'
+    );
+    expect(suggestionHref(buildProcedureSuggestions('교정', ALL_AVAILABLE)[0])).toBe('/category/orthodontics');
   });
 
   it('병원은 병원 상세, 원장님은 전문의 상세', () => {
@@ -183,7 +229,7 @@ describe('mergeSuggestions', () => {
 describe('병원 행', () => {
   it('지역 · 시술 이름 2개까지', () => {
     const [suggestion] = buildHospitalSuggestions(
-      [{ item: hospital({ procedureIds: ['implant', 'crown', 'inlay'] }), matchedBy: 'name' }],
+      [{ item: hospital({ procedureIds: ['implant-general', 'crown', 'inlay'] }), matchedBy: 'name' }],
       null
     );
 
@@ -192,7 +238,7 @@ describe('병원 행', () => {
 
   it('시술로 걸린 병원은 걸린 시술을 맨 앞에 둔다 — 왜 여기 있는지가 먼저 읽힌다', () => {
     const [suggestion] = buildHospitalSuggestions(
-      [{ item: hospital({ procedureIds: ['implant', 'crown', 'inlay'] }), matchedBy: 'procedure' }],
+      [{ item: hospital({ procedureIds: ['implant-general', 'crown', 'inlay'] }), matchedBy: 'procedure' }],
       new Set(['inlay'])
     );
 
@@ -234,7 +280,7 @@ describe('원장님 행', () => {
 
 describe('firstSuggestion', () => {
   it('시술 > 병원 > 원장님 순서', () => {
-    const procedures = buildProcedureSuggestions('인레');
+    const procedures = buildProcedureSuggestions('인레', ALL_AVAILABLE);
     const hospitals = buildHospitalSuggestions([{ item: hospital(), matchedBy: 'name' }], null);
     const doctors = buildDoctorSuggestions([{ item: doctor(), matchedBy: 'name' }]);
 
@@ -253,7 +299,8 @@ describe('buildSuggestions', () => {
       hospitalsByProcedure: [hospital({ procedureIds: ['inlay'] })],
       doctorsByName: [doctor()],
       doctorsByProcedure: [doctor()],
-      matchedLegacyIds: new Set(['inlay']),
+      matchedProcedureIds: new Set(['inlay']),
+      availability: ALL_AVAILABLE,
     });
 
     expect(groups.procedures.map((item) => item.title)).toEqual(['인레이']);
@@ -295,14 +342,6 @@ describe('직함이 붙은 전문의 검색어', () => {
     const other = doctor({ id: 'd2', name: '김민준서' });
 
     expect(filterDoctorsByNamePrefix('김민준 원장', [matched, other]).map((item) => item.id)).toEqual(['d1']);
-  });
-});
-
-describe('effectiveSubProcedure (카테고리 화면과 공유)', () => {
-  it('준비중 세부는 대분류 전체로 되돌린다', () => {
-    expect(effectiveSubProcedure('root-canal')).toBeNull();
-    expect(effectiveSubProcedure('inlay')).toBe('inlay');
-    expect(effectiveSubProcedure(null)).toBeNull();
   });
 });
 

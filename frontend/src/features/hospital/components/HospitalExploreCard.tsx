@@ -4,7 +4,7 @@ import { Pressable, Text, View, type StyleProp, type ViewStyle } from '@/primiti
 import { Badge } from '@/components/Badge';
 import { StockImage } from '@/components/StockImage';
 import { FavoriteHeartButton } from '@/features/favorite';
-import { displayNameForLegacy } from '@/features/procedure';
+import { procedureDisplayName } from '@/features/procedure';
 import type { CategoryId } from '@/features/procedure/taxonomy';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 import type { Hospital } from '@/types/domain';
@@ -82,8 +82,8 @@ export function HospitalExploreCard({ hospital, activeCategory, userPoint = null
               />
             ) : null}
             {hospital.procedureIds.slice(0, 3).map((procedureId) => {
-              // 세부 시술 이름(`cavity` → "레진"). 모르는 id 는 배지를 건너뛴다.
-              const name = displayNameForLegacy(procedureId);
+              // 서버가 주는 id 가 곧 세부 시술 id 다(`resin` → "레진"). 모르는 id 는 배지를 건너뛴다.
+              const name = procedureDisplayName(procedureId);
               return name ? <Badge key={procedureId} label={name} /> : null;
             })}
           </View>

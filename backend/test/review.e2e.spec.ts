@@ -34,12 +34,12 @@ describe('GET /api/v1/hospitals/:hospitalId/reviews', () => {
   });
 
   it('procedureId 로 좁힌다', async () => {
-    const response = await request(app.getHttpServer()).get('/api/v1/hospitals/h1/reviews?procedureId=implant');
+    const response = await request(app.getHttpServer()).get('/api/v1/hospitals/h1/reviews?procedureId=implant-general');
 
-    // h1 + implant 는 시드에 정확히 1건 — 개수 단정이 없으면 `.every()` 가 빈 배열에서 공허하게 통과한다.
+    // h1 + implant-general 는 시드에 정확히 1건 — 개수 단정이 없으면 `.every()` 가 빈 배열에서 공허하게 통과한다.
     expect(response.body.items.length).toBe(1);
     expect(
-      response.body.items.every((item: { procedureId: string }) => item.procedureId === 'implant')
+      response.body.items.every((item: { procedureId: string }) => item.procedureId === 'implant-general')
     ).toBe(true);
   });
 

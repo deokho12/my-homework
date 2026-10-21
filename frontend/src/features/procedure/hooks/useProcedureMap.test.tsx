@@ -45,7 +45,7 @@ describe('useProcedureMap', () => {
     const { result } = renderHook(() => useProcedureMap(), { wrapper: queryWrapper });
 
     await waitFor(() => expect(result.current.size).toBeGreaterThan(0));
-    expect(result.current.get('implant')?.name).toBe('임플란트');
+    expect(result.current.get('implant-general')?.name).toBe('일반 임플란트');
   });
 });
 
@@ -70,8 +70,8 @@ describe('useProcedures', () => {
 });
 
 describe('community/new.tsx 의 하드코딩 기본값과의 결합', () => {
-  it("카탈로그 첫 항목은 'implant' 다 — `src/screens/community/new.tsx` 가 로딩 중 기본 선택값으로 " +
+  it("카탈로그 첫 항목은 'implant-general' 다 — `src/screens/community/new.tsx` 가 로딩 중 기본 선택값으로 " +
     '이 값을 하드코딩하고 있다. 카탈로그 순서가 바뀌면 이 테스트가 먼저 깨진다', () => {
-    expect(procedures[0]?.id).toBe('implant');
+    expect(procedures[0]?.id).toBe('implant-general');
   });
 });

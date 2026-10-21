@@ -152,7 +152,7 @@ describe('전문의 인증 검수', () => {
           latitude: 37.5,
           longitude: 127.03,
           thumbnail: 'https://example.test/doctor-verification.jpg',
-          procedureIds: ['implant'],
+          procedureIds: ['implant-general'],
           priceRange: { min: 100000, max: 200000 },
         })
         .expect(201);

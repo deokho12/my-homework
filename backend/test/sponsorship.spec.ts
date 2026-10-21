@@ -6,7 +6,7 @@ import type { SponsorshipInput } from '../src/hospital/sponsorship';
 function input(overrides: Partial<SponsorshipInput> = {}): SponsorshipInput {
   return {
     isSponsored: true,
-    sponsoredCategories: ['implant'],
+    sponsoredCategories: ['implant-general'],
     startDate: '2026-07-01',
     endDate: '2026-09-30',
     rating: 4.5,
@@ -41,7 +41,7 @@ describe('computeSponsorship', () => {
   it('평점 3.5 미만은 상단 노출 자격이 없다 — 배지는 유지된다', () => {
     const result = computeSponsorship(input({ rating: 3.4 }), {
       today: '2026-08-13',
-      procedureId: 'implant',
+      procedureIds: ['implant-general'],
     });
 
     expect(result.isActive).toBe(true);
@@ -51,20 +51,63 @@ describe('computeSponsorship', () => {
   it('평점 3.5 정확히는 자격이 있다 (경계 포함)', () => {
     const result = computeSponsorship(input({ rating: 3.5 }), {
       today: '2026-08-13',
-      procedureId: 'implant',
+      procedureIds: ['implant-general'],
     });
 
     expect(result.isPlacementEligible).toBe(true);
   });
 
   it('지정한 시술이 광고 카테고리에 없으면 자격이 없다', () => {
-    const result = computeSponsorship(input(), { today: '2026-08-13', procedureId: 'orthodontics' });
+    const result = computeSponsorship(input(), { today: '2026-08-13', procedureIds: ['bracket-braces'] });
 
     expect(result.isPlacementEligible).toBe(false);
   });
 
-  it('procedureId 를 지정하지 않으면(추천 탭) 카테고리를 보지 않는다', () => {
+  it('procedureIds 를 지정하지 않으면(추천 탭) 카테고리를 보지 않는다', () => {
     const result = computeSponsorship(input(), { today: '2026-08-13' });
+
+    expect(result.isPlacementEligible).toBe(true);
+  });
+
+  // --- 2026-10-21 요청 14: 인자가 집합이 됐다 (분야 탭) -----------------------
+  it('분야의 시술 중 **하나라도** 광고 중이면 자격이 있다', () => {
+    const result = computeSponsorship(input(), {
+      today: '2026-08-13',
+      // 임플란트 분야 4종. 광고는 implant-general 하나뿐이다
+      procedureIds: ['implant-general', 'bone-graft', 'sinus-lift', 'implant-denture'],
+    });
+
+    expect(result.isPlacementEligible).toBe(true);
+  });
+
+  it('분야의 시술이 하나도 광고에 없으면 자격이 없다', () => {
+    const result = computeSponsorship(input(), {
+      today: '2026-08-13',
+      procedureIds: ['scaling', 'fluoride', 'sealant', 'halitosis'],
+    });
+
+    expect(result.isPlacementEligible).toBe(false);
+  });
+
+  it('빈 집합(없는 분야)은 자격이 없다 — 목록도 0건이라 결과가 같다', () => {
+    const result = computeSponsorship(input(), { today: '2026-08-13', procedureIds: [] });
+
+    expect(result.isPlacementEligible).toBe(false);
+  });
+
+  it('원소 1개짜리 집합은 요청 14 이전의 `procedureId` 하나와 완전히 같다 (회귀)', () => {
+    const matching = computeSponsorship(input(), { today: '2026-08-13', procedureIds: ['implant-general'] });
+    const other = computeSponsorship(input(), { today: '2026-08-13', procedureIds: ['whitening'] });
+
+    expect(matching).toEqual({ isActive: true, isPlacementEligible: true });
+    expect(other).toEqual({ isActive: true, isPlacementEligible: false });
+  });
+
+  it('광고 카테고리가 여러 개여도 교차하면 자격이 있다 (h5: implant-general + gum-treatment)', () => {
+    const result = computeSponsorship(input({ sponsoredCategories: ['implant-general', 'gum-treatment'] }), {
+      today: '2026-08-13',
+      procedureIds: ['gum-treatment', 'periodontal-surgery', 'gum-graft'],
+    });
 
     expect(result.isPlacementEligible).toBe(true);
   });

@@ -16,7 +16,7 @@ export function baseHospital(overrides: Partial<Hospital> = {}): Hospital {
     longitude: 127.0364,
     thumbnail: 'https://example.com/thumb.jpg',
     images: [],
-    procedureIds: ['implant'],
+    procedureIds: ['implant-general'],
     priceRange: { min: 900000, max: 1800000 },
     rating: 4.8,
     reviewCount: 312,
