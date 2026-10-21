@@ -172,7 +172,12 @@ export function useUpdateHospital() {
 ## 아직 서버가 없는 4개 도메인
 
 `consult` · `favorite` · `notification` · `community` 는 **백엔드에 엔드포인트가 없다**(계약에는 있다).
+2026-10-12 에 생긴 `inquiry`(병원 문의)도 같은 방식이다.
 그래서 api 계층이 `apiRequest` 대신 `frontend/src/lib/localCollection.ts`(브라우저 저장)를 읽고 쓴다.
+
+> **2026-10-21 부터 서버도 이 저장소에서 직접 만든다** (`CLAUDE.md` "혼자 개발 체제"). 상담·알림은
+> **요청서 15**, 문의·찜(+대시보드 집계)은 **요청서 16** 에서 서버로 옮기고 `localCollection.ts` 의 해당
+> 부분을 지운다. 커뮤니티는 **요청서 20** 에서 다룬다. 그때까지 아래 규칙이 유효하다.
 
 **구조는 나머지 도메인과 똑같다.** 화면은 이 넷이 로컬인지 서버인지 모른다:
 

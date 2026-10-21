@@ -177,8 +177,9 @@
 예약확정·예약 일시 변경 알림은 요청서 08 문구대로 `변경이 필요하면 병원에 전화해 주세요` 로
 끝납니다. 그런데 **병원 데이터에 전화번호 칸이 아직 없어서** 병원 상세·카드·알림 어디에도 번호가
 보이지 않습니다. 환자는 번호를 앱 밖에서 찾아야 합니다. 전화번호 칸은 요청서 06(병원 관리자 직접
-가입)의 데이터 설계에서 처음 생기고(`docs/database/README.md` §14.2), 그 번호를 환자 화면에도
-보여줄지는 협업자와 확인할 질문으로 올려 두었습니다(`docs/api/README.md` §20.7 9번).
+가입)의 데이터 설계에서 처음 생깁니다(`docs/database/README.md` §14.2). 환자 화면에도 **공개하기로
+요청자가 정했고**(2026-10-21), 공공데이터에서 대표번호를 받아 오는 **요청서 17** 과 직접 가입의
+**요청서 18** 에서 반영합니다.
 
 ### 찜한 병원의 새 이벤트 알림은 아직 없습니다
 
@@ -463,15 +464,17 @@
 
 문서에는 쓰지 않았지만 구조 개편 때 함께 다뤄야 하는 것들입니다.
 
+- **백엔드 완료 게이트가 지금 빨간불입니다 (2026-10-21 확인, 코드 변경 없이도)** — `backend` 의 `npm run test:run` 에서 `test/seed-data.spec.ts` 3건이 실패합니다. ① 광고 기간 테스트: 시드의 `sponsoredStartDate/EndDate`(`backend/prisma/seed/data/hospitals.ts`)가 2026-07~08 로 **고정**이라 오늘 기준 활성 광고가 0행 — 재시드해도 실패합니다(위 "광고 노출 기간이 2026년 7~9월로 고정" 과 같은 뿌리). 시드 기준일(`SEED_TODAY`) 상대 날짜로 바꿔야 합니다. ② 이번 달 상담 0건, ③ 계정 수 22≠19: 백엔드 테스트가 **전용 테스트 DB 없이 개발 DB 를 그대로 써서** e2e 가 만든 계정·지난 날짜가 쌓인 것 — `npm run prisma:seed` 재시드로 풀립니다. 시드나 광고를 건드리는 첫 서버 요청서(14·15·17)에서 함께 고치고, 테스트용 DB 를 따로 두는 것도 그때 검토합니다
+
 - **저장소 갈라짐 위험 — 해소됨.** 병원·전문의는 실제 백엔드(`hospitalApi`/`doctorApi`, TanStack Query)를 쓰고, 아직 서버가 없는 넷(상담·찜·알림·커뮤니티)은 `frontend/src/lib/localCollection.ts` **한 파일**로 모였습니다(브라우저 저장). 예전의 `mockDb`(`src/mocks/db.ts`)와 도메인별 zustand 스토어(`useConsultStore`·`useFavoritesStore`·`useNotificationStore`·`useCommunityStore`)는 삭제됐습니다 — 같은 데이터를 두 저장소가 각자 들고 있어 저장 한 번이 갈리던 회귀 패턴의 원인이었습니다. 지금은 화면 → 훅(`features/*/hooks`) → 계약 함수(`features/*/api`) → `localCollection` 순으로 한 줄이고, 서버가 생기면 api 함수 본문만 `apiRequest(...)` 로 바꾸고 `localCollection.ts` 를 지우면 됩니다
-- **`PATCH /notifications/{id}/read` 의 404 코드는 프론트가 임의로 정했습니다** — `docs/api/openapi.yaml` 이 이 응답의 `code` 를 예시로 고정하지 않아, 로컬 구현(`features/notification/api/notificationApi.ts`)이 `NOTIFICATION_NOT_FOUND` 를 씁니다. **백엔드도 같은 이름을 쓰면 프론트는 손댈 곳이 없습니다.** 다른 이름을 쓰기로 정하면 그 파일 한 곳만 맞추면 됩니다 — 지금은 어느 화면도 이 코드로 분기하지 않습니다(읽음 처리는 조용히 실패합니다)
-- **관리자 알림 이동이 종류를 구분하지 않음** — `frontend/src/screens/admin/notifications.tsx:30` 이 `relatedId` 만 보고 상담 상세로 보냅니다. 전문의 인증 알림도 이제 서버에 만들어지지만, 이 화면은 아직 서버 알림을 읽지 않으므로 현재는 도달하지 않는 경로입니다 — 알림함이 서버로 옮겨가면 함께 고쳐야 합니다
+- **(→ 요청서 15) `PATCH /notifications/{id}/read` 의 404 코드는 프론트가 임의로 정했습니다** — `docs/api/openapi.yaml` 이 이 응답의 `code` 를 예시로 고정하지 않아, 로컬 구현(`features/notification/api/notificationApi.ts`)이 `NOTIFICATION_NOT_FOUND` 를 씁니다. **백엔드도 같은 이름을 쓰면 프론트는 손댈 곳이 없습니다.** 다른 이름을 쓰기로 정하면 그 파일 한 곳만 맞추면 됩니다 — 지금은 어느 화면도 이 코드로 분기하지 않습니다(읽음 처리는 조용히 실패합니다)
+- **(→ 요청서 15) 관리자 알림 이동이 종류를 구분하지 않음** — `frontend/src/screens/admin/notifications.tsx:30` 이 `relatedId` 만 보고 상담 상세로 보냅니다. 전문의 인증 알림도 이제 서버에 만들어지지만, 이 화면은 아직 서버 알림을 읽지 않으므로 현재는 도달하지 않는 경로입니다 — 알림함이 서버로 옮겨가면 함께 고쳐야 합니다
 - **알림함은 100건까지만 보입니다** — 두 알림함 화면이 `pageSize: 100`(계약 상한)으로 한 번에 받아 전부 그립니다. 알림은 상담 접수·상태 변경마다 늘기만 하는 컬렉션이라 언젠가 101번째부터 조용히 사라집니다(안 읽은 개수 배지는 전체를 세므로 목록에 없는 알림이 숫자에만 남습니다). 페이지 이동 UI 나 무한 스크롤이 그 시점의 숙제입니다
-- **상담 도메인은 계약이 구현보다 앞서 있습니다** — `docs/api/openapi.yaml` 에는 `POST /consult-requests` 가 `thirdPartyConsent`·4지선다 `ConsultPreferredTime`·`422 THIRD_PARTY_CONSENT_REQUIRED`·`422 VALIDATION_FAILED(INVALID_PHONE_FORMAT)` 까지 적혀 있지만 **백엔드에 상담 모듈이 아직 없습니다.** 프론트의 `features/consult/api/consultApi.ts` 가 그 계약을 흉내 내어(같은 코드·같은 문구·같은 정규식·연락처 `010-1234-5678` 정규화) 브라우저 저장소에 씁니다. 서버가 생기면 함수 본문만 `apiRequest(...)` 로 바뀌어야 하고, **화면과 테스트는 그대로여야 합니다** — 그러지 않으면 계약을 흉내 낸 의미가 없습니다
-- **로컬 상담에만 `ownerUserId` 라는 저장 전용 필드가 있습니다** — `lib/localCollection.ts` 의 `StoredConsultRequest`. 서버라면 토큰으로 알아낼 "누가 신청했는가" 를 로컬에서는 행에 적는 수밖에 없어서 둔 것이고, `fetchMyConsultRequests` 만 봅니다. 응답 투영에서 떼어내므로 화면·도메인 타입에는 나타나지 않습니다. 서버 전환 시 이 필드와 `currentUserId()` 헬퍼를 함께 지웁니다
-- **문의 도메인도 계약이 구현보다 앞서 있습니다** — `docs/api/openapi.yaml` 의 `hospital-inquiries` 7개 오퍼레이션 전부 백엔드에 없습니다. 프론트의 `features/inquiry/api/inquiryApi.ts` 가 같은 코드·같은 문구(`HOSPITAL_INQUIRY_NOT_FOUND`, `OPERATOR_CANNOT_ANSWER`, `INQUIRY_ALREADY_ANSWERED`, `VALIDATION_FAILED` + `details[]`)로 흉내 내어 브라우저 저장소에 씁니다. 서버가 생기면 함수 본문만 `apiRequest(...)` 로 바뀌어야 하고 화면·테스트는 그대로여야 합니다. **계약과 갈리는 두 곳은 파일 머리말에 적어 두었습니다**: 병원 존재 확인(`404 HOSPITAL_NOT_FOUND`)을 하지 않는 것과, 문의자·병원 이름을 행에 적어 두는 것
-- **문의 행에도 로컬 전용 필드가 셋 있습니다** — `lib/localCollection.ts` 의 `StoredHospitalInquiry.ownerUserId`·`askerDisplayName`·`hospitalName`. 전부 서버라면 토큰·조인으로 얻는 값이고 응답 투영에서 떼거나 마스킹해서 내보냅니다. 서버 전환 시 `currentUser()` 헬퍼와 함께 지웁니다
-- **공개 판정과 상태 판정은 순수 함수 두 개입니다** — `features/inquiry/inquiryVisibility.ts`. 계약(`docs/api/README.md` §14)이 서버에도 같은 모양(`hospital/inquiry-visibility.ts`)을 요구합니다. **백엔드가 이 둘을 각자 구현하면 비공개 문의가 공개 목록에 뜰 수 있습니다** — 규칙 문장을 그대로 옮겨 주세요
+- **(→ 요청서 15) 상담 도메인은 계약이 구현보다 앞서 있습니다** — `docs/api/openapi.yaml` 에는 `POST /consult-requests` 가 `thirdPartyConsent`·4지선다 `ConsultPreferredTime`·`422 THIRD_PARTY_CONSENT_REQUIRED`·`422 VALIDATION_FAILED(INVALID_PHONE_FORMAT)` 까지 적혀 있지만 **백엔드에 상담 모듈이 아직 없습니다.** 프론트의 `features/consult/api/consultApi.ts` 가 그 계약을 흉내 내어(같은 코드·같은 문구·같은 정규식·연락처 `010-1234-5678` 정규화) 브라우저 저장소에 씁니다. 서버가 생기면 함수 본문만 `apiRequest(...)` 로 바뀌어야 하고, **화면과 테스트는 그대로여야 합니다** — 그러지 않으면 계약을 흉내 낸 의미가 없습니다
+- **(→ 요청서 15) 로컬 상담에만 `ownerUserId` 라는 저장 전용 필드가 있습니다** — `lib/localCollection.ts` 의 `StoredConsultRequest`. 서버라면 토큰으로 알아낼 "누가 신청했는가" 를 로컬에서는 행에 적는 수밖에 없어서 둔 것이고, `fetchMyConsultRequests` 만 봅니다. 응답 투영에서 떼어내므로 화면·도메인 타입에는 나타나지 않습니다. 서버 전환 시 이 필드와 `currentUserId()` 헬퍼를 함께 지웁니다
+- **(→ 요청서 16) 문의 도메인도 계약이 구현보다 앞서 있습니다** — `docs/api/openapi.yaml` 의 `hospital-inquiries` 7개 오퍼레이션 전부 백엔드에 없습니다. 프론트의 `features/inquiry/api/inquiryApi.ts` 가 같은 코드·같은 문구(`HOSPITAL_INQUIRY_NOT_FOUND`, `OPERATOR_CANNOT_ANSWER`, `INQUIRY_ALREADY_ANSWERED`, `VALIDATION_FAILED` + `details[]`)로 흉내 내어 브라우저 저장소에 씁니다. 서버가 생기면 함수 본문만 `apiRequest(...)` 로 바뀌어야 하고 화면·테스트는 그대로여야 합니다. **계약과 갈리는 두 곳은 파일 머리말에 적어 두었습니다**: 병원 존재 확인(`404 HOSPITAL_NOT_FOUND`)을 하지 않는 것과, 문의자·병원 이름을 행에 적어 두는 것
+- **(→ 요청서 16) 문의 행에도 로컬 전용 필드가 셋 있습니다** — `lib/localCollection.ts` 의 `StoredHospitalInquiry.ownerUserId`·`askerDisplayName`·`hospitalName`. 전부 서버라면 토큰·조인으로 얻는 값이고 응답 투영에서 떼거나 마스킹해서 내보냅니다. 서버 전환 시 `currentUser()` 헬퍼와 함께 지웁니다
+- **(→ 요청서 16) 공개 판정과 상태 판정은 순수 함수 두 개입니다** — `features/inquiry/inquiryVisibility.ts`. 계약(`docs/api/README.md` §14)이 서버에도 같은 모양(`hospital/inquiry-visibility.ts`)을 요구합니다. **백엔드가 이 둘을 각자 구현하면 비공개 문의가 공개 목록에 뜰 수 있습니다** — 규칙 문장을 그대로 옮겨 주세요
 - **이름 마스킹 함수는 `frontend/src/utils/pii.ts` 하나입니다** — 지금은 문의 api 만 부릅니다. 상담의 `operator` 마스킹은 서버 몫이라 로컬에 구현이 없고, 서버가 생기면 둘 다 서버가 합니다
 - **목록 카드의 거리는 지금 화면이 계산합니다** — 서버 `GET /hospitals` 는 `latitude`+`longitude`+`radiusKm` **셋이 다 있을 때만** `distanceKm` 을 줍니다(= 지도 모드). 목록 모드는 반경 필터가 없어 위치를 보내지 않으므로, `HospitalExploreCard` 가 `frontend/src/utils/geo.ts` 의 `distanceKm`(서버 `backend/src/hospital/distance.ts` 의 `haversineKm` 과 같은 식, 같은 클램프)으로 직접 계산합니다. `frontend/src/utils/geo.test.ts` 가 서버 함수로 뽑은 숫자 리터럴과의 일치를 고정합니다. **서버가 반경 없이 좌표만 받아도 `distanceKm` 을 내려주게 되면** 카드의 `hospital.distanceKm ?? (…계산…)` 에서 오른쪽을 지우고 일치 테스트만 남기면 됩니다
 - **카드 안의 `상담신청` 은 아직 중첩 버튼입니다** — 찜 하트는 2026-10-13 작업에서 카드 본문(`Pressable`)의 **형제**로 꺼냈지만(`HospitalExploreCard`·`HospitalCard`), `상담신청` 버튼은 여전히 카드 `Pressable` 안의 `Pressable` 입니다. 낭독기가 중첩 버튼을 제대로 읽지 못하고 클릭이 부모로 버블링되는 같은 문제라, 카드 레이아웃을 손댈 때 함께 꺼내는 편이 좋습니다(`event.stopPropagation()` 으로 막고 있어 **누를 수 있는** `상담신청` 은 문제가 없습니다). 다만 회색 `상담 마감` 은 비활성이라 그 막는 코드가 돌지 않아, **누르면 클릭이 카드로 올라가 병원 상세로 넘어갑니다**(상담 신청은 열리지 않습니다 — QA 2026-10-13 확인, 그 전부터 있던 동작)
@@ -480,7 +483,7 @@
 - **관리자 문의의 답변칸도 RHF 가 아닙니다** — `features/inquiry/components/AdminInquiryDetail.tsx` 는 답변 초안을 페이지(`AdminInquiriesPage`)의 `useState` 로 들고 내려줍니다. 초안이 **목록↔상세 전환(CSS 로만 가리는 구조)과 선택 변경 확인창**보다 오래 살아야 해서 폼 바깥에 둔 것이고, 검사 자체는 사용자 문의 폼과 같은 zod 스키마(`inquiryAnswerSchema`)가 합니다. 사용자 쪽 문의 폼(`InquiryForm`)은 규정대로 RHF 를 씁니다
 - **전공 배지 규칙(FE)과 전문의 시술 자동 배정(BE)이 서로 다른 표입니다** — 프론트의 `frontend/src/utils/specialty.ts` `CATEGORY_SPECIALTIES`(분야 → 강조할 전공들)와 백엔드의 `backend/src/doctor/specialty-procedures.ts`(전공 → 자동 배정할 시술들)가 일치하지 않습니다. `implant` 는 BE 가 치과보철, FE 가 구강악안면외과이고, `whitening`·`cavity` 는 BE 가 통합치의학만, FE 는 [치과보철, 통합치의학] 둘 다입니다. **용도가 달라서(한쪽은 배지 강조, 한쪽은 등록 시 기본값) 지금은 버그가 아니지만**, 백엔드가 분야 체계를 네이티브로 가질 때 둘을 한 표로 맞출지 재검토해야 합니다
 - **`frontend/src/mocks/fixtures/procedures.ts` 는 여전히 백엔드 seed 의 원본입니다** — `backend/prisma/seed/fixtures.ts:31` 이 이 파일을 import 합니다. 그래서 분야 체계 작업에서 **1바이트도 건드리지 않았습니다.** 대신 `frontend/src/features/procedure/taxonomy.test.ts` 가 `LEGACY_TO_SUB` 의 키 집합과 이 fixture 의 id 집합이 같은지 검사해서, 서버가 시술을 추가·삭제하면 테스트가 먼저 깨지도록 묶어 두었습니다
-- **백엔드 인계 — 시술 분야를 서버가 직접 갖게 될 때 할 일** (지금은 프론트에만 있는 매핑 계층입니다):
+- **요청서 14 에서 할 일 — 시술 분야를 서버가 직접 갖게 될 때** (지금은 프론트에만 있는 매핑 계층입니다. 2026-10-21 까지는 "백엔드 인계" 목록이었고, 이제 서버도 이 저장소에서 만듭니다):
   1. `ProcedureCategory` 테이블(9행) + `Procedure.categoryId` FK + **세부 시술 18행 추가** + 준비중 플래그
   2. `GET /procedures` 응답에 `categoryId` (또는 `GET /procedure-categories`)
   3. `GET /hospitals` / `GET /doctors` 에 `categoryId=` 또는 반복 `procedureId=` → Prisma `{ in: [...] }`; `categoryId` 가 있을 때도 광고 우선 노출을 켤 것
@@ -488,7 +491,7 @@
   5. `docs/api/openapi.yaml` 의 `ProcedureId` enum 확장 + `categoryId` 파라미터
   6. seed 의 시술 원본을 `frontend/src/mocks/fixtures/procedures.ts` 에서 `backend/prisma/seed/data/` 로 이전
   → 그 뒤 프론트는 `legacyProcedureId` 를 그냥 id 로 쓰고, 클라이언트 필터 분기를 지우고, 관리자 폼의 31개를 전부 활성화하면 됩니다
-- **백엔드 인계 — 검색 추천을 서버가 묶어 줄 때 할 일** (지금은 화면이 여러 요청을 조합합니다):
+- **서버가 검색 추천을 묶어 줄 때 할 일 — 아직 맡은 요청서 없음** (지금은 화면이 여러 요청을 조합합니다. 3번은 요청서 14 의 다중 `procedureId` 와 함께 풀립니다):
   1. `GET /search/suggest?q=` — 시술·병원·원장님 세 그룹을 **한 번에**, 서버 순서(광고 우선 노출 포함)로. 지금은 입력이 멈출 때마다 최대 7 요청이고 그중 둘은 100건짜리입니다
   2. `Doctor` 응답에 `hospitalName` — 추천의 원장님 줄·마이페이지 상담 내역·관리자 상담 목록 **세 화면의 추가 조회가 동시에 사라집니다**
   3. 위 "시술 분야를 서버가 직접 갖게 될 때" 3번(다중 `procedureId`)이 되면 추천·카테고리·탐색 세 화면의 "광고 순서 없음·100건" 제약이 함께 사라집니다
