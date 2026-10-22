@@ -39,6 +39,7 @@ function consultRow(overrides: Partial<AdminConsultRequest> = {}): AdminConsultR
   return {
     id: 'cr20',
     hospitalId: 'h1',
+    hospitalName: '강남 스마일 치과',
     procedureId: 'implant-general',
     name: '박서영',
     phone: '010-****-4411',

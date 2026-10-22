@@ -484,6 +484,8 @@ describe('전문의 쓰기', () => {
           doctorId: target.id,
           name: '테스터',
           phone: '010-0000-0000',
+          // `phone_digits` 는 NOT NULL 이고 기본값이 없다 (요청서 15 — docs §12.5).
+          phoneDigits: '01000000000',
           preferredTime: '평일 오전',
           createdAt: now,
           updatedAt: now,

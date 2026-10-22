@@ -37,8 +37,27 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export const FIXTURE_TODAY = '2026-07-30';
 
 /**
+ * 서울 달력 날짜 `YYYY-MM-DD`. **시드의 `오늘` 은 KST 달력일이다** (요청서 15).
+ *
+ * 예전에는 실행 시각의 **UTC** 날짜였는데, 그러면 15:00Z~24:00Z(= KST 자정~오전 9시)에
+ * 시드할 때 시드의 `오늘` 이 KST 의 `어제` 가 되어 **`오늘 내원 예정`·`오늘 들어온 상담`이
+ * 0건**이 됐다. 그 지표들의 경계가 전부 `Asia/Seoul` 이므로 시드의 기준일도 KST 인 것이 맞다
+ * (`docs/database/README.md` §12.13-B 가 backend-engineer 판단으로 남긴 항목).
+ */
+const SEOUL_DATE_FORMAT = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Seoul',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+export function seoulDateKey(date: Date): string {
+  return SEOUL_DATE_FORMAT.format(date);
+}
+
+/**
  * 시드의 "오늘". `SEED_TODAY=YYYY-MM-DD` 로 고정할 수 있다(QA 재현용).
- * 비어 있으면 실행 시각의 UTC 날짜.
+ * 비어 있으면 실행 시각의 **KST 달력 날짜**(위 `seoulDateKey` 참고).
  */
 export function resolveSeedToday(raw: string | undefined): Date {
   if (raw && raw.trim()) {
@@ -57,7 +76,9 @@ export function resolveSeedToday(raw: string | undefined): Date {
     return parsed;
   }
 
-  return startOfUtcDay(new Date());
+  // 날짜는 KST 로 고르고, 그 날짜를 **UTC 자정 Date** 로 들고 다닌다 (기존 규약 유지 —
+  // `clock.today`·`toDateString` 과 밀기 계산이 전부 그 모양을 전제한다).
+  return new Date(`${seoulDateKey(new Date())}T00:00:00.000Z`);
 }
 
 export function startOfUtcDay(date: Date): Date {
@@ -118,6 +139,14 @@ export interface SeedClock {
   day(fixtureDay: string): string;
   /** SEED_TODAY ± n일 */
   fromToday(days: number): Date;
+  /**
+   * **SEED_TODAY(+n일)의 KST 벽시계 시각** → UTC Date (docs §12.13-B).
+   *
+   * `seoulAt(0, '14:00')` = 오늘 14:00 KST = 오늘 05:00Z. 상담·알림 샘플처럼 **밀 원본이
+   * 없는** 데이터가 "오늘 오후 2시" 같은 자리를 잡을 때 쓴다 — `fromToday` 는 UTC 자정
+   * 기준이라 시각을 적을 수 없다. 한국은 서머타임이 없어 오프셋이 `+09:00` 하나다.
+   */
+  seoulAt(days: number, hhmm: string): Date;
 }
 
 export function createSeedClock(seedToday: Date, anchor: string = FIXTURE_TODAY): SeedClock {
@@ -133,5 +162,18 @@ export function createSeedClock(seedToday: Date, anchor: string = FIXTURE_TODAY)
     // day 는 at 위에 세운다 — 두 경로가 따로 계산하면 언젠가 갈라진다
     day: (fixtureDay: string): string => toDateString(at(fixtureDay)),
     fromToday: (days: number): Date => addDays(today, days),
+    seoulAt: (days: number, hhmm: string): Date => {
+      if (!/^\d{2}:\d{2}$/.test(hhmm)) {
+        throw new Error(`시각 형식이 잘못되었습니다: '${hhmm}' (HH:mm 이어야 합니다)`);
+      }
+
+      const at = new Date(`${toDateString(addDays(today, days))}T${hhmm}:00.000+09:00`);
+
+      if (Number.isNaN(at.getTime())) {
+        throw new Error(`KST 시각을 만들 수 없습니다: day=${days} time='${hhmm}'`);
+      }
+
+      return at;
+    },
   };
 }

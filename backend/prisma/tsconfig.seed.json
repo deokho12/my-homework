@@ -34,12 +34,13 @@
   // 처럼 화면 전용으로 남은 것)의 타입 오류가 **백엔드 게이트를 빨갛게 만든다** —
   // 2026-10-21(요청 14)에 시술 원본이 `seed/data/` 로 넘어오면서 실제로 그렇게 됐다.
   // import 된 파일은 glob 과 무관하게 함께 검사되므로, 좁혀도 검증은 그대로다.
+  // (2026-10-22 요청서 15: `consultRequests.ts`·`notifications.ts` 가 빠졌다 — 원본이
+  //  `seed/data/` 로 와서 시드가 더 이상 그 두 파일을 읽지 않는다. 프런트 쪽 두 파일은
+  //  읽는 코드가 남지 않아 같은 작업에서 삭제됐다.)
   "include": [
     "seed.ts",
     "seed/**/*.ts",
-    "../../frontend/src/mocks/fixtures/consultRequests.ts",
     "../../frontend/src/mocks/fixtures/guides.ts",
-    "../../frontend/src/mocks/fixtures/notifications.ts",
     "../../frontend/src/mocks/fixtures/promotions.ts",
     "../../frontend/src/mocks/fixtures/qaPosts.ts"
   ]

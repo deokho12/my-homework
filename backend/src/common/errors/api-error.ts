@@ -51,6 +51,26 @@ export const ERROR_CATALOG = {
    */
   CONSULT_REQUEST_NOT_FOUND: { status: 404, message: '상담 정보를 찾을 수 없어요' },
   CONSULT_CLOSED: { status: 409, message: '지금은 이 병원의 상담 신청을 받지 않아요' },
+  /**
+   * 접수 조건 위반 3종. **`VALIDATION_FAILED` 로 뭉뚱그리지 않는다** — 화면이 어느 칸을
+   * 가리킬지 결정해야 하고, 이것들은 "값은 형식에 맞는데 조건에 안 맞는 것" 이다 (계약).
+   */
+  PROCEDURE_NOT_OFFERED: { status: 422, message: '이 병원에서 진행하지 않는 시술이에요' },
+  DOCTOR_NOT_AT_HOSPITAL: { status: 422, message: '이 병원에 소속된 전문의가 아니에요' },
+  /** 거절 사유가 하나뿐이라 필드 단위 `details` 를 쓰지 않는다 — 체크박스 한 곳만 가리킨다. */
+  THIRD_PARTY_CONSENT_REQUIRED: {
+    status: 422,
+    message: '개인정보 제3자 제공에 동의해야 상담을 신청할 수 있어요',
+  },
+  /** `period` 와 `createdFrom`/`createdTo` 를 함께 보냄. 화면 버그이지 입력 오류가 아니다. */
+  PERIOD_FILTER_CONFLICT: { status: 422, message: '기간 조건은 한 가지 방식으로만 보낼 수 있어요' },
+
+  // ------------------------------------------------------------------ 알림
+  /**
+   * **없는 알림과 "내가 수신자가 아닌 알림" 을 구분하지 않는다.** 남의 알림 id 를 대입해
+   * "그 알림이 존재한다" 를 알아내는 경로를 막는다 (상담 단건과 같은 근거).
+   */
+  NOTIFICATION_NOT_FOUND: { status: 404, message: '알림을 찾을 수 없어요' },
 
   // ------------------------------------------------------------ 입점 문의
   PARTNER_INQUIRY_NOT_FOUND: { status: 404, message: '입점 문의를 찾을 수 없어요' },

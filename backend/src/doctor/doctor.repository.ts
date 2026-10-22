@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { createId } from '@paralleldrive/cuid2';
 import type { Prisma } from '@prisma/client';
 
+import { createNotificationWithRecipients, findHospitalAdminUserIds } from '../notification/notification.tx';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PrismaService } from '../prisma/prisma.service';
 import { DOCTOR_INCLUDE } from './doctor.projection';
@@ -187,27 +188,25 @@ export class DoctorRepository {
         },
       });
 
-      const admins = await tx.hospitalAdmin.findMany({ where: { hospitalId: params.hospitalId } });
-
-      const notification = await tx.notification.create({
-        data: {
-          id: createId(),
+      // 알림 행의 모양은 **공용 헬퍼 한 곳**이 안다 (`notification/notification.tx.ts`).
+      // 여기 인라인으로 두면 상담 쪽과 검수 쪽의 행 모양이 조용히 갈린다 — `consult_status`
+      // 칸이 생긴 2026-10-22 가 그 경우였다. 동작은 전과 같다(같은 값, 같은 트랜잭션).
+      await createNotificationWithRecipients(
+        tx,
+        {
           audience: 'admin',
           type: 'system',
           title: params.notificationTitle,
           message: params.notificationMessage,
+          // 검수 결과는 상담이 아니다 — `type='consult-status'` 가 아닌 알림은 전부 null 이다.
+          consultStatus: null,
           relatedType: 'doctor',
           relatedId: params.doctorId,
           hospitalId: params.hospitalId,
-          createdAt: now,
+          recipientUserIds: await findHospitalAdminUserIds(tx, params.hospitalId),
         },
-      });
-
-      if (admins.length > 0) {
-        await tx.notificationRecipient.createMany({
-          data: admins.map((admin) => ({ id: createId(), notificationId: notification.id, userId: admin.userId })),
-        });
-      }
+        now,
+      );
     });
   }
 

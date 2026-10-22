@@ -46,7 +46,9 @@ K3F9AB ← 403 (12ms)
 - Prisma 쿼리도 dev 에서만 함께 찍힌다 — 그 단계가 DB 에 무엇을 물었는지가 거기 보인다.
   그래서 서비스·리포지토리는 한 줄도 계측하지 않는다
 - **요청/응답 본문은 찍지 않는다.** 로그인 요청의 비밀번호와 상담 개인정보가 콘솔에 남기
-  때문이다 (`docs/decisions/0001-roles-and-pii.md`). 본문이 필요하면 마스킹을 함께 설계한다
+  때문이다 (`docs/decisions/0001-roles-and-pii.md`). 본문이 필요하면 마스킹을 함께 설계한다.
+  같은 이유로 **검색어 쿼리 `q` 의 값도 `***` 로 가린다** — 관리자가 상담 검색칸에 친 이름·연락처다.
+  자유 입력을 받는 쿼리 키가 새로 생기면 `REDACTED_QUERY_KEYS` 에 더한다
 - 구현은 `backend/src/common/logging/dev-trace.ts` 하나이고, `development` 가 아니면
   **한 줄도 나가지 않는다** (`test/dev-trace.spec.ts` 가 그것을 고정한다)
 

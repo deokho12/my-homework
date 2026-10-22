@@ -4,7 +4,6 @@ export {
   markAllNotificationsAsRead,
   markNotificationAsRead,
   type MarkAllReadResult,
-  type NewLocalNotification,
   type NotificationFilters,
   type NotificationList,
   type UnreadNotificationCount,

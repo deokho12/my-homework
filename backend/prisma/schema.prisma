@@ -456,12 +456,38 @@ model ConsultRequest {
   /// 신청 폼 입력값. 계정 정보와 다를 수 있어 별도 보관한다
   name  String
   phone String
-  /// '평일 오전' | '평일 오후' | '주말'
+  /// ★ phone 에서 숫자만 남긴 값 ('01012345601'). 관리자 목록의 번호 검색이 거는 컬럼이다.
+  ///   `010-1234-5601` 에 번호를 통째로 붙여넣으면(`01012345601`) 하이픈 때문에 조용히 0건이
+  ///   되던 문제를 §3.9 의 정규화 컬럼 규칙으로 닫는다 (docs/database/README.md §12.5).
+  ///   **인덱스를 만들지 않는다** — 뒷자리 검색은 앞쪽 와일드카드(`%4411%`)라 B-tree 를 타지 못하고,
+  ///   이미 담당 병원 범위로 좁혀진 뒤의 스캔이다
+  phoneDigits String @map("phone_digits")
+  /// '평일 오전' | '평일 오후' | '평일 저녁' | '주말'
+  /// ('평일 저녁' 은 2026-10-12 요청서로 늘어난 값이라 그 이전 접수 건에는 나타나지 않는다)
   preferredTime String  @map("preferred_time")
   message       String?
 
-  /// ConsultStatus: new | contacted | booked | cancelled
+  /// ConsultStatus: new | contacted | booked | visited | cancelled
+  /// **`booked` = 예약확정** (라벨만 '예약완료' → '예약확정' 으로 바뀌었고 저장값은 그대로다),
+  /// `visited` = 내원완료 (2026-10-13 추가 — '실제로 왔는가' 는 새로운 사실이다, §12.1).
+  /// 전이는 전부 허용한다 — 검증하는 것은 '필요한 입력이 왔는가' 뿐이다 (§12.7)
   status String @default("new")
+
+  /// ★ 병원이 확정한 방문 일시 (UTC, **분 단위로 절삭해 저장**). 표시는 KST 변환이다 (§12.2).
+  ///   상태가 결과를 정한다: `booked` = 요청값 ?? 현재값, `visited` = 유지,
+  ///   그 밖(`new`/`contacted`/`cancelled`) = `null`.
+  ///   `booked` 인데 `null` 인 행은 **계약 확장 이전에 들어온 과거 행**이고 화면은 '일시 미입력'
+  ///   으로 그린다 — 쓰기 경로의 불변식이지 DB 제약이 아니다 (§12.10)
+  visitAt DateTime? @map("visit_at")
+
+  /// ★ 개인정보 제3자 제공 동의 기록 (§12.12). **둘은 함께 채워지거나 함께 null 이다** (앱 불변식).
+  ///   `null` 은 거절이 아니라 **동의 절차 도입 이전 접수**이며 소급해 채울 방법이 없다.
+  ///   "동의함/안 함" boolean 을 두지 않은 이유: 동의하지 않은 접수는 422 로 거절되므로
+  ///   **기록의 존재 자체가 동의**다 (계약 `ConsultThirdPartyConsent`)
+  thirdPartyConsentAgreedAt DateTime? @map("third_party_consent_agreed_at")
+  /// 동의한 안내문 버전 ('2026-10-12'). 안내문이 지금은 프런트 상수라 `legal_documents` FK 가
+  /// 아니라 **버전 문자열만** 보존한다 (`user_agreements` 와 다른 선택인 이유, §12.12)
+  thirdPartyConsentNoticeVersion String? @map("third_party_consent_notice_version")
 
   createdAt DateTime @map("created_at")
   updatedAt DateTime @map("updated_at")
@@ -477,24 +503,61 @@ model ConsultRequest {
   @@index([hospitalId, createdAt])
   @@index([userId, createdAt])
   @@index([status, createdAt])
+  // (hospital_id, status, created_at) — 상태 탭 카운트 5벌 + 탭 선택 목록 최신순 (§12.6).
+  // 담당 병원 범위가 선두, 상태가 가운데, 정렬 컬럼이 뒤인 순서다
+  @@index([hospitalId, status, createdAt])
+  // (hospital_id, visit_at) — 대시보드 '오늘 내원 예정' (§13.5). 범위 + 정렬을 이 인덱스가 받는다.
+  // status='booked' 를 선두에 넣지 않은 이유: 이미 좁혀진 집합의 추가 필터일 뿐이고
+  // (hospital_id, status, created_at) 과 선두 2컬럼이 겹치는 인덱스가 하나 더 생긴다
+  @@index([hospitalId, visitAt])
   @@index([createdAt])
   @@index([doctorId])
   @@map("consult_requests")
 }
 
-/// ConsultRequest.statusHistory (객체 배열 JSON) → 자식 테이블
+/// ConsultRequest.statusHistory (객체 배열 JSON) → 자식 테이블.
+/// ☆ 2026-10-13 부터 담는 것은 상태 변경이 아니라 **처리 이벤트**다 — 예약확정 상태에서 일시만
+///   바꾸는 '일시 변경' 도 이력에 남고 환자 알림이 나간다 (§12.3). 테이블 이름은 바꾸지 않았다:
+///   개명은 모델·시드·투영을 함께 고치는 변경이고 얻는 것이 이름뿐이다. `event` 가 행의 성격을 말한다
 model ConsultStatusChange {
   id               String   @id
   consultRequestId String   @map("consult_request_id")
-  /// new | contacted | booked | cancelled
+  /// status_change | reschedule.
+  /// `reschedule` 행의 `status` 에는 **그 시점의 상태(`booked`)를 그대로** 넣는다 — 행이 스스로를
+  /// 설명하고, `status` 가 null 이 될 수 있는 계약 변경(= breaking)도 피한다.
+  /// 기본값을 둔 이유: 기존 이력 행이 그대로 유효해져 마이그레이션 백필이 없다 (§3.6 이 금지한 것은
+  /// **타임스탬프의** DB 기본값이다 — `legal_documents.requires_agreement` 와 같은 선례)
+  event            String   @default("status_change")
+  /// 바뀐 뒤의 상태: new | contacted | booked | visited | cancelled
   status           String
   changedAt        DateTime @map("changed_at")
-  /// 상태를 바꾼 관리자. 시드/시스템 생성 행은 null
+  /// 상태를 바꾼 관리자. 접수(신규) 행과 시드/시스템 생성 행은 null
   changedByUserId  String?  @map("changed_by_user_id")
+
+  /// 이 이벤트 **직후**의 확정 일시 스냅샷 (§12.3). 현재 값은 `consult_requests.visit_at` 이고,
+  /// 이 컬럼은 "그때의 약속" 이라 뒤에 바뀌어도 고쳐지지 않는다
+  visitAt DateTime? @map("visit_at")
+
+  /// ConsultCancelReason: no_answer | patient_request | procedure_unavailable | duplicate | etc.
+  /// **`status='cancelled'` 인 행에만** 채운다 (§12.4). `consult_requests` 에 현재 취소 사유 컬럼을
+  /// 두지 않았다 — 현재 상태가 `cancelled` 일 때 가장 최근 취소 이벤트 행의 사유로 **파생**한다
+  /// (재오픈하면 파생값이 저절로 null 이 된다)
+  cancelReason String? @map("cancel_reason")
+
+  /// ★ 이 이벤트가 만든 **환자 알림** (§12.8). 투영에는 boolean(`notified`)만 내려간다.
+  ///   `null` = 발송하지 않음(또는 발송 실패). 시드·과거 이력 행도 null 이다.
+  ///   **접수(신규) 행은 null 이다** — 접수 알림은 `audience='admin'` 이라 환자 알림이 아니다.
+  ///   SetNull 인 이유: 알림이 지워져도 이력 행은 남아야 한다. 알림 삭제 경로(보존기간 배치)가
+  ///   생기면 null 이 '삭제됨' 과 섞이므로 그때 `notified_at` 을 더한다.
+  ///   **인덱스를 만들지 않는다** — 읽는 방향이 이력 → 알림 한쪽뿐이고(한 상담의 이력 전체를
+  ///   읽으면서 따라간다), 역방향으로 조회하는 화면이 없다 (§15.2-ⓐ 가 역조인을 버린 이유)
+  notificationId String? @map("notification_id")
 
   consultRequest ConsultRequest @relation(fields: [consultRequestId], references: [id], onDelete: Cascade)
   changedBy      User?          @relation(fields: [changedByUserId], references: [id], onDelete: SetNull)
+  notification   Notification?  @relation(fields: [notificationId], references: [id], onDelete: SetNull)
 
+  // 이력은 항상 한 상담의 전체를 읽는다. `event` 인덱스는 만들지 않는다 (§12.6)
   @@index([consultRequestId, changedAt])
   @@map("consult_status_changes")
 }
@@ -722,12 +785,27 @@ model Notification {
 
   /// NotificationAudience: user | admin
   audience String
-  /// NotificationType: consult-status | event | system
+  /// NotificationType: consult-status | inquiry-answer | event | system
+  /// (`inquiry-answer` = 병원 문의 답변 알림, 2026-10-12 계약 추가. `consult-status` 와 묶지 않은
+  ///  이유는 아이콘·이동 경로가 다르고 "상담의 상태가 바뀌었다" 는 사실이 문의 답변에는 없어서다)
   type     String
   title    String
   message  String
 
-  /// relatedId 가 무엇의 id 인지: consult_request | hospital | doctor | promotion
+  /// ★ ConsultStatus (new | contacted | booked | visited | cancelled). `type='consult-status'` 행의
+  ///   **변경 후 상태**이고, 일시 변경(reschedule)이면 `booked` 다. 다른 type 은 전부 null 이다 (§15.1).
+  ///   소비자는 **알림함의 종류 아이콘 하나**다 — `booked` 면 '예약', 그 밖(null 포함)이면 '상담'.
+  ///   판정 함수는 **클라이언트에 둔다**(`notificationIcon.ts`) — 서버가 내려보내는 것은 사실이고
+  ///   그림으로 바꾸는 것은 표시 규칙이다 (`isDelayed` 를 컬럼으로 만들지 않은 것과 같은 이유).
+  ///   쓰기 경로의 불변식만 둔다: `type='consult-status'` 로 **새로 만드는** 행은 값을 반드시 적는다.
+  ///   과거 행은 백필하지 않는다 — 문구에서 파싱하거나 현재 상태를 넣는 것은 추측이다 (§15.8).
+  ///   인덱스를 만들지 않는다 — `WHERE consult_status = ?` 를 거는 화면이 없다 (§15.7)
+  consultStatus String? @map("consult_status")
+
+  /// relatedId 가 무엇의 id 인지: consult_request | hospital | doctor | promotion | hospital_inquiry
+  /// (계약의 `relatedResource` 와 같은 값 집합이고 표기만 snake_case 다.
+  ///  `hospital_inquiry` 는 2026-10-12 계약 추가분으로, 그 값을 만드는 쪽인 문의 답변은
+  ///  아직 서버에 없다 — `hospital_inquiries` 는 요구사항 단계다)
   relatedType String? @map("related_type")
   /// 다형 참조라 FK 를 걸 수 없다. 무결성은 애플리케이션 책임
   relatedId   String? @map("related_id")
@@ -739,6 +817,8 @@ model Notification {
 
   hospital   Hospital?               @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
   recipients NotificationRecipient[]
+  /// §12.8 의 역방향 관계 필드. notifications 테이블의 컬럼·인덱스는 바뀌지 않는다
+  consultStatusChanges ConsultStatusChange[]
 
   @@index([createdAt])
   @@index([audience, createdAt])
@@ -841,16 +921,24 @@ model AuditLog {
   ///   users.role 을 조인하면 승격·해제로 값이 바뀌어 과거 행위의 역할을 알 수 없게 된다
   actorRole String @map("actor_role")
 
-  /// 허용값 9개 (기록 대상과 1:1):
+  /// 허용값 10개 (기록 대상과 1:1):
   ///   consult_request.view          상담 상세 열람
   ///   partner_inquiry.view          입점 문의 상세 열람
   ///   consult_request.status_change 상담 상태 변경
+  ///   consult_request.reschedule    예약 일시만 변경 (2026-10-13 추가 — 같은 엔드포인트지만
+  ///                                 before/after 에 들어가는 것이 상태가 아니라 일시다.
+  ///                                 docs/api/README.md §4)
   ///   consult_request.memo_create   메모 작성
   ///   doctor.verify                 전문의 검수 결정
   ///   hospital_admin.assign         담당자 지정
   ///   hospital_admin.unassign       담당자 해제
   ///   hospital.create               병원 생성
   ///   partner_inquiry.review        입점 문의 심사
+  ///
+  /// ⚠ `backend/src/audit/audit-log.types.ts` 의 `AUDIT_ACTIONS` 에는 위 목록에 없는 2개
+  ///   (`user.role_grant_operator` · `user.role_revoke_operator` — 운영자 승격·회수 CLI)가 더 있다.
+  ///   컬럼이 String 이라 DDL 영향은 없고, 목록을 늘리는 것은 `docs/api/README.md` §4 와 함께
+  ///   결정할 일이라 여기서는 어긋남만 적어 둔다 (기록되지 않은 격차가 버그로 보이는 것을 막는다)
   action String
 
   /// consult_request | partner_inquiry | doctor | hospital | user

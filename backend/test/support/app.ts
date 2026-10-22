@@ -23,10 +23,16 @@ export const SEED_FIXTURES = {
   hospitalNotManagedByH1Admin: 'h2',
   doctorAtH1: 'd1',
   doctorAtH11: 'd14',
-  /** h1 의 상담 */
+  /** h1 의 상담 (`new`, 오늘 접수) */
   consultAtH1: 'cr1',
-  /** h2 의 상담 — h1 담당자에게는 "존재하지 않아야" 한다 */
-  consultAtH2: 'cr2',
+  /**
+   * h2 의 상담 — h1 담당자에게는 "존재하지 않아야" 한다.
+   * (2026-10-22 요청서 15 에서 `cr2` → `cr7` 로 바뀌었다. 새 시드의 `cr2` 는 h1 이다 —
+   *  `docs/database/README.md` §12.13-C 의 8건 표.)
+   */
+  consultAtH2: 'cr7',
+  /** `상담 마감` 인 병원 — `409 CONSULT_CLOSED` 의 대조군 */
+  hospitalWithConsultClosed: 'h5',
   /** 존재하지 않는 상담 id. 404 응답이 위와 **구분되지 않아야** 한다 */
   consultMissing: 'cr-does-not-exist',
 } as const;

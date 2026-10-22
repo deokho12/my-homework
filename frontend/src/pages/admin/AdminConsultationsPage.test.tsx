@@ -6,16 +6,25 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as consultApi from '@/features/consult/api/consultApi';
 import { formatVisitAt, todayInSeoul } from '@/features/consult/consultDisplay';
 import * as hospitalApi from '@/features/hospital/api/hospitalApi';
-import { readCollection, writeCollection, type StoredConsultRequest } from '@/lib/localCollection';
 import { RouterBridge } from '@/navigation';
 import AdminConsultationsPage from '@/pages/admin/AdminConsultationsPage';
 import { useAdminHospitalStore } from '@/store/useAdminHospitalStore';
 import { useAuthStore } from '@/store/useAuthStore';
+import {
+  installFakeConsultServer,
+  seedConsults,
+  storedConsult,
+  type FakeConsultRow,
+} from '@/test/fakeConsultServer';
 import { baseHospital } from '@/test/hospitalFixture';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import type { User, UserRole } from '@/types/domain';
 
-/** 병원 이름은 상담 응답에 없어 화면이 병원 id 로 따로 묻는다 — 그 조회를 여기서 고정한다. */
+/**
+ * 상담은 2026-10-22(요청서 15)부터 서버에 있다. 이 파일은 **서버 대역**
+ * (`test/fakeConsultServer.ts`)을 세우고 화면만 본다 — 병원 이름도 상담 응답에 들어 있어
+ * 화면이 병원을 따로 묻지 않는다.
+ */
 const HOSPITAL_NAMES: Record<string, string> = { h1: '강남 스마일 치과', h2: '서초 미소 치과' };
 
 const HOUR = 60 * 60 * 1000;
@@ -44,26 +53,44 @@ function signIn(role: UserRole, managedHospitalIds: string[] = ['h1']): void {
   });
 }
 
-function row(overrides: Partial<StoredConsultRequest> = {}): StoredConsultRequest {
+function intake(changedAt: string) {
+  return {
+    event: 'status_change' as const,
+    status: 'new' as const,
+    changedAt,
+    // 접수 행에는 행위자도 알림도 없다 — 환자가 스스로 한 일이다.
+    changedByName: null,
+    visitAt: null,
+    cancelReason: null,
+    notified: false,
+  };
+}
+
+function row(overrides: Partial<FakeConsultRow> = {}): FakeConsultRow {
+  const hospitalId = overrides.hospitalId ?? 'h1';
+  const createdAt = overrides.createdAt ?? hoursAgo(2);
+
   return {
     id: 'cr1',
-    hospitalId: 'h1',
+    hospitalId,
+    hospitalName: HOSPITAL_NAMES[hospitalId] ?? `${hospitalId} 치과`,
     procedureId: 'implant-general',
     name: '박서영',
     phone: '010-1234-4411',
     preferredTime: '평일 오후',
     message: '임플란트 비용이 궁금해요',
-    createdAt: hoursAgo(2),
+    createdAt,
     status: 'new',
-    statusHistory: [{ status: 'new', changedAt: hoursAgo(2) }],
+    visitAt: null,
+    statusHistory: [intake(createdAt)],
     memos: [],
     ...overrides,
   };
 }
 
-function seed(rows: StoredConsultRequest[]): void {
-  writeCollection('consultRequests', rows);
-  writeCollection('notifications', []);
+function seed(rows: FakeConsultRow[]): void {
+  seedConsults(rows);
+  installFakeConsultServer();
 }
 
 function LocationProbe() {
@@ -321,7 +348,7 @@ describe('필터', () => {
 
   it('기본 기간에 0건이면 최근 30일 기준이라고 말하고 전체 기간으로 넓혀 볼 수 있다', async () => {
     // 40일 전에 들어와 아직 아무도 연락하지 않은 신규 건 — 기본 기간이 가리면 "새 상담이 없다" 가 거짓이 된다.
-    seed([row({ id: 'cr-old', createdAt: hoursAgo(40 * 24), statusHistory: [{ status: 'new', changedAt: hoursAgo(40 * 24) }] })]);
+    seed([row({ id: 'cr-old', createdAt: hoursAgo(40 * 24) })]);
     const user = userEvent.setup();
     renderPage();
 
@@ -416,11 +443,11 @@ describe('상태 바꾸기', () => {
     await user.click(await screen.findByRole('button', { name: '연락중' }));
 
     expect(statusButton('연락중')).toHaveAttribute('aria-pressed', 'true');
-    expect(readCollection('consultRequests')[0].status).toBe('new');
+    expect(storedConsult().status).toBe('new');
 
     await user.click(screen.getByRole('button', { name: '연락중으로 저장' }));
 
-    await waitFor(() => expect(readCollection('consultRequests')[0].status).toBe('contacted'));
+    await waitFor(() => expect(storedConsult().status).toBe('contacted'));
   });
 
   it('현재와 같은 상태를 고르면 아무것도 열리지 않는다 — 같은 알림이 또 나가지 않게', async () => {
@@ -441,7 +468,7 @@ describe('상태 바꾸기', () => {
     expect(screen.getByLabelText('확정 날짜 (필수)')).toHaveAttribute('min', todayInSeoul(new Date()));
     expect(screen.getByRole('button', { name: '예약 확정하기' })).toBeDisabled();
     expect(screen.getByText('날짜와 시간을 모두 넣어야 저장할 수 있어요')).toBeInTheDocument();
-    expect(readCollection('consultRequests')[0].status).toBe('new');
+    expect(storedConsult().status).toBe('new');
   });
 
   it('날짜·시간을 넣어 저장하면 확정 일시가 보이고 성공 줄에 포커스가 간다', async () => {
@@ -463,7 +490,7 @@ describe('상태 바꾸기', () => {
     expect(screen.queryByText('예약확정으로 저장했어요. 환자에게 알림이 갔어요.')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '되돌리기' }));
 
-    const stored = readCollection('consultRequests')[0];
+    const stored = storedConsult();
     expect(stored.status).toBe('booked');
     expect(stored.visitAt).toBe(new Date(`${seoulDateIn(2)}T14:00:00+09:00`).toISOString());
     // 탭 숫자가 함께 바뀌고, 그 탭의 카드가 확정 일시를 보여준다.
@@ -482,7 +509,7 @@ describe('상태 바꾸기', () => {
     await user.click(screen.getByRole('button', { name: '예약 확정하기' }));
 
     expect(await screen.findByText('지난 날짜는 고를 수 없어요')).toBeInTheDocument();
-    expect(readCollection('consultRequests')[0].status).toBe('new');
+    expect(storedConsult().status).toBe('new');
   });
 
   it('일시 변경은 현재 값을 채워 주고, 그대로면 저장할 수 없다', async () => {
@@ -492,7 +519,17 @@ describe('상태 바꾸기', () => {
         id: 'cr1',
         status: 'booked',
         visitAt,
-        statusHistory: [{ status: 'booked', changedAt: hoursAgo(1), visitAt, event: 'status_change' }],
+        statusHistory: [
+          {
+            event: 'status_change',
+            status: 'booked',
+            changedAt: hoursAgo(1),
+            changedByName: '김실장',
+            visitAt,
+            cancelReason: null,
+            notified: true,
+          },
+        ],
       }),
     ]);
     const user = userEvent.setup();
@@ -512,8 +549,8 @@ describe('상태 바꾸기', () => {
     expect(
       await screen.findByText(`일시를 ${formatVisitAt(changed)}으로 바꿨어요. 환자에게 알림이 갔어요.`)
     ).toBeInTheDocument();
-    expect(readCollection('consultRequests')[0].visitAt).toBe(changed);
-    expect(readCollection('consultRequests')[0].statusHistory.at(-1)?.event).toBe('reschedule');
+    expect(storedConsult().visitAt).toBe(changed);
+    expect(storedConsult().statusHistory.at(-1)?.event).toBe('reschedule');
   });
 
   it('취소는 사유를 고르기 전에는 저장할 수 없고, 예약확정이면 경고를 보여준다', async () => {
@@ -532,9 +569,9 @@ describe('상태 바꾸기', () => {
     await user.selectOptions(screen.getByLabelText('취소 사유 (필수)'), 'no_answer');
     await user.click(screen.getByRole('button', { name: '취소로 저장' }));
 
-    await waitFor(() => expect(readCollection('consultRequests')[0].status).toBe('cancelled'));
+    await waitFor(() => expect(storedConsult().status).toBe('cancelled'));
     // 취소하면 확정 일시를 지운다 — 환자에게 거짓이 남지 않게.
-    expect(readCollection('consultRequests')[0].visitAt).toBeNull();
+    expect(storedConsult().visitAt).toBeNull();
     expect(await within(detail()).findByText(/취소 · 연락이 안 됨 · 김실장 · 환자 알림 발송/)).toBeInTheDocument();
   });
 

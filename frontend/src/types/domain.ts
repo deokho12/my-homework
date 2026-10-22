@@ -376,10 +376,10 @@ export interface ConsultThirdPartyConsent {
  * 처리 이력 한 줄 (openapi `ConsultStatusChange`). 이름과 달리 담는 것은 상태 변경이 아니라
  * **처리 이벤트**다 — 예약확정 상태에서 일시만 바꾸는 `reschedule` 도 여기 남는다.
  *
- * **`status`·`changedAt` 외는 전부 선택 필드다.** `mocks/fixtures/consultRequests.ts`
- * (백엔드 seed 가 import 하는 파일)의 과거 행에 이 값들이 없기 때문이고, 계약 확장 이전에
- * 쌓인 행이 전부 `status_change`·`notified: false` 인 것과 같은 사실이다.
- * **api 계층이 모든 응답에서 키를 채워 내보낸다** (`consultApi.ts` 의 `toStatusChangeView`).
+ * **`status`·`changedAt` 외는 전부 선택 필드다.** 이 타입은 응답 투영이 아니라 **판정
+ * 함수의 입력 모양**이라서다 — `cancelReasonOf`(`lib/transition.ts`)와 이력 줄 문구
+ * (`consultDisplay.ts`)는 값이 하나만 있어도 답을 낼 수 있어야 한다. 서버 응답
+ * (`ConsultStatusChangeView`)은 모든 키를 항상 채워 내려준다.
  */
 export interface ConsultStatusChange {
   status: ConsultStatus;
@@ -395,7 +395,7 @@ export interface ConsultStatusChange {
   /**
    * 이 이벤트로 **환자에게 알림이 나갔는지**. 규칙으로 파생하지 않고 저장된 사실을 그대로
    * 내려준다 — 억제 규칙이 생기면 이미 알림을 받은 과거 이력이 소급해 `발송 안 함` 으로 보인다.
-   * (저장 쪽은 알림 행을 가리키는 id 를 들고 있다 — `localCollection.ts`)
+   * (저장 쪽은 알림 행을 가리키는 id 를 들고 있다 — `consult_status_changes.notification_id`)
    */
   notified?: boolean;
 }
@@ -416,10 +416,9 @@ export interface ConsultRequest {
   name: string;
   phone: string;
   /**
-   * 계약은 `ConsultPreferredTime` 4지선다지만 여기서는 `string` 이다 —
-   * `mocks/fixtures/consultRequests.ts` 가 **백엔드 seed 가 그대로 import 하는 파일**이라
-   * 예전 3지선다 값이 문자열로 들어 있고, 그 파일은 바이트 단위로 보존해야 한다.
-   * 새로 접수되는 값은 폼 스키마(`consultRequestSchema`)가 4지선다로 좁힌다.
+   * 계약은 `ConsultPreferredTime` 4지선다지만 **읽는 쪽에서는 `string` 이다** — 선택지가
+   * 늘거나 예전 값이 남아 있어도 화면이 깨지지 않게 (계약 §15 enum 방어 규칙). 새로
+   * 접수되는 값은 폼 스키마(`consultRequestSchema`)가 4지선다로 좁힌다.
    */
   preferredTime: string;
   message: string;
@@ -428,9 +427,9 @@ export interface ConsultRequest {
   /**
    * 병원이 확정한 **내원 일시**. 초·밀리초는 항상 `0` 이다 (입력 단위가 분).
    *
-   * 계약(`ConsultRequest.visitAt`)에서는 **필수 + nullable** 인데 여기서는 선택이다 —
-   * 위 `preferredTime` 과 같은 이유로 이 필드가 없는 fixture 를 그대로 둬야 하기 때문이다.
-   * **api 계층이 모든 응답에서 키를 채워 내보낸다** (없으면 `null`).
+   * 여기서 선택인 이유는 이 타입이 **두 투영의 공통 뼈대**이기 때문이다 — 응답 타입
+   * (`AdminConsultRequest`·`MyConsultRequest`)이 이 자리를 **필수 + nullable** 로 덮어쓴다
+   * (계약과 같은 모양). 서버는 키를 항상 채워 내려준다.
    */
   visitAt?: string | null;
   statusHistory: ConsultStatusChange[];
@@ -438,10 +437,8 @@ export interface ConsultRequest {
    * 이 건에 기록된 제3자 제공 동의. `null` 이면 **동의 절차 도입 이전에 접수된 건**이다
    * (거절한 것이 아니다).
    *
-   * 계약(`ConsultRequest.thirdPartyConsent`)에서는 **필수 + nullable** 인데 여기서는 선택이다 —
-   * 위 `preferredTime` 과 같은 이유로, 이 필드가 없는 fixture 를 그대로 둬야 하기 때문이다.
-   * **api 계층이 모든 응답에서 키를 채워 내보내므로**(`consultApi.ts` 의 `toConsultRequest`)
-   * 화면이 보는 값에는 키가 항상 있다.
+   * `visitAt` 과 같은 이유로 여기서만 선택이다 — 응답 타입 두 개가 **필수 + nullable** 로
+   * 덮어쓴다.
    */
   thirdPartyConsent?: ConsultThirdPartyConsent | null;
   memos: ConsultMemo[];
@@ -534,6 +531,21 @@ export interface GeocodeResult {
 export type NotificationType = 'consult-status' | 'inquiry-answer' | 'event' | 'system';
 export type NotificationAudience = 'user' | 'admin';
 
+/**
+ * `relatedId` 가 **무엇의 id 인가** (openapi `AppNotification.relatedResource`).
+ *
+ * 관리자 알림함의 이동 분기가 이 값이다 — `type` 으로 가르면 접수 알림(`consult-status`)과
+ * 전문의 검수 결과 알림(`system`)이 같은 알림함에 섞여 들어오는 것을 다룰 수 없다.
+ * 서버는 저장 쪽의 snake_case(`consult_request`)를 투영에서 camelCase 로 바꿔 내리고,
+ * **모르는 값은 `null` 로 떨어뜨린다** (이동 대상 없음).
+ */
+export type NotificationRelatedResource =
+  | 'consultRequest'
+  | 'hospital'
+  | 'doctor'
+  | 'promotion'
+  | 'hospitalInquiry';
+
 export interface AppNotification {
   id: string;
   audience: NotificationAudience;
@@ -545,6 +557,11 @@ export interface AppNotification {
   /** Id of the related consult request, hospital, etc. Null for generic notices. */
   relatedId: string | null;
   /**
+   * `relatedId` 의 종류. 계약에서 **필수 + nullable** 이다 — 값이 `null` 인 것(갈 곳이 없는
+   * 안내 알림)과 키가 없는 것이 섞이면 이동 분기가 조용히 어긋난다.
+   */
+  relatedResource: NotificationRelatedResource | null;
+  /**
    * `type: 'consult-status'` 행의 **변경 후 상태** (`docs/database/README.md` §15).
    * 일시 변경(`reschedule`)이면 `booked` 다. 다른 `type` 은 전부 `null`.
    *
@@ -552,11 +569,9 @@ export interface AppNotification {
    * 문구는 저장된 `message` 문자열이지, 이 값으로 다시 만들지 않는다 — 다시 만들면
    * 문장을 다듬는 날 과거 알림 문구가 소급해 바뀐다.
    *
-   * **선택 필드인 이유**: 칸이 생기기 전에 저장된 행과 `mocks/fixtures/notifications.ts`
-   * 의 시드에는 이 키가 없다 (백엔드 seed 가 import 하는 파일이라 고치지 않았다 —
-   * §15.8 의 결정과 같다). 백필하지 않고 **읽을 때 `null` 로** 맞춘다
-   * (`features/notification/api/notificationApi.ts`). 새로 만드는 행은 항상 적는다 —
-   * 쓰기 경로의 입력 타입(`NewNotification`)이 키를 요구한다.
+   * 서버는 이 키를 **항상** 내려준다(계약에서 필수 + nullable). 여기서 선택 필드로 둔 것은
+   * 칸이 생기기 전에 저장된 행이 `null` 로 올라오는 것과 같은 자리를 한 번 더 열어 둔
+   * 것이고, 판정 함수가 `undefined` 와 `null` 을 같게 다룬다.
    */
   consultStatus?: ConsultStatus | null;
 }

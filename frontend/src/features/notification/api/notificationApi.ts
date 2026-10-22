@@ -1,14 +1,11 @@
-import { ApiError } from '@/lib/apiClient';
-import { pageLocalRows, readCollection, writeCollection } from '@/lib/localCollection';
-import type { AppNotification, ConsultStatus, NotificationAudience, Paged } from '@/types/domain';
+import { apiRequest } from '@/lib/apiClient';
+import { toSearchParams } from '@/lib/searchParams';
+import type { AppNotification, NotificationAudience, Paged } from '@/types/domain';
 
 /**
- * 알림함.
+ * 알림함. **전부 실제 백엔드를 부른다** (2026-10-22, 요청서 15).
  *
- * **지금은 `lib/localCollection.ts`(localStorage)를 읽고 쓴다. 백엔드가 생기면 각 함수의
- * 본문만 `apiRequest('<경로>')` 로 갈아끼우면 되고, 시그니처와 화면 코드는 바뀌지 않는다.**
- *
- * | 함수 | 대응 엔드포인트 |
+ * | 함수 | 엔드포인트 |
  * |---|---|
  * | `fetchNotifications` | `GET /notifications?audience=...` |
  * | `fetchUnreadNotificationCount` | `GET /notifications/unread-count?audience=...` |
@@ -16,14 +13,15 @@ import type { AppNotification, ConsultStatus, NotificationAudience, Paged } from
  * | `markAllNotificationsAsRead` | `POST /notifications/read-all` |
  *
  * **`audience` 는 역할이 아니라 알림함(mailbox)이다.** 역할은 셋이지만 화면은
- * `/notifications` 와 `/admin/notifications` 둘뿐이라 알림함도 둘이다.
+ * `/notifications` 와 `/admin/notifications` 둘뿐이라 알림함도 둘이다. `audience=user` 는
+ * 세 역할 모두 부를 수 있고, `audience=admin` 은 담당자·운영자만이다 (`user` 는 `403`).
+ * 훅이 역할을 보고 아예 묻지 않는다 (`hooks/useNotifications.ts`).
  *
- * **알림을 만드는 함수는 여기 없다.** 알림은 상담 접수·상태 변경의 부수효과로만 생기고,
- * 그 임시 구현은 `features/consult/api/consultApi.ts` 안에 `서버 전환 시 삭제` 표시와 함께 있다.
+ * **모든 경로가 로그인을 요구한다** — 비로그인은 `401` 이다. 종 배지 훅도 로그인했을 때만
+ * 조회한다 (`hooks/useUnreadNotificationCount.ts`).
  *
- * **로컬 구현이 계약과 다른 점:** 수신자 스코프가 없다. 계정과 무관하게 `audience` 로만
- * 갈리므로, 관리자가 상태를 바꾸면 그 사용자 알림이 관리자 자신의 알림함에도 보인다
- * (`docs/features/known-issues.md`). 서버가 `userId` 로 보내는 것이 그 결함의 해결책이다.
+ * **알림을 만드는 함수는 여기 없다.** 알림은 상담 접수·상태 변경의 부수효과로만 서버 안에서
+ * 생기고, 만드는 공개 엔드포인트는 계약에 아예 없다 (`docs/api/README.md` §9).
  */
 
 /**
@@ -55,49 +53,12 @@ export interface MarkAllReadResult {
   unreadCount: number;
 }
 
-/**
- * 서버 전환 시 삭제: **로컬에서 알림 행을 만들 때의 입력 모양**이다 (만드는 함수 자체는
- * `features/consult/api/consultApi.ts`·`features/inquiry/api/inquiryApi.ts` 안에 있다).
- *
- * `consultStatus` 를 **선택이 아니라 필수**로 요구한다 — 저장된 행에서는 선택 필드지만
- * (칸이 생기기 전의 행과 시드에 키가 없다), **새로 만드는 행은 반드시 적는다**는 것이
- * 쓰기 경로의 불변식이다 (`docs/database/README.md` §15.1). 타입이 그것을 강제하면
- * 통로가 하나 더 생기는 날 컴파일 에러로 잡힌다.
- */
-export type NewLocalNotification = Omit<AppNotification, 'id' | 'createdAt' | 'isRead' | 'consultStatus'> & {
-  consultStatus: ConsultStatus | null;
-};
-
-/**
- * 저장 행 → 응답 행. **칸이 없는 과거 행·시드는 읽을 때 `null` 로 맞춘다** (백필하지
- * 않는다 — 시드 fixture 는 백엔드 seed 가 import 하는 파일이라 고치지 않는다).
- * 그래서 화면은 `consultStatus` 가 "없는" 경우를 따로 다루지 않아도 된다.
- */
-function toNotification(stored: AppNotification): AppNotification {
-  return { ...stored, consultStatus: stored.consultStatus ?? null };
-}
-
-function inAudience(audience: NotificationAudience) {
-  return (notification: AppNotification) => notification.audience === audience;
-}
-
-function unreadCountFor(audience: NotificationAudience): number {
-  return readCollection('notifications').filter(
-    (notification) => notification.audience === audience && !notification.isRead
-  ).length;
-}
-
-/** `GET /notifications`. 최신순. */
-export async function fetchNotifications(
+/** `GET /notifications`. 최신순. 받는 사람이 나인 알림만 온다 (서버가 토큰으로 스코프한다). */
+export function fetchNotifications(
   audience: NotificationAudience,
   filters: NotificationFilters = {}
 ): Promise<NotificationList> {
-  const rows = readCollection('notifications')
-    .filter(inAudience(audience))
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    .map(toNotification);
-
-  return { ...pageLocalRows(rows, filters.page, filters.pageSize), unreadCount: unreadCountFor(audience) };
+  return apiRequest<NotificationList>(`/notifications${toSearchParams({ audience, ...filters })}`);
 }
 
 /**
@@ -106,36 +67,21 @@ export async function fetchNotifications(
  * 목록과 분리된 이유: 배지는 거의 모든 화면에서 필요한데, 관리자 알림 문구에는 고객 이름이
  * 들어 있어(`김민준님이 상담을 신청했어요`) 배지 하나 때문에 개인정보를 받아올 수는 없다.
  */
-export async function fetchUnreadNotificationCount(
+export function fetchUnreadNotificationCount(
   audience: NotificationAudience
 ): Promise<UnreadNotificationCount> {
-  return { audience, unreadCount: unreadCountFor(audience) };
+  return apiRequest<UnreadNotificationCount>(`/notifications/unread-count${toSearchParams({ audience })}`);
 }
 
 /**
  * `PATCH /notifications/{notificationId}/read`. 멱등 — 이미 읽은 알림이어도 성공이다.
  * 읽음을 되돌리는 경로는 계약에도 화면에도 없다.
+ *
+ * 내 알림이 아니면 `404 NOTIFICATION_NOT_FOUND` 다 (`403` 이 아니다 — "목록에 없는 알림" 과
+ * "없는 알림" 을 구분해 줄 이유가 없다). 어느 화면도 이 코드로 분기하지 않는다.
  */
-export async function markNotificationAsRead(id: string): Promise<AppNotification> {
-  const rows = readCollection('notifications');
-  const target = rows.find((notification) => notification.id === id);
-
-  if (!target) {
-    // 계약은 이 404 의 `code` 를 예시로 고정하지 않았다. 서버가 다른 이름을 쓰게 되면
-    // 여기만 맞추면 된다 — 어느 화면도 이 코드로 분기하지 않는다 (읽음 처리는 조용히 실패한다).
-    throw new ApiError({ status: 404, code: 'NOTIFICATION_NOT_FOUND', message: '알림을 찾을 수 없어요' });
-  }
-
-  if (target.isRead) return toNotification(target);
-
-  const updated: AppNotification = { ...target, isRead: true };
-
-  writeCollection(
-    'notifications',
-    rows.map((notification) => (notification.id === id ? updated : notification))
-  );
-
-  return toNotification(updated);
+export function markNotificationAsRead(id: string): Promise<AppNotification> {
+  return apiRequest<AppNotification>(`/notifications/${encodeURIComponent(id)}/read`, { method: 'PATCH' });
 }
 
 /**
@@ -144,18 +90,6 @@ export async function markNotificationAsRead(id: string): Promise<AppNotificatio
  * `audience` 가 **필수**인 이유: `모두 읽음` 은 한쪽 알림함만 처리해야 하고 반대쪽의 안 읽은
  * 표시는 그대로 남아야 한다. 생략을 허용하면 그 규칙이 우연히 깨진다.
  */
-export async function markAllNotificationsAsRead(audience: NotificationAudience): Promise<MarkAllReadResult> {
-  const rows = readCollection('notifications');
-  const markedCount = rows.filter(
-    (notification) => notification.audience === audience && !notification.isRead
-  ).length;
-
-  writeCollection(
-    'notifications',
-    rows.map((notification) =>
-      notification.audience === audience ? { ...notification, isRead: true } : notification
-    )
-  );
-
-  return { audience, markedCount, unreadCount: 0 };
+export function markAllNotificationsAsRead(audience: NotificationAudience): Promise<MarkAllReadResult> {
+  return apiRequest<MarkAllReadResult>('/notifications/read-all', { method: 'POST', body: { audience } });
 }

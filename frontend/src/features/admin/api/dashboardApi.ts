@@ -4,13 +4,13 @@ import {
 } from '@/features/consult/api/consultApi';
 import { isConsultDelayed } from '@/features/consult/consultDisplay';
 import { funnelOf, type Funnel } from '@/features/consult/lib/funnel';
-import { cancelReasonOf, periodRange } from '@/features/consult/lib/transition';
+import { periodRange } from '@/features/consult/lib/transition';
 import { fetchHospitalDoctors } from '@/features/doctor/api/doctorApi';
 import { fetchHospitalById } from '@/features/hospital/api/hospitalApi';
 import { completenessOf, type Completeness } from '@/features/hospital/lib/completeness';
 import { inquiryStatus } from '@/features/inquiry/inquiryVisibility';
 import { ApiError } from '@/lib/apiClient';
-import { readCollection, type StoredConsultRequest } from '@/lib/localCollection';
+import { readCollection } from '@/lib/localCollection';
 import { useAuthStore } from '@/store/useAuthStore';
 import { SEOUL_TIMEZONE } from '@/lib/dateFormat';
 import type { ProcedureId } from '@/types/domain';
@@ -22,15 +22,21 @@ import type { ProcedureId } from '@/types/domain';
  * |---|---|
  * | `fetchAdminDashboard` | `GET /admin/dashboard?hospitalId=` |
  *
- * **지금은 서버에 dashboard·consult·inquiry 모듈이 없다.** 그래서 이 함수가 계약의 응답
- * 모양을 흉내 낸다 — 상담·문의는 `lib/localCollection.ts`(localStorage)에서, 병원과 소속
- * 전문의는 **실제 서버**(`GET /hospitals/{id}`, `GET /hospitals/{id}/doctors`)에서 읽는다.
- * 서버가 생기면 이 파일의 본문만 `apiRequest('/admin/dashboard...')` 로 갈아끼우면 되고,
- * 훅과 화면은 한 줄도 바뀌지 않는다.
+ * **요청서 15 → 16 사이의 중간 상태다.** 서버에 아직 대시보드 오퍼레이션이 없어서 이
+ * 함수가 계약의 응답 모양을 브라우저에서 만든다. 재료의 출처는 셋으로 갈린다:
+ *
+ * | 재료 | 출처 |
+ * |---|---|
+ * | 상담 | **실제 서버** — `GET /consult-requests?hospitalId=`(전 페이지, 요청서 15) |
+ * | 병원·소속 전문의 | **실제 서버** — `GET /hospitals/{id}`, `GET /hospitals/{id}/doctors` |
+ * | 병원 문의 | 아직 브라우저 저장소 (`lib/localCollection.ts`) — 요청서 16 이 옮긴다 |
+ *
+ * 요청서 16 이 `GET /admin/dashboard` 를 만들면 이 파일의 본문은
+ * `apiRequest('/admin/dashboard...')` 한 줄이 되고, 훅과 화면은 한 줄도 바뀌지 않는다.
  *
  * **판정 규칙은 여기 없다.** 전부 이미 있던 순수 함수를 부른다 — 기간 경계 `periodRange`,
- * 지연 `isConsultDelayed`, 파생 취소 사유 `cancelReasonOf`, 깔때기 `funnelOf`, 문의 상태
- * `inquiryStatus`, 완성도 `completenessOf`, 목록 투영·마스킹은 `fetchConsultRequests` 그대로.
+ * 지연 `isConsultDelayed`, 깔때기 `funnelOf`, 문의 상태 `inquiryStatus`, 완성도
+ * `completenessOf`. 목록 투영·마스킹과 파생 취소 사유는 서버가 준 값 그대로다.
  * **이 오퍼레이션이 새로 만든 규칙은 하나도 없다.**
  *
  * **불변식 하나**: 숫자 카드 = 사이드 메뉴 배지 = 그 카드를 눌렀을 때 열리는 목록의 건수.
@@ -44,9 +50,12 @@ import type { ProcedureId } from '@/types/domain';
  * - **담당 병원이 0곳인데 `hospitalId` 를 생략한 경우를 계약이 적지 않았다.** 여기서는
  *   `422 HOSPITAL_ID_REQUIRED` 로 떨어뜨린다 ("정확히 1곳" 이 아닌 모든 경우). 화면은 그
  *   상태에서 아예 호출하지 않고 빈 상태를 그린다.
- * - **한 트랜잭션이 아니다.** 상담·문의는 localStorage 에서, 병원·전문의는 네트워크에서
- *   오므로 엄밀히는 한 시점이 아니다. 대신 `now` 를 **함수 진입 때 한 번만** 읽어 모든
+ * - **한 트랜잭션이 아니다.** 상담·병원·전문의는 각각 다른 요청으로, 문의는 localStorage
+ *   에서 오므로 엄밀히는 한 시점이 아니다. 대신 `now` 를 **함수 진입 때 한 번만** 읽어 모든
  *   달력 경계·지연 판정이 같은 시점을 쓰게 한다 (`calculatedAt` 이 그 값이다).
+ * - **상담 전 건을 받아 브라우저에서 센다.** 숫자 8개와 깔때기의 모집단이 저마다 달라
+ *   (오늘·이번 달·상태·지연·오늘 방문) 목록 질의로 나누면 8번을 왕복해야 하고, 그 사이에
+ *   새 상담이 들어오면 카드와 목록이 어긋난다. 한 번에 받아 한 배열에서 센다.
  * - **`Cache-Control`·감사 로그가 없다.** 둘 다 서버가 생겨야 생기는 것이다.
  */
 
@@ -117,6 +126,29 @@ const DELAYED_TODO_LIMIT = 5;
 /** `최근 상담 예약` 줄 수. */
 const RECENT_CONSULT_LIMIT = 5;
 
+/** 상담을 받아 오는 페이지 크기. 계약의 상한이다 (`pageSize` 최대 100). */
+const CONSULT_PAGE_SIZE = 100;
+
+/**
+ * 그 병원의 상담 **전 건**. 서버 목록을 끝 페이지까지 이어 붙인다.
+ *
+ * 응답은 목록 투영이라 번호가 가려져 있는데, 대시보드가 읽는 것은
+ * `name`·`status`·`createdAt`·`visitAt`·`procedureId`·`cancelReason`·`statusHistory`
+ * 뿐이라 가려진 칸을 쓰지 않는다 (`최근 상담 예약` 도 같은 투영 그대로 그린다).
+ */
+async function fetchAllConsults(hospitalId: string): Promise<AdminConsultRequest[]> {
+  const first = await fetchConsultRequests({ hospitalId, pageSize: CONSULT_PAGE_SIZE });
+  const rows = [...first.items];
+
+  for (let page = 2; page <= first.meta.totalPages; page += 1) {
+    const next = await fetchConsultRequests({ hospitalId, page, pageSize: CONSULT_PAGE_SIZE });
+
+    rows.push(...next.items);
+  }
+
+  return rows;
+}
+
 // 서버 전환 시 삭제: 역할·담당 병원은 서버가 토큰 주체로 판정한다
 function currentUser() {
   return useAuthStore.getState().user;
@@ -185,9 +217,7 @@ export async function fetchAdminDashboard(params: AdminDashboardParams = {}): Pr
   // **시계는 한 번만 읽는다.** 달력 경계 다섯과 지연 판정이 같은 시점을 가리켜야 한다.
   const now = new Date();
 
-  const consults: StoredConsultRequest[] = readCollection('consultRequests').filter(
-    (row) => row.hospitalId === hospitalId
-  );
+  const consults = await fetchAllConsults(hospitalId);
   const inquiries = readCollection('inquiries').filter((row) => row.hospitalId === hospitalId);
 
   const today = periodRange('today', now);
@@ -214,9 +244,9 @@ export async function fetchAdminDashboard(params: AdminDashboardParams = {}): Pr
     bookedThisMonth,
   };
 
-  const funnel = funnelOf(
-    monthCohort.map((row) => ({ status: row.status, cancelReason: cancelReasonOf(row.status, row.statusHistory) }))
-  );
+  // 취소 사유는 **서버가 이력에서 파생해** 내려준 값을 쓴다 (같은 순수 함수
+  // `cancelReasonOf` 의 결과다 — 여기서 다시 파생하면 같은 판정이 두 곳이 된다).
+  const funnel = funnelOf(monthCohort.map((row) => ({ status: row.status, cancelReason: row.cancelReason })));
 
   const todo: AdminDashboardTodo = {
     delayedConsults: delayed.slice(0, DELAYED_TODO_LIMIT).map((row) => ({
@@ -240,10 +270,6 @@ export async function fetchAdminDashboard(params: AdminDashboardParams = {}): Pr
       visitAt: row.visitAt as string,
     }));
 
-  // `최근 상담 예약` 은 **목록 오퍼레이션을 그대로 부른다** — 같은 투영·같은 마스킹이라고
-  // 적는 대신 같은 함수를 쓴다 (`전체 보기` 가 여는 목록의 1페이지와 같은 질의다).
-  const recent = await fetchConsultRequests({ hospitalId, pageSize: RECENT_CONSULT_LIMIT });
-
   const [hospital, doctors] = await Promise.all([fetchHospitalById(hospitalId), fetchHospitalDoctors(hospitalId)]);
 
   todo.rejectedDoctors = doctors
@@ -256,7 +282,9 @@ export async function fetchAdminDashboard(params: AdminDashboardParams = {}): Pr
     numbers,
     funnel,
     todo,
-    recentConsults: recent.items,
+    // `최근 상담 예약` 은 **목록의 1페이지**다 — `전체 보기` 가 여는 목록과 같은 질의·같은
+    // 정렬(신청일시 최신순)이라 위에서 받아 둔 배열의 앞 5줄이 그대로 그 값이다.
+    recentConsults: consults.slice(0, RECENT_CONSULT_LIMIT),
     todayVisits,
     completeness: completenessOf({
       name: hospital.name,

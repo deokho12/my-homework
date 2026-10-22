@@ -1,10 +1,11 @@
 # 몰라몰라 백엔드 (NestJS + Prisma + SQLite)
 
-현재 상태: **인증·인가에 이어 병원·전문의 도메인 API 까지 구현되어 있습니다**
+현재 상태: **인증·인가 → 병원·전문의 도메인 → 상담·알림까지 구현되어 있습니다**
 (`2026-08-13-hospital-doctor-domain-api` 조각 1 — 시술 목록, 병원 조회·등록·수정, 전문의
-조회·수정·삭제·인증 검수, 병원 후기 조회. 총 15개 오퍼레이션. `docs/api/openapi.yaml` 의
-`x-screen-status` 참고). 그 밖의 도메인(상담 신청·찜·알림, 커뮤니티·콘텐츠·검색)은 아직
-없습니다 — 아래 [아직 없는 것](#아직-없는-것-다음-task-로-넘김) 절과 [다음 조각](#다음-조각)
+조회·수정·삭제·인증 검수, 병원 후기 조회. 총 15개 오퍼레이션. **요청서 15 — 상담 접수·목록·
+상세·상태 변경·메모·내 내역 + 알림함 4개. 10개 오퍼레이션**. `docs/api/openapi.yaml` 의
+`x-screen-status` 참고). 그 밖의 도메인(찜, 병원 문의, 관리자 대시보드, 커뮤니티·콘텐츠·검색)은
+아직 없습니다 — 아래 [아직 없는 것](#아직-없는-것-다음-task-로-넘김) 절과 [다음 조각](#다음-조각)
 참고.
 
 `GET /health`, `POST|GET /api/v1/auth/*` 5개, 그 위에 얹을 가드 3층, 감사 로그·
@@ -132,6 +133,8 @@ backend/
 │   │   ├── data/
 │   │   │   ├── procedure-categories.ts  # ★ 시술 분야 9개 (원본. import 0)
 │   │   │   ├── procedures.ts            # ★ 세부 시술 31개 (원본. import 0)
+│   │   │   ├── consult-requests.ts      # ★ 상담 샘플 8건 + 신청자 7명 (원본, 요청서 15)
+│   │   │   ├── notifications.ts         # ★ 공지 알림 3건 (상담 알림은 이벤트에서 파생)
 │   │   │   └── hospitals|doctors|reviews.ts
 │   │   └── fixtures.ts        # frontend fixture import 창구 (유일)
 │   ├── tsconfig.seed.json     # 시드 전용 (@/* → frontend/src/*)
@@ -155,12 +158,19 @@ backend/
 │   ├── hospital/              # 병원 조회·등록·수정 + 관리자 로스터 + 스폰서 계산 + 거리 계산
 │   ├── doctor/                # 전문의 조회·로스터 교체·수정·삭제 + 인증 검수
 │   ├── review/                # 병원 후기 조회 (작성 엔드포인트 없음 — 화면에 없다)
+│   ├── consult/               # 상담 접수·목록·상세·상태 변경·메모·내 내역 (요청서 15)
+│   │   ├── transition.ts      # ★ 판정 규칙 (import 0 — 프론트 동기화 테스트가 읽는다)
+│   │   ├── notification-text.ts # ★ 알림 문구 (import 0 — 〃)
+│   │   └── masking.ts         # 이름·연락처 정규화와 마스킹 (순수 함수)
+│   ├── notification/          # 알림함 조회·읽음 (생성 엔드포인트는 없다 — 부수효과로만 생긴다)
+│   │   ├── notification.write.ts # 행 모양 (순수 변환)
+│   │   └── notification.tx.ts    # 트랜잭션 삽입 + 그 병원 담당자 조회
 │   ├── scripts/
 │   │   ├── operator-role.ts   # 운영자 승격·회수 CLI (HTTP 경로 없음 — 결정 4)
 │   │   └── tokens-cleanup.ts  # refresh_tokens 수동 정리 CLI
 │   ├── prisma/                # PrismaService (전역 모듈, lifecycle hook)
 │   └── health/                # GET /health
-└── test/                      # 33 파일 / 383 테스트 (auth·인가 기반 + 병원·전문의 도메인 + 시술 분류)
+└── test/                      # 39 파일 / 571 테스트 (+ 상담·알림 — 요청서 15)
     ├── global-setup.ts               # ★ test.db 삭제 → migrate deploy → 시드 (실행마다 1회)
     ├── support/
     │   ├── app.ts                   # 테스트 앱 + 시드 계정 로그인 헬퍼
@@ -179,7 +189,13 @@ backend/
     ├── seed-data.spec.ts             # 시드 데이터 + 변환 검증
     ├── procedure-migration.spec.ts   # 옛 시술 id 이관 보존 단정 (임시 DB 에 마이그레이션을 직접 적용)
     ├── procedure-availability.spec.ts     # `준비중` 경계값 (순수 함수)
-    └── procedure-availability.e2e.spec.ts # 체크 → 저장 → 준비중 해제 경로 전체
+    ├── procedure-availability.e2e.spec.ts # 체크 → 저장 → 준비중 해제 경로 전체
+    ├── consult-transition.spec.ts         # 필수 입력·결과 일시·이벤트 종류·기간 경계 (순수)
+    ├── consult-notification-text.spec.ts  # 상태별 알림 문장 (순수)
+    ├── consult-masking.spec.ts            # 이름·연락처 마스킹, 역할 × 투영 (순수)
+    ├── notification-write.spec.ts         # 알림 행 모양 + tx 헬퍼 (순수 + 스텁)
+    ├── consult.e2e.spec.ts                # 접수·목록·상세·상태 변경·메모 + 감사 행
+    └── notification.e2e.spec.ts           # 알림함 수신자 스코프·읽음·모두 읽음
 ```
 
 ### 라우팅
@@ -319,10 +335,11 @@ npm run operator:revoke -- someone@example.com --actor=me@molarmolar.example --f
 ### 아직 없는 것 (다음 Task 로 넘김)
 
 - **요청 한도(429 RATE_LIMITED)** — 로그인 브루트포스 방어. 계약에는 있고 구현은 없습니다
-- **감사 로그의 HTTP 배선** — `audit_logs` 테이블·리포지토리·정책은 있고, 상담 상세 열람
-  기록(결정 3)은 그 컨트롤러가 생길 때 `AuditLogService.recordFromRequest()` 한 줄로 붙습니다
-  (`test/audit-log.spec.ts` 의 "도메인 컨트롤러 배선 지점" 테스트가 무엇이 기록되는지 고정합니다).
-  지금 실제로 쓰는 곳은 `operator:grant` / `operator:revoke` 입니다
+- ~~**감사 로그의 HTTP 배선**~~ — **2026-10-22(요청서 15)에 붙었습니다.** 상담 상세 열람
+  (`consult_request.view`), 상태 변경(`status_change`), 일시 변경(`reschedule`), 메모 작성
+  (`memo_create`) 네 가지가 `AuditLogService.recordFromRequest()` 를 씁니다. 뒤 셋은 **쓰기와
+  같은 트랜잭션**입니다(`ConsultRepository` 가 `tx` 를 빌려줍니다). CLI 두 개
+  (`operator:grant`/`revoke`)도 그대로입니다
 - **`POST /auth/social/{provider}`** — 화면이 버튼만 있는 상태라 미구현
 - **비밀번호 찾기** — 계정을 운영자가 만들지 않는 설계이므로 우선순위가 높습니다 (결정 문서 §미결 6)
 
@@ -398,6 +415,55 @@ npm run operator:revoke -- someone@example.com --actor=me@molarmolar.example --f
   정제는 지금도 앱에서 하므로, 그 두 쿼리에는 bounding box 까지만 밀어 넣고 정밀 필터는
   남는 구조가 됩니다
 
+요청 15(상담·알림을 서버로)에서 의도적으로 만들지 않은 것들입니다. 근거는
+`docs/api/README.md` §9 의 범위 표와 계약의 🛑 표시에 있습니다.
+
+- **`GET /consult-requests/summary` 를 만들지 않았습니다** — 읽는 화면이 하나도 없습니다.
+  병원 관리자 홈은 `GET /admin/dashboard`(요청서 16) 하나로 받고, 운영자 홈은 상담 숫자를
+  그리지 않습니다. 계약에서 지우지는 않았습니다. **다시 볼 조건:** 그 숫자를 쓰는 화면이
+  생기는 날. (브랜치에 있던 `consult/summary.ts` 와 그 스펙은 가져오지 않았습니다)
+- **`GET /me/consult-requests/{consultRequestId}` 도 만들지 않았습니다** — 부르는 프런트 함수가
+  없습니다. 상담 알림의 이동 대상이 **목록 + `relatedId` 강조**로 정해지면서(요청 08) 소비
+  화면이 사라졌습니다. **다시 볼 조건:** 신청자용 상담 상세 화면이 생기는 날
+- **`지연`(신규 24시간) 판정을 서버가 하지 않습니다** — 계약이 "서버가 계산하지 않는다" 고
+  적었고(받는 순간부터 거짓이 되기 시작하는 값입니다), 요청 15 에는 **서버 소비자가 없습니다.**
+  **요청서 16(관리자 대시보드)이 그 소비자를 만듭니다** — 그때
+  `frontend/src/features/consult/consultDisplay.ts` 의 `isConsultDelayed` 를
+  `consult/transition.ts` 옆에 **import 0 인 순수 함수**로 옮기고 프론트 쪽에 동기화 테스트를
+  붙입니다 (지금 두 순수 모듈에 한 것과 같은 절차)
+- **`type='inquiry-answer'` 알림을 만드는 곳이 없습니다** — 생산자는
+  `POST /hospital-inquiries/{id}/answer` 하나이고 그것은 **요청서 16** 의 범위입니다.
+  15 와 16 사이에는 그 값의 알림이 한 건도 생기지 않습니다(요청자 결정, `docs/api/README.md` §9).
+  **다만 `?type=inquiry-answer` 필터는 지금도 `422` 가 아닙니다** — 값을 만드는 쪽이 없는 것과
+  필터로 물을 수 없는 것은 다릅니다
+- **`MyConsultRequest.hospitalThumbnail` 을 읽는 화면이 아직 없습니다** — 계약에 있는 선택
+  필드라 서버는 채워 내려주지만(`consult.projection.ts`, 값이 없으면 키를 생략), 내 상담
+  내역 카드는 지금 병원 이름만 그립니다. 계약이 요구해서 만든 것이고 **소비자가 생기면
+  그대로 쓰입니다** — 지우지 않는 대신 여기 적어 둡니다
+- **`GET /notifications` 의 `?isRead`·`?type` 필터에 소비자가 없습니다** — 서버는 계약대로
+  두 필터를 구현했지만 프런트의 `NotificationFilters` 는 보내지 않습니다(알림함 탭이
+  `audience` 로만 갈립니다). 계약에 있는 값이라 지우지 않았고, 필터가 필요해지는 화면이
+  생기면 쿼리만 붙이면 됩니다
+- **`GET /consult-requests/summary` 는 `:consultRequestId` 라우트에 먼저 잡혀 `404
+  CONSULT_REQUEST_NOT_FOUND` 입니다** — 위에 적은 대로 그 오퍼레이션을 만들지 않았기 때문이고,
+  `summary` 를 id 로 읽은 결과라 **의도한 동작**입니다(`test/consult.e2e.spec.ts` 가 고정합니다).
+  만드는 날에는 그 라우트를 `:consultRequestId` **앞에** 선언해야 합니다
+- **`prisma migrate dev` 가 상담 데이터가 있는 DB 에서는 실패합니다** — `phone_digits` 가
+  `NOT NULL` 이고 **스키마 기본값이 없어서**(db-master 권고 — 기본값을 두면 "빈 문자열도 정상"
+  이라는 신호가 박힙니다), SQLite 의 테이블 재생성이 기존 행의 값을 채우지 못합니다.
+  개발 DB 는 전부 시드 산출물이라 **백업 → reset → 재시드**로 넘겼습니다(docs §12.13-F).
+  운영 데이터가 생긴 뒤라면 3단계(nullable 추가 → 백필 UPDATE → NOT NULL 재생성)가 정석입니다
+- **CORS 가 응답 헤더를 브라우저에 노출하지 않습니다** — `src/main.ts` 의 CORS 설정에
+  `exposedHeaders` 가 없어 `:5173` 의 화면 코드는 `X-Status-Changed`·`X-Audit-Logged`·
+  `X-Request-Id`·`Location` 을 읽지 못합니다(QA 2026-10-22). 지금은 응답 헤더를 읽는 프런트 코드가
+  없어(`frontend/src/lib/apiClient.ts` 는 본문만 읽습니다) 영향이 없습니다. **다시 볼 조건:**
+  화면이 헤더를 읽기 시작하는 날 — 그때 읽는 헤더만 `exposedHeaders` 에 더합니다
+- **입력 검사 메시지 몇 개가 영어입니다** — 이름 빈칸·50자 초과·`preferredTime` 값 오류의
+  `details[].message` 가 Zod 기본 문구(`String must contain at least 1 character(s)` 등)로
+  나갑니다(QA 2026-10-22). 손으로 정한 코드(`INVALID_PHONE_FORMAT`·`CANCEL_REASON_REQUIRED` 등)는
+  한국어입니다. 상담 신청 화면이 같은 검사를 먼저 해서 화면으로는 거의 닿지 않습니다. **다시 볼
+  조건:** 서버 메시지를 그대로 띄우는 화면이 생기거나, 공통 Zod 오류 문구를 한국어로 맞추는 날
+
 ### 다음 조각
 
 이 저장소는 `hospital-doctor-domain-api` 조각 1(Task 1~21) 까지 끝났습니다. 남은 도메인은
@@ -406,9 +472,29 @@ npm run operator:revoke -- someone@example.com --actor=me@molarmolar.example --f
 
 | 조각 | 내용 |
 |---|---|
-| 2 | 찜·상담접수·알림 (검수가 이미 만들고 있는 알림 행을 읽는 API 포함) |
-| 3 | 관리자 상담 처리 (`@HospitalScope({ resource: 'consultRequest' })` 는 이미 준비됨) |
-| 4 | 커뮤니티·콘텐츠·검색 (`frontend/src/mocks/db.ts` 의 남은 테이블 3개: `consultRequests`·`communityPosts`·`notifications`) |
+| 2 | ~~찜·상담접수·알림~~ → **상담·알림은 요청서 15 에서 끝났습니다.** 남은 것은 **찜**입니다 |
+| 3 | ~~관리자 상담 처리~~ → **요청서 15 에서 끝났습니다** (목록·상세·상태 변경·메모) |
+| 4 | 커뮤니티·콘텐츠·검색 (`frontend/src/mocks/db.ts` 의 남은 테이블 2개: `communityPosts` 등) |
+
+지금 기준으로 남은 큰 덩어리는 **요청서 16**(병원 문의 답변 + 관리자 대시보드 + 찜)과
+커뮤니티·콘텐츠·검색입니다.
+
+## 상담 · 알림 — 10개 오퍼레이션 (요청서 15)
+
+설계는 `docs/database/README.md` §12·§13.5·§15, 계약 판단은 `docs/api/README.md` §4·§9·§11 입니다.
+
+| | |
+|---|---|
+| 구현 기준 | **프런트의 흉내 구현**(`frontend/src/features/consult/api/consultApi.ts`·`features/notification/api/notificationApi.ts`). 서버가 그 파일과 다르게 동작하면 화면 코드가 바뀌어야 합니다 |
+| 판정 규칙 | `consult/transition.ts` (필수 입력 · 결과 일시 · 이벤트 종류 · 기간 경계 · 파생 취소 사유) |
+| 알림 문구 | `consult/notification-text.ts` (상태별 환자 문장 · 접수 알림 · `10/9(금) 14:00` 표기 · 받침 조사) |
+| ★ 두 파일은 **import 가 0** 입니다 | 프런트의 동기화 테스트가 **상대 경로로** 읽어 같은 답을 내는지 고정합니다 (요청 14 의 `taxonomy.sync.test.ts` 와 같은 수법). `@nestjs/*` 를 하나라도 들이면 그쪽 해석기에서 깨집니다 |
+| 마스킹 | `consult/masking.ts` — **역할 × 투영** 두 축입니다. 전체 번호는 **담당 담당자의 `GET /consult-requests/{id}`** 하나뿐이고(감사 행이 남는 경로), 목록은 두 역할 모두 가립니다(무기록 대량 반출 차단). **쓰기 응답(`PATCH …/status`·`POST …/memos`)도 목록 투영입니다** — no-op `PATCH` 는 감사 행을 만들지 않아, 전체 번호가 실리면 무기록 수집이 됩니다 (2026-10-22 계약) |
+| 인가 | 조회는 `hospital_admin`+`operator`, **쓰기(상태·메모)는 `hospital_admin` 만**. 담당 밖 상담은 `404`(열거 방지), 목록의 `?hospitalId=` 가 담당 밖이면 `403` |
+| 알림 생성 | 엔드포인트가 **없습니다**. 상담 접수(담당자 전원·`admin`)·상태 변경(신청자 1명·`user`)·전문의 검수(담당자 전원·`system`)의 부수효과로만 생깁니다 |
+| 트랜잭션 | 상태 변경 한 번에 **알림 + 상담 갱신 + 이력 행 + 감사 행**이 같은 트랜잭션입니다. 이력 행이 알림 id 를 들고 `notified` 를 설명합니다 |
+| no-op | `(status, visitAt, cancelReason)` 세 값이 모두 그대로면 **아무 것도 만들지 않고** `200` + `X-Status-Changed: false` 입니다. `visitAt` 비교는 **분 단위**입니다 |
+| 캐시 | 상담·알림의 모든 응답이 `Cache-Control: no-store` 이고, 관리자 목록·상세는 `Vary: Authorization` 까지 붙입니다 |
 
 ## 시술 분류 — 분야 9 · 세부 31 · `준비중` (요청 14)
 
@@ -473,24 +559,34 @@ npm run operator:revoke -- someone@example.com --actor=me@molarmolar.example --f
 |---|---|---|
 | `operator` | `ops@molarmolar.example` | 전문의 인증 검수 (`/admin/specialists`) |
 | `hospital_admin` | `admin-h1@molarmolar.example` ~ `admin-h11@…` (11개) | 각 병원 1곳 담당 (`hospital_admins`) |
-| `user` | `seed-1@molarmolar.example` ~ `seed-7@…` (7개) | 상담 `cr1`~`cr7` 의 신청자 |
+| `user` | `seed-1@molarmolar.example` ~ `seed-7@…` (7개) | 상담 8건의 신청자 7명. **한 사람이 두 병원에 신청한 샘플이 있어 1:1 이 아닙니다** (`u-seed-1` → `cr1`(h1)·`cr8`(h2)) |
 
 테스트도 이 계정으로 로그인합니다 (`test/support/app.ts` 의 `SEED_ACCOUNTS`). 그래서
 `SEED_PASSWORD` 가 없으면 테스트가 명확한 메시지로 실패합니다.
 
-`seed-3@molarmolar.example`(최지훈) 계정에만 **안 읽은 알림 1건**이 있습니다 —
-알림이 계정별로 갈렸다는 것을 눈으로 확인할 수 있는 케이스입니다.
+요청서 15 의 확인 항목("환자 A 의 알림이 환자 B 에게 보이지 않는다")에 쓸 계정은 이 둘입니다
+(docs §12.13-E) — **건수와 문구가 서로 다릅니다.** 둘 다 "연락중" 하나뿐이면 화면이 섞여
+보여도 눈으로 알아챌 수 없습니다.
+
+| | 계정 | 상담 | 안 읽은 알림 |
+|---|---|---|---|
+| 환자 A | `seed-1@molarmolar.example` (김민준) | `cr1`(h1) · `cr8`(h2) | **3건** (cr8 의 연락중·예약확정·**일시 변경**) |
+| 환자 B | `seed-2@molarmolar.example` (박서준) | `cr6`(h1) | **1건** (연락중) |
+
+관리자 쪽은 `admin-h1`(h1 상담 6건 · 접수 알림 6건)과 `admin-h2`(h2 상담 2건)입니다 —
+`admin-h1` 에게 `cr7`·`cr8` 은 **보이지 않아야** 합니다. 공지 알림 3건은 전부 읽음으로
+시작하므로, 🔔 배지에 보이는 숫자는 상담에서 파생된 알림입니다.
 
 ---
 
 ## 시드 날짜 정책 (QA 가 알아야 하는 부분)
 
-규칙은 **하나**입니다 — fixture 의 모든 날짜를 **기준일 하나로 통째로 밉니다**
-(docs/database/README.md §8.5).
+규칙은 **둘**입니다 — fixture 에 날짜가 **있는 것**은 기준일 하나로 통째로 밀고(§8.5),
+**없는 것**은 기준일 기준 오프셋을 줍니다(§8.4). 섞이는 테이블은 없습니다.
 
 ```
 FIXTURE_TODAY = 2026-07-30            목 데이터의 "오늘"
-SEED_TODAY    = env SEED_TODAY 또는 시드 실행 시각의 UTC 날짜
+SEED_TODAY    = env SEED_TODAY 또는 시드 실행 시각의 **KST 달력 날짜**
 shift         = SEED_TODAY - FIXTURE_TODAY        (시드 배너에 `shift=+83일` 처럼 찍힙니다)
 ```
 
@@ -502,14 +598,25 @@ shift         = SEED_TODAY - FIXTURE_TODAY        (시드 배너에 `shift=+83�
   뒤에도 반드시 기준일을 품습니다 — 시드는 그것을 확인하고, 아니면 중단합니다.
 - **`SEED_TODAY=2026-07-30` 으로 시드하면 shift = 0** 이라 fixture 원본이 그대로
   들어갑니다 (화면 문서의 날짜를 그대로 재현해야 할 때).
-- fixture 에 **날짜가 없는 것**(프로모션 기간 4건, 전문의 검수 시각, 약관 시행일)만
+- **`SEED_TODAY` 의 기본값은 KST 달력일입니다** (2026-10-22, 요청서 15). 예전에는 실행
+  시각의 UTC 날짜라, 15:00Z~24:00Z(= KST 자정~오전 9시)에 시드하면 시드의 `오늘` 이 KST 의
+  `어제` 가 되어 **`오늘 내원 예정`·`오늘 들어온 상담` 이 0건**이었습니다. 그 지표들의 경계가
+  전부 `Asia/Seoul` 이라 기준일도 KST 인 것이 맞습니다. 테스트 DB 도 같은 함수를 씁니다
+  (`test/global-setup.ts`).
+- **상담 8건과 알림은 `SEED_TODAY` 기준 오프셋입니다** (밀 fixture 가 아니라 §8.4 쪽입니다 —
+  `{ day, time }` 으로 적고 `clock.seoulAt` 이 KST 벽시계를 UTC 로 바꿉니다). **오늘(오프셋 0)
+  접수 건에 `내원완료`·`취소` 를 하나씩 둔 것이 설계 포인트**입니다 — 오프셋 0 은 어느 날
+  시드해도 이번 달이라 대시보드의 다섯 숫자가 0 이 되지 않습니다 (docs §12.13-C).
+  **알림 문구는 시드가 서버의 순수 함수를 불러서 만듭니다** — 문자열을 적어 두면 문구를
+  다듬는 날 시드와 런타임이 조용히 갈립니다.
+- fixture 에 **날짜가 없는 것**(프로모션 기간 4건, 전문의 검수 시각, 약관 시행일)도
   `SEED_TODAY` 기준 오프셋으로 **만들어 줍니다** (§8.4). 프로모션 4건은 기준일을
   감싸므로 항상 '진행중' 입니다 — 만료 UI 를 보려면 `p3` 의 `end_date` 를 과거로
   바꾸고, 되돌리려면 시드를 다시 돌리세요(idempotent).
-- **'이번 달' 숫자는 `SEED_TODAY` 의 일(日)에 달려 있습니다.** 가장 최근 상담이
-  기준일 하루 전이므로, 매월 1일에 시드하면 `/admin` 의 '이번 달 신규 상담' 이 0 입니다.
-  대시보드 숫자를 보려면 `SEED_TODAY` 를 그 달 중순 이후로 고정해서 시드하세요.
-  (테스트는 그래서 달력 월이 아니라 "최근 3일 안에 상담이 있다" 로 단정합니다.)
+- **'이번 달' 숫자는 여전히 `SEED_TODAY` 의 일(日)에 영향을 받습니다** — 1일에 시드하면
+  D−1 이하의 상담이 전부 지난달로 빠집니다. 다만 요청서 15 의 샘플은 **오프셋 0 에 3건**을
+  두어 그 날에도 숫자가 0 이 되지 않습니다 (상담 흐름 깔때기도 `오늘 접수 → 오늘 내원`
+  한 건이 위 세 단계를 함께 채웁니다).
 - 재현이 필요하면 `.env` 에 `SEED_TODAY=2026-08-12` 처럼 고정하세요.
 
 자세한 규칙과 근거는 `prisma/seed/dates.ts` 주석에, 경계값은

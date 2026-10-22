@@ -1,19 +1,13 @@
 import { resolveLegacyProcedureId } from '@/features/procedure/taxonomy';
-import { consultRequests as seedConsultRequests } from '@/mocks/fixtures/consultRequests';
-import { notifications as seedNotifications } from '@/mocks/fixtures/notifications';
 import { qaPosts as seedQaPosts } from '@/mocks/fixtures/qaPosts';
-import type {
-  AppNotification,
-  ConsultRequest,
-  ConsultStatusChange,
-  HospitalInquiryAnswer,
-  InquiryTopic,
-  Paged,
-  QAPost,
-} from '@/types/domain';
+import type { HospitalInquiryAnswer, InquiryTopic, Paged, QAPost } from '@/types/domain';
 
 /**
- * 아직 서버가 없는 도메인(상담·찜·알림·커뮤니티)의 **저장소 대역**이다.
+ * 아직 서버가 없는 도메인(커뮤니티·병원 문의·찜)의 **저장소 대역**이다.
+ *
+ * **상담과 알림은 2026-10-22(요청서 15)에 서버로 갔다** — 그 두 컬렉션과 시드·이관 키를
+ * 여기서 지웠다. 브라우저에 남아 있던 예전 샘플은 **옮기지 않는다** (요청자 결정 —
+ * 서버 시드가 오늘 날짜의 샘플을 따로 만든다). 문의와 찜은 요청서 16 이 같은 절차로 옮긴다.
  *
  * ## 이 파일의 존재 이유
  *
@@ -27,32 +21,6 @@ import type {
  * Zustand `persist` 를 걷어낸 이유도 같다 — 서버성 데이터를 TanStack Query 가 캐시하는데
  * Zustand 도 같은 값을 붙들고 있으면 두 캐시가 조용히 어긋난다.
  */
-
-/**
- * 저장된 상담 한 건. **도메인 타입이 아니다** — 서버라면 토큰에서 알아낼 "누가 신청했는가" 를
- * 로컬에서는 행에 적어 두는 수밖에 없어서 붙인 저장 전용 필드가 하나 있다.
- *
- * 선택 필드인 이유: `mocks/fixtures/consultRequests.ts`(백엔드 seed 가 import 하는 파일)에는
- * 이 값이 없고, 이 앱을 이미 쓴 브라우저에 남아 있는 행에도 없다.
- * 주인이 없는 행은 **누구의 것도 아니다** (`fetchMyConsultRequests` 가 걸러낸다).
- *
- * 서버 전환 시 삭제: `userId` 는 서버가 토큰에서 채운다.
- */
-export interface StoredConsultRequest extends Omit<ConsultRequest, 'statusHistory'> {
-  ownerUserId?: string;
-  statusHistory: StoredConsultStatusChange[];
-}
-
-/**
- * 저장된 처리 이력 한 줄. 투영(`ConsultStatusChange`)과 다른 점은 하나다 — **어느 알림이
- * 이 이벤트로 나갔는지**를 들고 있고, 응답에는 boolean(`notified`)만 내려간다
- * (계약: 알림 상세로 가는 화면이 없는데 id 를 내리면 그 자리가 "갈 수 있다" 는 약속이 된다).
- *
- * 서버 전환 시 삭제: 서버는 `consult_status_changes.notification_id` 로 같은 것을 들고 있다.
- */
-export interface StoredConsultStatusChange extends ConsultStatusChange {
-  notificationId?: string;
-}
 
 /**
  * 저장된 병원 문의 한 건 (`docs/api/README.md` §14 `hospital_inquiries`).
@@ -87,9 +55,7 @@ export interface StoredHospitalInquiry {
 }
 
 interface LocalCollections {
-  consultRequests: StoredConsultRequest[];
   communityPosts: QAPost[];
-  notifications: AppNotification[];
   /** 병원 문의. **시드가 없다** — 빈 목록에서 시작하는 것이 이 기능의 원래 상태다. */
   inquiries: StoredHospitalInquiry[];
   /** 찜한 병원 id. 최근에 찜한 것이 앞이다 (`FavoriteList.hospitalIds` 와 같은 순서 규약). */
@@ -101,9 +67,7 @@ export type LocalCollectionName = keyof LocalCollections;
 const STORAGE_PREFIX = 'molarmolar-local-';
 
 const SEEDS: LocalCollections = {
-  consultRequests: seedConsultRequests,
   communityPosts: seedQaPosts,
-  notifications: seedNotifications,
   // 찜은 목업 시드가 없다. 빈 목록에서 시작하는 것이 원래 동작이다.
   favoriteHospitalIds: [],
   // 문의도 시드가 없다. `mocks/fixtures/` 는 백엔드 seed 가 import 하는 폴더라
@@ -113,16 +77,18 @@ const SEEDS: LocalCollections = {
 
 /**
  * 이 앱을 이미 써 본 브라우저에는 zustand `persist` 가 만든 키에 사용자 데이터가 들어 있다.
- * 그대로 버리면 신청했던 상담·작성한 글·찜이 사라지므로 **최초 1회만** 흡수한다.
+ * 그대로 버리면 작성한 글과 찜이 사라지므로 **최초 1회만** 흡수한다.
  * 키와 안쪽 필드 이름은 삭제된 각 스토어의 persist 설정에서 그대로 가져온 값이다.
  *
- * **새로 생긴 컬렉션은 여기 없다** (`inquiries`). 흡수할 과거 데이터가 없는데 키를 적어 두면
- * 읽히지 않는 이름이 하나 남아, 다음 사람이 그 키를 진짜 있었던 것으로 읽는다.
+ * **상담·알림의 옛 키는 2026-10-22 에 지웠다** (`molarmolar-consult-requests`·
+ * `molarmolar-notifications`). 그 데이터는 서버로 옮기지 않기로 했고(요청자 결정), 읽지
+ * 않을 키를 남겨 두면 다음 사람이 아직 쓰는 것으로 읽는다.
+ *
+ * **새로 생긴 컬렉션도 여기 없다** (`inquiries`). 흡수할 과거 데이터가 없는데 키를 적어 두면
+ * 읽히지 않는 이름이 하나 남는다.
  */
 const LEGACY_SOURCES: Partial<Record<LocalCollectionName, { key: string; field: string }>> = {
-  consultRequests: { key: 'molarmolar-consult-requests', field: 'requests' },
   communityPosts: { key: 'molarmolar-community-posts', field: 'posts' },
-  notifications: { key: 'molarmolar-notifications', field: 'notifications' },
   favoriteHospitalIds: { key: 'molarmolar-favorites', field: 'hospitalIds' },
 };
 
@@ -193,9 +159,9 @@ export function readCollection<K extends LocalCollectionName>(name: K): LocalCol
 /**
  * **옛 시술 id 를 읽는 순간 한 번에 푼다** (2026-10-21 요청 14).
  *
- * 이 앱을 오늘 이전에 쓴 브라우저에는 `procedureId: 'implant'` 같은 옛 값을 가진 상담·질문
- * 행이 남아 있다. 서버 시술 id 가 31개 세부 시술로 바뀌면서 그 값들은 라벨이 안 붙고
- * (`procedureDisplayName` 이 `null`), 관리자 상담 분야 필터에도 걸리지 않는다.
+ * 이 앱을 오늘 이전에 쓴 브라우저에는 `procedureId: 'implant'` 같은 옛 값을 가진 질문 행이
+ * 남아 있다. 서버 시술 id 가 31개 세부 시술로 바뀌면서 그 값들은 라벨이 안 붙는다
+ * (`procedureDisplayName` 이 `null`). 상담은 서버로 갔으므로 여기 남은 것은 커뮤니티뿐이다.
  *
  * **읽을 때 한 곳에서** 바꾼다 — 화면·훅·api 함수가 각자 풀면 한 군데를 빠뜨린다. 쓰기는
  * 이미 새 id 라 변환이 필요 없고, 변환된 값은 다음 `writeCollection` 때 저장소에도 남는다.
@@ -204,7 +170,7 @@ function normalizeProcedureIds<K extends LocalCollectionName>(
   name: K,
   rows: LocalCollections[K]
 ): LocalCollections[K] {
-  if (name !== 'consultRequests' && name !== 'communityPosts') return rows;
+  if (name !== 'communityPosts') return rows;
 
   return (rows as readonly { procedureId?: string | null }[]).map((row) => {
     if (typeof row.procedureId !== 'string') return row;

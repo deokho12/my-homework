@@ -5,9 +5,11 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
 import { validateEnv } from './config/env.schema';
+import { ConsultModule } from './consult/consult.module';
 import { DoctorModule } from './doctor/doctor.module';
 import { HealthModule } from './health/health.module';
 import { HospitalModule } from './hospital/hospital.module';
+import { NotificationModule } from './notification/notification.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProcedureModule } from './procedure/procedure.module';
 
@@ -38,6 +40,10 @@ import { ProcedureModule } from './procedure/procedure.module';
     ProcedureModule,
     HospitalModule,
     DoctorModule,
+    // 상담 접수·처리와 알림함 (요청서 15). 알림을 만드는 엔드포인트는 없다 —
+    // 알림은 상담 접수·상태 변경·전문의 검수의 부수효과로만 생긴다 (계약).
+    ConsultModule,
+    NotificationModule,
   ],
 })
 export class AppModule {}

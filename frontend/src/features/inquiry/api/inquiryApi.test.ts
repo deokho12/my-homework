@@ -83,7 +83,6 @@ async function expectApiError(promise: Promise<unknown>, code: string, status: n
 describe('inquiryApi — 접수 (POST /hospital-inquiries)', () => {
   beforeEach(() => {
     writeCollection('inquiries', []);
-    writeCollection('notifications', []);
     signIn('u-me');
   });
 
@@ -159,12 +158,6 @@ describe('inquiryApi — 접수 (POST /hospital-inquiries)', () => {
     });
   });
 
-  it('접수는 관리자 알림을 만들지 않는다 (배지는 미답변 수다)', async () => {
-    await createHospitalInquiry({ hospitalId: 'h1', topic: 'price', content: '임플란트 비용이 궁금해요' });
-
-    expect(readCollection('notifications')).toHaveLength(0);
-  });
-
   it('로그인하지 않았으면 401 이다', async () => {
     signOut();
 
@@ -179,7 +172,6 @@ describe('inquiryApi — 접수 (POST /hospital-inquiries)', () => {
 describe('inquiryApi — 내 문의 (GET /me/inquiries)', () => {
   beforeEach(() => {
     writeCollection('inquiries', []);
-    writeCollection('notifications', []);
   });
 
   afterEach(() => {
@@ -244,7 +236,6 @@ describe('inquiryApi — 내 문의 (GET /me/inquiries)', () => {
 describe('inquiryApi — 관리자 목록·요약 (GET /hospital-inquiries)', () => {
   beforeEach(() => {
     writeCollection('inquiries', []);
-    writeCollection('notifications', []);
     seed([
       { id: 'hi-h1-a', hospitalId: 'h1', createdAt: '2026-10-01T00:00:00.000Z' },
       {
@@ -328,7 +319,6 @@ describe('inquiryApi — 관리자 목록·요약 (GET /hospital-inquiries)', ()
 describe('inquiryApi — 관리자 상세 (GET /hospital-inquiries/{id})', () => {
   beforeEach(() => {
     writeCollection('inquiries', []);
-    writeCollection('notifications', []);
     seed([{ id: 'hi-h1', hospitalId: 'h1' }, { id: 'hi-h2', hospitalId: 'h2' }]);
   });
 
@@ -364,7 +354,6 @@ describe('inquiryApi — 관리자 상세 (GET /hospital-inquiries/{id})', () =>
 describe('inquiryApi — 답변 (POST /hospital-inquiries/{id}/answer)', () => {
   beforeEach(() => {
     writeCollection('inquiries', []);
-    writeCollection('notifications', []);
     seed([
       { id: 'hi-h1', hospitalId: 'h1', hospitalName: '강남 스마일 치과' },
       { id: 'hi-h2', hospitalId: 'h2', hospitalName: 'B치과' },
@@ -388,7 +377,6 @@ describe('inquiryApi — 답변 (POST /hospital-inquiries/{id}/answer)', () => {
       'OPERATOR_CANNOT_ANSWER',
       403
     );
-    expect(readCollection('notifications')).toHaveLength(0);
   });
 
   it('담당 병원이 아니면 404 다', async () => {
@@ -409,8 +397,6 @@ describe('inquiryApi — 답변 (POST /hospital-inquiries/{id}/answer)', () => {
       'INQUIRY_ALREADY_ANSWERED',
       409
     );
-    // 두 번째 답변이 막히면 알림도 나가지 않는다.
-    expect(readCollection('notifications')).toHaveLength(0);
   });
 
   it('공개 여부를 고르지 않으면 422 ANSWER_PUBLIC_REQUIRED 다 — 기본값이 없다', async () => {
@@ -443,7 +429,7 @@ describe('inquiryApi — 답변 (POST /hospital-inquiries/{id}/answer)', () => {
     expect(error.details?.[0].message).toBe('답변 내용을 5자 이상 입력해주세요');
   });
 
-  it('답변을 등록하면 상태가 바뀌고 문의자에게 알림이 딱 한 건 생긴다', async () => {
+  it('답변을 등록하면 상태가 바뀐다', async () => {
     signIn('u-admin', { role: 'hospital_admin', managedHospitalIds: ['h1'], name: '관리자' });
 
     const answered = await answerHospitalInquiry('hi-h1', {
@@ -456,28 +442,22 @@ describe('inquiryApi — 답변 (POST /hospital-inquiries/{id}/answer)', () => {
       content: '평일은 오전 10시부터 오후 7시까지 진료합니다.',
       isPublic: true,
     });
-
-    const notifications = readCollection('notifications');
-    expect(notifications).toHaveLength(1);
-    expect(notifications[0]).toMatchObject({
-      audience: 'user',
-      type: 'inquiry-answer',
-      title: '문의에 답변이 왔어요',
-      message: '강남 스마일 치과 · 평일은 오전 10시부터 오후 7시까지 진료합니다.',
-      relatedId: 'hi-h1',
-      isRead: false,
-      // 상담 알림이 아니다 — 상태 칸은 비어 있어야 아이콘이 문의로 갈린다.
-      consultStatus: null,
-    });
   });
 
-  it('알림 본문은 답변 앞 60자까지이고 넘으면 … 를 붙인다', async () => {
+  /**
+   * **문의 답변 알림은 요청서 15~16 사이에 한 건도 생기지 않는다** (요청자 결정).
+   * 알림함은 서버로 갔는데(요청서 15) 문의는 아직 브라우저 저장소라 알림을 넣을 자리가
+   * 없다. 요청서 16 이 문의를 서버로 옮기면서 그 트랜잭션 안에서 만든다
+   * (`docs/api/README.md` §9, `docs/features/known-issues.md`).
+   */
+  it('답변을 등록해도 이 계층은 알림을 만들지 않는다 (요청서 16 이 만든다)', async () => {
     signIn('u-admin', { role: 'hospital_admin', managedHospitalIds: ['h1'] });
-    const long = 'ㄱ'.repeat(70);
 
-    await answerHospitalInquiry('hi-h1', { content: long, isPublic: false });
+    await answerHospitalInquiry('hi-h1', { content: '평일 10시부터 진료합니다', isPublic: true });
 
-    expect(readCollection('notifications')[0].message).toBe(`강남 스마일 치과 · ${'ㄱ'.repeat(60)}…`);
+    // 쓰기 통로가 남아 있지 않다는 것을 이 계층에서 확인할 수 있는 방법은 저장소 키가
+    // 더 이상 존재하지 않는다는 사실뿐이다 (`localCollection` 에서 지웠다).
+    expect(window.localStorage.getItem('molarmolar-local-notifications')).toBeNull();
   });
 
   it('병원의 공개 선택은 그대로 저장된다 — 노출은 AND 규칙이 따로 정한다', async () => {
@@ -497,7 +477,6 @@ describe('inquiryApi — 답변 (POST /hospital-inquiries/{id}/answer)', () => {
 describe('inquiryApi — 공개 Q/A (GET /hospitals/{id}/inquiries)', () => {
   beforeEach(() => {
     writeCollection('inquiries', []);
-    writeCollection('notifications', []);
     seed([
       // 공개 + 병원 공개 + 답변완료 → 보인다
       {

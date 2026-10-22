@@ -2,13 +2,17 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { writeCollection } from '@/lib/localCollection';
+import * as notificationApi from '@/features/notification/api/notificationApi';
 import { RouterBridge, router } from '@/navigation';
 import NotificationsScreen from '@/screens/notifications';
 import { useAuthStore } from '@/store/useAuthStore';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import type { AppNotification } from '@/types/domain';
 
+/**
+ * 알림함은 2026-10-22(요청서 15)부터 서버에 있다. 화면 테스트는 **서버가 준 줄을 어떻게
+ * 그리고 어디로 보내는가**만 본다 — 수신자 스코프·읽음 저장은 서버의 일이다.
+ */
 function notification(overrides: Partial<AppNotification> = {}): AppNotification {
   return {
     id: 'n1',
@@ -17,11 +21,27 @@ function notification(overrides: Partial<AppNotification> = {}): AppNotification
     title: '문의에 답변이 왔어요',
     message: '강남 스마일 치과 · 임플란트는 90만원부터입니다',
     relatedId: 'hi1',
+    relatedResource: 'hospitalInquiry',
     isRead: false,
     createdAt: '2026-10-12T06:10:00.000Z',
     consultStatus: null,
     ...overrides,
   };
+}
+
+function stubNotifications(rows: AppNotification[]): void {
+  vi.spyOn(notificationApi, 'fetchNotifications').mockResolvedValue({
+    items: rows,
+    meta: { page: 1, pageSize: 100, totalItems: rows.length, totalPages: rows.length === 0 ? 0 : 1 },
+    unreadCount: rows.filter((item) => !item.isRead).length,
+  });
+}
+
+/** 읽음 처리는 `PATCH /notifications/{id}/read` 한 번이다. 응답은 읽음이 된 그 알림이다. */
+function stubMarkAsRead() {
+  return vi
+    .spyOn(notificationApi, 'markNotificationAsRead')
+    .mockImplementation(async (id: string) => notification({ id, isRead: true }));
 }
 
 function renderScreen() {
@@ -41,7 +61,6 @@ function row(name: RegExp) {
 
 describe('NotificationsScreen — 문의 답변 알림', () => {
   beforeEach(() => {
-    writeCollection('consultRequests', []);
     useAuthStore.setState({
       user: {
         id: 'u-me',
@@ -61,7 +80,7 @@ describe('NotificationsScreen — 문의 답변 알림', () => {
   });
 
   it('누르면 마이페이지 내 문의의 그 문의를 펼친 채 연다', async () => {
-    writeCollection('notifications', [notification()]);
+    stubNotifications([notification()]);
     const pushSpy = vi.spyOn(router, 'push');
 
     renderScreen();
@@ -73,25 +92,20 @@ describe('NotificationsScreen — 문의 답변 알림', () => {
   });
 
   it('읽음 처리도 함께 한다', async () => {
-    writeCollection('notifications', [notification()]);
+    stubNotifications([notification()]);
+    const markAsRead = stubMarkAsRead();
     vi.spyOn(router, 'push').mockImplementation(() => {});
 
     renderScreen();
 
     await userEvent.click(await screen.findByText('문의에 답변이 왔어요'));
 
-    await waitFor(() => {
-      const [stored] = JSON.parse(
-        window.localStorage.getItem('molarmolar-local-notifications') ?? '[]'
-      ) as AppNotification[];
-      expect(stored.isRead).toBe(true);
-    });
+    await waitFor(() => expect(markAsRead).toHaveBeenCalledWith('n1'));
   });
 });
 
 describe('NotificationsScreen — 상담 알림', () => {
   beforeEach(() => {
-    writeCollection('consultRequests', []);
     useAuthStore.setState({
       user: {
         id: 'u-me',
@@ -117,12 +131,13 @@ describe('NotificationsScreen — 상담 알림', () => {
       title: '상담 예약이 확정됐어요',
       message: '강남 스마일 치과 · 10/9(금) 14:00 방문. 변경이 필요하면 병원에 전화해 주세요',
       relatedId: 'cr9',
+      relatedResource: 'consultRequest',
       consultStatus: 'booked',
       ...overrides,
     });
 
   it('상담 알림은 상태와 무관하게 마이페이지 상담 내역의 그 상담으로 간다', async () => {
-    writeCollection('notifications', [
+    stubNotifications([
       consultNotification(),
       consultNotification({
         id: 'n-cancelled',
@@ -147,7 +162,8 @@ describe('NotificationsScreen — 상담 알림', () => {
   });
 
   it('상담 id 가 없는 알림은 읽음 처리만 하고 이동하지 않는다', async () => {
-    writeCollection('notifications', [consultNotification({ relatedId: null })]);
+    stubNotifications([consultNotification({ relatedId: null })]);
+    const markAsRead = stubMarkAsRead();
     const pushSpy = vi.spyOn(router, 'push');
 
     renderScreen();
@@ -155,16 +171,11 @@ describe('NotificationsScreen — 상담 알림', () => {
     await userEvent.click(await screen.findByText('상담 예약이 확정됐어요'));
 
     expect(pushSpy).not.toHaveBeenCalled();
-    await waitFor(() => {
-      const [stored] = JSON.parse(
-        window.localStorage.getItem('molarmolar-local-notifications') ?? '[]'
-      ) as AppNotification[];
-      expect(stored.isRead).toBe(true);
-    });
+    await waitFor(() => expect(markAsRead).toHaveBeenCalledWith('n-booked'));
   });
 
   it('저장된 문구를 그대로 그린다 — 화면이 다시 만들지 않는다', async () => {
-    writeCollection('notifications', [
+    stubNotifications([
       consultNotification({ message: '옛 병원 이름 · 10/1(목) 09:00 방문. 변경이 필요하면 병원에 전화해 주세요' }),
     ]);
 
@@ -195,7 +206,7 @@ describe('NotificationsScreen — 종류와 읽음 표시', () => {
   });
 
   it('낭독기는 안 읽은 행에서만 `안 읽음` 을 듣고, 종류는 늘 듣는다', async () => {
-    writeCollection('notifications', [
+    stubNotifications([
       notification({
         id: 'n-unread',
         type: 'consult-status',
@@ -223,7 +234,7 @@ describe('NotificationsScreen — 종류와 읽음 표시', () => {
   });
 
   it('시각은 기기 시계가 아니라 서울 달력으로 적는다', async () => {
-    writeCollection('notifications', [notification({ createdAt: '2026-10-09T05:02:00.000Z' })]);
+    stubNotifications([notification({ createdAt: '2026-10-09T05:02:00.000Z' })]);
 
     renderScreen();
 
@@ -234,7 +245,7 @@ describe('NotificationsScreen — 종류와 읽음 표시', () => {
     // jsdom 은 레이아웃을 계산하지 않아 "잘렸는지" 를 볼 수 없다. 고정하는 것은 **클래스
     // 조합**이다: `line-clamp-*` 는 `display:-webkit-box` 로 동작하는데 `.block` 이
     // 스타일시트 뒤쪽에 있어 같이 쓰면 `display:block` 이 이기고 clamp 가 조용히 사라진다.
-    writeCollection('notifications', [notification({ message: '긴 본문'.repeat(40) })]);
+    stubNotifications([notification({ message: '긴 본문'.repeat(40) })]);
 
     renderScreen();
 
@@ -246,7 +257,7 @@ describe('NotificationsScreen — 종류와 읽음 표시', () => {
   });
 
   it('알림 줄은 목록(ul/li)으로 묶인다 — 낭독기가 개수를 먼저 말한다', async () => {
-    writeCollection('notifications', [notification(), notification({ id: 'n2', createdAt: '2026-10-11T00:00:00.000Z' })]);
+    stubNotifications([notification(), notification({ id: 'n2', createdAt: '2026-10-11T00:00:00.000Z' })]);
 
     renderScreen();
 
@@ -254,18 +265,20 @@ describe('NotificationsScreen — 종류와 읽음 표시', () => {
     expect(within(list).getAllByRole('listitem')).toHaveLength(2);
   });
 
-  it('상태 칸이 없는 과거 알림도 그려진다 (상담 아이콘으로 떨어진다)', async () => {
-    // 시드 알림에는 `consultStatus` 키 자체가 없다 — 읽을 때 null 로 맞춰진다.
-    writeCollection('notifications', [
+  it('상태 칸이 비어 있는 알림도 그려진다 (상담 아이콘으로 떨어진다)', async () => {
+    // 칸이 생기기 전에 쌓인 행은 서버가 `null` 로 내려준다 — 화면이 그 경우를 다룬다.
+    stubNotifications([
       {
         id: 'notif-legacy',
         audience: 'user',
         type: 'consult-status',
+        consultStatus: null,
         title: '상담 상태 변경',
         message: "상담 상태가 '예약완료'(으)로 변경되었어요",
         isRead: false,
         createdAt: '2026-07-18T11:45:00.000Z',
         relatedId: 'cr3',
+        relatedResource: 'consultRequest',
       },
     ]);
 

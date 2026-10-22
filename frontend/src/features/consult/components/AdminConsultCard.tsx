@@ -8,7 +8,6 @@ import {
   formatDateTimeShort,
   isConsultDelayed,
 } from '@/features/consult/consultDisplay';
-import { useHospitalName } from '@/features/hospital';
 import { cx } from '@/primitives';
 import { CONSULT_STATUS_LABEL } from '@/types/domain';
 
@@ -31,10 +30,8 @@ export function AdminConsultCard({ request, selected, onSelect, now }: AdminCons
   const procedureLabel = consultProcedureLabel(request.procedureId);
   const line = consultVisitLine(request);
   const delayed = isConsultDelayed(request, now);
-  // 로컬 응답에 `hospitalName` 이 없어 병원 id 로 따로 묻는다 (마이페이지 상담 내역과 같은 훅).
-  // 같은 병원의 카드는 한 번만 조회된다 — react-query 가 병원 id 로 캐시를 공유한다.
-  const hospitalName = useHospitalName(request.hospitalId);
-  const whereLine = [hospitalName, procedureLabel].filter(Boolean).join(' · ');
+  // 병원 이름은 **목록 응답에 들어 있다** — 카드마다 병원을 다시 조회하지 않는다 (요청서 15).
+  const whereLine = [request.hospitalName, procedureLabel].filter(Boolean).join(' · ');
 
   return (
     <li>

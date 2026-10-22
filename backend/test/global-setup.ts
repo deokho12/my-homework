@@ -5,6 +5,7 @@ import { promisify } from 'node:util';
 
 import { config as loadEnv } from 'dotenv';
 
+import { seoulDateKey } from '../prisma/seed/dates';
 import { assertNotDevDatabase, BACKEND_DIR, testDatabaseFile, testDatabaseUrl } from './support/test-database';
 
 const execFileAsync = promisify(execFile);
@@ -102,7 +103,10 @@ export default async function setup(): Promise<void> {
   // 시드의 "오늘" 은 여기서 **한 번만** 정해 환경변수로 내려보낸다. 테스트 워커는 이
   // 프로세스의 환경을 물려받으므로 `seed-data.spec.ts` 는 다시 계산하지 않고 이 값을 읽는다
   // (UTC 자정을 걸친 실행에서 시드와 단정이 하루 어긋나지 않게).
-  const seedToday = process.env.SEED_TODAY?.trim() || new Date().toISOString().slice(0, 10);
+  // **KST 달력일이다** (UTC 날짜가 아니다 — 요청서 15). 시드의 `오늘` 과 테스트가 단정하는
+  // `오늘`(`period=today`·`오늘 내원 예정`)의 경계가 전부 `Asia/Seoul` 이라, UTC 로 고르면
+  // 15:00Z~24:00Z 에 돌릴 때 하루가 어긋난다. 규칙은 시드와 **같은 함수**를 쓴다.
+  const seedToday = process.env.SEED_TODAY?.trim() || seoulDateKey(new Date());
   process.env.SEED_TODAY = seedToday;
   const startedAt = Date.now();
 

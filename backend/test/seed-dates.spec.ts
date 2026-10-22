@@ -7,6 +7,7 @@ import {
   parseFixtureDate,
   PROMOTION_WINDOWS,
   resolveSeedToday,
+  seoulDateKey,
   startOfUtcDay,
   toDateString,
 } from '../prisma/seed/dates';
@@ -181,12 +182,22 @@ describe('createSeedClock — fixture 날짜를 기준일 하나로 민다 (docs
 });
 
 describe('resolveSeedToday', () => {
-  it('비어 있으면 실행 시각의 UTC 자정', () => {
+  it('★ 비어 있으면 **KST 달력일**의 UTC 자정이다 (요청서 15)', () => {
     const resolved = resolveSeedToday(undefined);
 
-    expect(resolved.getTime()).toBe(startOfUtcDay(new Date()).getTime());
+    // UTC 날짜가 아니다 — 15:00Z~24:00Z 에 시드하면 KST 로는 이미 다음 날이고, 그때
+    // `오늘 내원 예정`·`오늘 들어온 상담`(둘 다 KST 경계)이 0건이 됐다.
+    expect(toDateString(resolved)).toBe(seoulDateKey(new Date()));
+    expect(resolved.toISOString().endsWith('T00:00:00.000Z')).toBe(true);
     expect(resolveSeedToday('').getTime()).toBe(resolved.getTime());
     expect(resolveSeedToday('   ').getTime()).toBe(resolved.getTime());
+  });
+
+  it('seoulDateKey 는 UTC 가 아니라 서울 달력 날짜다', () => {
+    expect(seoulDateKey(new Date('2026-10-12T15:00:00.000Z'))).toBe('2026-10-13');
+    expect(seoulDateKey(new Date('2026-10-12T14:59:00.000Z'))).toBe('2026-10-12');
+    // 기존 UTC 기준 헬퍼는 그대로 남아 있다 (밀기 계산이 쓴다).
+    expect(toDateString(startOfUtcDay(new Date('2026-10-12T15:00:00.000Z')))).toBe('2026-10-12');
   });
 
   it('YYYY-MM-DD 를 UTC 자정으로 읽는다', () => {
@@ -198,5 +209,26 @@ describe('resolveSeedToday', () => {
     expect(() => resolveSeedToday('2026/08/12')).toThrow(/형식/);
     expect(() => resolveSeedToday('오늘')).toThrow(/형식/);
     expect(() => resolveSeedToday('2026-13-01')).toThrow(/실제 날짜/);
+  });
+});
+
+describe('clock.seoulAt — 상담·알림 샘플의 날짜 통로 (요청서 15)', () => {
+  const clock = createSeedClock(parseFixtureDate('2026-10-13'));
+
+  it('KST 벽시계 시각을 UTC 로 바꾼다', () => {
+    expect(clock.seoulAt(0, '14:00').toISOString()).toBe('2026-10-13T05:00:00.000Z');
+    expect(clock.seoulAt(0, '09:00').toISOString()).toBe('2026-10-13T00:00:00.000Z');
+    // KST 자정은 전날 15:00Z 다 — `오늘` 의 경계가 거기다.
+    expect(clock.seoulAt(0, '00:00').toISOString()).toBe('2026-10-12T15:00:00.000Z');
+  });
+
+  it('오프셋이 달·해를 넘긴다', () => {
+    expect(clock.seoulAt(-13, '10:00').toISOString()).toBe('2026-09-30T01:00:00.000Z');
+    expect(clock.seoulAt(80, '10:00').toISOString()).toBe('2027-01-01T01:00:00.000Z');
+  });
+
+  it('시각 형식이 틀리면 던진다 — 조용히 이상한 날짜를 만들지 않는다', () => {
+    expect(() => clock.seoulAt(0, '9:00')).toThrow(/HH:mm/);
+    expect(() => clock.seoulAt(0, '아침')).toThrow(/HH:mm/);
   });
 });

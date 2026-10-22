@@ -3,16 +3,18 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useLocation, useNavigationType } from 'react-router-dom';
 
-import { createConsultRequest, type ConsultRequestCreateInput } from '@/features/consult';
+import * as consultApi from '@/features/consult/api/consultApi';
+import type { MyConsultRequest } from '@/features/consult/api/consultApi';
 import { addFavorite } from '@/features/favorite';
 import * as hospitalApi from '@/features/hospital/api/hospitalApi';
-import { readCollection, writeCollection, type StoredHospitalInquiry } from '@/lib/localCollection';
+import * as notificationApi from '@/features/notification/api/notificationApi';
+import { writeCollection, type StoredHospitalInquiry } from '@/lib/localCollection';
 import { RouterBridge, router } from '@/navigation';
 import MyPage from '@/pages/MyPage';
 import { useAuthStore } from '@/store/useAuthStore';
 import { baseHospital } from '@/test/hospitalFixture';
 import { renderWithProviders } from '@/test/renderWithProviders';
-import type { AppNotification, ProcedureId, User } from '@/types/domain';
+import type { ProcedureId, User } from '@/types/domain';
 
 const HOSPITAL_NAMES: Record<string, string> = {
   h1: 'A치과의원',
@@ -39,40 +41,47 @@ function signIn(overrides: Partial<User> = {}): User {
 }
 
 /**
- * 상담은 **api 를 목하지 않고 실제로 접수한다** — "내 것만 보인다" 는 계정 스코프 판정이
- * api 계층(`fetchMyConsultRequests`)에 있어서, 목을 끼우면 그 판정이 테스트에서 사라진다.
+ * 내 상담 내역 한 줄 (`GET /me/consult-requests` 의 `items[]`).
+ *
+ * **계정 스코프는 서버가 판정한다** (요청서 15) — 토큰 주체가 접수한 건만 내려온다.
+ * 그래서 화면 테스트는 "서버가 준 것을 어떻게 그리는가" 만 본다.
+ * 병원 이름도 응답에 들어 있어 줄마다 병원을 조회하지 않는다.
  */
-async function consultBy(userId: string, input: Partial<ConsultRequestCreateInput> = {}) {
-  const current = useAuthStore.getState().user;
+function myConsult(overrides: Partial<MyConsultRequest> = {}): MyConsultRequest {
+  const hospitalId = overrides.hospitalId ?? 'h1';
 
-  useAuthStore.setState({ user: user({ id: userId }), status: 'ready' });
-  const created = await createConsultRequest({
-    hospitalId: 'h1',
+  return {
+    id: 'cr1',
+    hospitalId,
+    hospitalName: HOSPITAL_NAMES[hospitalId] ?? `${hospitalId} 치과`,
     procedureId: null,
     name: '김민준',
     phone: '010-1234-5678',
     preferredTime: '평일 저녁',
     message: '',
-    thirdPartyConsent: { agreed: true, noticeVersion: '2026-10-12' },
-    ...input,
-  });
-  useAuthStore.setState({ user: current, status: current ? 'ready' : 'ready' });
-
-  return created;
-}
-
-function notification(overrides: Partial<AppNotification> = {}): AppNotification {
-  return {
-    id: 'n1',
-    audience: 'user',
-    type: 'consult-status',
-    title: '상담 상태 변경',
-    message: '상담 상태가 바뀌었어요',
-    relatedId: 'c1',
-    isRead: false,
-    createdAt: '2026-10-12T00:00:00.000Z',
+    createdAt: '2026-10-07T00:00:00.000Z',
+    status: 'new',
+    visitAt: null,
+    statusHistory: [{ status: 'new', changedAt: '2026-10-07T00:00:00.000Z', visitAt: null }],
+    thirdPartyConsent: null,
     ...overrides,
   };
+}
+
+/** 서버가 내려줄 내 상담 내역. 순서도 서버가 정한 그대로다 (최신순). */
+function stubMyConsults(rows: MyConsultRequest[]): void {
+  vi.spyOn(consultApi, 'fetchMyConsultRequests').mockResolvedValue({
+    items: rows,
+    meta: { page: 1, pageSize: 100, totalItems: rows.length, totalPages: rows.length === 0 ? 0 : 1 },
+  });
+}
+
+/** 종 배지 숫자. 알림함도 서버에 있다 (요청서 15). */
+function stubUnread(unreadCount: number): void {
+  vi.spyOn(notificationApi, 'fetchUnreadNotificationCount').mockResolvedValue({
+    audience: 'user',
+    unreadCount,
+  });
 }
 
 /** 주소(`?tab=`)와 **쌓인 방식**(PUSH/REPLACE)을 함께 드러낸다 — 탭 전환은 이력을 쌓지 않는다. */
@@ -145,8 +154,8 @@ describe('MyPage — 로그인 상태에 따른 갈림', () => {
 
 describe('MyPage — 상담 내역 탭', () => {
   beforeEach(() => {
-    writeCollection('consultRequests', []);
-    writeCollection('notifications', []);
+    stubMyConsults([]);
+    stubUnread(0);
     signIn();
     vi.spyOn(hospitalApi, 'fetchHospitalById').mockImplementation(async (id: string) =>
       baseHospital({ id, name: HOSPITAL_NAMES[id] ?? `${id} 치과` })
@@ -161,9 +170,8 @@ describe('MyPage — 상담 내역 탭', () => {
     vi.restoreAllMocks();
   });
 
-  it('내가 신청한 건만 센다 — 다른 계정의 신청은 보이지 않는다', async () => {
-    await consultBy('u-other', { hospitalId: 'h2' });
-    await consultBy('u-me', { hospitalId: 'h1' });
+  it('서버가 준 내 상담만 센다 — 계정 스코프는 서버가 가른다', async () => {
+    stubMyConsults([myConsult({ id: 'cr-mine', hospitalId: 'h1' })]);
 
     renderMyPage();
 
@@ -172,8 +180,17 @@ describe('MyPage — 상담 내역 탭', () => {
     expect(screen.queryByText('B치과의원')).not.toBeInTheDocument();
   });
 
+  it('병원 이름을 응답에서 읽는다 — 줄마다 병원을 조회하지 않는다', async () => {
+    stubMyConsults([myConsult({ id: 'cr1', hospitalId: 'h1' })]);
+
+    renderMyPage();
+
+    expect(await screen.findByText('A치과의원')).toBeInTheDocument();
+    expect(hospitalApi.fetchHospitalById).not.toHaveBeenCalledWith('h1');
+  });
+
   it('한 줄에 병원명·시술·상태·보조 문구가 함께 보인다', async () => {
-    await consultBy('u-me', { procedureId: 'resin' as ProcedureId, preferredTime: '평일 저녁' });
+    stubMyConsults([myConsult({ procedureId: 'resin' as ProcedureId, preferredTime: '평일 저녁' })]);
 
     renderMyPage();
 
@@ -185,30 +202,18 @@ describe('MyPage — 상담 내역 탭', () => {
   });
 
   it('병원이 확정한 방문 일시는 보조 문구를 대체하고 강조된다', async () => {
-    const created = await consultBy('u-me', { hospitalId: 'h1' });
-    // 병원 관리자가 `예약확정 + 일시` 로 바꾼 상태를 만든다 (관리자 화면이 하는 일 그대로).
-    const rows = readCollection('consultRequests');
-    writeCollection(
-      'consultRequests',
-      rows.map((row) =>
-        row.id === created.id
-          ? {
-              ...row,
-              status: 'booked' as const,
-              visitAt: '2026-10-08T05:00:00.000Z',
-              statusHistory: [
-                ...row.statusHistory,
-                {
-                  event: 'status_change' as const,
-                  status: 'booked' as const,
-                  changedAt: '2026-10-07T02:00:00.000Z',
-                  visitAt: '2026-10-08T05:00:00.000Z',
-                },
-              ],
-            }
-          : row
-      )
-    );
+    // 병원 관리자가 `예약확정 + 일시` 로 바꾼 뒤의 응답이다.
+    stubMyConsults([
+      myConsult({
+        hospitalId: 'h1',
+        status: 'booked',
+        visitAt: '2026-10-08T05:00:00.000Z',
+        statusHistory: [
+          { status: 'new', changedAt: '2026-10-07T00:00:00.000Z', visitAt: null },
+          { status: 'booked', changedAt: '2026-10-07T02:00:00.000Z', visitAt: '2026-10-08T05:00:00.000Z' },
+        ],
+      }),
+    ]);
 
     renderMyPage();
 
@@ -219,16 +224,18 @@ describe('MyPage — 상담 내역 탭', () => {
   });
 
   it('고르지 않은 시술은 `시술 미지정` 으로 적는다', async () => {
-    await consultBy('u-me', { procedureId: null });
+    stubMyConsults([myConsult({ procedureId: null })]);
 
     renderMyPage();
 
     expect(await screen.findByText('시술 미지정')).toBeInTheDocument();
   });
 
-  it('최신 신청이 맨 위다', async () => {
-    await consultBy('u-me', { hospitalId: 'h1' });
-    await consultBy('u-me', { hospitalId: 'h2' });
+  it('서버가 준 순서(최신순)를 그대로 그린다', async () => {
+    stubMyConsults([
+      myConsult({ id: 'cr-b', hospitalId: 'h2', createdAt: '2026-10-08T00:00:00.000Z' }),
+      myConsult({ id: 'cr-a', hospitalId: 'h1', createdAt: '2026-10-07T00:00:00.000Z' }),
+    ]);
 
     renderMyPage();
 
@@ -242,7 +249,7 @@ describe('MyPage — 상담 내역 탭', () => {
   });
 
   it('한 줄을 누르면 그 병원 상세로 간다', async () => {
-    await consultBy('u-me', { hospitalId: 'h1' });
+    stubMyConsults([myConsult({ hospitalId: 'h1' })]);
     const pushSpy = vi.spyOn(router, 'push');
 
     renderMyPage();
@@ -259,10 +266,12 @@ describe('MyPage — 상담 내역 탭', () => {
   });
 
   it('알림에서 온 `?consult=` 는 그 행에 포커스를 주고, 쓰고 나면 주소에서 지운다', async () => {
-    await consultBy('u-me', { hospitalId: 'h1' });
-    const mine = await consultBy('u-me', { hospitalId: 'h2' });
+    stubMyConsults([
+      myConsult({ id: 'cr-b', hospitalId: 'h2', createdAt: '2026-10-08T00:00:00.000Z' }),
+      myConsult({ id: 'cr-a', hospitalId: 'h1', createdAt: '2026-10-07T00:00:00.000Z' }),
+    ]);
 
-    renderMyPage(`/mypage?tab=consults&consult=${mine.id}`);
+    renderMyPage('/mypage?tab=consults&consult=cr-b');
 
     const row = await screen.findByRole('button', { name: /B치과의원/ });
     await waitFor(() => expect(row).toHaveFocus());
@@ -275,7 +284,7 @@ describe('MyPage — 상담 내역 탭', () => {
   });
 
   it('목록에 없는 상담 id 면 조용히 탭만 열고 주소만 정리한다', async () => {
-    await consultBy('u-me', { hospitalId: 'h1' });
+    stubMyConsults([myConsult({ id: 'cr-a', hospitalId: 'h1' })]);
 
     renderMyPage('/mypage?tab=consults&consult=cr-not-mine');
 
@@ -287,8 +296,8 @@ describe('MyPage — 상담 내역 탭', () => {
 
 describe('MyPage — 탭 전환과 주소', () => {
   beforeEach(() => {
-    writeCollection('consultRequests', []);
-    writeCollection('notifications', []);
+    stubMyConsults([]);
+    stubUnread(0);
     signIn();
     vi.spyOn(hospitalApi, 'fetchHospitalById').mockImplementation(async (id: string) =>
       baseHospital({ id, name: HOSPITAL_NAMES[id] ?? `${id} 치과` })
@@ -370,8 +379,8 @@ describe('MyPage — 탭 전환과 주소', () => {
 
 describe('MyPage — 찜 탭', () => {
   beforeEach(() => {
-    writeCollection('consultRequests', []);
-    writeCollection('notifications', []);
+    stubMyConsults([]);
+    stubUnread(0);
     signIn();
     vi.spyOn(hospitalApi, 'fetchHospitalById').mockImplementation(async (id: string) =>
       baseHospital({ id, name: HOSPITAL_NAMES[id] ?? `${id} 치과` })
@@ -423,8 +432,8 @@ describe('MyPage — 찜 탭', () => {
 
 describe('MyPage — 메뉴와 로그아웃', () => {
   beforeEach(() => {
-    writeCollection('consultRequests', []);
-    writeCollection('notifications', []);
+    stubMyConsults([]);
+    stubUnread(0);
     signIn();
     vi.spyOn(hospitalApi, 'fetchHospitalById').mockResolvedValue(baseHospital());
   });
@@ -438,12 +447,7 @@ describe('MyPage — 메뉴와 로그아웃', () => {
   });
 
   it('안 읽은 알림 수를 알림함 줄에 배지로 보여준다', async () => {
-    writeCollection('notifications', [
-      notification({ id: 'n1' }),
-      notification({ id: 'n2' }),
-      notification({ id: 'n3', isRead: true }),
-      notification({ id: 'n4', audience: 'admin' }),
-    ]);
+    stubUnread(2);
 
     renderMyPage();
 
@@ -485,8 +489,8 @@ describe('MyPage — 메뉴와 로그아웃', () => {
 
 describe('MyPage — 관리자 입구', () => {
   beforeEach(() => {
-    writeCollection('consultRequests', []);
-    writeCollection('notifications', []);
+    stubMyConsults([]);
+    stubUnread(0);
     vi.spyOn(hospitalApi, 'fetchHospitalById').mockResolvedValue(baseHospital());
   });
 
@@ -547,8 +551,8 @@ describe('MyPage — 내 문의 탭', () => {
   }
 
   beforeEach(() => {
-    writeCollection('consultRequests', []);
-    writeCollection('notifications', []);
+    stubMyConsults([]);
+    stubUnread(0);
     writeCollection('inquiries', []);
     signIn();
     vi.spyOn(hospitalApi, 'fetchHospitalById').mockImplementation(async (id: string) =>

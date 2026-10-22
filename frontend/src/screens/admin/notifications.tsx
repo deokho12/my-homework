@@ -26,9 +26,13 @@ function AdminNotificationRow({ notification }: { notification: AppNotification 
     // 읽음 처리는 이동을 막지 않는다 — 실패해도 알림을 열지 못할 이유가 없다.
     markAsRead.mutate(notification.id);
 
-    if (notification.relatedId) {
+    // **종류로 가른다** (`relatedResource`). `relatedId` 만 보고 무조건 상담 상세로 보내면
+    // 전문의 검수 결과 알림(`doctor`)이 상담 id 자리에 전문의 id 를 넣고 열린다.
+    if (notification.relatedResource === 'consultRequest' && notification.relatedId) {
       router.push(`/admin/consultations/${notification.relatedId}`);
     }
+    // 그 밖(`doctor`·`null` 등)은 **읽음 처리만** 한다 — 갈 화면이 없다. 검수 결과의
+    // `/admin/specialists` 는 운영자 전용인데 그 알림의 수신자는 병원 담당자다 (계약 §9).
   };
 
   return (

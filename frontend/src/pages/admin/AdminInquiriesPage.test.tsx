@@ -72,7 +72,6 @@ function tab(name: RegExp | string) {
 describe('AdminInquiriesPage', () => {
   beforeEach(() => {
     writeCollection('inquiries', []);
-    writeCollection('notifications', []);
   });
 
   afterEach(() => {

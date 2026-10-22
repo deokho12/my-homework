@@ -10,25 +10,27 @@ import type { UserRole } from '../auth/auth.types';
  */
 
 /**
- * 스키마 주석의 기록 대상 9개.
+ * 허용값 12개. **이 배열이 정본이다** — `backend/prisma/schema.prisma` 의 `AuditLog` 주석과
+ * `docs/api/README.md` §4 의 표가 이것을 따라간다 (2026-10-22 에 세 곳을 맞췄다).
  *
- * ☆ **아래 2개(`user.role_grant_operator` / `user.role_revoke_operator`)는 스키마 주석의
- *   9개 목록에 없다.** 운영자 승격·회수 CLI 를 감사하려면 필요한데(결정 4 가 정한 유일한
- *   승격 경로다) 9개 중 어느 것도 그 행위를 뜻하지 않는다 — `hospital_admin.assign` 은
- *   병원 담당자 지정이라 다르다. 컬럼은 `String` 이라 DDL 변화는 없고, 스키마 주석과
- *   `docs/api/README.md` §4 의 목록을 늘리는 것은 문서 담당의 판단이라 보고서에 올렸다.
+ * ☆ `user.role_grant_operator` / `user.role_revoke_operator` 는 **엔드포인트가 없다** —
+ *   운영자 승격·회수 CLI 가 쓴다(결정 4 가 정한 유일한 승격 경로). 오퍼레이션 표에 줄이
+ *   없는 이유는 그것이지 기록하지 않아서가 아니다.
  */
 export const AUDIT_ACTIONS = [
   'consult_request.view',
   'partner_inquiry.view',
   'consult_request.status_change',
+  // 같은 엔드포인트(`PATCH .../status`)지만 기록은 갈라야 한다 — before/after 에 들어가는
+  // 것이 상태가 아니라 **일시**다 (`docs/api/README.md` §4, 요청서 15 가 더했다).
+  'consult_request.reschedule',
   'consult_request.memo_create',
   'doctor.verify',
   'hospital_admin.assign',
   'hospital_admin.unassign',
   'hospital.create',
   'partner_inquiry.review',
-  // ↓ 스키마 주석의 9개에 없는 값 (위 주석 참고)
+  // ↓ HTTP 경로가 없는 두 값 (위 ☆ 참고)
   'user.role_grant_operator',
   'user.role_revoke_operator',
 ] as const;

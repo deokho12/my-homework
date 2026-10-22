@@ -6,7 +6,6 @@ import * as consultApi from '@/features/consult/api/consultApi';
 import type { MyConsultRequest } from '@/features/consult/api/consultApi';
 import * as hospitalApi from '@/features/hospital/api/hospitalApi';
 import { ApiError } from '@/lib/apiClient';
-import { writeCollection } from '@/lib/localCollection';
 import { RouterBridge, router } from '@/navigation';
 import ConsultRequestPage from '@/pages/ConsultRequestPage';
 import { useAuthStore } from '@/store/useAuthStore';
@@ -15,8 +14,6 @@ import { renderWithProviders } from '@/test/renderWithProviders';
 import { CONSULT_STATUS_TONE } from '@/features/consult';
 import { CONSULT_STATUS_LABEL } from '@/types/domain';
 import type { Hospital, Paged, User } from '@/types/domain';
-
-const CONSENT = { agreed: true, noticeVersion: '2026-10-12' };
 
 function signedInAs(id: string, name: string): void {
   const user: User = {
@@ -35,7 +32,7 @@ function createdConsult(overrides: Partial<MyConsultRequest> = {}): MyConsultReq
   return {
     id: 'cr-new',
     hospitalId: 'h1',
-    hospitalName: null,
+    hospitalName: '강남 스마일 치과',
     procedureId: null,
     name: '김민준',
     phone: '010-1234-5678',
@@ -50,11 +47,6 @@ function createdConsult(overrides: Partial<MyConsultRequest> = {}): MyConsultReq
   };
 }
 
-/**
- * 이전 신청으로 연락처가 자동 채워지는 경로는 **api 를 목하지 않고** 실제 저장소에
- * 한 건 접수해서 만든다 — "내 것만 채워진다" 는 계정 스코프 판정이 api 계층에 있어서,
- * 목을 끼우면 그 판정이 테스트에서 통째로 사라진다.
- */
 /**
  * 지난 신청 조회를 **내가 원할 때 끝나게** 붙잡아 둔다. 실제 저장소는 같은 tick 에 답해서
  * "자동 채움이 늦게 도착하는 동안 사용자가 입력한다" 는 순서를 만들 수 없다 —
@@ -76,23 +68,20 @@ function deferMyConsultRequests(): (phone: string | null) => void {
   };
 }
 
-async function previousRequestBy(userId: string, phone: string): Promise<void> {
-  signedInAs(userId, '지난사람');
-  await consultApi.createConsultRequest({
-    hospitalId: 'h1',
-    procedureId: null,
-    name: '지난사람',
-    phone,
-    preferredTime: '평일 오전',
-    message: '',
-    thirdPartyConsent: CONSENT,
+/**
+ * 지난 신청 한 건. **계정 스코프는 서버가 가른다** (`GET /me/consult-requests` 는 토큰
+ * 주체의 것만 내려준다, 요청서 15) — 화면은 받은 목록의 첫 줄에서 번호를 꺼낼 뿐이다.
+ */
+function stubMyConsults(rows: MyConsultRequest[]): void {
+  vi.spyOn(consultApi, 'fetchMyConsultRequests').mockResolvedValue({
+    items: rows,
+    meta: { page: 1, pageSize: 1, totalItems: rows.length, totalPages: rows.length === 0 ? 0 : 1 },
   });
 }
 
 describe('ConsultRequestPage', () => {
   beforeEach(() => {
-    writeCollection('consultRequests', []);
-    writeCollection('notifications', []);
+    stubMyConsults([]);
     signedInAs('u-me', '김민준');
   });
 
@@ -166,7 +155,7 @@ describe('ConsultRequestPage', () => {
     });
 
     it('연락처를 내 지난 신청에서 채우고 안내를 보여준다', async () => {
-      await previousRequestBy('u-me', '010-9999-8888');
+      stubMyConsults([createdConsult({ phone: '010-9999-8888' })]);
       signedInAs('u-me', '김민준');
 
       await renderLoadedForm();
@@ -175,8 +164,8 @@ describe('ConsultRequestPage', () => {
       expect(screen.getByText('지난 상담 신청에 쓴 번호예요')).toBeInTheDocument();
     });
 
-    it('같은 브라우저라도 다른 계정이 쓴 번호는 채우지 않는다', async () => {
-      await previousRequestBy('u-other', '010-7777-6666');
+    it('내 지난 신청이 없으면 비워 둔다 — 남의 번호는 서버가 내려주지 않는다', async () => {
+      stubMyConsults([]);
       signedInAs('u-me', '김민준');
 
       await renderLoadedForm();

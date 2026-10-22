@@ -1,6 +1,6 @@
 /**
  * =============================================================================
- * 몰라몰라 시드 — frontend/src/mocks/fixtures/*.ts → SQLite
+ * 몰라몰라 시드 — prisma/seed/data/*.ts (+ 남은 프론트 fixture 3개) → SQLite
  * =============================================================================
  *
  * 실행:  npm run prisma:seed        (= prisma db seed)
@@ -8,9 +8,10 @@
  *
  * 설계 규칙
  * ---------------------------------------------------------------------------
- * 1. fixture 의 id 를 그대로 쓴다 — `h1`, `d1`, `cr1`, `q1`, `a1`, `g1`, `p1`,
- *    `r1`, `notif1`, `memo-cr2-1`. 화면 문서와 예시 URL, QA 시나리오가 이 값에
- *    의존한다 (docs §8.1 원칙 1).
+ * 1. 원본의 id 를 그대로 쓴다 — `h1`, `d1`, `cr1`, `q1`, `a1`, `g1`, `p1`, `r1`,
+ *    `memo-cr3-1`. 화면 문서와 예시 URL, QA 시나리오가 이 값에 의존한다 (docs §8.1 원칙 1).
+ *    **예외 하나: 알림 id 는 버렸다** (`notif1`~`notif7`). 알림은 처리 이벤트에서
+ *    파생되고(`ntf-{상담id}-{i}`) 그 id 를 가리키는 URL·화면이 없다 (docs §12.13-D).
  * 2. fixture 에 id 가 없던 자식 행(사진·태그·경력·진료시간…)은 **결정적(deterministic) id**
  *    를 만든다. 그래야 재실행이 중복을 만들지 않는다. 규칙:
  *
@@ -25,6 +26,7 @@
  *      dc-{doctorId}-{i}                 doctor_careers
  *      dv-{doctorId}                     doctor_verifications
  *      csc-{consultId}-{i}               consult_status_changes
+ *      ntf-{consultId}-{i}               notifications (상담 이벤트에서 파생)
  *      rp-{reviewId}-{i}                 review_photos
  *      gh-{guideId}-{hospitalId}         guide_hospitals
  *      nr-{notificationId}-{userId}      notification_recipients
@@ -40,15 +42,20 @@
  */
 import { PrismaClient } from '@prisma/client';
 
+import { phoneDigits } from '../src/consult/masking';
+import { adminConsultNotificationText, consultNotificationText } from '../src/consult/notification-text';
 import { hospitalAdminAccount, OPERATOR, resolvePasswordHash, userAccount } from './seed/accounts';
 import type { SeedAccount } from './seed/accounts';
 import { createSeedClock, PROMOTION_WINDOWS, resolveSeedToday, toDateString } from './seed/dates';
+import type { SeedClock } from './seed/dates';
+import type { SeedMoment } from './seed/data/consult-requests';
 import {
+  announcements,
+  consultApplicants,
   consultRequests,
   doctors,
   guides,
   hospitals,
-  notifications,
   procedureCategories,
   procedures,
   promotions,
@@ -73,6 +80,11 @@ const DAY_LABEL_TO_NUMBER: Record<string, number> = {
 /** `*_normalized` 컬럼 규칙: lower(trim(원본)) (docs §3.9). */
 function normalize(value: string): string {
   return value.trim().toLowerCase();
+}
+
+/** `{ day, time }`(KST) → UTC Date. 상담·알림 샘플의 **유일한 날짜 통로**다 (docs §12.13-B). */
+function moment(clock: SeedClock, value: SeedMoment): Date {
+  return clock.seoulAt(value.day, value.time);
 }
 
 function dayOfWeek(label: string): number {
@@ -135,18 +147,23 @@ async function main(): Promise<void> {
   // ===========================================================================
   // 2. 계정 — 운영자 1 + 병원 담당자 11 + 사용자 7 (fixture 에 없는 데이터)
   // ===========================================================================
-  const applicantAccounts: SeedAccount[] = consultRequests.map((consult, index) =>
-    userAccount(index + 1, consult.name),
+  // ★ 신청자 계정은 **명시 목록**이다 (docs §12.13-E). 예전에는 상담 건수만큼 만들었는데
+  //   (`consultRequests.map(...)`, 상담 1건 = 계정 1개), 한 사람이 두 병원에 신청하는
+  //   샘플(cr1·cr8)이 생기면서 그 1:1 가정이 깨졌다. id 체계와 이름은 그대로다.
+  const applicantAccounts: SeedAccount[] = consultApplicants.map((applicant) =>
+    userAccount(applicant.index, applicant.name),
   );
+  const applicantById = new Map(consultApplicants.map((applicant) => [applicant.index, applicant]));
   const adminAccounts: SeedAccount[] = hospitals.map((hospital) =>
     hospitalAdminAccount(hospital.id, hospital.name),
   );
   const accounts: SeedAccount[] = [OPERATOR, ...adminAccounts, ...applicantAccounts];
 
-  /** 상담 fixture 의 순서가 곧 신청자 계정이다 — cr1→u-seed-1 … cr7→u-seed-7 (docs §8.3). */
+  /** 상담 → 신청자 계정 id. 상담이 `applicantIndex` 로 가리킨다. */
   const consultApplicantId = new Map<string, string>(
-    consultRequests.map((consult, index) => [consult.id, applicantAccounts[index].id]),
+    consultRequests.map((consult) => [consult.id, `u-seed-${consult.applicantIndex}`]),
   );
+  const hospitalNameById = new Map(hospitals.map((hospital) => [hospital.id, hospital.name]));
 
   for (const account of accounts) {
     const data = {
@@ -433,38 +450,99 @@ async function main(): Promise<void> {
   console.log(`  doctor_verifications      ${doctors.length}`);
 
   // ===========================================================================
-  // 6. 상담 신청 + 상태 이력 + 메모
-  //    fixture 날짜를 그대로 민다 (docs §8.5). 상담별 오프셋 표는 없앴다 —
-  //    전부 같은 shift 라서 상담·이력·메모·알림의 선후 관계가 저절로 보존된다.
+  // 6. 상담 신청 + 처리 이력 + 메모 + **그 이벤트가 만든 알림** (docs §12.13)
+  //    날짜는 SEED_TODAY 기준 오프셋이다 (§8.4 쪽 — 밀 원본이 없는 새 데이터다).
+  //
+  //    알림을 여기서 함께 만드는 이유는 순서다: `consult_status_changes.notification_id`
+  //    가 FK 라서 이력 행보다 알림 행이 **먼저** 있어야 한다. 런타임도 같은 순서다
+  //    (`ConsultRepository.updateStatus` — 알림을 만들고 그 id 를 이력 행에 적는다).
+  //
+  //    문구는 **서버의 순수 함수를 불러서** 만든다. 문자열을 여기 적으면 문구를 다듬는 날
+  //    시드와 런타임이 조용히 갈린다 (AGENTS.md).
   // ===========================================================================
   let statusChangeCount = 0;
   let memoCount = 0;
+  let consultNotificationCount = 0;
+  let recipientCount = 0;
+
+  /** 알림 1행 + 수신자 N행. 재실행이 중복을 만들지 않도록 id 가 결정적이다. */
+  async function upsertNotification(params: {
+    id: string;
+    audience: 'user' | 'admin';
+    type: string;
+    consultStatus: string | null;
+    title: string;
+    message: string;
+    relatedType: string | null;
+    relatedId: string | null;
+    hospitalId: string | null;
+    createdAt: Date;
+    recipientIds: string[];
+    readAt: Date | null;
+  }): Promise<void> {
+    const data = {
+      audience: params.audience,
+      type: params.type,
+      consultStatus: params.consultStatus,
+      title: params.title,
+      message: params.message,
+      relatedType: params.relatedType,
+      relatedId: params.relatedId,
+      hospitalId: params.hospitalId,
+      createdAt: params.createdAt,
+    };
+
+    await prisma.notification.upsert({
+      where: { id: params.id },
+      create: { id: params.id, ...data },
+      update: data,
+    });
+
+    for (const userId of params.recipientIds) {
+      const id = `nr-${params.id}-${userId}`;
+
+      await prisma.notificationRecipient.upsert({
+        where: { id },
+        create: { id, notificationId: params.id, userId, readAt: params.readAt },
+        update: { userId, readAt: params.readAt },
+      });
+      recipientCount += 1;
+    }
+  }
 
   for (const consult of consultRequests) {
-    const createdAt = clock.at(consult.createdAt);
-
+    const applicant = applicantById.get(consult.applicantIndex);
     const userId = consultApplicantId.get(consult.id);
 
-    if (!userId) {
+    if (!applicant || !userId) {
       throw new Error(`상담 '${consult.id}' 의 신청자 계정을 찾지 못했습니다`);
     }
 
-    // 마지막 상태 변경 시각을 updated_at 으로 쓴다
+    const createdAt = moment(clock, consult.createdAt);
     const lastChange = consult.statusHistory.at(-1);
-    const updatedAt = lastChange ? clock.at(lastChange.changedAt) : createdAt;
+    const updatedAt = lastChange ? moment(clock, lastChange.at) : createdAt;
+    const hospitalName = hospitalNameById.get(consult.hospitalId) ?? null;
+    // 폼 입력값 스냅샷. 계정 이름과 다를 수 있지만(docs §4) 시드는 같게 둔다 —
+    // 다르게 두면 "계정 이름과 폼 이름이 다른 것" 과 "시드가 틀린 것" 을 QA 가 구분할 수 없다.
+    const name = applicant.name;
 
     const data = {
       userId,
       hospitalId: consult.hospitalId,
-      // fixture 에는 지목 전문의가 없다. 병원 단위 상담이므로 null (docs §5.2)
-      doctorId: null,
+      doctorId: consult.doctorId,
       procedureId: consult.procedureId,
-      // 폼 입력값 스냅샷. users.name 과 다를 수 있다 (docs §4)
-      name: consult.name,
+      name,
       phone: consult.phone,
+      // 번호 검색이 거는 정규화 컬럼. 규칙은 서버와 **같은 함수**다 (docs §3.9, §12.5)
+      phoneDigits: phoneDigits(consult.phone),
       preferredTime: consult.preferredTime,
       message: consult.message,
       status: consult.status,
+      visitAt: consult.visitAt === null ? null : moment(clock, consult.visitAt),
+      // 둘은 함께 채워지거나 함께 null 이다 (앱 불변식, docs §12.12).
+      // null = 거절이 아니라 **동의 절차 도입 이전 접수**다.
+      thirdPartyConsentAgreedAt: consult.thirdPartyConsentNoticeVersion === null ? null : createdAt,
+      thirdPartyConsentNoticeVersion: consult.thirdPartyConsentNoticeVersion,
       createdAt,
       updatedAt,
     };
@@ -476,12 +554,64 @@ async function main(): Promise<void> {
     });
 
     for (const [index, change] of consult.statusHistory.entries()) {
+      const changedAt = moment(clock, change.at);
+      const changeVisitAt = change.visitAt === null ? null : moment(clock, change.visitAt);
+      const notificationId = `ntf-${consult.id}-${index}`;
+      const isIntake = index === 0;
+
+      if (isIntake) {
+        // 접수 알림은 `audience='admin'` 이다 — **환자 알림이 아니라서** 이력 행에 id 를
+        // 적지 않는다 (docs §15.2-ⓑ). 수신자는 그 병원 담당자뿐이다(운영자는 받지 않는다).
+        await upsertNotification({
+          id: notificationId,
+          audience: 'admin',
+          type: 'consult-status',
+          consultStatus: 'new',
+          ...adminConsultNotificationText(name),
+          relatedType: 'consult_request',
+          relatedId: consult.id,
+          hospitalId: consult.hospitalId,
+          createdAt: changedAt,
+          recipientIds: [`u-admin-${consult.hospitalId}`],
+          readAt: null,
+        });
+      } else {
+        await upsertNotification({
+          id: notificationId,
+          audience: 'user',
+          type: 'consult-status',
+          // 상태 변경이면 바뀐 뒤 상태, 일시 변경이면 `booked` — 어느 쪽이든 행의 `status` 다.
+          consultStatus: change.status,
+          ...consultNotificationText({
+            event: change.event,
+            status: change.status,
+            visitAt: changeVisitAt?.toISOString() ?? null,
+            cancelReason: change.cancelReason,
+            hospitalName,
+          }),
+          relatedType: 'consult_request',
+          relatedId: consult.id,
+          // 사용자 알림에는 병원 id 를 채우지 않는다 — 그 칸은 관리자 알림함의 필터 키다.
+          hospitalId: null,
+          createdAt: changedAt,
+          recipientIds: [userId],
+          readAt: null,
+        });
+      }
+
+      consultNotificationCount += 1;
+
       const id = `csc-${consult.id}-${index}`;
       const payload = {
+        event: change.event,
         status: change.status,
-        changedAt: clock.at(change.changedAt),
-        // 시드/시스템이 만든 행이므로 담당자 없음 (docs 스키마 주석)
-        changedByUserId: null,
+        changedAt,
+        changedByUserId:
+          change.byAdminOfHospital === null ? null : `u-admin-${change.byAdminOfHospital}`,
+        visitAt: changeVisitAt,
+        cancelReason: change.cancelReason,
+        // 접수 행만 null 이다. 나머지는 전부 채워져 관리자 상세에 `환자 알림 발송` 이 붙는다.
+        notificationId: isIntake ? null : notificationId,
       };
 
       await prisma.consultStatusChange.upsert({
@@ -495,11 +625,11 @@ async function main(): Promise<void> {
     for (const memo of consult.memos) {
       const payload = {
         content: memo.content,
-        createdAt: clock.at(memo.createdAt),
-        authorUserId: null,
+        createdAt: moment(clock, memo.at),
+        // `author_user_id` 가 채워진 메모가 처음 생긴다 (예전 시드는 전부 null 이었다).
+        authorUserId: `u-admin-${memo.byAdminOfHospital}`,
       };
 
-      // 메모는 fixture 에 id 가 있다 (memo-cr2-1 등) — 그대로 쓴다
       await prisma.consultMemo.upsert({
         where: { id: memo.id },
         create: { id: memo.id, consultRequestId: consult.id, ...payload },
@@ -676,74 +806,38 @@ async function main(): Promise<void> {
   console.log(`  qa_answers                ${answerCount}`);
 
   // ===========================================================================
-  // 11. 알림 + 수신자 (docs §5.3, §8.3)
-  //     - user  + 관련 상담 있음 → 그 상담의 신청자 1명
-  //     - user  + 전체 공지      → 사용자 7명 fan-out
-  //     - admin + 관련 상담 있음 → 그 병원 담당자 1명 (+ notifications.hospital_id)
-  //     - admin + 운영 공지      → 병원 담당자 11명 fan-out
-  //     읽음 상태는 계정별이다 (notification_recipients.read_at)
+  // 11. 공지 알림 3건 + 수신자 fan-out (docs §5.3, §12.13-D)
+  //     상담 알림은 **6번에서 이미 만들었다** — 처리 이벤트에서 파생되기 때문이다.
+  //     여기 남는 것은 상담과 무관한 공지뿐이고, 그 셋이 알림함의 나머지 아이콘 두 종류
+  //     (`이벤트`·`안내`)와 **한 알림이 여러 계정에 꽂히는 경로**를 살려 둔다.
+  //     공지는 전부 읽음이다 — 안 읽음 배지의 대상은 상담 알림 쪽이다.
   // ===========================================================================
-  const consultById = new Map(consultRequests.map((consult) => [consult.id, consult]));
-  let recipientCount = 0;
+  for (const announcement of announcements) {
+    const createdAt = moment(clock, announcement.createdAt);
+    const recipients =
+      announcement.recipients === 'applicants'
+        ? applicantAccounts.map((account) => account.id)
+        : adminAccounts.map((account) => account.id);
 
-  for (const notification of notifications) {
-    const relatedConsult = notification.relatedId ? consultById.get(notification.relatedId) : undefined;
-
-    // 전체 공지든 상담 연계든 **같은 shift** 다 (docs §8.5). 상담과 알림이 같은 양만큼
-    // 움직이므로 "상담보다 먼저 도착한 상담 알림" 은 생길 수 없다 — 예전처럼 상담별
-    // delta 를 알림에 다시 적용하는 두 번째 규칙이 필요 없다.
-    const createdAt = clock.at(notification.createdAt);
-
-    const hospitalId =
-      notification.audience === 'admin' && relatedConsult ? relatedConsult.hospitalId : null;
-
-    const data = {
-      audience: notification.audience,
-      type: notification.type,
-      title: notification.title,
-      message: notification.message,
-      // 다형 참조. FK 는 걸 수 없고 related_type 으로 무엇인지 표시한다 (docs §4)
-      relatedType: relatedConsult ? 'consult_request' : null,
-      relatedId: relatedConsult ? relatedConsult.id : null,
-      hospitalId,
+    await upsertNotification({
+      id: announcement.id,
+      audience: announcement.audience,
+      type: announcement.type,
+      // 상담이 아니므로 null 이다 (`type='consult-status'` 행만 값을 적는다 — docs §15.1)
+      consultStatus: null,
+      title: announcement.title,
+      message: announcement.message,
+      relatedType: null,
+      relatedId: null,
+      hospitalId: null,
       createdAt,
-    };
-
-    await prisma.notification.upsert({
-      where: { id: notification.id },
-      create: { id: notification.id, ...data },
-      update: data,
-    });
-
-    // 수신자 결정
-    let recipientIds: string[];
-
-    if (notification.audience === 'user') {
-      recipientIds = relatedConsult
-        ? [consultApplicantId.get(relatedConsult.id) as string]
-        : applicantAccounts.map((account) => account.id);
-    } else if (relatedConsult) {
-      recipientIds = [`u-admin-${relatedConsult.hospitalId}`];
-    } else {
-      recipientIds = adminAccounts.map((account) => account.id);
-    }
-
-    for (const userId of recipientIds) {
-      const id = `nr-${notification.id}-${userId}`;
-      // fixture 의 전역 isRead 를 계정별 read_at 으로 옮긴다.
+      recipientIds: recipients,
       // 읽은 알림은 "도착 즉시 읽음" 으로 둔다 (별도 시각 정보가 없다).
-      const readAt = notification.isRead ? createdAt : null;
-
-      await prisma.notificationRecipient.upsert({
-        where: { id },
-        create: { id, notificationId: notification.id, userId, readAt },
-        update: { userId, readAt },
-      });
-      recipientCount += 1;
-    }
+      readAt: createdAt,
+    });
   }
 
-  console.log(`  notifications             ${notifications.length}`);
+  console.log(`  notifications             ${consultNotificationCount + announcements.length}`);
   console.log(`  notification_recipients   ${recipientCount}`);
 
   // ===========================================================================

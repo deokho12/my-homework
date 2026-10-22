@@ -720,12 +720,12 @@ PK 가 애플리케이션 생성 문자열이라 **id 를 그대로 옮길 수 �
 | ~~`procedures.ts` (13)~~ → **`backend/prisma/seed/data/procedures.ts` (31)** + `procedure-categories.ts` (9) | `procedures` + `procedure_categories` (`sort_order` = 배열 인덱스). **원본이 서버로 왔습니다 — §17.8** |
 | `hospitals.ts` (11) | `hospitals` + `hospital_procedures` + `hospital_images` + `hospital_tags` + `hospital_event_notes` + `business_hours` + `hospital_sponsorships` |
 | `doctors.ts` (14) | `doctors` + `doctor_procedures` + `doctor_careers` + `doctor_verifications` |
-| `consultRequests.ts` (7) | `consult_requests` + `consult_status_changes` + `consult_memos` |
+| ~~`consultRequests.ts` (7)~~ → **`backend/prisma/seed/data/consult-requests.ts` (8)** | `consult_requests` + `consult_status_changes` + `consult_memos`. **원본이 서버로 옵니다 — §12.13** (요청서 15) |
 | `reviews.ts` (5) | `reviews` + `review_photos` |
 | `promotions.ts` (4) | `promotions` (**기간을 새로 부여** — §8.4) |
 | `guides.ts` (8) | `guides` + `guide_hospitals` |
 | `qaPosts.ts` (4) | `qa_posts` + `qa_answers` |
-| `notifications.ts` (7) | `notifications` + `notification_recipients` |
+| ~~`notifications.ts` (7)~~ → **`backend/prisma/seed/data/notifications.ts`** | `notifications` + `notification_recipients`. **원본이 서버로 옵니다 — §12.13** (요청서 15) |
 | `trendingSearches.ts` | **이전하지 않음** — 테이블이 없습니다 (§8.6) |
 | `placeholder-company-info.ts` | **이전하지 않음** — 코드 상수 |
 
@@ -746,6 +746,8 @@ PK 가 애플리케이션 생성 문자열이라 **id 를 그대로 옮길 수 �
 - `provider: 'email'`
 
 **상담 ↔ 사용자 연결** — `consult_requests.user_id` 가 NOT NULL 이므로 필수입니다. `name` 기준으로 `cr1→u-seed-1`(김민준) … `cr7→u-seed-7`(한소율) 로 매핑합니다. `name`/`phone` 컬럼에는 fixture 값을 그대로 넣습니다.
+
+> **요청서 15 에서 바뀝니다 (2026-10-22 설계).** "상담 1건 = 신청자 계정 1개" 가 깨집니다 — 한 사람이 두 병원에 신청하는 샘플이 생기기 때문입니다. 신청자 7명은 명시 목록이 되고 상담 행이 `applicantId` 로 가리킵니다. 계정 id 체계(`u-seed-1`~`7`)와 이름은 그대로입니다 — **§12.13-C·E**.
 
 **전문의 검수 이력** — `doctors.ts` 의 `verificationStatus` 로부터 각 전문의당 `doctor_verifications` 1행을 만듭니다.
 
@@ -769,6 +771,8 @@ PK 가 애플리케이션 생성 문자열이라 **id 를 그대로 옮길 수 �
 | `notif6` (admin, 운영 공지) | `u-admin-h1`~`u-admin-h11` 전원 | 시각 있음 |
 
 이 매핑을 그대로 넣으면 화면 문서가 적어 둔 초기 상태가 재현됩니다 — 사용자 알림함 안 읽음 1건(단, 이제 **최지훈 계정에서만** 보입니다), 관리자 알림함 안 읽음 2건(각각 h1·h5 담당자에게).
+
+> **요청서 15 에서 이 표가 대체됩니다 (2026-10-22 설계).** `notif1`~`notif7` 은 사라지고, 알림이 **상담 처리 이벤트에서 파생**됩니다(id `ntf-{상담id}-{i}`) — 수신자 규칙(§5.3)은 한 줄도 바뀌지 않습니다. 새 표는 **§12.13-D** 입니다.
 
 **광고 캠페인** — `hospitals.ts` 의 광고 필드를 `hospital_sponsorships` 행으로 풉니다. `sponsoredCategories` 의 각 원소마다 1행이며 `start_date`/`end_date`/`rank` 는 해당 병원 값을 복사합니다 — **단 기간 두 개는 §8.5 의 이동 규칙을 거칩니다**(고정 날짜로 넣으면 그 날이 지난 뒤 광고가 전부 사라집니다). `isSponsored=false` 인 병원은 행을 만들지 않습니다(`h1` 이 그 대조군입니다 — 평점 1위인데 광고를 사지 않아 `h3` 의 광고가 위로 올라가는 것을 보여주는 케이스).
 
@@ -831,6 +835,11 @@ fixture 에 있는 모든 날짜 += shift
 `hospitals`·`doctors`·`users` 의 `created_at`/`updated_at` 은 fixture 에 없는 값이라 **시드 실행 시각**을 그대로 씁니다(밀 원본이 없습니다). `promotions`·`doctor_verifications`·`legal_documents` 는 §8.4.
 
 **상담 7건이 놓이는 자리** (fixture 날짜에서 파생됩니다 — 표를 따로 유지하지 않습니다)
+
+> ⚠ **요청서 15 에서 이 표가 대체됩니다 (2026-10-22 설계).** 상담·알림 시드의 원본이
+> `backend/prisma/seed/data/` 로 오면서 밀 fixture 날짜가 없어지고, 샘플 8건이 `SEED_TODAY` 기준
+> **오프셋을 직접 받습니다**(§8.4 쪽 규칙). 새 자리표는 **§12.13-C** 에 있습니다. 아래 표는
+> 요청서 15 가 구현되기 전까지의 상태입니다 — 두 방식이 섞인 것이 아니라 적용 대상이 바뀝니다.
 
 ```
 cr6  SEED_TODAY -  1일   contacted
@@ -1694,12 +1703,21 @@ consult_requests
 1. `phone_digits` 는 `not null` 입니다. **현재 데이터가 시드뿐이면 컬럼 추가 후 시드 재실행**으로 끝납니다.
    운영 데이터가 생긴 뒤라면 마이그레이션 SQL 에 백필 한 줄을 넣습니다 — §3.8 의 raw SQL 금지는
    **애플리케이션 코드** 규칙이고 마이그레이션 파일에는 적용되지 않습니다
+   > **요청서 15 에서 처리.** 개발 DB 는 시드뿐이라 백업 → `prisma migrate dev` → 재시드로 끝납니다.
+   > SQLite 의 `ADD COLUMN NOT NULL` 은 기본값이 없으면 기존 행 때문에 실패하므로 **마이그레이션에서만**
+   > `DEFAULT ''` 를 주고 재시드로 값을 채웁니다 — 자세한 절차는 §12.13-D
 2. `event` 는 기본값이 있어 기존 이력 행이 그대로 유효합니다. `visit_at`·`cancel_reason`·
    `notification_id` 는 전부 nullable 이라 백필이 없습니다
+   > **요청서 15 에서 처리.** `third_party_consent_*` 2개와 `notifications.consult_status` 도 같습니다
 3. 시드에 `visited` 건이 하나도 없습니다. 샘플을 만들려면 `frontend/src/mocks/fixtures/consultRequests.ts`
    수정이 따라오는데 **그 파일은 프런트 영역**이라 이 변경에 묶지 않습니다
+   > **요청서 15 에서 처리 — 전제가 바뀌었습니다.** 프런트 fixture 를 고치는 대신 **원본을 서버로
+   > 옮깁니다**(요청 14 가 시술에 한 것과 같은 절차). 그래서 `visited`·`reschedule`·취소 사유·동의
+   > 기록이 있는 샘플을 프런트를 건드리지 않고 만들 수 있습니다 — §12.13
 4. §8.5 의 상대 날짜 권고가 여기에도 적용됩니다 — 고정 날짜 fixture 로는 `오늘`/`이번 주` 필터와
    `지연` 배지가 **항상 0건**이라 QA 가 재현할 수 없습니다
+   > **요청서 15 에서 처리.** 새 샘플은 `SEED_TODAY` 기준 **오프셋을 직접 주는 쪽**(§8.4)을
+   > 씁니다 — 밀 원본이 없는 새 데이터이기 때문입니다. 근거는 §12.13-B
 
 **남은 미결:**
 
@@ -1716,6 +1734,232 @@ consult_requests
    아직 없습니다. 집계 화면이 생기면 모집단 정의(접수 기준인가 확정 기준인가)를 먼저 정해야 합니다
    > **다음 날 생겼습니다 (2026-10-13).** 대시보드의 `이번 달 상담 흐름` 이 그 화면이고,
    > 모집단은 **접수 기준 코호트**로 정했습니다 — §13.6
+
+### 12.13 상담·알림 시드 — 원본이 서버로 옵니다 (요청서 15)
+
+> 요청서 15 의 한 줄이 이 절의 전부입니다 — **"브라우저에 남아 있는 예전 샘플 상담·알림은 옮기지
+> 않습니다. 대신 서버 시드로 샘플을 몇 건 만들어 주세요. 날짜는 오늘 기준으로 잡아서, 대시보드
+> 숫자가 0 이 아니게 해 주세요."**
+
+#### A. 원본을 `backend/prisma/seed/data/` 로 옮깁니다
+
+| 지금 | 요청서 15 이후 |
+|---|---|
+| `backend/prisma/seed/fixtures.ts` 가 `frontend/src/mocks/fixtures/consultRequests.ts`·`notifications.ts` 를 re-export | **`backend/prisma/seed/data/consult-requests.ts`** · **`backend/prisma/seed/data/notifications.ts`** 가 원본. `fixtures.ts` 의 두 줄이 `./data/*` 로 바뀝니다 |
+
+요청 14 가 시술 분야·세부 시술에 한 절차 그대로입니다(§17.8). 옮기는 이유가 **이번에는 더
+직접적**입니다 — 새 샘플이 요구하는 것(`visited`·`reschedule`·취소 사유·`visit_at`·동의 기록·
+`consultStatus`)은 **프런트 fixture 의 타입에 없는 필드**입니다. 프런트에 넣으면 화면이 쓰지 않는
+필드를 목 데이터에 만드는 것이고, 그것이 §12.12-3 과 §15.8 이 "프런트 영역이라 묶지 않는다" 고
+미뤄 둔 이유였습니다. 소유권이 넘어오면 그 제약 자체가 사라집니다.
+
+- **프런트 fixture 는 지우지 않습니다** — MSW 핸들러가 아직 씁니다. 다만 **백엔드는 더 이상 읽지
+  않으므로** 두 사본이 달라져도 서버가 깨지지 않습니다. 프런트 쪽 정리(= `localCollection` 의 상담·
+  알림 제거)는 같은 요청서의 frontend-engineer 몫입니다
+  > **구현 결과(2026-10-22):** 이 저장소에 MSW 는 없었고, 프런트 쪽 정리 뒤에는 두 fixture
+  > (`frontend/src/mocks/fixtures/consultRequests.ts`·`notifications.ts`)를 읽는 코드가 하나도
+  > 남지 않아 **같은 작업에서 삭제**했습니다. 설계 시점의 위 판단은 그대로 기록으로 남깁니다
+- `prisma/tsconfig.seed.json` 의 `@/*` 별칭은 남은 3개(`guides`·`promotions`·`qaPosts`)가 계속 씁니다
+
+#### B. 날짜는 **`SEED_TODAY` 기준 오프셋**입니다 (§8.4 쪽, §8.5 아님)
+
+§8.5(기준일 하나로 통째로 민다)는 **fixture 에 날짜가 있는 것**의 규칙이고, §8.4(오프셋을 직접
+준다)는 **밀 원본이 없는 것**의 규칙입니다. 새 샘플은 후자입니다 — 2026-07-30 에 묶인 원본이
+애초에 없습니다. `clock.fromToday(n)` 이 프로모션 기간·검수 시각에 쓰는 바로 그 통로입니다.
+
+**두 규칙이 섞이지 않습니다.** 시드가 미는 대상(`guides`·`qa_posts`·`reviews`·광고)과 오프셋을 주는
+대상(`promotions`·`doctor_verifications`·`legal_documents`·**상담·알림**)은 서로 다른 테이블이고,
+한 테이블 안에서 두 방식이 만나는 자리가 없습니다. §8.5 의 "상담 7건이 놓이는 자리" 표는
+**§12.13-C 의 표로 대체**됩니다.
+
+**`오늘` 은 KST 달력일입니다.** `오늘 내원 예정`(§13.5)·`오늘 들어온 상담`(§13.2)의 경계가 전부
+`Asia/Seoul` 이기 때문입니다. 시계에 통로를 하나 더합니다:
+
+```ts
+// prisma/seed/dates.ts — SEED_TODAY(+n일)의 KST 벽시계 시각 → UTC Date
+//   seoulAt(0, '14:00')  = fromToday(0) + (14:00 − 09:00) = 오늘 05:00Z = 오늘 14:00 KST
+seoulAt(days: number, hhmm: string): Date
+```
+
+> ⚠ **`SEED_TODAY` 의 기본값은 실행 시각의 UTC 날짜**입니다(`dates.ts`). 15:00Z~24:00Z(= KST 자정~
+> 오전 9시)에 시드하면 시드의 `오늘` 이 KST 의 `어제` 가 되어 **`오늘 내원 예정` 이 0건**이 됩니다.
+> 기본값을 **KST 달력일**로 바꾸는 한 줄이 이 창을 없앱니다(모든 지표의 `오늘` 이 KST 이므로 시드의
+> `오늘` 도 KST 인 것이 맞습니다). 바꾸지 않는다면 QA 는 `SEED_TODAY=YYYY-MM-DD` 를 명시해야
+> 합니다 — backend-engineer 판단 항목으로 남깁니다
+
+#### C. 샘플 8건 — 무엇을 보증하는지가 선정 기준입니다
+
+신청자 계정·병원·시술 id 는 **이미 있는 시드 값**을 씁니다(`u-seed-1`~`7`, `h1`·`h2`,
+31개 시술 taxonomy, `d7`=이하윤/h1). 상담 id `cr1`~`cr8` 도 그대로 유지합니다 — `/admin/consultations/cr1`
+같은 예시 URL 과 QA 시나리오가 그 값에 걸려 있습니다(§8.1 원칙 1).
+
+| id | 병원 | 신청자 | 시술 | 상태 | 접수 (KST) | `visit_at` | 취소 사유 | 동의 |
+|---|---|---|---|---|---|---|---|---|
+| `cr1` | h1 | `u-seed-1` 김민준 | `implant-general` | `new` | **오늘** 09:15 | — | — | 접수 시각 / `2026-10-12` |
+| `cr2` | h1 | `u-seed-7` 한소율 | `laminate` | `new` | **D−3** 10:20 | — | — | **둘 다 `null`** (절차 도입 이전 접수) |
+| `cr3` | h1 | `u-seed-3` 최지훈 | `implant-general` (지목 `d7`) | `booked` | D−2 11:05 | **오늘 14:00** | — | 접수 시각 / `2026-10-12` |
+| `cr4` | h1 | `u-seed-4` 정하윤 | `bruxism-botox` | `visited` | **오늘** 08:00 | **오늘 11:00** (유지) | — | 접수 시각 / `2026-10-12` |
+| `cr5` | h1 | `u-seed-5` 강도윤 | **`null`** (시술 미지정) | `cancelled` | **오늘** 07:30 | — (취소가 비운다) | `duplicate` | 접수 시각 / `2026-10-12` |
+| `cr6` | h1 | `u-seed-2` 박서준 | `laminate` | `contacted` | D−1 13:40 | — | — | 접수 시각 / `2026-10-12` |
+| `cr7` | **h2** | `u-seed-6` 이서연 | `bracket-braces` | `new` | D−1 15:00 | — | — | 접수 시각 / `2026-10-12` |
+| `cr8` | **h2** | `u-seed-1` 김민준 | `laminate` | `booked` | D−5 16:30 | **D+3 10:00** | — | 접수 시각 / `2026-10-12` |
+
+`phone` 은 `010-1234-5601`~`5608`(상담 번호순), `phone_digits` 는 숫자만 남긴 값입니다 —
+**뒤 4자리가 전부 다르므로** 운영자의 접미 일치 검색(§12.9)을 한 건씩 재현할 수 있습니다.
+`name` 은 신청자 계정 이름과 같게 둡니다(§4 는 다를 수 있다고 적었지만, 다른 샘플을 만들면
+"계정 이름과 폼 이름이 다른 것" 과 "시드가 틀린 것" 을 QA 가 구분할 수 없습니다).
+
+**이 8건이 h1 담당자(`u-admin-h1`) 화면에 보증하는 숫자** — 괄호 안은 `SEED_TODAY` 가 매월 1일일 때:
+
+| 지표 (§13.2) | 모집단 | 값 |
+|---|---|---|
+| `todayNew` 오늘 들어온 상담 | `created_at ∈ today`, 상태 무관 | **3** (cr1·cr4·cr5) |
+| `statusNew` 신규 전체 | `status='new'` | **2** (cr1·cr2) |
+| `pending` 처리 대기 | `status ∈ {new, contacted}` | **3** (cr1·cr2·cr6) |
+| `delayed` 24시간 지연 | `status='new'` **그리고** `now − created_at ≥ 24h` | **1** (cr2 — D−3) |
+| 오늘 내원 예정 (§13.5) | `status='booked'` **그리고** `visit_at ∈ today` | **1** (cr3 14:00). cr4 는 `visited` 라 빠집니다 |
+| 이번 달 깔때기 (§13.6) | `created_at ∈ thisMonth` 코호트 | 신청 6 · 연락 4 · 예약 2 · 내원 1 · 취소 1 (1일: 3·2·1·1·1) |
+| 카드 ④ `M 중 N` | 〃 | `M=6, N=2` (1일: `M=3, N=1`) |
+
+**오늘(오프셋 0) 접수 건에 `visited`·`cancelled` 를 하나씩 둔 것이 이 표의 설계 포인트**입니다.
+`이번 달` 은 `SEED_TODAY` 의 날짜에 달려 있어서(§8.5 의 경고) 1일에 시드하면 D−1 이하가 전부
+지난달로 빠지는데, **오프셋 0 은 어느 날 시드해도 이번 달**입니다. `visited ⊆ {booked,visited} ⊆
+연락 ⊆ 코호트`(§13.6 의 포함 관계)이므로 **오늘 접수된 `visited` 한 건이 깔때기의 위 세 단계를
+한꺼번에 채웁니다.** 그래서 어느 날 시드해도 다섯 숫자가 모두 0 이 아닙니다.
+
+**범위(스코프) 확인용** — `cr7`·`cr8` 은 h2 입니다. `u-admin-h1` 로 `/admin/consultations` 를 열면
+**6건만** 보여야 하고, `GET /consult-requests/cr8` 은 `404 CONSULT_REQUEST_NOT_FOUND` 여야 합니다
+(단건은 담당 밖과 없음을 구분하지 않습니다 — 계약 `GET /consult-requests/{id}`. `403 HOSPITAL_NOT_MANAGED`
+는 목록의 `?hospitalId=h2` 쪽입니다).
+`cr1`(h1)과 `cr8`(h2)의 신청자가 **같은 `u-seed-1`** 이라서, 마이페이지 상담 내역이 병원을 가로질러
+2건을 보여주는 것도 같은 계정으로 확인됩니다.
+
+#### D. 처리 이력과 알림 — 한 건이 한 줄씩 만듭니다
+
+이력 행 id 는 기존 규칙 `csc-{consultId}-{i}`(0부터), 알림 행 id 는 **`ntf-{consultId}-{i}`** 입니다.
+> §8.1 원칙 1(fixture id 보존)의 **예외를 하나 둡니다** — `notif1`~`notif7` 은 버립니다. 알림 id 를
+> 가리키는 URL·화면 문서가 없고(알림은 `relatedId` 로 이동합니다), 이벤트에서 파생되는 결정적 id 라야
+> 샘플을 고칠 때 재실행이 중복을 만들지 않습니다. 상담 id 를 유지하는 근거(예시 URL)가 여기엔 없습니다.
+
+| 상담 | 이력 행 (`event` / `status` / 시각 / 행위자 / `visit_at` / `cancel_reason`) | 만드는 알림 |
+|---|---|---|
+| `cr1` | `status_change`/`new`/접수 시각/**null**/—/— | `ntf-cr1-0` **admin** → `u-admin-h1` |
+| `cr2` | `status_change`/`new`/접수 시각/null/—/— | `ntf-cr2-0` **admin** → `u-admin-h1` |
+| `cr3` | `new`/접수/null · `contacted`/D−1 10:00/`u-admin-h1` · `booked`/오늘 09:40/`u-admin-h1`/**오늘 14:00** | `ntf-cr3-0` admin · `ntf-cr3-1` user(contacted) · `ntf-cr3-2` user(booked) |
+| `cr4` | `new`/접수/null · `booked`/오늘 08:30/`u-admin-h1`/**오늘 11:00** · `visited`/오늘 11:20/`u-admin-h1`/**오늘 11:00**(유지) | `ntf-cr4-0` admin · `ntf-cr4-1` user(booked) · `ntf-cr4-2` user(visited) |
+| `cr5` | `new`/접수/null · `cancelled`/오늘 09:00/`u-admin-h1`/—/**`duplicate`** | `ntf-cr5-0` admin · `ntf-cr5-1` user(cancelled) |
+| `cr6` | `new`/접수/null · `contacted`/오늘 09:05/`u-admin-h1` | `ntf-cr6-0` admin · `ntf-cr6-1` user(contacted) |
+| `cr7` | `new`/접수/null | `ntf-cr7-0` **admin** → `u-admin-h2` |
+| `cr8` | `new`/접수/null · `contacted`/D−4 09:00/`u-admin-h2` · `booked`/D−4 09:30/`u-admin-h2`/**D+2 10:00** · **`reschedule`**/`booked`/D−1 14:00/`u-admin-h2`/**D+3 10:00** | `ntf-cr8-0` admin · `ntf-cr8-1` user(contacted) · `ntf-cr8-2` user(booked) · `ntf-cr8-3` user(**일시 변경**) |
+
+규칙 네 가지가 이 표를 전부 설명합니다.
+
+1. **접수 행(`i=0`)은 `changed_by_user_id`·`notification_id` 가 `null`** 입니다. 접수 알림은
+   `audience='admin'` 이라 **환자 알림이 아니고**, 이력 행에 알림 id 를 적지 않습니다(§15.2-ⓑ).
+   화면도 그 줄만 `앱에서 상담 신청` 으로 그립니다(`consultDisplay.ts` 의 `isIntakeRow`)
+2. **그 밖의 모든 이력 행은 `notification_id` 가 채워집니다** → 관리자 상세의 이력 줄에
+   `환자 알림 발송` 이 붙습니다. 저장된 사실이지 규칙에서 파생한 값이 아닙니다(§12.8)
+3. **수신자** — `audience='user'` 는 그 상담의 신청자 1명, `audience='admin'` 은
+   `notifications.hospital_id` = 그 병원 + **그 병원 담당자**(지금은 1명)입니다(§15.6)
+4. **`consult_status`** — 접수 알림은 `new`, 상태 변경 알림은 바뀐 뒤 상태, **일시 변경 알림은
+   `booked`** 입니다. `related_type='consult_request'`, `related_id` = 상담 id
+
+**문구는 지어내지 않습니다.** 시드는 `frontend/src/features/consult/consultNotificationText.ts` 가
+서버로 옮겨 간 **그 순수 함수를 호출해** `title`·`message` 를 만듭니다. 문자열을 시드에 적어 두면
+문구를 다듬는 날 **시드와 런타임이 조용히 갈립니다** — 같은 판정을 두 곳에 두지 않는다(AGENTS.md)가
+문구에도 그대로 적용됩니다. 결과는 이렇습니다(병원명이 들어간 자리는 실제 이름으로):
+
+| 알림 | `title` | `message` |
+|---|---|---|
+| 접수 (admin) | `새로운 상담 신청` | `{신청자 이름}님이 상담을 신청했어요` *(계약 `POST /consult-requests`)* |
+| `contacted` | `병원이 연락 중이에요` | `강남 스마일 치과가 상담 신청을 확인했어요. 곧 전화가 올 거예요` |
+| `booked` | `상담 예약이 확정됐어요` | `강남 스마일 치과 · {M/D(요일) HH:mm} 방문. 변경이 필요하면 병원에 전화해 주세요` |
+| `reschedule` | `예약 일시가 바뀌었어요` | *(위와 같은 본문, 새 일시)* |
+| `cancelled` | `상담이 취소됐어요` | `강남 스마일 치과 · 같은 신청이 있어 하나로 정리했어요` *(`duplicate` 의 환자용 꼬리말)* |
+| `visited` | `상담 상태 변경` | `상담 상태가 '내원완료'(으)로 변경되었어요` *(요청 08 범위 밖이라 기존 문구 유지 — §15.3)* |
+
+> 방문 일시 표기(`10/9(금) 14:00` vs `10월 9일(금) 14:00`)는 **§15.10-⑥ 의 미결**입니다.
+> 시드가 함수를 호출하므로 **어느 쪽으로 정해지든 시드 문구가 따라옵니다** — 데이터 설계가 그 결정을
+> 기다릴 필요가 없습니다.
+
+**공지 알림 3건**(상담과 무관, `consult_status=null`, `related_*=null`)을 남겨 알림함의 나머지 아이콘
+두 종류(`이벤트`·`안내`)와 fan-out 경로를 살려 둡니다.
+
+| id | `audience` | `type` | 생성 | 수신자 | 읽음 |
+|---|---|---|---|---|---|
+| `ntf-event-1` | `user` | `event` | D−2 11:00 | `u-seed-1`~`7` (7행) | 읽음 |
+| `ntf-system-1` | `user` | `system` | D−6 10:00 | `u-seed-1`~`7` (7행) | 읽음 |
+| `ntf-system-2` | `admin` | `system` | D−1 09:00 | `u-admin-h1`~`h11` (11행) | 읽음 |
+
+**읽음 상태** — 공지 3건은 읽음(`read_at` = 생성 시각), **상담에서 파생된 알림은 전부 안 읽음**
+(`read_at = null`)입니다. 상단 🔔 배지와 알림함의 안 읽음 표시가 첫 로그인부터 보여야 하고,
+읽음 처리(`PATCH /notifications/{id}/read`)를 QA 가 눌러 볼 대상이 필요합니다.
+
+**메모 2건** — `memo-cr3-1`(`예약 일시 안내 완료`, `author_user_id='u-admin-h1'`),
+`memo-cr5-1`(`같은 번호로 중복 접수 확인`, `u-admin-h1`). 상담 상세의 메모 영역이 빈 화면이 아니게
+하는 최소한이고, `author_user_id` 가 채워진 메모가 처음 생깁니다(지금 시드는 전부 `null` 입니다).
+
+#### E. QA 계정 — "환자 A 의 알림이 환자 B 에게 보이지 않는다"
+
+계정 체계는 **그대로**입니다(§8.3) — 비밀번호는 전부 `backend/.env` 의 `SEED_PASSWORD` 이고
+해시는 시드가 bcrypt(12)로 만듭니다. 요청서의 확인 항목에 쓸 두 계정을 **못 박습니다**:
+
+| 역할 | 계정 | 이메일 | 이 계정이 보는 것 |
+|---|---|---|---|
+| 환자 A | `u-seed-1` 김민준 | `seed-1@molarmolar.example` | 상담 2건(`cr1` h1 · `cr8` h2). 알림 **3건**(`cr8` 의 연락중·예약확정·**일시 변경**) + 공지 2건 |
+| 환자 B | `u-seed-2` 박서준 | `seed-2@molarmolar.example` | 상담 1건(`cr6` h1). 알림 **1건**(연락중) + 공지 2건 |
+| 병원 담당자 | `u-admin-h1` | `admin-h1@molarmolar.example` | h1 상담 6건 · 접수 알림 6건. **h2 의 `cr7`·`cr8` 은 보이지 않습니다** |
+| 다른 병원 담당자 | `u-admin-h2` | `admin-h2@molarmolar.example` | h2 상담 2건 |
+
+**A 와 B 의 알림이 서로 다른 건수·다른 문구**라는 것이 이 배치의 목적입니다. 둘 다 "연락중" 하나뿐이면
+화면이 섞여 보여도 눈으로 알아챌 수 없습니다. `notification_recipients` 는 (알림 × 사용자)이므로
+A 의 알림함 질의에 B 의 행이 섞이려면 **수신자 행이 잘못 만들어져야** 하고, 그것이 정확히 이 QA 가
+잡으려는 결함입니다(§5.3).
+
+**시드 계정 구성의 한 가지 변경** — 지금 `seed.ts` 는 신청자 계정을 **상담 건수만큼**
+만듭니다(`consultRequests.map(...)`, 상담 1건 = 계정 1개). 한 사람이 두 병원에 신청하는 샘플(`cr1`·`cr8`)이
+생기므로 그 1:1 가정이 깨집니다. **신청자 7명을 `data/consult-requests.ts` 에 명시 목록으로 두고**
+상담 행이 `applicantId` 로 가리킵니다. `userAccount(i, name)` 함수와 id 체계(`u-seed-1`~`7`)는 그대로입니다.
+
+#### F. 마이그레이션 (backend-engineer 에게)
+
+**요청서 15 는 마이그레이션 한 개**입니다 — §12(상담 예약) · §12.12(동의 2칸) · §13.5(인덱스) ·
+§15(알림 칸)을 한 번에 적용합니다. 세 요청서에 걸쳐 설계된 것이지만 **DDL 은 한 덩어리**이고,
+나눠도 중간 상태를 쓰는 코드가 없습니다.
+
+```
+consult_requests        + phone_digits (not null)  + visit_at
+                        + third_party_consent_agreed_at + third_party_consent_notice_version
+                        + idx(hospital_id, status, created_at)  + idx(hospital_id, visit_at)
+consult_status_changes  + event (not null, default 'status_change')
+                        + visit_at + cancel_reason + notification_id (fk, SetNull)
+notifications           + consult_status
+```
+
+1. **개발 DB 를 먼저 백업합니다** — `cp backend/prisma/dev.db "backend/prisma/dev.backup-$(date +%Y%m%d-%H%M).db"`
+   (CLAUDE.md 안전장치 2). 백업 파일은 `prisma/*.db` 로 이미 커밋에서 빠집니다
+2. **값이 필요한 컬럼은 `phone_digits` 하나입니다** (`not null` 인데 기존 행에 넣을 값이 없습니다).
+   SQLite 에서 이런 변경은 테이블 재생성(새 테이블 → `INSERT ... SELECT` → 교체)으로 나가고,
+   그 `INSERT` 가 기존 7행의 `phone_digits` 를 채우지 못해 **실패합니다.**
+   **권고: 그대로 두고 reset + 재시드로 넘깁니다** — 개발 DB 의 상담은 전부 시드 산출물이고(1번에서
+   백업했습니다), 어차피 4번에서 다시 만듭니다. 스키마와 DB 가 정확히 일치해 **drift 가 남지 않는**
+   것이 이 방식의 이점입니다.
+   - **`@default("")` 를 스키마에 두지 않습니다.** 쓰기 경로는 항상 값을 채우고, 기본값을 남기면
+     "빈 문자열도 정상" 이라는 신호가 스키마에 박힙니다
+   - 마이그레이션 SQL 의 새 테이블 정의에만 `DEFAULT ''` 를 손으로 넣는 방법도 되지만, DB 에만 있는
+     기본값이 **drift 로 잡힐 수 있어** 권하지 않습니다
+   - 운영 데이터가 생긴 뒤라면 3단계(nullable 추가 → 백필 UPDATE → NOT NULL 로 재생성)가 정석입니다.
+     §3.8 의 raw SQL 금지는 **애플리케이션 코드** 규칙이고 마이그레이션 파일에는 적용되지 않습니다(§12.12-1)
+3. **나머지는 백필이 없습니다** — `event` 는 기본값이 있고, 그 밖은 전부 nullable 입니다.
+   `notifications.consult_status` 도 `ADD COLUMN` 한 줄이고 **UPDATE 가 없습니다**(§15.8)
+4. **그다음 `prisma:reset` + 재시드입니다.** 개발 DB 의 상담·알림은 전부 시드 산출물이고, 새 시드는
+   상담 id 는 유지하되 **내용과 알림 id 를 바꿉니다**. 이전 알림 행(`notif1`~`notif7`)이 남으면
+   `consult_status=null` 인 유령 알림이 화면에 섞이므로 reset 이 upsert 보다 깨끗합니다
+   (§8.1 의 "fixture 구조가 바뀌면 reset" 이 가리키는 바로 그 경우입니다)
+5. **테스트 DB 는 영향이 없습니다** — `npm run test:run` 이 매번 `prisma/test.db` 를 지우고 다시
+   만듭니다(§8.7). 다만 `backend/test/seed-data.spec.ts` 는 **고쳐야 합니다**: 상담 7건 →
+   **8건**, `notif1`·`notif4` 단정 → 새 알림 id, 그리고 새로 고정할 것들(`cr2` 가 지연 모집단,
+   `cr3` 의 `visit_at` 이 오늘 KST, 깔때기 다섯 숫자가 모두 ≥ 1, `cr8` 에 `reschedule` 행 1개)
 
 ---
 
@@ -2981,6 +3225,11 @@ patientCancelSentence(reason: ConsultCancelReason) -> string | null
 - 시드 fixture(`notif1`..`notif7`)도 `null` 로 둡니다. 값을 넣으려면
   `frontend/src/mocks/fixtures/notifications.ts` 수정이 따라오는데 **그 파일은 프런트 영역**이라
   이 변경에 묶지 않습니다(§12.12-3 과 같은 처리)
+  > **요청서 15 에서 전제가 바뀌었습니다 (2026-10-22).** 알림 시드의 **원본이 서버로 옵니다**
+  > (`backend/prisma/seed/data/notifications.ts`). 프런트를 건드리지 않고 값을 적을 수 있으므로,
+  > 새 샘플은 `consult_status` 를 **처음부터 채운 채** 만들어집니다 — §12.13-D.
+  > **백필하지 않는다는 이 절의 결론은 그대로입니다**: 백필의 대상이던 `notif1`~`notif7` 은
+  > 채워지는 것이 아니라 reset 으로 **사라집니다**(§12.13-F-4)
 
 ### 15.9 만들지 않는 것
 
@@ -3005,11 +3254,16 @@ patientCancelSentence(reason: ConsultCancelReason) -> string | null
 
 - [ ] ① **interface-master 가 계약을 확정**한다 — 아래 "인계 목록". `openapi.yaml`·`docs/api/README.md`
       는 이 문서의 작성자가 건드리지 않았습니다
-- [ ] ② `schema.prisma` `Notification` **+1 컬럼**: `consultStatus String? @map("consult_status")`
-- [ ] ③ `docs/database/schema.dbml` 의 `Table notifications` 반영.
+      → **요청서 15 의 2단계** (db-master 다음이 interface-master 입니다)
+- [x] ② `schema.prisma` `Notification` **+1 컬럼**: `consultStatus String? @map("consult_status")`
+      → **2026-10-22 반영** (요청서 15, db-master). `type`·`related_type` 주석의 낡은 허용값도 함께 고쳤습니다
+- [x] ③ `docs/database/schema.dbml` 의 `Table notifications` 반영.
       **`type` 의 허용값 주석이 낡았습니다** — `inquiry-answer` 가 빠져 있습니다(2026-10-12 계약 추가).
       같은 커밋에서 함께 고칩니다
+      → **2026-10-22 반영.** `related_type` 에 `hospital_inquiry` 도 함께 더했습니다(계약의
+      `relatedResource` 와 값 집합을 맞춥니다)
 - [ ] ④ 마이그레이션 — `ADD COLUMN` 한 줄, **백필 없음** (§15.8)
+      → **요청서 15 의 backend-engineer.** §12 의 DDL 과 **한 마이그레이션**으로 묶습니다 — 절차는 §12.13-F
 - [ ] ⑤ 알림 생성 지점 **네 곳**이 값을 적는다. 전부 **기존 트랜잭션 안**이고 새 트랜잭션이 없습니다
       — 상담 접수(`new`), 상태 변경(`input.status`), 일시 변경(`booked`), 문의 답변(`null`)
 - [ ] ⑥ 문구 생성 순수 함수 2개 + 단위 테스트 — `patientCancelSentence(reason)`(§15.5)와

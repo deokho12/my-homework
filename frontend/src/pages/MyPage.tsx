@@ -21,7 +21,7 @@ import {
 } from '@/features/consult';
 import { useFavorites } from '@/features/favorite';
 import { MyInquiryRow, useMyInquiries } from '@/features/inquiry';
-import { useHospital, useHospitalName } from '@/features/hospital';
+import { useHospital } from '@/features/hospital';
 import { HospitalCard } from '@/features/hospital/components/HospitalCard';
 import { useUnreadNotificationCount } from '@/features/notification';
 import { useAuthStore } from '@/store/useAuthStore';
@@ -96,8 +96,6 @@ const ConsultRow = forwardRef<HTMLButtonElement, ConsultRowProps>(function Consu
   { request, isLast, highlighted },
   ref
 ) {
-  // 로컬 응답의 `hospitalName` 이 항상 null 이라 행마다 조회한다. 서버가 채우면 사라진다.
-  const hospitalName = useHospitalName(request.hospitalId);
   // 모르는 시술 id 면 null — 줄 자체를 그리지 않는다 ("미지정"이라 적으면 거짓말이다).
   const procedureLabel = consultProcedureLabel(request.procedureId);
   const schedule = consultScheduleLine({
@@ -123,7 +121,10 @@ const ConsultRow = forwardRef<HTMLButtonElement, ConsultRowProps>(function Consu
       )}
     >
       <span className="flex flex-row items-center justify-between gap-2">
-        <span className="min-w-0 flex-1 truncate text-[15px] font-bold text-neutral-900">{hospitalName}</span>
+        {/* 병원 이름은 **내역 응답에 들어 있다** — 줄마다 병원을 조회하지 않는다 (요청서 15). */}
+        <span className="min-w-0 flex-1 truncate text-[15px] font-bold text-neutral-900">
+          {request.hospitalName}
+        </span>
         <span className="shrink-0">
           <Badge label={CONSULT_STATUS_LABEL[request.status]} tone={CONSULT_STATUS_TONE[request.status]} />
         </span>

@@ -1,27 +1,35 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { fetchAdminDashboard } from '@/features/admin/api/dashboardApi';
-import { fetchConsultRequests } from '@/features/consult/api/consultApi';
+import * as consultApi from '@/features/consult/api/consultApi';
+import type {
+  AdminConsultRequest,
+  ConsultRequestFilters,
+  ConsultRequestList,
+} from '@/features/consult/api/consultApi';
 import { CONSULT_DELAY_MS, isConsultDelayed } from '@/features/consult/consultDisplay';
 import { funnelOf } from '@/features/consult/lib/funnel';
+import { periodRange } from '@/features/consult/lib/transition';
 import * as doctorApi from '@/features/doctor/api/doctorApi';
 import * as hospitalApi from '@/features/hospital/api/hospitalApi';
 import { fetchHospitalInquiries } from '@/features/inquiry/api/inquiryApi';
 import { isApiError } from '@/lib/apiClient';
-import {
-  writeCollection,
-  type StoredConsultRequest,
-  type StoredHospitalInquiry,
-} from '@/lib/localCollection';
+import { writeCollection, type StoredHospitalInquiry } from '@/lib/localCollection';
 import { useAuthStore } from '@/store/useAuthStore';
 import { baseHospital } from '@/test/hospitalFixture';
-import type { Doctor, User, UserRole } from '@/types/domain';
+import { CONSULT_STATUSES, type ConsultStatus, type Doctor, type User, type UserRole } from '@/types/domain';
 
 /**
- * `GET /admin/dashboard` 의 로컬 구현.
+ * `GET /admin/dashboard` 의 **요청서 15→16 중간 구현**.
  *
  * **이 파일이 고정하는 불변식은 하나다**: 숫자 카드 = 사이드 배지 = 그 카드를 눌렀을 때
  * 열리는 목록의 건수. 그래서 거의 모든 숫자 테스트가 "같은 필터의 목록 질의와 같은가" 를 묻는다.
+ *
+ * 상담은 이제 서버에서 온다. 그 불변식을 계속 묻기 위해 **상담 목록 오퍼레이션 하나를
+ * 가짜 서버로 세운다**(`fakeConsultList`) — 대시보드와 "그 카드가 여는 목록" 이 같은 가짜를
+ * 통과하므로, 양쪽 숫자가 어긋나면 그대로 드러난다. 가짜가 흉내 내는 것은 계약이 정한
+ * 범위·정렬·페이지·`statusCounts` 모집단뿐이고, 마스킹된 값은 행 자체에 담아 둔다
+ * (서버 목록 투영과 같은 모양: 이름 전체 · 번호 마스킹 · `piiMasked: true`).
  */
 
 /** 서울 2026-10-13(화) 11:30. 달력 경계가 걸린 숫자가 다섯이라 시계를 고정한다. */
@@ -49,23 +57,85 @@ function signIn(role: UserRole, managedHospitalIds: string[] = ['h1']): void {
   useAuthStore.setState({ user, status: 'ready' });
 }
 
-function consult(overrides: Partial<StoredConsultRequest> = {}): StoredConsultRequest {
+/** 서버 목록 투영 한 줄 (`GET /consult-requests` 의 `items[]`). */
+function consult(overrides: Partial<AdminConsultRequest> = {}): AdminConsultRequest {
   const createdAt = overrides.createdAt ?? hoursAgo(2);
 
   return {
     id: 'cr1',
     hospitalId: 'h1',
+    hospitalName: '강남 스마일 치과',
     procedureId: 'implant-general',
     name: '박서영',
-    phone: '010-1234-4411',
+    // 목록은 두 역할 모두 번호를 가린다 — 서버가 가려서 내려준 값 그대로다.
+    phone: '010-****-4411',
+    piiMasked: true,
     preferredTime: '평일 오후',
     message: '',
     createdAt,
     status: 'new',
     visitAt: null,
-    statusHistory: [{ event: 'status_change', status: 'new', changedAt: createdAt }],
+    cancelReason: null,
+    statusHistory: [
+      {
+        event: 'status_change',
+        status: 'new',
+        changedAt: createdAt,
+        changedByName: null,
+        visitAt: null,
+        cancelReason: null,
+        notified: false,
+      },
+    ],
+    thirdPartyConsent: null,
     memos: [],
     ...overrides,
+  };
+}
+
+/** 가짜 서버가 들고 있는 상담 전부. `stubConsults` 로 갈아끼운다. */
+let serverConsults: AdminConsultRequest[] = [];
+
+function stubConsults(rows: AdminConsultRequest[]): void {
+  serverConsults = rows;
+}
+
+/**
+ * `GET /consult-requests` 흉내. 계약이 정한 것만 한다 —
+ * 병원·기간·상태 필터, 신청일시 최신순, 페이지, **상태만 푼 모집단의 `statusCounts`**.
+ */
+function fakeConsultList(filters: ConsultRequestFilters = {}): ConsultRequestList {
+  const now = new Date();
+  const base = serverConsults
+    .filter((row) => (filters.hospitalId === undefined ? true : row.hospitalId === filters.hospitalId))
+    .filter((row) => {
+      if (!filters.period) return true;
+
+      const [from, to] = periodRange(filters.period, now);
+      const at = new Date(row.createdAt).getTime();
+
+      return at >= from.getTime() && at < to.getTime();
+    })
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  const statuses = filters.status === undefined ? null : [filters.status].flat();
+  const matched = statuses === null ? base : base.filter((row) => statuses.includes(row.status));
+  const page = filters.page ?? 1;
+  const pageSize = filters.pageSize ?? 20;
+  const counts = Object.fromEntries(
+    CONSULT_STATUSES.map((status) => [status, base.filter((row) => row.status === status).length])
+  ) as Record<ConsultStatus, number>;
+
+  return {
+    items: matched.slice((page - 1) * pageSize, page * pageSize),
+    meta: {
+      page,
+      pageSize,
+      totalItems: matched.length,
+      totalPages: Math.ceil(matched.length / pageSize),
+    },
+    scope: 'managed',
+    statusCounts: { ...counts, total: base.length },
   };
 }
 
@@ -124,7 +194,8 @@ async function expectApiError(promise: Promise<unknown>, code: string, status: n
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(NOW);
-  writeCollection('consultRequests', []);
+  stubConsults([]);
+  vi.spyOn(consultApi, 'fetchConsultRequests').mockImplementation(async (filters) => fakeConsultList(filters));
   writeCollection('inquiries', []);
   signIn('hospital_admin');
   stubHospitalData();
@@ -188,7 +259,7 @@ describe('fetchAdminDashboard — 인가와 hospitalId 규칙', () => {
 
 describe('fetchAdminDashboard — 숫자 카드 = 그 카드를 눌러 열리는 목록', () => {
   beforeEach(() => {
-    writeCollection('consultRequests', [
+    stubConsults([
       // 오늘(서울 10/13) 접수 — 상태 무관
       consult({ id: 'c-today-new', createdAt: at('2026-10-13T01:00:00.000Z'), status: 'new' }),
       consult({ id: 'c-today-cancelled', createdAt: at('2026-10-13T00:10:00.000Z'), status: 'cancelled' }),
@@ -217,7 +288,7 @@ describe('fetchAdminDashboard — 숫자 카드 = 그 카드를 눌러 열리는
 
   it('① 오늘 들어온 상담 = `period=today` 목록의 건수 (상태 무관)', async () => {
     const { numbers } = await fetchAdminDashboard({ hospitalId: 'h1' });
-    const list = await fetchConsultRequests({ hospitalId: 'h1', period: 'today' });
+    const list = await consultApi.fetchConsultRequests({ hospitalId: 'h1', period: 'today' });
 
     expect(numbers.todayNew).toBe(list.meta.totalItems);
     expect(numbers.todayNew).toBe(2);
@@ -225,7 +296,7 @@ describe('fetchAdminDashboard — 숫자 카드 = 그 카드를 눌러 열리는
 
   it('① 보조 `신규 전체` = `status=new` 목록의 건수 = statusCounts.new', async () => {
     const { numbers } = await fetchAdminDashboard({ hospitalId: 'h1' });
-    const list = await fetchConsultRequests({ hospitalId: 'h1', status: 'new' });
+    const list = await consultApi.fetchConsultRequests({ hospitalId: 'h1', status: 'new' });
 
     expect(numbers.statusNew).toBe(list.meta.totalItems);
     expect(numbers.statusNew).toBe(list.statusCounts.new);
@@ -234,7 +305,7 @@ describe('fetchAdminDashboard — 숫자 카드 = 그 카드를 눌러 열리는
 
   it('② 처리 대기 = `status=new&status=contacted` 목록의 건수 (더하지 않는다)', async () => {
     const { numbers } = await fetchAdminDashboard({ hospitalId: 'h1' });
-    const list = await fetchConsultRequests({ hospitalId: 'h1', status: ['new', 'contacted'] });
+    const list = await consultApi.fetchConsultRequests({ hospitalId: 'h1', status: ['new', 'contacted'] });
 
     expect(numbers.pending).toBe(list.meta.totalItems);
     expect(numbers.pending).toBe(4);
@@ -251,8 +322,8 @@ describe('fetchAdminDashboard — 숫자 카드 = 그 카드를 눌러 열리는
 
   it('④ M = `period=thisMonth`, N = `+status=booked&status=visited` 목록의 건수', async () => {
     const { numbers } = await fetchAdminDashboard({ hospitalId: 'h1' });
-    const month = await fetchConsultRequests({ hospitalId: 'h1', period: 'thisMonth' });
-    const booked = await fetchConsultRequests({
+    const month = await consultApi.fetchConsultRequests({ hospitalId: 'h1', period: 'thisMonth' });
+    const booked = await consultApi.fetchConsultRequests({
       hospitalId: 'h1',
       period: 'thisMonth',
       status: ['booked', 'visited'],
@@ -307,7 +378,7 @@ describe('fetchAdminDashboard — 지연', () => {
     const exactly = new Date(NOW.getTime() - CONSULT_DELAY_MS).toISOString();
     const justUnder = new Date(NOW.getTime() - CONSULT_DELAY_MS + 1).toISOString();
 
-    writeCollection('consultRequests', [
+    stubConsults([
       consult({ id: 'c-exactly', createdAt: exactly, status: 'new' }),
       consult({ id: 'c-just-under', createdAt: justUnder, status: 'new' }),
       // 지연은 `new` 에만 붙는다 — 연락중은 아무리 오래돼도 아니다.
@@ -324,7 +395,7 @@ describe('fetchAdminDashboard — 지연', () => {
   });
 
   it('지연은 statusNew 의 부분집합이다 — 더하면 거짓이 된다', async () => {
-    writeCollection('consultRequests', [
+    stubConsults([
       consult({ id: 'c1', createdAt: hoursAgo(30), status: 'new' }),
       consult({ id: 'c2', createdAt: hoursAgo(1), status: 'new' }),
     ]);
@@ -336,8 +407,7 @@ describe('fetchAdminDashboard — 지연', () => {
   });
 
   it('지연 상담은 오래된 것 먼저 최대 5건이고 나머지는 `delayedRemaining` 이다', async () => {
-    writeCollection(
-      'consultRequests',
+    stubConsults(
       Array.from({ length: 7 }, (_, index) =>
         consult({ id: `c${index}`, createdAt: hoursAgo(30 + index), status: 'new' })
       )
@@ -352,7 +422,7 @@ describe('fetchAdminDashboard — 지연', () => {
   });
 
   it('5건 이하면 `delayedRemaining` 은 0 이다', async () => {
-    writeCollection('consultRequests', [consult({ id: 'c1', createdAt: hoursAgo(30), status: 'new' })]);
+    stubConsults([consult({ id: 'c1', createdAt: hoursAgo(30), status: 'new' })]);
 
     const { todo } = await fetchAdminDashboard({ hospitalId: 'h1' });
 
@@ -360,7 +430,7 @@ describe('fetchAdminDashboard — 지연', () => {
   });
 
   it('지연 행에는 연락처 필드가 아예 없다 — 이름·시술·접수 시각뿐이다', async () => {
-    writeCollection('consultRequests', [consult({ id: 'c1', createdAt: hoursAgo(30), status: 'new' })]);
+    stubConsults([consult({ id: 'c1', createdAt: hoursAgo(30), status: 'new' })]);
 
     const { todo } = await fetchAdminDashboard({ hospitalId: 'h1' });
 
@@ -386,8 +456,7 @@ describe('fetchAdminDashboard — 오늘 할 일의 반려 전문의', () => {
 
 describe('fetchAdminDashboard — 최근 상담 예약', () => {
   it('신청일시 내림차순 5건이고 상태를 가리지 않는다', async () => {
-    writeCollection(
-      'consultRequests',
+    stubConsults(
       Array.from({ length: 7 }, (_, index) =>
         consult({ id: `c${index}`, createdAt: hoursAgo(index), status: index % 2 === 0 ? 'new' : 'cancelled' })
       )
@@ -399,10 +468,10 @@ describe('fetchAdminDashboard — 최근 상담 예약', () => {
   });
 
   it('목록과 같은 투영이다 — 이름은 전체, 연락처는 마스킹, `piiMasked: true`', async () => {
-    writeCollection('consultRequests', [consult({ id: 'c1' })]);
+    stubConsults([consult({ id: 'c1' })]);
 
     const { recentConsults } = await fetchAdminDashboard({ hospitalId: 'h1' });
-    const list = await fetchConsultRequests({ hospitalId: 'h1', pageSize: 5 });
+    const list = await consultApi.fetchConsultRequests({ hospitalId: 'h1', pageSize: 5 });
 
     expect(recentConsults[0].name).toBe('박서영');
     expect(recentConsults[0].phone).toBe('010-****-4411');
@@ -413,7 +482,7 @@ describe('fetchAdminDashboard — 최근 상담 예약', () => {
 
 describe('fetchAdminDashboard — 오늘 내원 예정', () => {
   it('예약확정이고 확정 일시가 오늘(서울)인 건만, 일시 오름차순이다', async () => {
-    writeCollection('consultRequests', [
+    stubConsults([
       consult({ id: 'c-pm', status: 'booked', visitAt: at('2026-10-13T05:00:00.000Z') }), // 14:00 KST
       consult({ id: 'c-am', status: 'booked', visitAt: at('2026-10-13T01:00:00.000Z') }), // 10:00 KST — 이미 지났다
       consult({ id: 'c-tomorrow', status: 'booked', visitAt: at('2026-10-14T01:00:00.000Z') }),

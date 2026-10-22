@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   fetchNotifications,
@@ -6,141 +6,161 @@ import {
   markAllNotificationsAsRead,
   markNotificationAsRead,
 } from '@/features/notification/api/notificationApi';
-import { isApiError } from '@/lib/apiClient';
-import { readCollection, writeCollection } from '@/lib/localCollection';
-import type { AppNotification } from '@/types/domain';
+import { ApiError } from '@/lib/apiClient';
 
-/** 삭제된 `useNotificationStore` 의 동작을 이 계층으로 옮겨 고정한다. */
-function notification(overrides: Partial<AppNotification> = {}): AppNotification {
+/**
+ * 알림 api 는 2026-10-22(요청서 15)부터 **전부 HTTP** 다. 수신자 스코프·역할 판정은 서버가
+ * 하고(`backend/test/notification.e2e.spec.ts`), 여기서 고정하는 것은 **배선**이다 —
+ * `audience` 가 어느 요청에 어떻게 실리는가, 응답을 그대로 넘기는가.
+ */
+const fetchMock = vi.fn();
+
+function ok(body: unknown): Response {
   return {
-    id: 'n1',
-    audience: 'user',
-    type: 'consult-status',
-    title: '상담 상태 변경',
-    message: '메시지',
-    isRead: false,
-    createdAt: '2026-07-01T00:00:00.000Z',
-    relatedId: null,
-    ...overrides,
-  };
+    ok: true,
+    status: 200,
+    headers: new Headers({ 'content-type': 'application/json' }),
+    json: async () => body,
+    text: async () => JSON.stringify(body),
+  } as Response;
 }
 
+function fail(status: number, body: unknown): Response {
+  return {
+    ok: false,
+    status,
+    headers: new Headers({ 'content-type': 'application/json' }),
+    json: async () => body,
+    text: async () => JSON.stringify(body),
+  } as Response;
+}
+
+function emptyPage(): Response {
+  return ok({ items: [], meta: { page: 1, pageSize: 20, totalItems: 0, totalPages: 0 }, unreadCount: 0 });
+}
+
+beforeEach(() => {
+  fetchMock.mockReset();
+  vi.stubGlobal('fetch', fetchMock);
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
 describe('fetchNotifications', () => {
-  it('audience 로 알림함을 가른다', async () => {
-    writeCollection('notifications', [
-      notification({ id: 'u1', audience: 'user' }),
-      notification({ id: 'a1', audience: 'admin' }),
-    ]);
+  it('audience 를 쿼리로 보낸다 — 알림함을 가르는 것은 서버다', async () => {
+    fetchMock.mockResolvedValue(emptyPage());
 
-    expect((await fetchNotifications('user')).items.map((item) => item.id)).toEqual(['u1']);
-    expect((await fetchNotifications('admin')).items.map((item) => item.id)).toEqual(['a1']);
+    await fetchNotifications('admin');
+
+    expect(String(fetchMock.mock.calls[0][0])).toContain('/notifications?audience=admin');
   });
 
-  it('최신순으로 돌려준다', async () => {
-    writeCollection('notifications', [
-      notification({ id: 'old', createdAt: '2026-06-01T00:00:00.000Z' }),
-      notification({ id: 'new', createdAt: '2026-07-30T00:00:00.000Z' }),
-    ]);
+  it('페이지 필터를 함께 보낸다', async () => {
+    fetchMock.mockResolvedValue(emptyPage());
 
-    expect((await fetchNotifications('user')).items.map((item) => item.id)).toEqual(['new', 'old']);
+    await fetchNotifications('user', { pageSize: 100 });
+
+    const url = String(fetchMock.mock.calls[0][0]);
+    expect(url).toContain('audience=user');
+    expect(url).toContain('pageSize=100');
   });
 
-  it('unreadCount 는 페이지와 무관한 그 알림함의 전체 값이다', async () => {
-    writeCollection('notifications', [
-      notification({ id: 'a', isRead: false }),
-      notification({ id: 'b', isRead: false }),
-      notification({ id: 'c', isRead: true }),
-      notification({ id: 'd', audience: 'admin', isRead: false }),
-    ]);
+  it('items·meta·unreadCount 를 그대로 돌려준다', async () => {
+    const body = {
+      items: [
+        {
+          id: 'n1',
+          audience: 'user',
+          type: 'consult-status',
+          consultStatus: 'booked',
+          title: '상담 예약이 확정됐어요',
+          message: '강남 스마일 치과 · 10/9(금) 14:00 방문',
+          isRead: false,
+          createdAt: '2026-10-22T00:00:00.000Z',
+          relatedId: 'cr1',
+          relatedResource: 'consultRequest',
+        },
+      ],
+      meta: { page: 1, pageSize: 20, totalItems: 1, totalPages: 1 },
+      unreadCount: 1,
+    };
+    fetchMock.mockResolvedValue(ok(body));
 
-    const page = await fetchNotifications('user', { pageSize: 1 });
+    await expect(fetchNotifications('user')).resolves.toEqual(body);
+  });
 
-    expect(page.items).toHaveLength(1);
-    expect(page.unreadCount).toBe(2);
+  it('user 역할이 관리자 알림함을 물으면 403 이 올라온다 (훅이 미리 막지만 코드는 그대로 던진다)', async () => {
+    fetchMock.mockResolvedValue(
+      fail(403, { error: { code: 'FORBIDDEN', message: '이 작업을 수행할 권한이 없어요' } })
+    );
+
+    const error = await fetchNotifications('admin').catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).status).toBe(403);
   });
 });
 
 describe('fetchUnreadNotificationCount', () => {
-  it('알림함별로 안 읽은 개수를 센다', async () => {
-    writeCollection('notifications', [
-      notification({ id: 'u1', audience: 'user', isRead: false }),
-      notification({ id: 'a1', audience: 'admin', isRead: false }),
-      notification({ id: 'a2', audience: 'admin', isRead: false }),
-    ]);
+  it('배지 전용 경로를 audience 와 함께 부른다', async () => {
+    fetchMock.mockResolvedValue(ok({ audience: 'user', unreadCount: 2 }));
 
-    expect(await fetchUnreadNotificationCount('user')).toEqual({ audience: 'user', unreadCount: 1 });
-    expect(await fetchUnreadNotificationCount('admin')).toEqual({ audience: 'admin', unreadCount: 2 });
+    await expect(fetchUnreadNotificationCount('user')).resolves.toEqual({ audience: 'user', unreadCount: 2 });
+    expect(String(fetchMock.mock.calls[0][0])).toContain('/notifications/unread-count?audience=user');
+  });
+
+  it('로그인하지 않았으면 401 이다 — 훅이 그래서 로그인했을 때만 묻는다', async () => {
+    fetchMock.mockResolvedValue(fail(401, { error: { code: 'UNAUTHENTICATED', message: '로그인이 필요해요' } }));
+
+    const error = await fetchUnreadNotificationCount('user').catch((caught: unknown) => caught);
+
+    expect((error as ApiError).status).toBe(401);
   });
 });
 
 describe('markNotificationAsRead', () => {
-  it('읽음으로 바꾸고 배지 숫자가 줄어든다', async () => {
-    writeCollection('notifications', [notification({ id: 'n1' })]);
+  it('PATCH /notifications/{id}/read — 본문이 없다', async () => {
+    fetchMock.mockResolvedValue(ok({ id: 'n1', audience: 'user', isRead: true }));
 
-    const updated = await markNotificationAsRead('n1');
+    await markNotificationAsRead('n1');
 
-    expect(updated.isRead).toBe(true);
-    expect((await fetchUnreadNotificationCount('user')).unreadCount).toBe(0);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(String(url)).toMatch(/\/notifications\/n1\/read$/);
+    expect(init?.method).toBe('PATCH');
+    expect(init?.body).toBeUndefined();
   });
 
-  it('이미 읽은 알림에 다시 불러도 성공이다 (멱등)', async () => {
-    writeCollection('notifications', [notification({ id: 'n1', isRead: true })]);
+  it('읽음이 된 알림을 그대로 돌려준다 — 어느 알림함인지 응답이 알려준다', async () => {
+    const body = { id: 'n1', audience: 'admin', isRead: true, relatedResource: 'consultRequest' };
+    fetchMock.mockResolvedValue(ok(body));
 
-    await expect(markNotificationAsRead('n1')).resolves.toMatchObject({ isRead: true });
+    await expect(markNotificationAsRead('n1')).resolves.toEqual(body);
   });
 
-  it('없는 알림은 404 를 던진다', async () => {
-    writeCollection('notifications', []);
+  it('내 알림이 아니면 404 NOTIFICATION_NOT_FOUND 다', async () => {
+    fetchMock.mockResolvedValue(
+      fail(404, { error: { code: 'NOTIFICATION_NOT_FOUND', message: '알림을 찾을 수 없어요' } })
+    );
 
     const error = await markNotificationAsRead('nope').catch((caught: unknown) => caught);
 
-    expect(isApiError(error) && error.status).toBe(404);
-  });
-});
-
-describe('consultStatus — 읽을 때 키를 맞춘다', () => {
-  // 계약의 `AppNotification` 은 `consultStatus` 를 **required · nullable** 로 못 박는다.
-  // 저장 쪽에는 칸이 생기기 전의 행과 시드(백엔드 seed 가 import 하는 fixture)가 그대로
-  // 남아 있으므로, 백필하지 않고 **읽을 때** 맞춘다.
-  it('칸이 없는 과거 행·시드도 `consultStatus: null` 로 내려간다', async () => {
-    writeCollection('notifications', [notification({ id: 'legacy' })]);
-
-    const [item] = (await fetchNotifications('user')).items;
-
-    expect('consultStatus' in item).toBe(true);
-    expect(item.consultStatus).toBeNull();
-    // 저장된 행은 건드리지 않는다 — 백필 없음 (`docs/database/README.md` §15.8).
-    expect(readCollection('notifications')[0].consultStatus).toBeUndefined();
-  });
-
-  it('적혀 있는 값은 그대로 내려간다', async () => {
-    writeCollection('notifications', [notification({ id: 'n-booked', consultStatus: 'booked' })]);
-
-    expect((await fetchNotifications('user')).items[0].consultStatus).toBe('booked');
-  });
-
-  it('읽음 처리 응답도 같은 모양이다 — 처음 읽을 때도, 이미 읽은 행을 다시 눌러도', async () => {
-    writeCollection('notifications', [
-      notification({ id: 'n-unread' }),
-      notification({ id: 'n-read', isRead: true }),
-    ]);
-
-    await expect(markNotificationAsRead('n-unread')).resolves.toMatchObject({ consultStatus: null });
-    await expect(markNotificationAsRead('n-read')).resolves.toMatchObject({ consultStatus: null });
+    expect((error as ApiError).status).toBe(404);
+    expect((error as ApiError).code).toBe('NOTIFICATION_NOT_FOUND');
   });
 });
 
 describe('markAllNotificationsAsRead', () => {
-  it('그 알림함만 처리하고 반대쪽의 안 읽은 표시는 남긴다', async () => {
-    writeCollection('notifications', [
-      notification({ id: 'u1', audience: 'user', isRead: false }),
-      notification({ id: 'u2', audience: 'user', isRead: true }),
-      notification({ id: 'a1', audience: 'admin', isRead: false }),
-    ]);
+  it('audience 를 본문에 싣는다 — 한쪽 알림함만 처리한다', async () => {
+    fetchMock.mockResolvedValue(ok({ audience: 'user', markedCount: 2, unreadCount: 0 }));
 
     const result = await markAllNotificationsAsRead('user');
 
-    expect(result).toEqual({ audience: 'user', markedCount: 1, unreadCount: 0 });
-    expect((await fetchUnreadNotificationCount('admin')).unreadCount).toBe(1);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(String(url)).toMatch(/\/notifications\/read-all$/);
+    expect(init?.method).toBe('POST');
+    expect(JSON.parse(init?.body as string)).toEqual({ audience: 'user' });
+    expect(result).toEqual({ audience: 'user', markedCount: 2, unreadCount: 0 });
   });
 });

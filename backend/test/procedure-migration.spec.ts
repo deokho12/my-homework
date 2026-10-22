@@ -69,12 +69,16 @@ describe('마이그레이션 — 옛 시술 id 가 든 DB 를 옮긴다', () => 
     db.exec('PRAGMA foreign_keys = ON;');
 
     const names = migrationNames();
-    const target = names.at(-1)!;
+    // **이름으로 찾는다.** 2026-10-22(요청서 15)에 더 뒤의 마이그레이션이 생기면서 이 대상이
+    // 더는 마지막이 아니다 — `at(-1)` 은 그때부터 엉뚱한 파일을 가리킨다.
+    const targetIndex = names.findIndex((name) => /procedure_categories_and_31_procedures$/.test(name));
 
-    expect(target).toMatch(/procedure_categories_and_31_procedures$/);
+    expect(targetIndex).toBeGreaterThan(-1);
+
+    const target = names[targetIndex];
 
     // 직전 마이그레이션까지 적용 = 요청 14 이전의 운영/개발 DB 와 같은 스키마
-    for (const name of names.slice(0, -1)) db.exec(migrationSql(name));
+    for (const name of names.slice(0, targetIndex)) db.exec(migrationSql(name));
 
     seedLegacyRows(db);
     before = counts();

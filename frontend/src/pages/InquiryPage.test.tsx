@@ -50,7 +50,6 @@ function createdInquiry(overrides: Partial<MyHospitalInquiry> = {}): MyHospitalI
 describe('InquiryPage — 문의하기', () => {
   beforeEach(() => {
     writeCollection('inquiries', []);
-    writeCollection('notifications', []);
     signIn();
   });
 

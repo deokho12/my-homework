@@ -33,7 +33,7 @@ const EMPTY_TITLE = '아직 도착한 알림이 없어요';
  *
  * **문구를 여기서 만들지 않는다** — 저장된 `title`/`message` 를 그대로 그린다. 보낸 문구는
  * 기록이라, 문장을 다듬어도 과거 알림이 소급해 바뀌면 안 된다
- * (`features/consult/consultNotificationText.ts` 가 보낼 때 한 번 만든다).
+ * (서버의 `backend/src/consult/notification-text.ts` 가 보낼 때 한 번 만든다).
  *
  * 행은 링크가 아니라 **버튼**이다 — 누르면 읽음 처리라는 상태 변경이 함께 일어나고,
  * 이동이 없는 `안내` 행도 그 변경은 일으킨다.

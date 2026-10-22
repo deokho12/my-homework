@@ -12,7 +12,6 @@ import {
   INQUIRY_TOPIC_REQUIRED_MESSAGE,
 } from '@/features/inquiry/schemas/inquirySchema';
 import { inquiryStatus, isPubliclyVisible } from '@/features/inquiry/inquiryVisibility';
-import type { NewLocalNotification } from '@/features/notification/api/notificationApi';
 import { ApiError } from '@/lib/apiClient';
 import {
   nextLocalId,
@@ -24,7 +23,6 @@ import {
 import { useAuthStore } from '@/store/useAuthStore';
 import {
   isInquiryTopic,
-  type AppNotification,
   type HospitalInquiryAnswer,
   type InquiryStatus,
   type InquiryTopic,
@@ -69,13 +67,12 @@ import { maskPersonName } from '@/utils/pii';
  *   계약은 둘 다 조인으로 얻고 **스냅샷 컬럼을 두지 않는다** (§4: 계정 이름이 바뀌면 바뀐
  *   이름의 마스킹이 보이는 것이 맞다). 로컬에는 `users`·`hospitals` 테이블이 없어 작성
  *   시점의 값을 적는다 — 계정·병원 이름이 바뀌어도 옛 이름이 남는 것이 차이다.
- *   `hospitalName` 은 답변 알림 문구(`{병원명} · …`)에도 필요하다.
  * - **마스킹은 서버 몫이지만 여기서 한다** (`utils/pii.ts` 의 공용 함수). 화면은 마스킹된
  *   값만 받는다 — 원본 이름이 투영 밖으로 나가는 경로를 만들지 않기 위해서다.
- * - **알림에 수신자가 없다.** 답변 알림은 `audience: 'user'` 로만 저장되고, 로컬 알림함은
- *   계정을 가르지 않아 **다른 계정으로 로그인해도 보인다**
- *   (`features/notification/api/notificationApi.ts` 가 적은 기존 결함과 같은 것이다).
- *   서버가 `userId` 로 보내면 사라진다 — 여기서 범위를 넓혀 고치지 않는다.
+ * - **답변 알림이 생기지 않는다** (2026-10-22, 요청서 15 이후). 알림함은 서버로 갔는데
+ *   문의는 아직 브라우저 저장소라, 이 파일에서 만들 수 있는 알림함이 없다. 요청자 결정대로
+ *   **요청서 16 이 문의를 서버로 옮기면서** 답변 트랜잭션 안에서 만든다 — 그때까지 문의
+ *   답변 알림은 알림함에 한 건도 보이지 않는다 (`docs/features/known-issues.md`).
  * - **거절 문구는 폼과 한 벌이다.** 길이·주제 문구는 `schemas/` 의 상수(계약의
  *   `details[].message` 그대로)를 양쪽이 함께 쓴다 — 폼이 막는 문장과 여기서 던지는
  *   문장이 갈리면 같은 입력에 두 가지 말이 보인다 (`consultRequestSchema` 의
@@ -347,30 +344,6 @@ function assertContentLength(content: string, kind: 'inquiry' | 'answer'): strin
   return trimmed;
 }
 
-/** 알림 본문에 싣는 답변 미리보기. 60자를 넘으면 `…` 를 붙인다 (§9). */
-const NOTIFICATION_PREVIEW_MAX = 60;
-
-function answerPreview(content: string): string {
-  return content.length > NOTIFICATION_PREVIEW_MAX
-    ? `${content.slice(0, NOTIFICATION_PREVIEW_MAX)}…`
-    : content;
-}
-
-// 서버 전환 시 삭제: 알림 생성은 서버 몫
-//
-// 답변 등록(`POST /hospital-inquiries/{id}/answer`)의 **부수효과로** 서버가 알림을 만든다 —
-// 알림을 만드는 공개 엔드포인트는 계약에 아예 없다 (`consultApi.ts` 와 같은 임시 구현).
-function createLocalNotification(input: NewLocalNotification): void {
-  const notification: AppNotification = {
-    ...input,
-    id: nextLocalId('notif'),
-    createdAt: new Date().toISOString(),
-    isRead: false,
-  };
-
-  writeCollection('notifications', [notification, ...readCollection('notifications')]);
-}
-
 /* --------------------------------------------------------------------- 오퍼레이션 */
 
 /**
@@ -478,7 +451,8 @@ export async function fetchHospitalInquiryById(id: string): Promise<HospitalInqu
  * - 범위 밖·없는 문의 → `404`
  * - 이미 답변된 문의 → `409 INQUIRY_ALREADY_ANSWERED` (**수정이 없다**)
  *
- * **부수효과 — 문의자에게 알림 1건.** 실패하면 알림도 나가지 않는다.
+ * **부수효과가 없다.** 계약은 문의자에게 알림 1건을 요구하지만 요청서 15 이후 알림함은
+ * 서버에 있고 이 함수는 브라우저 저장소에 쓴다 — 알림은 요청서 16 이 함께 만든다.
  */
 export async function answerHospitalInquiry(
   id: string,
@@ -501,7 +475,7 @@ export async function answerHospitalInquiry(
 
   if (!target) throw inquiryNotFound();
 
-  // `answered_at IS NULL` 조건부 쓰기의 자리. 두 번째 답변은 막히고 알림도 한 번만 나간다.
+  // `answered_at IS NULL` 조건부 쓰기의 자리. 두 번째 답변은 막힌다.
   if (target.answer !== null) {
     throw new ApiError({
       status: 409,
@@ -531,19 +505,10 @@ export async function answerHospitalInquiry(
     all.map((row) => (row.id === id ? updated : row))
   );
 
-  // 서버 전환 시 삭제: 알림 생성은 서버 몫
-  createLocalNotification({
-    audience: 'user',
-    type: 'inquiry-answer',
-    title: '문의에 답변이 왔어요',
-    // 문구에 문의자 이름을 넣지 않는다 — 받는 사람이 본인이라 쓸모가 없고,
-    // 이름이 박히는 순간 마스킹 경계가 하나 더 생긴다.
-    message: `${updated.hospitalName ?? '병원'} · ${answerPreview(content)}`,
-    relatedId: updated.id,
-    // 상담 알림이 아니다 — 상태 칸은 비운다 (아이콘은 `type` 만으로 문의로 갈린다).
-    consultStatus: null,
-  });
-
+  // **답변 알림을 만들지 않는다** (2026-10-22, 요청서 15). 알림함이 서버로 갔고, 이
+  // 엔드포인트는 아직 브라우저 저장소라 **알림을 넣을 자리가 없다.** 요청자 결정대로
+  // 요청서 16 이 문의를 서버로 옮기면서 그 트랜잭션 안에서 알림을 만든다
+  // (`docs/api/README.md` §9, `docs/features/known-issues.md`).
   return toHospitalInquiry(updated);
 }
 

@@ -442,10 +442,16 @@ Table consult_requests {
 
   name varchar [not null, note: "신청 폼에 입력한 이름. 계정 이름과 다를 수 있어(가족 대신 신청 등) 별도 보관한다"]
   phone varchar [not null, note: "신청 폼에 입력한 연락처. 형식 검증은 애플리케이션 책임"]
-  preferred_time varchar [not null, note: "허용값: '평일 오전', '평일 오후', '주말'"]
+  phone_digits varchar [not null, note: "★ phone 에서 숫자만 남긴 값('01012345601'). 관리자 목록의 번호 검색이 거는 컬럼이다 — 하이픈 없이 통째로 붙여넣은 번호가 조용히 0건이 되던 문제를 닫는다(README §12.5). 인덱스는 만들지 않는다(앞쪽 와일드카드라 B-tree 를 타지 못한다). operator 의 숫자 검색은 뒤 4자리 접미 일치로 제한한다(§12.9)"]
+  preferred_time varchar [not null, note: "허용값: '평일 오전', '평일 오후', '평일 저녁', '주말' ('평일 저녁' 은 2026-10-12 요청서로 늘어난 값이라 그 이전 접수 건에는 나타나지 않는다)"]
   message text [null, note: "'남기고 싶은 말'. 비어 있으면 null"]
 
-  status varchar [not null, default: 'new', note: "ConsultStatus. 허용값: new, contacted, booked, cancelled"]
+  status varchar [not null, default: 'new', note: "ConsultStatus. 허용값: new, contacted, booked, visited, cancelled. ★ booked = '예약확정'(라벨만 바뀌고 저장값은 그대로), visited = '내원완료'(2026-10-13 추가). 전이는 전부 허용하고 검증하는 것은 '필요한 입력이 왔는가' 뿐이다 (README §12.1·§12.7)"]
+  visit_at timestamp [null, note: "★ 병원이 확정한 방문 일시 (UTC, 분 단위 절삭 저장 / 표시는 KST). 상태가 결과를 정한다 — booked=요청값??현재값, visited=유지, 그 밖=null (README §12.2). booked 인데 null 인 행은 계약 확장 이전의 과거 행이고 화면은 '일시 미입력' 으로 그린다 (§12.10)"]
+
+  third_party_consent_agreed_at timestamp [null, note: "★ 개인정보 제3자 제공 동의 시각 (서버 시계). 아래 버전과 함께 채워지거나 함께 null 이다(앱 불변식). null 은 거절이 아니라 동의 절차 도입 이전 접수이며 소급해 채울 수 없다. 동의하지 않은 접수는 422 로 거절되므로 '동의함' boolean 은 두지 않는다 — 기록의 존재 자체가 동의다 (README §12.12)"]
+  third_party_consent_notice_version varchar [null, note: "동의한 안내문 버전 ('2026-10-12'). 안내문이 지금은 프런트 상수라 legal_documents FK 가 아니라 버전 문자열만 보존한다"]
+
   created_at timestamp [not null, note: "신청일시. 관리자 목록의 고정 정렬 기준"]
   updated_at timestamp [not null]
 
@@ -453,6 +459,8 @@ Table consult_requests {
     (hospital_id, created_at) [name: 'idx_consult_requests_hospital_created']
     (user_id, created_at) [name: 'idx_consult_requests_user_created']
     (status, created_at) [name: 'idx_consult_requests_status_created']
+    (hospital_id, status, created_at) [name: 'idx_consult_requests_hospital_status_created']
+    (hospital_id, visit_at) [name: 'idx_consult_requests_hospital_visit']
     created_at [name: 'idx_consult_requests_created']
     doctor_id [name: 'idx_consult_requests_doctor']
   }
@@ -463,18 +471,31 @@ Table consult_requests {
   중복 신청은 막지 않는다(현재 동작 유지) — 유니크 제약을 두지 않았다.
   '상담 마감'(hospitals.consult_available=false) 병원의 접수 차단도 앱 검증이다.
 
+  인덱스 2개가 2026-10-13 에 더해졌다:
+    (hospital_id, status, created_at) — 상태 탭 카운트 5벌 + 탭 선택 목록 최신순 (§12.6)
+    (hospital_id, visit_at)           — 대시보드 '오늘 내원 예정' (§13.5).
+                                        status='booked' 를 선두에 넣지 않은 것은 이미 좁혀진
+                                        집합의 추가 필터일 뿐이기 때문이다
+
+  현재 취소 사유 컬럼은 없다 — consult_status_changes.cancel_reason 에서 파생한다 (§12.4).
+  '지연'(24시간) 과 '유입 화면' 도 컬럼으로 만들지 않았다 (§12.11).
+
   지원 화면: 상담 신청(/consult/:hospitalId), /admin/consultations(목록·상태 필터),
-  /admin/consultations/:id(상세), /admin(이번 달 신규·처리 대기 카운트),
-  그리고 아직 없는 "내 상담 내역" 화면 (user_id 인덱스가 이걸 가능하게 한다)
+  /admin/consultations/:id(상세), /admin(대시보드 카드·오늘 내원 예정·이번 달 깔때기),
+  마이페이지 '내 상담 내역'
   '''
 }
 
 Table consult_status_changes {
   id varchar [pk]
   consult_request_id varchar [not null, ref: > consult_requests.id]
-  status varchar [not null, note: "바뀐 뒤의 상태. 허용값: new, contacted, booked, cancelled"]
+  event varchar [not null, default: 'status_change', note: "★ 처리 이벤트 종류. 허용값: status_change, reschedule. 화면은 이 값으로 문구를 가른다 — '예약확정으로 변경' vs '일시 변경'. 기본값을 둔 덕분에 기존 이력 행이 그대로 유효하고 마이그레이션 백필이 없다 (README §12.3)"]
+  status varchar [not null, note: "바뀐 뒤의 상태. 허용값: new, contacted, booked, visited, cancelled. reschedule 행에는 그 시점의 상태(booked)를 그대로 넣는다 — 행이 스스로를 설명하고 status 가 null 이 될 수 있는 계약 변경(breaking)도 피한다"]
   changed_at timestamp [not null]
-  changed_by_user_id varchar [null, ref: > users.id, note: "상태를 바꾼 관리자. 화면에는 아직 표시하지 않지만 감사 목적으로 남긴다. 시드/시스템 생성 행은 null"]
+  changed_by_user_id varchar [null, ref: > users.id, note: "상태를 바꾼 관리자. 접수(신규) 행과 시드/시스템 생성 행은 null"]
+  visit_at timestamp [null, note: "★ 이 이벤트 직후의 확정 일시 스냅샷. 현재 값은 consult_requests.visit_at 이고 이 값은 '그때의 약속' 이라 뒤에 바뀌어도 고쳐지지 않는다 (§12.3)"]
+  cancel_reason varchar [null, note: "★ ConsultCancelReason. 허용값: no_answer, patient_request, procedure_unavailable, duplicate, etc. status='cancelled' 인 행에만 채운다. 현재 취소 사유는 '현재 상태가 cancelled 일 때 가장 최근 취소 이벤트 행의 사유' 로 파생한다 (§12.4)"]
+  notification_id varchar [null, ref: > notifications.id, note: "★ 이 이벤트가 만든 환자 알림. ON DELETE SET NULL. null = 발송하지 않음(또는 실패)이고 접수(신규) 행도 null 이다 — 접수 알림은 audience='admin' 이라 환자 알림이 아니다. 투영에는 boolean(notified)만 내려간다 (§12.8)"]
 
   Indexes {
     (consult_request_id, changed_at) [name: 'idx_consult_status_changes_request_changed']
@@ -482,10 +503,19 @@ Table consult_status_changes {
 
   Note: '''
   ConsultRequest.statusHistory (객체 배열 JSON) → 자식 테이블.
-  같은 상태를 다시 눌러 이력이 중복 적립되는 문제는 DB 제약으로 막을 수 없다.
-  "직전 status 와 같으면 무시" 는 애플리케이션 가드다.
+  ☆ 2026-10-13 부터 담는 것은 상태 변경이 아니라 **처리 이벤트**다 — 예약확정 상태에서
+    일시만 바꾸는 '일시 변경' 도 이력에 남고 환자 알림이 나간다 (§12.3).
+    테이블 이름을 바꾸지 않은 이유는 booked 를 개명하지 않은 것과 같다(얻는 것이 이름뿐).
+    메모 작성 같은 다른 종류까지 들어오면 그때가 consult_events 로 개명할 시점이다.
 
-  지원 화면: /admin/consultations/:id('상태 변경 이력', 최신순)
+  별도 테이블(consult_reschedules)로 가르지 않은 이유: 화면이 요구하는 것은 한 줄로 섞인
+  시간순 이력이라 두 테이블이면 읽을 때마다 UNION + 정렬이고 '누가·언제·알림' 세 컬럼이
+  양쪽에 복제된다. 이벤트 종류가 늘어도 컬럼이 아니라 **값**이 는다.
+
+  no-op 판정은 (status, visit_at, cancel_reason) 세 값 비교다 — 세 값이 모두 같으면
+  이력 행도 알림도 만들지 않는다. 필수 입력 검사가 no-op 판정보다 먼저다 (§12.3).
+
+  지원 화면: /admin/consultations/:id('처리 이력', 최신순), 마이페이지 상담 내역
   '''
 }
 
@@ -726,10 +756,11 @@ Table qa_answers {
 Table notifications {
   id varchar [pk, note: "fixture 의 'notif1'..'notif7'"]
   audience varchar [not null, note: "NotificationAudience. 허용값: user, admin. 두 알림함을 나누는 값"]
-  type varchar [not null, note: "NotificationType. 허용값: consult-status, event, system"]
+  type varchar [not null, note: "NotificationType. 허용값: consult-status, inquiry-answer, event, system. ★ inquiry-answer(병원 문의 답변)는 2026-10-12 계약 추가분이다 — consult-status 와 묶지 않은 이유는 아이콘·이동 경로가 다르고 '상담의 상태가 바뀌었다' 는 사실이 문의 답변에는 없어서다"]
+  consult_status varchar [null, note: "★ ConsultStatus(new, contacted, booked, visited, cancelled). type='consult-status' 행의 '변경 후 상태' 이고 일시 변경(reschedule)이면 booked 다. 다른 type 은 전부 null. 소비자는 알림함 종류 아이콘 하나뿐이라(booked→'예약', 그 밖·null→'상담') 인덱스를 만들지 않고, 판정 함수는 클라이언트에 둔다. 과거 행은 백필하지 않는다 — 문구에서 파싱하거나 현재 상태를 넣는 것은 추측이다 (README §15)"]
   title varchar [not null]
   message text [not null]
-  related_type varchar [null, note: "related_id 가 무엇의 id 인지. 허용값: consult_request, hospital, doctor, promotion. 현재 관리자 알림은 related_id 만 보고 무조건 상담 상세로 보내는 문제가 있다"]
+  related_type varchar [null, note: "related_id 가 무엇의 id 인지. 허용값: consult_request, hospital, doctor, promotion, hospital_inquiry (계약의 relatedResource 와 같은 값 집합이고 표기만 snake_case 다). hospital_inquiry 는 2026-10-12 계약 추가분이고, 그 값을 만드는 문의 답변은 아직 서버에 없다"]
   related_id varchar [null, note: "관련 레코드 id. 일반 공지는 null. FK 를 걸 수 없는 다형 참조이므로 애플리케이션이 무결성을 지킨다"]
   hospital_id varchar [null, ref: > hospitals.id, note: "audience='admin' 일 때 어느 병원의 알림함인지. 사용자 알림은 null"]
   created_at timestamp [not null]
@@ -744,9 +775,18 @@ Table notifications {
   Note: '''
   알림의 "내용". 누가 받는지는 notification_recipients 가 정한다.
 
-  알림이 생기는 두 지점 (현재 앱 기준):
-    상담 신청  → audience='admin', hospital_id=신청 대상 병원 → 그 병원 담당자들
-    상태 변경  → audience='user' → 그 상담의 신청자 1명
+  알림이 생기는 네 지점 (알림 생성 API 는 없다 — 전부 다른 행위의 부수효과다):
+    상담 접수    → audience='admin', hospital_id=신청 대상 병원 → 그 병원 담당자들,
+                   consult_status='new'
+    상태 변경    → audience='user' → 그 상담의 신청자 1명, consult_status=바뀐 뒤 상태
+    예약 일시 변경 → audience='user' → 신청자 1명, consult_status='booked'
+    문의 답변    → audience='user' → 문의자 1명, type='inquiry-answer', consult_status=null
+
+  consult_status 는 수신자 결정에 쓰이지 않는다 — audience 와 직교하는 표시용 칸이다.
+
+  문구(title·message)는 **저장 시점에 확정**한다. 렌더 시점에 조립하지 않으므로 병원 이름이
+  바뀌어도 과거 알림의 문장은 그대로다 — 알림은 그때 보낸 통지의 사본이다 (README §15.4).
+  같은 이유로 방문 일시도 message 문자열 안에만 있고 notifications.visit_at 은 없다.
 
   스키마가 새로 가능하게 하는 것: 전문의 승인/반려 결과를 병원에 통보
   (audience='admin', type='system', related_type='doctor').
@@ -841,7 +881,7 @@ Table audit_logs {
   id varchar [pk, note: "cuid"]
   actor_user_id varchar [not null, ref: > users.id, note: "행위자. ★ ON DELETE RESTRICT — 사용자를 지우면 삭제가 실패한다. 감사 기록이 대신 사라지는 것보다 삭제가 막히는 편이 맞다 (README §11.2)"]
   actor_role varchar [not null, note: "★ 행위 시점의 역할 스냅샷 (user | hospital_admin | operator). users.role 을 조인하면 승격·해제로 값이 바뀌어 과거 행위의 역할을 알 수 없게 된다"]
-  action varchar [not null, note: "허용값 9개: consult_request.view | partner_inquiry.view | consult_request.status_change | consult_request.memo_create | doctor.verify | hospital_admin.assign | hospital_admin.unassign | hospital.create | partner_inquiry.review"]
+  action varchar [not null, note: "허용값 10개: consult_request.view | partner_inquiry.view | consult_request.status_change | consult_request.reschedule (2026-10-13 추가 — 상태는 그대로 두고 예약 일시만 바꾼 행위. before/after 에 들어가는 것이 상태가 아니라 일시라 기록을 가른다, docs/api/README.md §4) | consult_request.memo_create | doctor.verify | hospital_admin.assign | hospital_admin.unassign | hospital.create | partner_inquiry.review. ⚠ backend/src/audit/audit-log.types.ts 에는 이 목록에 없는 2개(user.role_grant_operator · user.role_revoke_operator — 운영자 승격·회수 CLI)가 더 있다. 컬럼이 varchar 라 DDL 영향은 없고, 목록을 늘릴지는 §4 와 함께 결정할 일이라 어긋남만 적어 둔다"]
   target_type varchar [not null, note: "허용값: consult_request | partner_inquiry | doctor | hospital | user"]
   target_id varchar [not null, note: "다형 참조이므로 FK 를 걸 수 없다 (notifications.related_id 와 같은 사정). 대상이 지워져도 '무엇을 열람했는가' 는 남아야 하므로 FK 가 없는 편이 오히려 맞다"]
   hospital_id varchar [null, ref: > hospitals.id, note: "병원 범위 행위일 때. 병원별 감사 조회용. ON DELETE RESTRICT"]

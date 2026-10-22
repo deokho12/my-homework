@@ -29,6 +29,10 @@ import { getRequestId } from '../http/request-id';
  * 로그인 요청의 비밀번호와 상담의 개인정보가 콘솔에 남기 때문이다
  * (`docs/decisions/0001-roles-and-pii.md`). 본문이 필요하면 마스킹을 함께 설계해야 한다.
  *
+ * 같은 이유로 **검색어 `q` 의 값도 가린다** (2026-10-22, 요청서 15). 상담 목록의 `q` 는
+ * 관리자가 검색칸에 친 고객 이름·연락처이고, 쿼리 문자열은 본문과 달리 진입 줄에 그대로 실린다.
+ * 다른 쿼리(`status`·`page` …)는 어느 필터로 왔는지가 추적의 단서라 그대로 둔다.
+ *
  * ## 왜 `process.env` 를 매번 읽는가
  *
  * 모듈 로드 시점에 한 번 읽어 상수로 굳히면 테스트가 환경을 바꿔도 반영되지 않아
@@ -54,11 +58,32 @@ function correlationKey(request: Request): string {
   return getRequestId(request).slice(-6);
 }
 
+/** 값을 가리는 쿼리 키. 자유 입력 검색어라 개인정보가 실릴 수 있다. */
+const REDACTED_QUERY_KEYS = new Set(['q']);
+
+/** 경로는 그대로, 쿼리는 `REDACTED_QUERY_KEYS` 의 값만 `***` 로 바꾼다. 순서·나머지 값은 원문 그대로다. */
+function redactUrl(url: string): string {
+  const queryStart = url.indexOf('?');
+  if (queryStart === -1) return url;
+
+  const query = url
+    .slice(queryStart + 1)
+    .split('&')
+    .map((pair) => {
+      const key = pair.split('=', 1)[0];
+
+      return REDACTED_QUERY_KEYS.has(key) ? `${key}=***` : pair;
+    })
+    .join('&');
+
+  return `${url.slice(0, queryStart)}?${query}`;
+}
+
 /** 요청 진입. 미들웨어가 부른다. */
 export function traceIn(request: Request): void {
   if (!isDevTraceEnabled()) return;
 
-  logger.log(`${correlationKey(request)} → ${request.method} ${request.originalUrl}`);
+  logger.log(`${correlationKey(request)} → ${request.method} ${redactUrl(request.originalUrl)}`);
 }
 
 /**

@@ -97,6 +97,24 @@ describe('개발용 단계 추적 (dev-trace)', () => {
       expect(String(logSpy.mock.calls[0]?.[0])).toContain('→ PATCH /api/v1/hospitals/h2');
     });
 
+    it('★ 검색어 `q` 의 값은 가린다 — 관리자가 상담 검색칸에 넣은 이름·연락처가 콘솔에 남지 않게', () => {
+      traceIn(fakeRequest({ method: 'GET', originalUrl: '/api/v1/consult-requests?q=010-1234-5603&status=new' }));
+      traceIn(fakeRequest({ method: 'GET', originalUrl: '/api/v1/consult-requests?status=new&q=%EC%B5%9C%EC%A7%80%ED%9B%88' }));
+
+      const [phoneLine, nameLine] = logSpy.mock.calls.map((call) => String(call[0]));
+
+      expect(phoneLine).toContain('→ GET /api/v1/consult-requests?q=***&status=new');
+      expect(phoneLine).not.toContain('5603');
+      expect(nameLine).toContain('?status=new&q=***');
+      expect(nameLine).not.toContain('%EC%B5%9C');
+    });
+
+    it('검색어가 아닌 쿼리는 그대로 둔다 (어느 필터로 왔는지가 추적의 단서다)', () => {
+      traceIn(fakeRequest({ method: 'GET', originalUrl: '/api/v1/consult-requests?status=new&status=booked&page=2' }));
+
+      expect(String(logSpy.mock.calls[0]?.[0])).toContain('?status=new&status=booked&page=2');
+    });
+
     it('단계 줄에 단계 이름과 상세가 있다', () => {
       traceStep(fakeRequest(), 'scope ✗', 'HOSPITAL_NOT_MANAGED managed=[h1]');
 

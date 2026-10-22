@@ -483,6 +483,11 @@ partnerInquiries.detail:   (id) => ['partnerInquiries', id]
 | 목록 | `operator` | `박*영` | `010-****-4411` | `true` | 남기지 않음 |
 | 상세 | `hospital_admin` (담당 병원) | `박서영` | `010-1234-4411` | `false` | **남김** (`pii_masked=false`) |
 | 상세 | `operator` | `박*영` | `010-****-4411` | `true` | 남김 (`pii_masked=true`) |
+| 쓰기 응답 (`PATCH …/status`, `POST …/memos`) | 두 역할 모두 | 목록과 같다 | `010-****-4411` | `true` | 열람 기록 아님 (쓰기 행위만 기록, no-op 은 0건) |
+
+**쓰기 응답도 목록 투영이다 (2026-10-22, 요청서 15 리뷰).** 응답에 전체 번호가 실리면 현재 상태를 그대로
+다시 보내는 no-op PATCH — 이력·알림·감사가 모두 0건인 요청 — 로 담당 상담 전 건의 번호를 **기록 없이**
+모을 수 있다. 쓰기 응답을 읽는 화면은 `statusHistory`·`visitAt` 만 쓰므로 잃는 것이 없다.
 
 **왜 담당자에게까지 목록을 가리나 — 대량 반출 방어선이 여기밖에 없기 때문이다.**
 바로 아래 "목록 조회는 기록하지 않는다" 가 적은 대로, 목록은 **건별 열람 기록을 남기지 않는다**
@@ -564,7 +569,7 @@ partnerInquiries.detail:   (id) => ['partnerInquiries', id]
 | `GET /consult-requests/{id}` | **열람** | 실명·전화번호·문의 내용·내부 메모가 한 화면에 모이는 자리다. 남는 노출면의 핵심 |
 | `GET /partner-inquiries/{id}` | **열람** | 병원명·담당자 실명·연락처 |
 | `PATCH /consult-requests/{id}/status` | 변경 | 고객에게 알림이 나가는 행위. `statusHistory.changedByName` 으로 화면에도 노출 |
-| 〃 (상태는 그대로, 예약 일시만 변경) | 변경 | **`action` 에 `consult_request.reschedule` 이 더해져 허용값이 9개 → 10개가 된다.** 같은 엔드포인트지만 기록은 갈라야 한다 — `before_value`/`after_value` 에 들어가는 것이 상태가 아니라 일시다. 기록하는 이유는 윗줄과 같다(고객에게 알림이 나가는 행위). 허용값 목록은 **`backend/prisma/schema.prisma` 의 `AuditLog` 주석에도 박혀 있으므로 두 곳을 함께 고쳐야 한다** |
+| 〃 (상태는 그대로, 예약 일시만 변경) | 변경 | **`action` 에 `consult_request.reschedule` 이 더해진다** (허용값 11 → 12, 아래 "`action` 허용값" 표). 같은 엔드포인트지만 기록은 갈라야 한다 — `before_value`/`after_value` 에 들어가는 것이 상태가 아니라 일시다. 기록하는 이유는 윗줄과 같다(고객에게 알림이 나가는 행위). 허용값 목록은 **`backend/prisma/schema.prisma` 의 `AuditLog` 주석에도 박혀 있으므로 두 곳을 함께 고쳐야 한다** |
 | `POST /consult-requests/{id}/memos` | 작성 | `authorName` 으로 화면에도 노출 |
 | `PUT /doctors/{id}/verification` | 결정 | 누가·언제·어떤 사유로 판정했는지. 현재는 반려 사유만 남고 승인 시 그것도 지워진다 |
 | `POST /hospitals/{id}/admins` | 권한 부여 | 계정 승격이다. 권한 변경은 무조건 기록 대상 |
@@ -610,8 +615,9 @@ partnerInquiries.detail:   (id) => ['partnerInquiries', id]
 
 **뒤집히는 조건은 하나다 — 답변 수정이 허용되는 순간.** 그때 `audit_logs.action` 에
 `hospital_inquiry.answer_update` 를 추가하고 `before_value`/`after_value` 를 쓴다.
-`action` 허용값 목록은 `backend/prisma/schema.prisma` 의 `AuditLog` 주석에도 박혀 있으므로
-**두 곳을 함께 고쳐야 한다.** 지금 이 기능(문의)으로는 그 목록이 **한 줄도 바뀌지 않는다.**
+`action` 허용값은 **`backend/src/audit/audit-log.types.ts` 의 `AUDIT_ACTIONS` 가 정본**이고
+`backend/prisma/schema.prisma` 의 `AuditLog` 주석과 아래 표가 그것을 따라가므로
+**세 곳을 함께 고쳐야 한다.** 지금 이 기능(문의)으로는 그 목록이 **한 줄도 바뀌지 않는다.**
 (목록을 늘린 것은 상담 예약 쪽이다 — 위 표의 `consult_request.reschedule`, 2026-10-13)
 
 #### 필요한 테이블 요구사항 (db-master 전달용)
@@ -626,13 +632,7 @@ audit_logs
   actor_user_id     fk → users.id, not null   -- 행위자
   actor_role        varchar, not null          -- 행위 시점의 역할 스냅샷.
                                               -- users.role 을 조인하면 안 된다 — 승격/해제로 바뀐다
-  action            varchar, not null          -- 'consult_request.view', 'consult_request.status_change',
-                                              -- 'consult_request.reschedule' (2026-10-13 추가),
-                                              -- 'partner_inquiry.view', 'doctor.verify',
-                                              -- 'hospital_admin.assign', 'hospital_admin.unassign',
-                                              -- 'hospital.create', 'partner_inquiry.review',
-                                              -- 🚧 제안(§20): 'hospital.approve', 'hospital.reject',
-                                              --               'hospital_document.view'
+  action            varchar, not null          -- 아래 "`action` 허용값 — 코드가 정본" 표가 전부다
   target_type       varchar, not null          -- 'consult_request' | 'partner_inquiry' | 'doctor'
                                               -- | 'hospital' | 'user'
                                               -- | 🚧 제안(§20): 'uploaded_file'
@@ -653,6 +653,42 @@ audit_logs
     (action, created_at)
     created_at                                 -- 보존기간 만료 삭제
 ```
+
+#### `action` 허용값 — 코드가 정본이다 (2026-10-22 에 문서를 코드에 맞췄다)
+
+정본은 **`backend/src/audit/audit-log.types.ts` 의 `AUDIT_ACTIONS`** 하나다 (DB enum 을 쓰지 않으므로
+허용값 검증이 애플리케이션 몫이고, 목록이 두 곳에 흩어지면 한쪽만 늘어난다).
+이 표와 `backend/prisma/schema.prisma` 의 `AuditLog` 주석이 **그 배열을 따라간다.**
+
+| `action` | 만드는 곳 | 코드에 있나 |
+|---|---|---|
+| `consult_request.view` | `GET /consult-requests/{id}` | ✅ |
+| `consult_request.status_change` | `PATCH /consult-requests/{id}/status` (상태가 바뀜) | ✅ |
+| **`consult_request.reschedule`** | 〃 (상태는 그대로 `booked`, 일시만 바뀜) | ❌ **요청서 15 가 더한다** |
+| `consult_request.memo_create` | `POST /consult-requests/{id}/memos` | ✅ |
+| `partner_inquiry.view` | `GET /partner-inquiries/{id}` | ✅ |
+| `partner_inquiry.review` | `PATCH /partner-inquiries/{id}` | ✅ |
+| `doctor.verify` | `PUT /doctors/{id}/verification` | ✅ |
+| `hospital_admin.assign` | `POST /hospitals/{id}/admins` | ✅ |
+| `hospital_admin.unassign` | `DELETE /hospitals/{id}/admins/{userId}` | ✅ |
+| `hospital.create` | `POST /hospitals` | ✅ |
+| **`user.role_grant_operator`** | **CLI `npm run operator:grant`** (엔드포인트가 아니다) | ✅ |
+| **`user.role_revoke_operator`** | **CLI `npm run operator:revoke`** | ✅ |
+| 🚧 `hospital.approve` / `hospital.reject` | `PATCH /hospitals/{id}/approval` — 제안(§20) | ❌ 제안 단계 |
+| 🚧 `hospital_document.view` | `GET /uploads/{id}/content` — 제안(§20) | ❌ 제안 단계 |
+
+세 가지를 적어 둔다.
+
+1. **CLI 행위도 감사 대상이다.** `user.role_grant_operator`/`user.role_revoke_operator` 는 이 문서의
+   예전 목록("기록 대상 9개")에 없었다. 운영자 승격은 **결정 4 가 정한 유일한 승격 경로**이고
+   권한 변경은 무조건 기록 대상인데, 9개 중 어느 것도 그 행위를 뜻하지 않는다 —
+   `hospital_admin.assign` 은 병원 담당자 지정이라 다른 사실이다. 오퍼레이션 표(위)에 줄이 없는
+   이유는 **엔드포인트가 없기 때문**이지 기록하지 않아서가 아니다.
+2. **`consult_request.memo_create` 도 빠져 있었다.** 위 오퍼레이션 표에는 메모 작성이 줄로 있는데
+   코드 목록만 적힌 자리에 이름이 없었다 — 이름을 적어 두 곳이 같은 말을 하게 했다.
+3. **`consult_request.reschedule` 만 아직 코드에 없다.** 계약(`PATCH .../status` 의 부수효과 4)이
+   요구하고 요청서 15 의 backend-engineer 가 더한다 — 그때 `AUDIT_ACTIONS` 와 스키마 주석을
+   **함께** 고친다. 그러면 허용값은 **12개**가 된다 (제안 3개 제외. 지금은 11개다).
 
 설계 시 함께 정해야 하는 것:
 
@@ -984,7 +1020,13 @@ sort=rating | reviewCount | consultCount
 
 세 가지 판단을 적어 둔다.
 
-1. **일시 표기를 `10/9(금) 14:00` 하나로 통일했다** (DB §15.11-4 가 interface-master 에 넘긴 결정).
+1. **일시 표기를 `10/9(금) 14:00` 하나로 통일했다** (DB §15.11-4 가 interface-master 에 넘긴 결정 —
+   **2026-10-22 에 계약 쪽에서 닫혔다**: 요청서 15 가 "문구는 요청서 08 그대로,
+   `features/consult/consultNotificationText.ts` 를 서버로 옮기면 된다" 고 적었고 그 파일은
+   `consultDisplay.ts` 의 **`formatVisitAt`** 를 부른다 — `10/9(금) 14:00` 이 그 함수의 출력이다.
+   `formatVisitAtLong`(`10월 9일(금) 14:00`)은 알림 문구에 쓰지 않는다. 서버로 옮겨 간 뒤에도
+   **그 순수 함수 하나가 유일한 포맷 지점**이고, 시드도 문자열을 적는 대신 그 함수를 부른다 —
+   DB §12.13-D 가 그렇게 설계했다).
    계약이 쓰던 `10월 9일(금) 14:00` 표기는 **교체한다.** 같은 알림함에서 예약확정 알림과 일시 변경
    알림이 서로 다른 날짜 표기를 쓰면 안 되고, 마이페이지 상담 내역의 `10/9(금) 14:00 방문`·요청서 08 의
    예시와도 같은 기준이어야 한다. 짧은 쪽을 고른 것은 알림 본문이 360px 에서 세 줄 안에 들어가야 해서다.
@@ -1111,6 +1153,68 @@ sort=rating | reviewCount | consultCount
 처음 설계는 `hospital_inquiries` 조인으로 `hospitalId` 를 내려주는 것이었으나 그 값을 쓰는 화면이 없어 뺐다.)
 `notifications.hospital_id` 는 `audience='admin'` 알림함이 "어느 병원의 알림함인가" 로 쓰는 필터 키이므로
 사용자 알림에 채우지 않는다.
+
+**`relatedResource` 는 2026-10-22(요청서 15)에 `required` 로 올라갔다** — 값은 여전히 nullable 이다.
+관리자 알림함이 **이 값으로** 이동 대상을 가르기 때문에 "키가 없는 것" 과 "`null`" 이 섞이면 안 된다.
+서버는 저장 쪽의 snake_case(`notifications.related_type` = `consult_request`·`hospital_inquiry`)를
+**투영에서 camelCase 로 바꿔** 내린다. 지금 서버가 만드는 유일한 알림(전문의 검수 결과)의 값이
+`doctor` 라 두 표기가 우연히 같았고, 그래서 이 차이가 드러난 적이 없다.
+
+#### 구현 상태 — `inquiry-answer` 알림은 요청서 16 까지 한 건도 생기지 않는다 (2026-10-22)
+
+`type='inquiry-answer'` 와 `relatedResource='hospitalInquiry'` 의 **생산자는 `POST /hospital-inquiries/{id}/answer`
+하나**인데 그 오퍼레이션은 요청서 16 의 범위다. 요청서 15 가 알림함을 서버로 옮기고 나면 문의는
+**브라우저 저장소에 남아** 있으므로(`features/inquiry/api/inquiryApi.ts`), 15 와 16 사이에는 서버 알림함에
+그 종류의 알림이 **한 건도 없다** — 요청자 결정이다. 계약의 모양은 바뀌지 않는다: `NotificationType` 과
+`relatedResource` 의 값 집합은 그대로이고, 화면의 분기도 그대로 둔다(값이 오지 않을 뿐이다).
+16 이 답변 등록을 서버로 옮기는 날 **알림 생성 한 줄만** 그 트랜잭션에 더해지면 된다.
+그 사이에 사용자 알림함의 `내 문의` 이동이 보이지 않는 것은 **결함이 아니라 중간 상태**다.
+
+### 요청서 15 — 서버가 만들 것과 건너뛸 것 (2026-10-22)
+
+계약은 2026-10-12·13 에 이미 확정됐고, 요청서 15 는 **그 계약을 서버에 구현하는 요청**이다.
+그래서 이 절은 계약 변경 목록이 아니라 **범위 목록**이다.
+
+**만든다 (10개).** 기준은 같은 코드·같은 문구로 계약을 흉내 내 둔 프런트 두 파일이다
+(`features/consult/api/consultApi.ts`, `features/notification/api/notificationApi.ts`) —
+서버가 그 파일과 다르게 동작하면 화면 코드가 바뀌어야 하고, 그러면 흉내 낸 의미가 없다.
+
+| 오퍼레이션 | 프런트 함수 | 꼭 지켜야 하는 것 |
+|---|---|---|
+| `POST /consult-requests` | `createConsultRequest` | 검사 순서 **동의 → 연락처 형식 → 조건**. 동의 시각은 서버 시계. 접수 알림(`audience=admin`) 같은 트랜잭션 |
+| `GET /consult-requests` | `fetchConsultRequests` | `scope`·`statusCounts`(상태만 푼 모집단)·목록은 두 역할 모두 번호 마스킹·`q` 의 역할별 범위 |
+| `GET /consult-requests/{id}` | `fetchConsultRequestById` | 전체 번호가 있는 유일한 자리 + **감사 행 1건**(`X-Audit-Logged`). 담당 밖은 **`404`** |
+| `PATCH /consult-requests/{id}/status` | `updateConsultStatus` | 필수 입력 → no-op 판정 → 부수효과 순서. 이력·알림·감사 한 트랜잭션. `X-Status-Changed` |
+| `POST /consult-requests/{id}/memos` | `addConsultMemo` | 담당 `hospital_admin` 만 (운영자는 `403`). 신청자에게 내려가지 않는다 |
+| `GET /me/consult-requests` | `fetchMyConsultRequests` | 토큰 주체의 것만. **`hospitalName` 을 채워 내린다**(흉내 구현은 `null` 이었다) |
+| `GET /notifications` | `fetchNotifications` | 수신자 스코프. `audience=admin` 은 `user` 에게 `403` |
+| `GET /notifications/unread-count` | `fetchUnreadNotificationCount` | 목록과 같은 모집단의 숫자 |
+| `PATCH /notifications/{id}/read` | `markNotificationAsRead` | 멱등. 수신자별. 404 코드는 **`NOTIFICATION_NOT_FOUND`** |
+| `POST /notifications/read-all` | `markAllNotificationsAsRead` | `audience` 필수. 반대쪽 알림함은 그대로 |
+
+**만들지 않는다 (2개).** 읽는 화면이 하나도 없다 — 소비자 없는 코드를 계속 맞다고 믿는 비용이
+필요해진 날 만드는 비용보다 크다(AGENTS.md). 계약에서 **지우지는 않는다.**
+
+| 오퍼레이션 | 왜 |
+|---|---|
+| `GET /consult-requests/summary` | 병원 관리자 홈은 `GET /admin/dashboard` 하나로 받고, 운영자 홈은 상담 숫자를 그리지 않는다 (2026-10-13 확인) |
+| `GET /me/consult-requests/{consultRequestId}` | 부르는 프런트 함수가 없다. 상담 알림은 목록(`GET /me/consult-requests`) + `relatedId` 강조로 끝난다 (요청 08) |
+
+**프런트가 함께 고쳐야 하는 것** (frontend-engineer 몫 — 계약은 바뀌지 않는다):
+
+1. `AppNotification` 타입에 **`relatedResource` 를 더한다**(계약에서 `required`). 관리자 알림함
+   (`screens/admin/notifications.tsx`)은 `relatedId` 만 보고 상담 상세로 보내던 분기를
+   **`relatedResource === 'consultRequest'` 일 때만** 이동하도록 바꾼다. 검수 결과 알림(`doctor`)은
+   읽음 처리만 한다 — 갈 화면이 없다(`/admin/specialists` 는 운영자 전용인데 수신자는 담당자다).
+   사용자 알림함은 지금의 `type` 분기 그대로 두어도 결과가 같다.
+2. **로그인하지 않은 채 사용자 알림 배지를 묻지 않는다.** `TopNavBar` 가 로그아웃 상태에서도
+   `GET /notifications/unread-count?audience=user` 를 부르는데, 흉내 구현은 `0` 을 돌려주지만
+   서버는 **`401`** 이다. 배지 훅을 로그인 여부로 막는다(`enabled`). `audience=admin` 쪽은
+   라우트 가드(`GUARD_ROLES.admin`)가 이미 `user` 를 막고 있어 추가 조치가 없다.
+3. `ConsultStatusUpdateInput.hospitalName`(로컬 전용 입력)과 `localCollection` 의 상담·알림 부분,
+   `useHospitalName` 으로 상담 카드의 병원 이름을 따로 묻던 경로를 지운다 — 서버가 이름을 함께 준다.
+4. `features/consult/consultNotificationText.ts` 는 **서버로 옮겨 간다.** 프런트에 남겨 두면
+   같은 문구가 두 곳에서 만들어진다 (AGENTS.md).
 
 ---
 
@@ -1334,7 +1438,27 @@ JS 키는 origin 제한이 가능하고 **애초에 클라이언트 노출을 �
 | `INVALID_PHONE_FORMAT` | 422 (detail) | 휴대폰 번호 형식이 아니에요. 010-1234-5678 처럼 입력해주세요 |
 | `VISIT_AT_REQUIRED` | 422 (detail) | 확정 일시를 입력해주세요 (2026-10-13) |
 | `CANCEL_REASON_REQUIRED` | 422 (detail) | 취소 사유를 선택해주세요 (2026-10-13) |
+| `INVALID_CANCEL_REASON` | 422 (detail) | 취소 사유를 다시 선택해주세요 (`ConsultCancelReason` 에 없는 값. **`CANCEL_REASON_REQUIRED` 와 다른 코드다** — 하나로 뭉개면 "고르지 않았다" 로 잘못 안내한다. 2026-10-22 에 명시) |
 | `PERIOD_FILTER_CONFLICT` | 422 | 기간 조건은 한 가지 방식으로만 보낼 수 있어요 (`period` 와 `createdFrom`/`createdTo` 를 함께 보냄, 2026-10-13) |
+
+상담에서 쓰는 **공통 코드**도 함께 적어 둔다 — 흉내 구현이 이미 이 문구로 던지고 있어 서버가 달라지면
+화면 안내가 바뀐다: `401 UNAUTHENTICATED`(`로그인이 필요해요`), `403 FORBIDDEN`
+(`이 작업을 수행할 권한이 없어요` — 운영자의 상태 변경·메모), `403 HOSPITAL_NOT_MANAGED`
+(`담당하지 않는 병원이에요` — **목록의 `?hospitalId=` 가 담당 밖일 때만**. 단건은 `404` 다),
+`422 VALIDATION_FAILED`(`입력값을 확인해주세요` + `details[]`).
+
+**알림** (2026-10-22)
+
+| 코드 | HTTP | 문구 |
+|---|---|---|
+| `NOTIFICATION_NOT_FOUND` | 404 | 알림을 찾을 수 없어요 (없는 알림 **과** 내가 수신자가 아닌 알림 모두 — 구분하지 않는다) |
+
+알림 쪽에 전용 코드는 이 하나다. 나머지는 공통이다 — `audience=admin` 을 `user` 가 부르면
+`403 FORBIDDEN`, 비로그인은 `401 UNAUTHENTICATED`.
+**이 코드는 프런트의 흉내 구현이 먼저 쓰던 이름을 계약이 받아들인 것이다** —
+계약이 이 404 의 `code` 를 고정하지 않아 생긴 공백이었다(`docs/features/known-issues.md`).
+어느 화면도 이 코드로 분기하지 않지만(읽음 처리는 조용히 실패한다), 이름이 갈려 있으면
+다음 사람이 어느 쪽이 맞는지 알 수 없다.
 
 **병원 문의** (2026-10-12)
 
@@ -1430,11 +1554,11 @@ JS 키는 origin 제한이 가능하고 **애초에 클라이언트 노출을 �
 | hospital | `fetchHospitalReviews(hospitalId)` | `GET /hospitals/{id}/reviews` | 병원 상세 |
 | doctor | `fetchVerificationQueue()` | `GET /doctors/verification-queue` | 전문의 인증 검수 |
 | doctor | `deleteDoctor(id)` | `DELETE /doctors/{id}` | 관리자 병원 폼 |
-| consult | `fetchMyConsultRequests()` | `GET /me/consult-requests` | **마이페이지 (신설 화면)** |
-| consult | `fetchMyConsultRequestById(id)` | `GET /me/consult-requests/{id}` | 마이페이지, 사용자 알림 이동 |
+| consult | ~~`fetchMyConsultRequests()`~~ | `GET /me/consult-requests` | **이미 있다** (`features/consult/api/consultApi.ts`, 브라우저 저장소 흉내). 요청서 15 가 **본문만** 서버 호출로 바꾼다 |
+| consult | ~~`fetchMyConsultRequestById(id)`~~ | `GET /me/consult-requests/{id}` | **만들지 않는다** — 상담 알림의 이동 대상이 **목록 + `relatedId` 강조**로 바뀌면서(요청 08) 소비 화면이 사라졌다. 서버도 구현하지 않는다 (§9 · 계약의 🛑) |
 | consult | ~~`fetchConsultSummary()`~~ | `GET /consult-requests/summary` | **소비 화면 없음** — 프런트 함수·훅은 2026-10-13 에 제거됐다. 병원 관리자 홈은 `GET /admin/dashboard`, 운영자 홈은 상담 숫자를 쓰지 않는다 (§14) |
 | community | `createCommunityAnswer(postId, content)` | `POST /community/posts/{id}/answers` | **커뮤니티 답변 (신설 화면)** |
-| notification | `fetchUnreadCount(audience)` | `GET /notifications/unread-count` | 마이페이지·관리자 홈 배지 |
+| notification | ~~`fetchUnreadCount(audience)`~~ | `GET /notifications/unread-count` | **이미 있다** — 이름은 `fetchUnreadNotificationCount` 다 (`features/notification/api/notificationApi.ts`). 요청서 15 가 본문만 바꾼다 |
 | content | `fetchLegalDocument(slug)` | `GET /legal-documents/{slug}` | 약관 3종, 소개 |
 | search | `fetchTrendingSearches(tab, limit)` | `GET /search/trending` | 검색, 홈 |
 | search | `fetchSearchSuggestions()` | `GET /search/suggestions` | 검색 |
@@ -2144,12 +2268,13 @@ Zod 스키마를 쓸 때 `.strict()` 를 쓰지 않는다 — 필드 하나 추�
 | 1.1.0 | 2026-08-12 | `docs/decisions/0001-roles-and-pii.md` 반영. 역할 3개, 운영자 주도 입점 흐름, 상담 PII 마스킹, 감사 로그. **아직 배포 전이라 `v1` 안에서 breaking 변경을 허용했다** — `UserRole` enum 값 변경(`admin` → `hospital_admin`/`operator`)과 `SELF_VERIFICATION_FORBIDDEN` 제거는 배포 후라면 `v2` 사유다 |
 | 1.2.0 | 2026-10-13 | **요청 08 — 알림 `consultStatus`** (§9). `AppNotification` 에 nullable 필드 하나 추가(**additive**), `NotificationType` 변경 없음, 엔드포인트·파라미터 변경 없음. 상담 알림 문구를 상태별 환자용 문장으로 교체하고 **일시 표기를 `10/9(금) 14:00` 하나로 통일**했다 — 문구·예시는 계약의 **설명과 `example`** 이지 스키마가 아니므로 breaking 이 아니다. 이미 나간 알림은 소급 수정하지 않는다 |
 | 1.3.0 | 2026-10-21 | **요청서 14 — 시술 분류를 서버로 (§22).** `ProcedureId` enum **13 → 31 (옛 값 6개 제거 — `v1` 안의 유일한 breaking)**, `ProcedureCategoryId` enum 신규(9), `Procedure` 에 `categoryId`·`isAvailable` 추가(둘 다 required), `GET /hospitals`·`GET /doctors` 에 선택 파라미터 `categoryId`, `GET /procedures` 의 캐시 `public, max-age=3600` → `no-cache`, 분야 필터에도 광고 우선 노출, 목록의 `id` tie-break 를 계약 요구사항으로 승격. **enum 값 제거는 §15 기준으로 `v2` 사유지만 `v1` 안에서 한다** — 1.1.0 과 같은 이유다(소비자가 이 저장소의 프런트 하나뿐이고 외부에 배포된 클라이언트가 없다). 옛 id 는 **화면의 별칭 표**가 받는다 (DB §17.5) |
+| 1.4.0 | 2026-10-22 | **요청서 15 — 상담·알림을 서버로 (§4 · §9 · §11).** 계약의 모양은 거의 그대로이고 **흐릿하던 자리를 못 박은 개정**이다: `PATCH /notifications/{id}/read` 의 404 코드를 `NOTIFICATION_NOT_FOUND` 로 고정, `AppNotification.relatedResource` 를 **`required` 로 승격**(값은 여전히 nullable — 관리자 알림함이 이 값으로 이동을 가른다), `422` 의 `details[].code` 에 `INVALID_CANCEL_REASON` 명시, 방문 일시 표기를 `10/9(금) 14:00` 하나로 확정(DB §15.11-4 의 미결을 닫았다), **소비 화면이 없어 만들지 않는 오퍼레이션 2개**(`GET /consult-requests/summary`·`GET /me/consult-requests/{id}`)를 오퍼레이션에 명시, §4 의 감사 `action` 목록을 코드(`AUDIT_ACTIONS`)에 맞춰 정정, **상태 변경·메모 등록의 응답을 목록 투영(번호 마스킹)으로 고정**(no-op PATCH 로 기록 없이 번호를 모으는 경로를 막는다 — §4). **엔드포인트·파라미터·enum 변경 없음**이고 `required` 승격 하나가 유일한 스키마 변경이다 — 응답에 늘 있던 키를 "늘 있다" 고 적은 것이라 소비자가 깨지지 않는다 |
 | (버전 없음) | 2026-10-21 | **요청서 12 — 혼자 개발 체제 정리.** 협업자가 떠나 서버도 이 저장소에서 직접 만든다. `openapi.yaml`·이 문서의 **"협업자 확인 대기" 표시를 "요청자 답 반영 대기 → 요청서 18(구 06)·19(구 07)"** 로 바꾸고, "협업자 영역/인계" 표현을 그 일을 맡은 요청서 번호(상담·알림 15, 문의·찜·대시보드 16)로 바꿨다. **계약의 동작·필드·enum·required 변경 없음** — 표현·표시만 고쳤으므로 버전을 올리지 않는다 |
 
 > 🚧 **병원 관리자 직접 가입(§20)은 버전을 받지 않았다.** 아직 **제안**이고,
 > **요청자 답 반영 대기 → 요청서 18** 이다 (2026-10-21 개정 — 혼자 개발 체제.
 > 2026-10-13 에는 "협업자 확인 대기" 였다).
-> 반영되면 **`1.4.0`** 으로 올라가며(`1.3.0` 은 요청서 14 가 먼저 가져갔다),
+> 반영되면 **`1.5.0`** 으로 올라가며(`1.3.0` 은 요청서 14, `1.4.0` 은 요청서 15 가 먼저 가져갔다),
 > 그 안에 **`v1` 안에서 할 수 없는 변경은 없다** —
 > 새 오퍼레이션 3개 + 응답 필드 추가 + enum 값 추가뿐이고 기존 필드를 지우거나 바꾸지 않는다.
 > 다만 **동작이 바뀌는 것이 하나 있다**: 공개 질의가 `approvalStatus='approved'` 를 걸기 시작한다.
