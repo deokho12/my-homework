@@ -1,7 +1,11 @@
+import { Zap } from 'lucide-react';
+
 import { router } from '@/navigation';
 import { Pressable, Text, View } from '@/primitives';
 
 import { Badge } from '@/components/Badge';
+import { PromoBadge } from '@/components/PromoBadge';
+import { RecommendedBadge } from '@/components/RecommendedBadge';
 import { StockImage } from '@/components/StockImage';
 import { FavoriteHeartButton } from '@/features/favorite';
 import { procedureDisplayName } from '@/features/procedure';
@@ -29,11 +33,9 @@ export function HospitalCard({ hospital }: HospitalCardProps) {
             style={{ width: '100%', height: 160 }}
             contentFit="cover"
           />
-          {promotion ? (
-            <View className="absolute left-3 top-3 rounded-full bg-rose-500 px-2.5 py-1">
-              <Text className="text-xs font-bold text-white">🔥 {promotion.badge}</Text>
-            </View>
-          ) : null}
+          {/* 🔥 이모지였다 (SYS-22) — 알약과 아이콘은 `PromoBadge` 하나가 정하므로
+              이벤트 카드(`PromotionCard`)와 어긋날 수 없다. */}
+          {promotion ? <PromoBadge label={promotion.badge} onPhoto className="absolute left-3 top-3" /> : null}
         </View>
 
         <View className="p-4">
@@ -44,12 +46,12 @@ export function HospitalCard({ hospital }: HospitalCardProps) {
             {hospital.consultAvailable ? <Badge label="상담가능" tone="brand" /> : null}
           </View>
 
-          <Text className="mb-2 text-[13px] text-neutral-400">{hospital.region}</Text>
+          <Text className="mb-2 text-[13px] text-neutral-500">{hospital.region}</Text>
 
           <View className="mb-2 flex-row flex-wrap gap-1.5">
             {hospital.sponsorship.isActive ? <Badge label="광고" /> : null}
-            {hospital.isRecommended ? <Badge label="🌟 추천" tone="brand" /> : null}
-            {hospital.isOneDay ? <Badge label="⚡ 원데이 가능" tone="brand" /> : null}
+            {hospital.isRecommended ? <RecommendedBadge /> : null}
+            {hospital.isOneDay ? <Badge icon={Zap} label="원데이 가능" tone="brand" /> : null}
             {hospital.representativeSpecialty ? <Badge label={`${hospital.representativeSpecialty} 상주`} /> : null}
             {hospital.procedureIds.slice(0, 3).map((procedureId) => {
               // 배지는 id 가 아니라 **세부 시술 이름**이다(서버가 주는 `resin` → "레진").
@@ -65,7 +67,7 @@ export function HospitalCard({ hospital }: HospitalCardProps) {
                 {calcDiscountRate(promotion.originalPrice, promotion.salePrice)}%
               </Text>
               <Text className="text-base font-bold text-neutral-900">{formatWon(promotion.salePrice)}</Text>
-              <Text className="text-xs text-neutral-400 line-through">{formatWon(promotion.originalPrice)}</Text>
+              <Text className="text-xs text-neutral-500 line-through">{formatWon(promotion.originalPrice)}</Text>
             </View>
           ) : null}
 

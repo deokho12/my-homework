@@ -78,7 +78,7 @@ describe('useExploreFilters — 화면 상태 → 서버 필터 매핑', () => {
     expect((result.current.hospitalFilters as Record<string, unknown>).verifiedSpecialist).toBeUndefined();
   });
 
-  it('진료시간 칩은 실제로는 nightConsult(야간상담) 다 — 이름이 다르지 않다', () => {
+  it('야간상담 칩은 두 모드 모두 nightConsult 로 간다 (라벨만 `진료시간` 에서 바뀌었다)', () => {
     const { result } = renderHook(() => useExploreFilters(), { wrapper });
 
     act(() => {

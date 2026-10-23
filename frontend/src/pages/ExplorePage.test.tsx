@@ -144,13 +144,14 @@ describe('ExplorePage', () => {
     expect(fetchDoctorsSpy).toHaveBeenLastCalledWith(expect.objectContaining({ consultAvailable: true }));
   });
 
-  it('이름이 다른 파라미터를 정확히 매핑한다 — 진료시간→nightConsult, 경력→minDoctorYearsOfExperience', async () => {
+  it('이름이 다른 파라미터를 정확히 매핑한다 — 야간상담→nightConsult, 경력→minDoctorYearsOfExperience', async () => {
     const fetchHospitalsSpy = vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(pagedHospitals([baseHospital()]));
 
     renderWithProviders(<ExplorePage />);
     await waitFor(() => expect(screen.getByText(/총 \d+곳/)).toBeInTheDocument());
 
-    await userEvent.click(screen.getByRole('button', { name: '진료시간' }));
+    // 라벨은 `야간상담` 이지만 서버 파라미터 이름은 그대로 `nightConsult` 다 (EXPLORE-4).
+    await userEvent.click(screen.getByRole('button', { name: '야간상담' }));
     await waitFor(() =>
       expect(fetchHospitalsSpy).toHaveBeenLastCalledWith(expect.objectContaining({ nightConsult: true }))
     );
@@ -236,6 +237,44 @@ describe('ExplorePage', () => {
     await waitFor(() => expect(screen.getByText('“충치치료” 의사')).toBeInTheDocument());
     expect(fetchDoctorsSpy).toHaveBeenLastCalledWith(expect.objectContaining({ categoryId: 'cavity' }));
     expect(screen.getByText('총 1명')).toBeInTheDocument();
+  });
+
+  /**
+   * 라벨만 바뀌고 **동작은 그대로**인지 함께 본다 (EXPLORE-4) — 이름을 고치면서 서버
+   * 파라미터까지 건드리면 "평점순을 눌렀는데 상담 많은 순" 같은 어긋남이 조용히 생긴다.
+   */
+  it('정렬 칩은 `평점순` 이라고 적혀 있고, 그대로 sort=rating 으로 묻는다', async () => {
+    const fetchHospitalsSpy = vi
+      .spyOn(hospitalApi, 'fetchHospitals')
+      .mockResolvedValue(pagedHospitals([baseHospital()]));
+
+    renderWithProviders(<ExplorePage />);
+    await waitFor(() => expect(screen.getByText(/총 \d+곳/)).toBeInTheDocument());
+
+    expect(screen.queryByRole('button', { name: '인기순' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '평점순' })).toHaveAttribute('aria-pressed', 'true');
+    expect(fetchHospitalsSpy).toHaveBeenLastCalledWith(expect.objectContaining({ sort: 'rating' }));
+
+    await userEvent.click(screen.getByRole('button', { name: '후기순' }));
+    await waitFor(() =>
+      expect(fetchHospitalsSpy).toHaveBeenLastCalledWith(expect.objectContaining({ sort: 'reviewCount' }))
+    );
+  });
+
+  it('리스트/지도 전환은 눌린 상태를 알리는 칩이다', async () => {
+    vi.spyOn(hospitalApi, 'fetchHospitals').mockResolvedValue(pagedHospitals([baseHospital()]));
+
+    renderWithProviders(<ExplorePage />);
+    await waitFor(() => expect(screen.getByText(/총 \d+곳/)).toBeInTheDocument());
+
+    expect(screen.getByRole('button', { name: '리스트 보기' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: '지도 보기' })).toHaveAttribute('aria-pressed', 'false');
+
+    await userEvent.click(screen.getByRole('button', { name: '지도 보기' }));
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: '지도 보기' })).toHaveAttribute('aria-pressed', 'true')
+    );
   });
 
   it('지도 보기는 한 번에 100곳까지 받고, 그보다 많으면 띠로 알린다', async () => {

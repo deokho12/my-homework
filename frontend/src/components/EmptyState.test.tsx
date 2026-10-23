@@ -55,7 +55,7 @@ describe('EmptyState', () => {
     expect(container.querySelector('svg')).not.toBeInTheDocument();
     expect(container.firstElementChild).toHaveClass('py-8');
     expect(container.firstElementChild).not.toHaveClass('py-16');
-    expect(screen.getByText('아직 등록된 후기가 없어요')).toHaveClass('text-sm', 'text-neutral-400');
+    expect(screen.getByText('아직 등록된 후기가 없어요')).toHaveClass('text-sm', 'text-neutral-500');
   });
 
   it('inline variant 도 description 과 버튼을 렌더한다', () => {

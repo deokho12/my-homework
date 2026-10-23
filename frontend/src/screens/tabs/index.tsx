@@ -14,6 +14,7 @@ import { SearchBar } from '@/components/SearchBar';
 import { SectionHeader } from '@/components/SectionHeader';
 import { CONTAINER_CLASS } from '@/components/layout/Container';
 import { CATEGORIES } from '@/features/procedure/taxonomy';
+import { trendingTargetPath } from '@/features/search/trendingTarget';
 import { guides } from '@/mocks/fixtures/guides';
 import { promotions } from '@/mocks/fixtures/promotions';
 import { TRENDING_SEARCHES } from '@/mocks/fixtures/trendingSearches';
@@ -21,9 +22,15 @@ import { useScrollShadowStore } from '@/store/useScrollShadowStore';
 
 const SCROLL_SHADOW_THRESHOLD = 8;
 
-// Top row of trending search terms shown as pill badges under the home search bar.
-// Tapping a pill routes to `/search?q=...`, which prefills and auto-runs the search.
-const HOME_TRENDING_TAGS = TRENDING_SEARCHES.all.slice(0, 6).map((item) => item.term);
+/**
+ * 검색창 아래 인기 검색어 알약 6개.
+ *
+ * 누르면 **검색 화면을 거치지 않고** 목적지로 바로 간다 — 시술은 그 시술의 카테고리,
+ * 병원은 `/hospital/:id`, 의사는 `/doctor/:id`. 예전에는 `/search?q=...` 로 보냈는데
+ * 그러면 목적지에서 뒤로 가기를 눌렀을 때 홈이 아니라 검색 화면이 나왔다 (`SEARCH-1`).
+ * 목적지 계산은 검색 화면의 인기 검색어 행과 **같은 함수**(`trendingTargetPath`)다.
+ */
+const HOME_TRENDING_TERMS = TRENDING_SEARCHES.all.slice(0, 6);
 
 export default function HomeScreen() {
   const setScrolled = useScrollShadowStore((state) => state.setScrolled);
@@ -57,15 +64,15 @@ export default function HomeScreen() {
             className="mt-3"
             contentContainerClassName="gap-2 pr-2"
           >
-            {HOME_TRENDING_TAGS.map((term) => (
+            {HOME_TRENDING_TERMS.map((item) => (
               <Pressable
-                key={term}
-                onPress={() => router.push({ pathname: '/search', params: { q: term } })}
-                className="rounded-full bg-neutral-100 px-3.5 py-1.5"
+                key={item.term}
+                onPress={() => router.push(trendingTargetPath(item.target, item.term))}
+                className="rounded-full bg-neutral-100 px-3.5 py-2"
                 hitSlop={4}
               >
-                <Text className="text-xs font-medium text-neutral-600" numberOfLines={1}>
-                  {term}
+                <Text className="text-[13px] font-medium text-neutral-700" numberOfLines={1}>
+                  {item.term}
                 </Text>
               </Pressable>
             ))}
@@ -75,7 +82,7 @@ export default function HomeScreen() {
         <HeroBanner />
 
         {promotions.length > 0 ? (
-          <View className="mb-8 rounded-2xl bg-white p-4">
+          <View className="mb-8 rounded-2xl border border-neutral-100 bg-white p-4">
             <SectionHeader title="지금 진행중인 이벤트" actionLabel="전체보기" onPressAction={() => router.push('/events')} />
             {/*
               좁은 화면은 가로 스크롤, lg 부터는 줄바꿈. 예전에는 두 갈래를 각각 렌더했지만
@@ -100,7 +107,7 @@ export default function HomeScreen() {
           인기검색어 pill 에도 "임플란트" 같은 같은 이름의 버튼이 있다 — 이 구역에 이름을
           붙여 두면 스크린리더 사용자도, 테스트도 둘을 구분할 수 있다.
         */}
-        <View className="mb-8 rounded-2xl bg-white p-4" role="region" accessibilityLabel="시술로 찾기">
+        <View className="mb-8 rounded-2xl border border-neutral-100 bg-white p-4" role="region" accessibilityLabel="시술로 찾기">
           <SectionHeader
             title="시술로 찾기"
             actionLabel="전체보기"
@@ -117,7 +124,7 @@ export default function HomeScreen() {
           </CardGrid>
         </View>
 
-        <View className="mb-8 rounded-2xl bg-white p-4">
+        <View className="mb-8 rounded-2xl border border-neutral-100 bg-white p-4">
           <SectionHeader title="이런 꿀팁 어때요?" />
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             {guides.map((guide) => (

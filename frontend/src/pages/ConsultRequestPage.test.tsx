@@ -339,7 +339,7 @@ describe('ConsultRequestPage', () => {
       expect(create).toHaveBeenCalledTimes(1);
     });
 
-    it('실패하면 서버 문구를 그대로 알리고 입력은 그대로 남는다', async () => {
+    it('실패하면 알림창이 아니라 화면 안 안내로 서버 문구를 보여주고 입력은 그대로 남는다', async () => {
       const alertSpy = vi.fn();
       vi.stubGlobal('alert', alertSpy);
       vi.spyOn(consultApi, 'createConsultRequest').mockRejectedValue(
@@ -350,14 +350,39 @@ describe('ConsultRequestPage', () => {
       await fillValidForm();
       await userEvent.click(submitButton());
 
-      await waitFor(() =>
-        expect(alertSpy).toHaveBeenCalledWith(
-          expect.stringContaining('지금은 이 병원의 상담 신청을 받지 않아요')
-        )
-      );
+      const banner = await screen.findByRole('alert');
+      expect(within(banner).getByText('상담 신청을 접수하지 못했어요')).toBeInTheDocument();
+      expect(within(banner).getByText('지금은 이 병원의 상담 신청을 받지 않아요')).toBeInTheDocument();
+      // 알림창은 문구가 잘리고 `다시 시도` 를 둘 수 없다 — 더 이상 쓰지 않는다.
+      expect(alertSpy).not.toHaveBeenCalled();
+
       expect(screen.queryByText('상담 신청이 접수되었어요')).not.toBeInTheDocument();
       expect(phoneInput()).toHaveValue('010-1234-5678');
+      expect(consentCheckbox()).toBeChecked();
       await waitFor(() => expect(submitButton()).toBeEnabled());
+    });
+
+    it('안내의 다시 시도 를 누르면 같은 입력으로 다시 보내고, 성공하면 안내가 사라진다', async () => {
+      const create = vi
+        .spyOn(consultApi, 'createConsultRequest')
+        .mockRejectedValueOnce(
+          new ApiError({ status: 0, code: 'NETWORK_ERROR', message: '연결에 문제가 있어요. 잠시 후 다시 시도해주세요' })
+        )
+        .mockResolvedValueOnce(createdConsult());
+      await renderLoadedForm();
+
+      await fillValidForm();
+      await userEvent.click(submitButton());
+
+      const banner = await screen.findByRole('alert');
+      await userEvent.click(within(banner).getByRole('button', { name: '다시 시도' }));
+
+      expect(await screen.findByText('상담 신청이 접수되었어요')).toBeInTheDocument();
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      expect(create).toHaveBeenCalledTimes(2);
+      expect(create).toHaveBeenLastCalledWith(
+        expect.objectContaining({ name: '김민준', phone: '010-1234-5678' })
+      );
     });
   });
 
@@ -407,6 +432,19 @@ describe('ConsultRequestPage', () => {
       await userEvent.click(await screen.findByRole('button', { name: '내 상담 내역 보기' }));
 
       expect(replaceSpy).toHaveBeenCalledWith('/mypage');
+    });
+
+    it('병원 상세로 돌아가기 는 방금 신청한 병원으로 바꿔 이동한다', async () => {
+      vi.spyOn(consultApi, 'createConsultRequest').mockResolvedValue(createdConsult());
+      const replaceSpy = vi.spyOn(router, 'replace');
+      const hospital = await renderLoadedForm();
+
+      await fillValidForm();
+      await userEvent.click(submitButton());
+
+      await userEvent.click(await screen.findByRole('button', { name: '병원 상세로 돌아가기' }));
+
+      expect(replaceSpy).toHaveBeenCalledWith(`/hospital/${hospital.id}`);
     });
   });
 });

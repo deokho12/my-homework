@@ -65,7 +65,7 @@ describe('ErrorState', () => {
     expect(container.querySelector('svg')).not.toBeInTheDocument();
     expect(screen.getByRole('alert')).toHaveClass('py-8');
     expect(screen.getByRole('alert')).not.toHaveClass('py-16');
-    expect(screen.getByText('후기를 불러오지 못했어요')).toHaveClass('text-sm', 'text-neutral-400');
+    expect(screen.getByText('후기를 불러오지 못했어요')).toHaveClass('text-sm', 'text-neutral-500');
   });
 
   it('inline variant 도 재시도 버튼을 렌더한다', async () => {

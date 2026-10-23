@@ -1,3 +1,5 @@
+import { Bell, Search, User } from 'lucide-react';
+
 import { router, usePathname } from '@/navigation';
 import { Pressable, Text, View } from '@/primitives';
 
@@ -19,7 +21,13 @@ const MENU = [
  * 이 바 자체가 md(768) 이상에서만 보이므로(App.tsx 의 `hidden md:flex`), 기본값이 좁은
  * 단계이고 lg(1024) 부터 넓은 단계다. 예전에는 900 이라는 자기만의 기준을 썼는데, 표를
  * 하나로 모으면서 lg 로 흡수했다.
+ *
+ * 오른쪽 아이콘 셋(🔍🔔👤)은 lucide 로 바꿨고(SYS-22), 글자가 없으므로 각각
+ * `accessibilityLabel` 을 단다.
  */
+
+/** neutral-700 — 흰 바탕에서 글자 메뉴(neutral-600)와 같은 무게로 읽힌다. */
+const ICON_COLOR = '#404040';
 
 export function TopNavBar() {
   const pathname = usePathname();
@@ -66,14 +74,19 @@ export function TopNavBar() {
 
         {/* Right cluster */}
         <View className="flex-row flex-shrink-0 items-center gap-2.5 lg:gap-4">
-          <Pressable onPress={() => router.push('/search')} hitSlop={8}>
-            <Text className="text-lg">🔍</Text>
+          <Pressable onPress={() => router.push('/search')} hitSlop={8} accessibilityLabel="검색">
+            <Search size={20} color={ICON_COLOR} aria-hidden />
           </Pressable>
 
           {user ? (
             <>
-              <Pressable onPress={() => router.push('/notifications')} hitSlop={8} style={{ position: 'relative' }}>
-                <Text className="text-lg">🔔</Text>
+              <Pressable
+                onPress={() => router.push('/notifications')}
+                hitSlop={8}
+                style={{ position: 'relative' }}
+                accessibilityLabel={unreadCount > 0 ? '알림 · 안 읽은 알림 있음' : '알림'}
+              >
+                <Bell size={20} color={ICON_COLOR} aria-hidden />
                 {unreadCount > 0 ? (
                   <View
                     className="border border-white bg-rose-500"
@@ -93,8 +106,9 @@ export function TopNavBar() {
                 onPress={() => router.push('/(tabs)/mypage')}
                 className="h-8 w-8 items-center justify-center rounded-full bg-neutral-100 lg:h-9 lg:w-9"
                 hitSlop={4}
+                accessibilityLabel="마이페이지"
               >
-                <Text className="text-base">👤</Text>
+                <User size={18} color={ICON_COLOR} aria-hidden />
               </Pressable>
             </>
           ) : (

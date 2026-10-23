@@ -79,7 +79,7 @@ export function HospitalInquirySection({ hospitalId }: { hospitalId: string }) {
                   </Text>
                 </View>
                 {formatAppliedAt(inquiry.answer.answeredAt) ? (
-                  <Text className="mt-1 text-right text-[11px] text-neutral-400">
+                  <Text className="mt-1 text-right text-[11px] text-neutral-500">
                     {formatAppliedAt(inquiry.answer.answeredAt)} 답변
                   </Text>
                 ) : null}

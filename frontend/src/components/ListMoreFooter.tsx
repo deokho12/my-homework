@@ -73,7 +73,7 @@ export function ListMoreFooter({
 
   return (
     <div className="mt-2 flex flex-col items-center gap-2">
-      <p role="status" aria-live="polite" className="text-xs text-neutral-400">
+      <p role="status" aria-live="polite" className="text-xs text-neutral-500">
         {`${totalCount}${unit} 중 ${loadedCount}${unit} 보는 중`}
       </p>
       {isError ? (

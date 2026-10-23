@@ -1,11 +1,9 @@
 import { useMemo, useRef, useState } from 'react';
 
 import { Stack, router, useLocalSearchParams } from '@/navigation';
-import { ScrollView } from '@/primitives';
 import { SafeAreaView } from '@/primitives';
 
 import { QueryState } from '@/components/QueryState';
-import { containerClass } from '@/components/layout/Container';
 import { useSession } from '@/features/auth';
 import {
   ConsultRequestComplete,
@@ -24,7 +22,6 @@ import { useHospital } from '@/features/hospital';
 import { groupProcedureIdsByCategory } from '@/features/procedure';
 import { isApiError } from '@/lib/apiClient';
 import { CONSULT_STATUS_LABEL, type Hospital } from '@/types/domain';
-import { showAlert } from '@/utils/alert';
 
 /**
  * 병원이 취급하는 시술 → `{대분류} · {세부시술}` 칩 목록.
@@ -53,6 +50,8 @@ function ConsultRequestFlow({ hospital }: { hospital: Hospital }) {
   const createRequest = useCreateConsultRequest();
 
   const [completed, setCompleted] = useState<CompletedConsult | null>(null);
+  /** 접수 실패 안내. 알림창 대신 폼 위에 남는다 — 입력은 그대로 두고 `다시 시도` 를 준다. */
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const procedureChoices = useMemo(() => procedureChoicesOf(hospital), [hospital]);
 
@@ -63,6 +62,8 @@ function ConsultRequestFlow({ hospital }: { hospital: Hospital }) {
   const handleSubmit = (values: ConsultRequestFormInput) => {
     if (submittingRef.current) return;
     submittingRef.current = true;
+    // 다시 보내는 동안에는 지난 실패 안내를 치운다 — 결과가 나오면 다시 붙는다.
+    setSubmitError(null);
 
     createRequest.mutate(
       {
@@ -91,43 +92,39 @@ function ConsultRequestFlow({ hospital }: { hospital: Hospital }) {
           });
         },
         // 서버 문구(`ApiError.message`)를 그대로 보여준다 — 화면이 코드별 문구 사전을 따로 두지 않는다.
+        // 상담 마감 거절(`CONSULT_CLOSED`)도 같은 자리에 같은 모양으로 붙는다.
         onError: (error) => {
           // 실패는 다시 시도할 수 있어야 한다. 성공 시엔 폼이 사라지므로 풀지 않는다.
           submittingRef.current = false;
-          showAlert(
-            '상담 신청을 접수하지 못했어요',
-            isApiError(error) ? error.message : '잠시 후 다시 시도해주세요'
-          );
+          setSubmitError(isApiError(error) ? error.message : '잠시 후 다시 시도해주세요');
         },
       }
     );
   };
 
+  // 스크롤과 하단 고정 바는 폼·완료 화면이 각자 가진다 (시안 A — 제출 버튼이 바닥에 붙는다).
   return (
     <SafeAreaView className="flex-1 bg-white" edges={['bottom']}>
       <Stack.Screen options={{ title: '상담 신청' }} />
-      <ScrollView
-        contentContainerClassName={containerClass('form', 'pb-8 pt-4')}
-        keyboardShouldPersistTaps="handled"
-      >
-        {completed ? (
-          <ConsultRequestComplete
-            consult={completed}
-            // 마이페이지의 상담 내역 탭은 다음 요청서(02)의 몫이다. 지금은 마이페이지까지 보낸다.
-            // `replace` 인 이유: 뒤로 가기로 방금 보낸 폼에 돌아오면 같은 신청을 또 보낼 수 있다.
-            onViewHistory={() => router.replace('/mypage')}
-          />
-        ) : (
-          <ConsultRequestForm
-            hospital={hospital}
-            procedureChoices={procedureChoices}
-            autofillName={user?.name ?? ''}
-            autofillPhone={myRequests?.items[0]?.phone ?? ''}
-            submitting={createRequest.isPending}
-            onSubmit={handleSubmit}
-          />
-        )}
-      </ScrollView>
+      {completed ? (
+        <ConsultRequestComplete
+          consult={completed}
+          // 마이페이지의 상담 내역 탭은 다음 요청서(02)의 몫이다. 지금은 마이페이지까지 보낸다.
+          // `replace` 인 이유: 뒤로 가기로 방금 보낸 폼에 돌아오면 같은 신청을 또 보낼 수 있다.
+          onViewHistory={() => router.replace('/mypage')}
+          onBackToHospital={() => router.replace(`/hospital/${hospital.id}`)}
+        />
+      ) : (
+        <ConsultRequestForm
+          hospital={hospital}
+          procedureChoices={procedureChoices}
+          autofillName={user?.name ?? ''}
+          autofillPhone={myRequests?.items[0]?.phone ?? ''}
+          submitting={createRequest.isPending}
+          submitError={submitError}
+          onSubmit={handleSubmit}
+        />
+      )}
     </SafeAreaView>
   );
 }

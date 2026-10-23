@@ -43,7 +43,7 @@ export function HospitalMapView({
     <View className="flex-1">
       <View className={cx(CONTAINER_PADDING, 'border-b border-neutral-100 bg-white py-3')}>
         {locationStatus === 'denied' || locationStatus === 'error' ? (
-          <Text className="mb-2 text-xs text-neutral-400">
+          <Text className="mb-2 text-xs text-neutral-500">
             위치 권한을 확인할 수 없어 서울시청을 기준으로 보여드려요
           </Text>
         ) : null}
@@ -53,7 +53,7 @@ export function HospitalMapView({
           바로 아래 있다)을 함께 알린다.
         */}
         {totalCount > hospitals.length ? (
-          <Text className="mb-2 text-xs text-neutral-400">
+          <Text className="mb-2 text-xs text-neutral-500">
             병원이 많아 {hospitals.length}곳만 지도에 표시해요 · 반경을 좁혀보세요
           </Text>
         ) : null}
@@ -124,7 +124,7 @@ export function HospitalMapView({
             >
               <Text
                 className={`text-sm font-semibold ${
-                  selected.consultAvailable ? 'text-white' : 'text-neutral-400'
+                  selected.consultAvailable ? 'text-white' : 'text-neutral-500'
                 }`}
               >
                 상담신청

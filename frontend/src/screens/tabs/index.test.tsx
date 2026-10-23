@@ -87,3 +87,61 @@ describe('HomeScreen — 시술로 찾기', () => {
     expect(pushSpy).toHaveBeenCalledWith('/category/implant');
   });
 });
+
+/**
+ * 인기 검색어 알약은 **검색 화면을 거치지 않는다** (HOME-3 / SEARCH-1). 예전에는
+ * `/search?q=...` 로 보내서, 목적지에서 뒤로 가기를 누르면 홈이 아니라 검색 화면이 나왔다.
+ */
+describe('HomeScreen — 인기 검색어', () => {
+  beforeAll(() => {
+    globalThis.ResizeObserver ??= class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function renderHome() {
+    vi.spyOn(hospitalApi, 'fetchHospitalById').mockResolvedValue(baseHospital());
+    vi.spyOn(procedureApi, 'fetchProcedures').mockResolvedValue([]);
+    renderWithProviders(<HomeScreen />);
+  }
+
+  it('병원 검색어는 그 병원 상세로 바로 간다 — /search 를 거치지 않는다', async () => {
+    const pushSpy = vi.spyOn(router, 'push').mockImplementation(() => {});
+    renderHome();
+
+    await userEvent.click(screen.getByRole('button', { name: '강남 스마일 치과' }));
+
+    expect(pushSpy).toHaveBeenCalledWith('/hospital/h1');
+    expect(pushSpy).not.toHaveBeenCalledWith(expect.objectContaining({ pathname: '/search' }));
+  });
+
+  it('의사 검색어는 그 의사 상세로 바로 간다', async () => {
+    const pushSpy = vi.spyOn(router, 'push').mockImplementation(() => {});
+    renderHome();
+
+    await userEvent.click(screen.getByRole('button', { name: '김민준 원장' }));
+
+    expect(pushSpy).toHaveBeenCalledWith('/doctor/d1');
+  });
+
+  it('시술 검색어는 그 시술의 카테고리 화면으로 간다', async () => {
+    const pushSpy = vi.spyOn(router, 'push').mockImplementation(() => {});
+    renderHome();
+
+    // 격자에도 같은 이름의 버튼이 있다 — 알약은 "시술로 찾기" 구역 **밖**의 것이다.
+    const grid = screen.getByRole('region', { name: '시술로 찾기' });
+    const pill = screen
+      .getAllByRole('button', { name: '라미네이트' })
+      .find((button) => !grid.contains(button));
+
+    await userEvent.click(pill as HTMLElement);
+
+    expect(pushSpy).toHaveBeenCalledWith('/category/aesthetic?sub=laminate');
+  });
+});

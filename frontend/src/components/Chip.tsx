@@ -29,7 +29,8 @@ export function Chip({ label, selected, onPress, icon: Icon }: ChipProps) {
       className={`mb-2 mr-2 rounded-full border px-3.5 py-2 ${borderAndFill}`}
     >
       <View className="flex-row items-center gap-1.5">
-        {Icon ? <Icon size={14} color={iconColor} /> : null}
+        {/* 16px — 14px 에서는 직접 그린 치아 글리프의 안쪽 선이 뭉개졌다 (EXPLORE-4). */}
+        {Icon ? <Icon size={16} color={iconColor} /> : null}
         <Text className={`text-sm font-medium ${labelColor}`}>{label}</Text>
       </View>
     </Pressable>

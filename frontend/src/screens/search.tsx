@@ -1,3 +1,5 @@
+import { Search } from "lucide-react";
+
 import { router, Stack, useLocalSearchParams } from "@/navigation";
 import {
   useEffect,
@@ -10,12 +12,8 @@ import { Pressable, ScrollView, Text, View, cx } from "@/primitives";
 import { SafeAreaView } from "@/primitives";
 
 import { CONTAINER_PADDING } from "@/components/layout/Container";
-import {
-  categoryPath,
-  categoryPathForProcedure,
-  searchTaxonomy,
-} from "@/features/procedure";
 import { SuggestionList } from "@/features/search/components/SuggestionList";
+import { trendingTargetPath } from "@/features/search/trendingTarget";
 import {
   MIN_CHARS_HINT,
   firstSuggestion,
@@ -53,36 +51,17 @@ const TABS: { key: SearchTab; label: string }[] = [
 ];
 
 const SUGGEST_LIST_ID = "search-suggest-list";
+/** 홈 검색창(`components/SearchBar.tsx`)과 같은 neutral-500 — 두 검색창이 같아 보인다. */
+const SEARCH_ICON_COLOR = "#737373";
 const SEARCH_FAILED_NOTICE =
   "지금은 검색할 수 없어요. 잠시 후 다시 시도해주세요";
 
 /**
- * `term` 은 사용자가 **읽은 글자**다(인기검색어 행의 문구). 시술 항목은 그 글자를 먼저
- * `searchTaxonomy` 에 태운다 — 같은 "충치치료" 를 직접 타이핑하면 대분류 전체(`/category/cavity`)가
- * 열리는데, 행을 누를 때만 서버 id `cavity` 로 번역돼 레진만(`?sub=resin`) 열리면 같은 글자가
- * 경로에 따라 다른 개수를 보여준다. 글자가 없거나(=해석 불가) 안 걸릴 때만 서버 id 로 폴백한다.
- *
- * 전문의 행은 `/doctor/{id}` 로 간다 — 추천 목록의 원장님 줄과 **같은 목적지**다. 예전에는
- * 소속 병원 상세로 보내려고 `GET /doctors/{id}` 를 한 번 더 불렀는데, 그 요청은 `hospitalId`
- * 하나를 얻으려던 것이라 목적지가 바뀌면서 통째로 필요 없어졌다.
+ * 목적지 계산은 `trendingTargetPath`(순수 함수) 한 곳이다 — **홈의 인기 검색어 알약**도
+ * 같은 함수를 쓴다. 예전에는 이 파일 안에만 있어서 홈이 `/search?q=` 를 거쳐야 했다.
  */
 function navigateToTarget(target: SearchTarget, term?: string) {
-  if (target.kind === "procedure") {
-    const match = term ? searchTaxonomy(term) : null;
-    if (match) {
-      router.push(categoryPath(match.category.id, match.sub?.id ?? null));
-      return;
-    }
-    // 인기검색어는 서버 시술 id 도 들고 있다 — 글자가 분류에 안 걸리면 그 id 로 보낸다.
-    // 서버가 미래에 taxonomy 가 모르는 id 를 내려주면 탐색으로 떨어뜨린다.
-    router.push(categoryPathForProcedure(target.procedureId) ?? "/(tabs)/explore");
-    return;
-  }
-  if (target.kind === "hospital") {
-    router.push(`/hospital/${target.hospitalId}`);
-    return;
-  }
-  router.push(`/doctor/${target.doctorId}`);
+  router.push(trendingTargetPath(target, term));
 }
 
 function TrendBadge({ trend }: { trend: SearchTrend }) {
@@ -147,7 +126,7 @@ export default function SearchScreen() {
   const [activeIndex, setActiveIndex] = useState(-1);
   /** Esc 로 추천을 접은 상태. 글자는 그대로 두고 인기 검색어로 돌아간다. */
   const [collapsed, setCollapsed] = useState(false);
-  /** 마지막으로 Enter·🔍 를 누른 검색어. 질의 실패 안내를 그 검색어에만 붙인다. */
+  /** 마지막으로 Enter·돋보기 버튼으로 제출한 검색어. 질의 실패 안내를 그 검색어에만 붙인다. */
   const [submittedTerm, setSubmittedTerm] = useState<string | null>(
     q?.trim() ?? null,
   );
@@ -376,13 +355,17 @@ export default function SearchScreen() {
             enterKeyHint="search"
             className="flex-1 bg-transparent text-[15px] text-neutral-900 outline-none placeholder:text-neutral-400"
           />
-          <Pressable onPress={submit} hitSlop={8}>
-            <Text className="text-lg">🔍</Text>
+          {/*
+            아이콘만 있는 버튼이라 이름을 `accessibilityLabel` 로 준다(primitive 가
+            `aria-label` 로 내보낸다). `hitSlop` 13 + 아이콘 18 = 누를 수 있는 영역 44px.
+          */}
+          <Pressable onPress={submit} hitSlop={13} accessibilityLabel="검색">
+            <Search size={18} color={SEARCH_ICON_COLOR} aria-hidden />
           </Pressable>
           {/*
-            Enter 가 응답을 기다리는 동안의 표시. 🔍 를 **치우지 않고 옆에** 둔다 — 글리프가
-            사라졌다 돌아오면 그 순간 그 버튼을 잡고 있던 코드(와 사용자의 손가락)가 빈
-            자리를 누르게 된다. 200ms 이상 걸릴 때만 나타난다(목서버 180ms 에서 깜빡임 없음).
+            Enter 가 응답을 기다리는 동안의 표시. 돋보기 버튼을 **치우지 않고 옆에** 둔다 —
+            아이콘이 사라졌다 돌아오면 그 순간 그 버튼을 잡고 있던 코드(와 사용자의 손가락)가
+            빈 자리를 누르게 된다. 200ms 이상 걸릴 때만 나타난다(목서버 180ms 에서 깜빡임 없음).
           */}
           {showSubmitSpinner ? (
             <span

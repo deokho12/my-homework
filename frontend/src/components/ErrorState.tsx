@@ -43,10 +43,10 @@ export function ErrorState({
     >
       {isInline ? null : <AlertTriangle size={40} className="text-neutral-300" aria-hidden="true" />}
       <div className={isInline ? undefined : 'space-y-1'}>
-        <p className={isInline ? 'text-sm text-neutral-400' : 'text-base font-bold text-neutral-900'}>
+        <p className={isInline ? 'text-sm text-neutral-500' : 'text-base font-bold text-neutral-900'}>
           {title}
         </p>
-        <p className={isInline ? 'text-xs text-neutral-400' : 'text-sm text-neutral-500'}>{description}</p>
+        <p className={isInline ? 'text-xs text-neutral-500' : 'text-sm text-neutral-500'}>{description}</p>
       </div>
       {onRetry ? (
         <button

@@ -1,6 +1,7 @@
 import { router } from '@/navigation';
 import { Pressable, Text, View } from '@/primitives';
 
+import { PromoBadge } from '@/components/PromoBadge';
 import { StockImage } from '@/components/StockImage';
 import { useHospital } from '@/features/hospital';
 import type { Promotion } from '@/types/domain';
@@ -28,15 +29,14 @@ export function PromotionCard({ promotion }: PromotionCardProps) {
           style={{ width: '100%', height: 120 }}
           contentFit="cover"
         />
-        <View className="absolute left-3 top-3 rounded-full bg-rose-500 px-2.5 py-1">
-          <Text className="text-xs font-bold text-white">🔥 {promotion.badge}</Text>
-        </View>
+        {/* 🔥 이모지였다 (SYS-22). 알약 모양과 아이콘은 공용 `PromoBadge` 가 소유한다. */}
+        <PromoBadge label={promotion.badge} onPhoto className="absolute left-3 top-3" />
       </View>
       <View className="p-3">
         <Text className="mb-1 text-sm font-bold text-neutral-900" numberOfLines={1}>
           {promotion.title}
         </Text>
-        <Text className="mb-1.5 text-xs text-neutral-400" numberOfLines={1}>
+        <Text className="mb-1.5 text-xs text-neutral-500" numberOfLines={1}>
           {hospital.name}
         </Text>
         <View className="flex-row items-center gap-1.5">
@@ -45,7 +45,7 @@ export function PromotionCard({ promotion }: PromotionCardProps) {
           </Text>
           <Text className="text-sm font-bold text-neutral-900">{formatWon(promotion.salePrice)}</Text>
         </View>
-        <Text className="text-xs text-neutral-400 line-through">{formatWon(promotion.originalPrice)}</Text>
+        <Text className="text-xs text-neutral-500 line-through">{formatWon(promotion.originalPrice)}</Text>
       </View>
     </Pressable>
   );

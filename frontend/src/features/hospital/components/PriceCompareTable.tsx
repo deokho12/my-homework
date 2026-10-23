@@ -19,9 +19,9 @@ export function PriceCompareTable({ hospitals }: PriceCompareTableProps) {
   return (
     <View className="overflow-hidden rounded-2xl border border-neutral-100 bg-white">
       <View className="flex-row bg-neutral-50 px-4 py-2.5">
-        <Text className="flex-[1.6] text-xs font-semibold text-neutral-400">병원</Text>
-        <Text className="flex-1 text-xs font-semibold text-neutral-400">최저가</Text>
-        <Text className="w-14 text-right text-xs font-semibold text-neutral-400">평점</Text>
+        <Text className="flex-[1.6] text-xs font-semibold text-neutral-500">병원</Text>
+        <Text className="flex-1 text-xs font-semibold text-neutral-500">최저가</Text>
+        <Text className="w-14 text-right text-xs font-semibold text-neutral-500">평점</Text>
       </View>
 
       {sorted.map((hospital, index) => {
@@ -38,7 +38,7 @@ export function PriceCompareTable({ hospitals }: PriceCompareTableProps) {
               <Text className="text-sm font-semibold text-neutral-900" numberOfLines={1}>
                 {hospital.name}
               </Text>
-              <Text className="text-xs text-neutral-400">{hospital.region}</Text>
+              <Text className="text-xs text-neutral-500">{hospital.region}</Text>
             </View>
             <View className="flex-1">
               <Text className="text-sm font-bold text-neutral-900">{formatWon(price)}</Text>

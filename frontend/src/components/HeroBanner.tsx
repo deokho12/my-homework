@@ -167,6 +167,23 @@ export function HeroBanner() {
       )}
 
       {/*
+        점 인디케이터 — 숫자(`1/3`)만으로는 "몇 장 중 몇 번째"가 눈에 덜 들어와서 시안 A 가
+        더한 것이다 (HOME-3). 지금 장은 길쭉한 점이라 **모양으로도** 구분된다.
+        숫자 표시와 같은 이유로 클릭을 통과시키고 낭독기에서는 숨긴다.
+      */}
+      <div aria-hidden className="rnw-view pointer-events-none absolute bottom-3 left-5 flex-row items-center gap-1.5">
+        {SLIDES.map((slide, index) => (
+          <span
+            key={slide.id}
+            className={cx(
+              'h-1.5 rounded-full',
+              index === activeIndex ? 'w-4 bg-white' : 'w-1.5 bg-white/60'
+            )}
+          />
+        ))}
+      </div>
+
+      {/*
         클릭을 통과시킨다 — 그러지 않으면 이 표시가 우하단 모서리의 클릭을 가로채
         "오른쪽 아래만 안 눌리는 배너" 가 된다. 낭독기에는 숨긴다: 링크 3개를 차례로
         읽으면 순서를 이미 안다.

@@ -19,8 +19,13 @@ export type HospitalView = 'list' | 'map';
 export type ExploreCategory = 'recommended' | CategoryId;
 export type ExploreSortKey = 'popular' | 'reviews' | 'consults';
 
+/**
+ * 정렬 칩. 키(`popular`)와 서버 값(`rating`)은 그대로 두고 **보이는 라벨만** `인기순` →
+ * `평점순` 으로 고쳤다 (EXPLORE-4, 2026-10-23 시안) — 실제로 거르는 값이 평점이라
+ * `인기순` 은 없는 지표를 약속하는 이름이었다. 탐색·카테고리 두 화면이 이 표를 공유한다.
+ */
 export const SORT_OPTIONS: { key: ExploreSortKey; label: string }[] = [
-  { key: 'popular', label: '인기순' },
+  { key: 'popular', label: '평점순' },
   { key: 'reviews', label: '후기순' },
   { key: 'consults', label: '상담많은순' },
 ];
@@ -79,7 +84,7 @@ export function parseExploreCategoryParam(value: string | undefined): ExploreCat
  * | 상담가능    | `consultAvailable`                | `consultAvailable`          |
  * | 원데이      | `oneDay`                          | `oneDay`                    |
  * | 전문의      | `hasVerifiedSpecialist`            | `verifiedSpecialist`        |
- * | 진료시간    | `nightConsult` (실제로는 야간상담)  | `nightConsult`              |
+ * | 야간상담    | `nightConsult`                    | `nightConsult`              |
  * | 경력        | `minDoctorYearsOfExperience=10`    | `minYearsOfExperience=10`   |
  *
  * **카테고리 탭은 여기서 서버 파라미터로 바꾸지 않는다.** 이 훅은 선택(`selection`)만

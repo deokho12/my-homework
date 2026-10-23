@@ -1,5 +1,5 @@
 import { useFocusEffect } from '@/navigation';
-import { Star } from 'lucide-react';
+import { List, Map as MapIcon, Star } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { NativeScrollEvent, NativeSyntheticEvent } from '@/primitives';
 import { Pressable, ScrollView, Text, View, cx } from '@/primitives';
@@ -29,13 +29,17 @@ import { useProcedureAvailability } from '@/features/procedure/hooks/useProcedur
 import { CATEGORIES, getCategory } from '@/features/procedure/taxonomy';
 import { useScrollShadowStore } from '@/store/useScrollShadowStore';
 import type { Doctor } from '@/types/domain';
-import { CATEGORY_ICONS, type IconComponent } from '@/utils/procedureIcons';
+import { CATEGORY_ICONS, thin, type IconComponent } from '@/utils/procedureIcons';
 
 const SCROLL_SHADOW_THRESHOLD = 8;
 
-/** 대분류 9개 아이콘은 `utils/procedureIcons.tsx` 가 소유한다 — 여기서 더하는 건 "추천" 탭뿐이다. */
+/**
+ * 대분류 9개 아이콘은 `utils/procedureIcons.tsx` 가 소유한다 — 여기서 더하는 건 "추천" 탭뿐이다.
+ * `추천` 의 별도 **같은 선 굵기(1.75)** 로 감싼다 (EXPLORE-4) — 감싸지 않으면 lucide 기본값 2
+ * 라서 한 줄에서 첫 탭만 굵어 보인다.
+ */
 const TAB_ICONS: Record<ExploreCategory, IconComponent> = {
-  recommended: Star,
+  recommended: thin(Star, 'RecommendedIcon'),
   ...CATEGORY_ICONS,
 };
 
@@ -194,24 +198,24 @@ export default function ExplorePage() {
           </Pressable>
         </View>
 
+        {/*
+          보기 전환도 **같은 칩**이다 (EXPLORE-4) — 예전에는 검은 알약이라 아래 네 줄의
+          brand 칩과 규칙이 달랐고, 켜진 칩이 두 가지 색으로 보였다.
+        */}
         {mode === 'hospital' ? (
-          <View className="mt-3 flex-row">
-            <Pressable
+          <View className="-mb-2 mt-3 flex-row">
+            <Chip
+              label="리스트 보기"
+              icon={List}
+              selected={hospitalView === 'list'}
               onPress={() => setHospitalView('list')}
-              className={`mr-2 rounded-full px-3.5 py-1.5 ${hospitalView === 'list' ? 'bg-neutral-900' : 'bg-neutral-100'}`}
-            >
-              <Text className={`text-sm font-medium ${hospitalView === 'list' ? 'text-white' : 'text-neutral-500'}`}>
-                리스트 보기
-              </Text>
-            </Pressable>
-            <Pressable
+            />
+            <Chip
+              label="지도 보기"
+              icon={MapIcon}
+              selected={hospitalView === 'map'}
               onPress={() => setHospitalView('map')}
-              className={`rounded-full px-3.5 py-1.5 ${hospitalView === 'map' ? 'bg-neutral-900' : 'bg-neutral-100'}`}
-            >
-              <Text className={`text-sm font-medium ${hospitalView === 'map' ? 'text-white' : 'text-neutral-500'}`}>
-                지도 보기
-              </Text>
-            </Pressable>
+            />
           </View>
         ) : null}
       </View>
@@ -253,8 +257,10 @@ export default function ExplorePage() {
               selected={onlySpecialist}
               onPress={() => setOnlySpecialist((value) => !value)}
             />
+            {/* `진료시간` 이었다 — 실제로 거르는 값(`nightConsult`)에 이름을 맞췄다 (EXPLORE-4).
+                쿼리 키도 서버 파라미터도 그대로다. */}
             <Chip
-              label="진료시간"
+              label="야간상담"
               selected={onlyNightConsult}
               onPress={() => setOnlyNightConsult((value) => !value)}
             />
@@ -322,7 +328,7 @@ export default function ExplorePage() {
                     <>
                       {/* 표는 **불러온 카드만** 비교한다 — 20곳만 보고 "가장 싼 곳"이라 읽지 않게. */}
                       {data.items.length < data.meta.totalItems ? (
-                        <Text className="mb-2 text-xs text-neutral-400">
+                        <Text className="mb-2 text-xs text-neutral-500">
                           불러온 {data.items.length}곳끼리 비교한 표예요
                         </Text>
                       ) : null}

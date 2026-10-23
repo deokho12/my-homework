@@ -12,12 +12,17 @@ import HospitalDetailPage from '@/pages/HospitalDetailPage';
 import { useAuthStore } from '@/store/useAuthStore';
 import { baseHospital } from '@/test/hospitalFixture';
 import { renderWithProviders } from '@/test/renderWithProviders';
-import type { Hospital } from '@/types/domain';
+import type { Doctor, Hospital } from '@/types/domain';
 
 /**
  * `fetchHospitalById` 는 이제 HTTP 를 부른다 — 목 백엔드를 거치지 않으므로 매 테스트가
  * `hospitalApi.fetchHospitalById` 를 직접 스파이한다.
  */
+/** 탭 하나를 연다. 시안 B 부터는 한 번에 한 섹션만 보인다. */
+async function openTab(name: string): Promise<void> {
+  await userEvent.click(await screen.findByRole('tab', { name }));
+}
+
 describe('HospitalDetailPage', () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -143,6 +148,8 @@ describe('HospitalDetailPage', () => {
       path: '/hospital/:id',
     });
 
+    await openTab('시술·가격');
+
     await waitFor(() => expect(screen.getByText('대표 시술')).toBeInTheDocument());
     // 대분류 라벨은 `CATEGORIES` 순서대로 — 임플란트가 충치치료보다 먼저다.
     expect(screen.getByText('충치치료')).toBeInTheDocument();
@@ -158,6 +165,8 @@ describe('HospitalDetailPage', () => {
       route: `/hospital/${target.id}`,
       path: '/hospital/:id',
     });
+
+    await openTab('시술·가격');
 
     await waitFor(() => expect(screen.getByText('등록된 시술 정보가 없어요')).toBeInTheDocument());
   });
@@ -176,19 +185,21 @@ describe('HospitalDetailPage', () => {
       path: '/hospital/:id',
     });
 
+    await openTab('시술·가격');
+
     await waitFor(() => expect(screen.getByText('등록된 시술 정보가 없어요')).toBeInTheDocument());
   });
 });
 
 /**
- * 목차와 문의 섹션 (요청서 `2026-10-12-03`).
+ * 섹션 탭과 문의 섹션 (요청서 `2026-10-12-03`, 2026-10-23 시안 B 로 목차 → 탭).
  *
  * 공개 Q/A 는 로컬 저장소(`lib/localCollection.ts`)의 `inquiries` 컬렉션에서 온다 —
  * api 를 목하지 않고 실제로 저장해, **공개 판정(환자 공개 + 병원 공개 + 답변완료)** 이
  * 테스트에서 사라지지 않게 한다.
  */
-describe('HospitalDetailPage — 목차와 문의 섹션', () => {
-  const TOC_LABELS = ['정보', '시술·가격', '의료진', '후기', '문의'];
+describe('HospitalDetailPage — 섹션 탭과 문의 섹션', () => {
+  const TAB_LABELS = ['정보', '시술·가격', '의료진', '후기·문의'];
 
   function seedInquiries(rows: Partial<StoredHospitalInquiry>[]): void {
     writeCollection(
@@ -213,6 +224,7 @@ describe('HospitalDetailPage — 목차와 문의 섹션', () => {
     return { content, isPublic, answeredAt };
   }
 
+  /** 문의는 `후기·문의` 탭 안에 있다 — 그 탭을 연 상태로 시작한다. */
   async function renderDetail() {
     vi.spyOn(hospitalApi, 'fetchHospitalById').mockResolvedValue(baseHospital());
     vi.spyOn(doctorApi, 'fetchHospitalDoctors').mockResolvedValue([]);
@@ -229,7 +241,8 @@ describe('HospitalDetailPage — 목차와 문의 섹션', () => {
       { route: '/hospital/h1', path: '/hospital/:id' }
     );
 
-    await screen.findByRole('navigation', { name: '병원 정보 목차' });
+    await screen.findByRole('tablist', { name: '병원 정보' });
+    await openTab('후기·문의');
   }
 
   beforeEach(() => {
@@ -246,16 +259,74 @@ describe('HospitalDetailPage — 목차와 문의 섹션', () => {
     vi.restoreAllMocks();
   });
 
-  it('목차 5개가 순서대로 있고, 누르면 그 섹션으로 스크롤하고 제목에 포커스를 준다', async () => {
+  it('탭 4개가 순서대로 있고, 한 번에 한 섹션만 보인다', async () => {
     await renderDetail();
 
-    const toc = screen.getByRole('navigation', { name: '병원 정보 목차' });
-    expect(within(toc).getAllByRole('button').map((button) => button.textContent)).toEqual(TOC_LABELS);
+    const tablist = screen.getByRole('tablist', { name: '병원 정보' });
+    expect(within(tablist).getAllByRole('tab').map((tab) => tab.textContent)).toEqual(TAB_LABELS);
 
-    await userEvent.click(within(toc).getByRole('button', { name: '문의' }));
+    // `후기·문의` 가 열려 있으니 `정보` 탭의 내용은 화면에 없다.
+    expect(screen.getByRole('heading', { name: /방문자 후기/ })).toBeInTheDocument();
+    expect(screen.queryByText('병원 소개')).not.toBeInTheDocument();
 
-    expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
-    expect(document.getElementById('hospital-inquiry-h')).toHaveFocus();
+    await openTab('정보');
+
+    expect(screen.getByText('병원 소개')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /방문자 후기/ })).not.toBeInTheDocument();
+  });
+
+  it('열린 탭만 aria-selected 이고, 패널이 그 탭을 가리킨다', async () => {
+    await renderDetail();
+
+    const selected = screen.getByRole('tab', { name: '후기·문의' });
+    expect(selected).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: '정보' })).toHaveAttribute('aria-selected', 'false');
+
+    const panel = screen.getByRole('tabpanel');
+    expect(panel).toHaveAttribute('aria-labelledby', selected.id);
+    expect(selected).toHaveAttribute('aria-controls', panel.id);
+    // 닫힌 탭의 패널은 그려지지 않는다 — 없는 id 를 가리키지 않게 비워 둔다.
+    expect(screen.getByRole('tab', { name: '정보' })).not.toHaveAttribute('aria-controls');
+  });
+
+  it('탭 줄은 Tab 키 한 번에 지나간다 — 열린 탭만 tabIndex 0 이다', async () => {
+    await renderDetail();
+
+    expect(screen.getByRole('tab', { name: '후기·문의' })).toHaveAttribute('tabindex', '0');
+    for (const name of ['정보', '시술·가격', '의료진']) {
+      expect(screen.getByRole('tab', { name })).toHaveAttribute('tabindex', '-1');
+    }
+
+    await openTab('정보');
+
+    expect(screen.getByRole('tab', { name: '정보' })).toHaveAttribute('tabindex', '0');
+    expect(screen.getByRole('tab', { name: '후기·문의' })).toHaveAttribute('tabindex', '-1');
+  });
+
+  it('키보드 ←/→/Home/End 로 탭을 옮기면 그 탭이 바로 열리고 포커스가 따라간다', async () => {
+    await renderDetail();
+
+    await userEvent.click(screen.getByRole('tab', { name: '정보' }));
+    await userEvent.keyboard('{ArrowRight}');
+
+    expect(screen.getByRole('tab', { name: '시술·가격' })).toHaveFocus();
+    expect(screen.getByText('대표 시술')).toBeInTheDocument();
+
+    await userEvent.keyboard('{End}');
+
+    expect(screen.getByRole('tab', { name: '후기·문의' })).toHaveFocus();
+    expect(screen.getByRole('heading', { name: /방문자 후기/ })).toBeInTheDocument();
+
+    // 오른쪽 끝에서 한 번 더 가면 처음으로 돈다.
+    await userEvent.keyboard('{ArrowRight}');
+    expect(screen.getByRole('tab', { name: '정보' })).toHaveFocus();
+
+    await userEvent.keyboard('{ArrowLeft}');
+    expect(screen.getByRole('tab', { name: '후기·문의' })).toHaveFocus();
+
+    await userEvent.keyboard('{Home}');
+    expect(screen.getByRole('tab', { name: '정보' })).toHaveFocus();
+    expect(screen.getByText('병원 소개')).toBeInTheDocument();
   });
 
   it('공개 + 병원 공개 + 답변완료 인 문의만 Q/A 로 보이고 작성자 이름은 어디에도 없다', async () => {
@@ -339,7 +410,9 @@ describe('HospitalDetailPage — 목차와 문의 섹션', () => {
       { route: '/hospital/h1?section=inquiry', path: '/hospital/:id' }
     );
 
-    await screen.findByRole('navigation', { name: '병원 정보 목차' });
+    await screen.findByRole('tablist', { name: '병원 정보' });
+    // 문의가 있는 탭에서 시작한다 — 탭이 닫혀 있으면 내려갈 섹션 자체가 없다.
+    expect(screen.getByRole('tab', { name: '후기·문의' })).toHaveAttribute('aria-selected', 'true');
     expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled();
 
     act(() => releaseReviews());
@@ -378,5 +451,161 @@ describe('HospitalDetailPage — 목차와 문의 섹션', () => {
     await userEvent.click(screen.getByRole('button', { name: '문의하기' }));
 
     expect(pushSpy).toHaveBeenCalledWith('/inquiry/h1');
+  });
+});
+
+/**
+ * 사진 아래 요약 카드 2×2 (2026-10-23 시안 B-1).
+ *
+ * `진료중` 경계값 자체는 순수 함수 테스트(`lib/businessHours.test.ts`)가 고정한다 —
+ * 여기서는 **그 결과가 카드에 어떻게 보이는지**만 본다.
+ */
+describe('HospitalDetailPage — 요약 카드', () => {
+  function doctor(overrides: Partial<Doctor> = {}): Doctor {
+    return {
+      id: 'd1',
+      name: '김하늘',
+      title: '대표원장',
+      hospitalId: 'h1',
+      photo: 'https://example.com/photo.jpg',
+      procedureIds: [],
+      rating: 4.9,
+      reviewCount: 10,
+      consultCount: 3,
+      certificateUrl: null,
+      verificationStatus: 'approved',
+      rejectionReason: null,
+      isRecommended: false,
+      yearsOfExperience: 15,
+      career: [],
+      visibleSpecialty: '치과보철전문의',
+      isVerifiedSpecialist: true,
+      ...overrides,
+    };
+  }
+
+  async function renderWith(hospital: Hospital, doctors: Doctor[] = [doctor()]) {
+    vi.spyOn(hospitalApi, 'fetchHospitalById').mockResolvedValue(hospital);
+    vi.spyOn(doctorApi, 'fetchHospitalDoctors').mockResolvedValue(doctors);
+    vi.spyOn(reviewApi, 'fetchHospitalReviews').mockResolvedValue({
+      items: [],
+      meta: { page: 1, pageSize: 20, totalItems: 0, totalPages: 0 },
+    });
+
+    renderWithProviders(<HospitalDetailPage />, { route: '/hospital/h1', path: '/hospital/:id' });
+
+    await screen.findByRole('tablist', { name: '병원 정보' });
+  }
+
+  beforeEach(() => {
+    // 서울 금요일 10:00. 기계의 시간대와 무관하게 같은 답이 나와야 한다.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date('2026-10-23T01:00:00Z'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('진료 시간 안이면 오늘 시간과 진료중 배지를 보여준다', async () => {
+    await renderWith(
+      baseHospital({
+        businessHours: [{ day: '금', hours: '10:00 - 19:00' }],
+        priceRange: { min: 900000, max: 1800000 },
+        rating: 4.8,
+        reviewCount: 312,
+      })
+    );
+
+    expect(screen.getByText('오늘 (금)')).toBeInTheDocument();
+    expect(await screen.findByText('진료중')).toBeInTheDocument();
+    expect(screen.getByText('900,000원 ~ 1,800,000원')).toBeInTheDocument();
+    expect(screen.getByText('4.8')).toBeInTheDocument();
+    expect(screen.getByText('후기 312개')).toBeInTheDocument();
+    expect(await screen.findByText('전문의 1명')).toBeInTheDocument();
+    expect(screen.getByText('치과보철전문의')).toBeInTheDocument();
+  });
+
+  it('진료가 끝난 뒤에는 진료 종료로 적는다', async () => {
+    vi.setSystemTime(new Date('2026-10-23T10:00:00Z')); // 서울 금요일 19:00 — 종료 정각
+
+    await renderWith(baseHospital({ businessHours: [{ day: '금', hours: '10:00 - 19:00' }] }));
+
+    expect(await screen.findByText('진료 종료')).toBeInTheDocument();
+    expect(screen.queryByText('진료중')).not.toBeInTheDocument();
+  });
+
+  it('진료시간 문자열을 읽지 못하면 배지를 숨긴다 — 열렸는지 닫혔는지 단정하지 않는다', async () => {
+    await renderWith(baseHospital({ businessHours: [{ day: '금', hours: '예약제로 운영해요' }] }));
+
+    // 요약 카드와 아래 `진료시간` 줄 두 곳에 같은 문자열이 그대로 보인다.
+    expect(screen.getAllByText('예약제로 운영해요')).toHaveLength(2);
+    expect(screen.queryByText('진료중')).not.toBeInTheDocument();
+    expect(screen.queryByText('진료 종료')).not.toBeInTheDocument();
+  });
+
+  it('값이 없는 칸은 빈 상태 문구를 적는다', async () => {
+    await renderWith(baseHospital({ businessHours: [], reviewCount: 0, rating: 0 }), []);
+
+    expect(screen.getByText('등록된 진료시간이 없어요')).toBeInTheDocument();
+    expect(screen.getByText('아직 후기가 없어요')).toBeInTheDocument();
+    expect(await screen.findByText('등록된 의료진이 없어요')).toBeInTheDocument();
+  });
+
+  it('다른 탭에서는 요약이 한 줄로 접힌다', async () => {
+    await renderWith(baseHospital({ businessHours: [{ day: '금', hours: '10:00 - 19:00' }] }));
+
+    await userEvent.click(screen.getByRole('tab', { name: '의료진' }));
+
+    expect(screen.getByText('진료중 · 19시까지')).toBeInTheDocument();
+    expect(screen.queryByText('오늘 (금)')).not.toBeInTheDocument();
+  });
+
+  it('의료진 칸은 불러오는 중과 실패를 다르게 적는다 — "없다" 고 단정하지 않는다', async () => {
+    vi.spyOn(hospitalApi, 'fetchHospitalById').mockResolvedValue(baseHospital());
+    vi.spyOn(reviewApi, 'fetchHospitalReviews').mockResolvedValue({
+      items: [],
+      meta: { page: 1, pageSize: 20, totalItems: 0, totalPages: 0 },
+    });
+    // 끝나지 않는 조회 — 목록이 아직 도착하지 않은 상태를 고정한다.
+    vi.spyOn(doctorApi, 'fetchHospitalDoctors').mockReturnValue(new Promise(() => {}));
+
+    renderWithProviders(<HospitalDetailPage />, { route: '/hospital/h1', path: '/hospital/:id' });
+
+    await screen.findByRole('tablist', { name: '병원 정보' });
+    expect(screen.getByText('불러오는 중이에요')).toBeInTheDocument();
+    expect(screen.queryByText('등록된 의료진이 없어요')).not.toBeInTheDocument();
+  });
+
+  it('의료진 조회가 실패하면 요약 칸에 불러오지 못했다고 적는다', async () => {
+    vi.spyOn(hospitalApi, 'fetchHospitalById').mockResolvedValue(baseHospital());
+    vi.spyOn(reviewApi, 'fetchHospitalReviews').mockResolvedValue({
+      items: [],
+      meta: { page: 1, pageSize: 20, totalItems: 0, totalPages: 0 },
+    });
+    vi.spyOn(doctorApi, 'fetchHospitalDoctors').mockRejectedValue(
+      new ApiError({ status: 0, code: 'NETWORK_ERROR', message: '연결에 문제가 있어요' })
+    );
+
+    renderWithProviders(<HospitalDetailPage />, { route: '/hospital/h1', path: '/hospital/:id' });
+
+    expect(await screen.findByText('불러오지 못했어요')).toBeInTheDocument();
+    expect(screen.queryByText('등록된 의료진이 없어요')).not.toBeInTheDocument();
+  });
+
+  it('하단 고정 바에는 찜과 병원 상담신청만 있다', async () => {
+    await renderWith(baseHospital());
+
+    expect(await screen.findByText('병원 상담신청')).toBeInTheDocument();
+    // 시안 B — 어느 전문의인지 보내지 못하던 `전문의 상담신청` 은 뺐다.
+    expect(screen.queryByText('전문의 상담신청')).not.toBeInTheDocument();
+  });
+
+  it('상담을 받지 않는 병원은 상담 마감으로 바뀐다', async () => {
+    await renderWith(baseHospital({ consultAvailable: false }));
+
+    expect(await screen.findByText('상담 마감')).toBeInTheDocument();
+    expect(screen.queryByText('병원 상담신청')).not.toBeInTheDocument();
   });
 });

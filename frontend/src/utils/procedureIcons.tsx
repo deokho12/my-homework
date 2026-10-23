@@ -16,8 +16,11 @@ export type IconComponent = ComponentType<{ size?: number; color?: string }>;
  * lucide 아이콘을 **선 굵기만 1.75 로 고정해** 넘긴다. `size`·`color` 는 그대로 통과한다.
  * lucide 기본값이 2 라서, 감싸지 않으면 손으로 그린 치아 글리프(1.75)와 같은 격자에서
  * 굵기가 섞여 보인다.
+ *
+ * 대분류 9개 밖의 아이콘이 **같은 줄에** 설 때도 이 함수를 쓴다 — 탐색 탭의 `추천`(`Star`)이
+ * 그렇다. 그래서 내보낸다.
  */
-function thin(Icon: LucideIcon, displayName: string): IconComponent {
+export function thin(Icon: LucideIcon, displayName: string): IconComponent {
   const Thin = ({ size, color }: { size?: number; color?: string }) => (
     <Icon size={size} color={color} strokeWidth={ICON_STROKE_WIDTH} />
   );

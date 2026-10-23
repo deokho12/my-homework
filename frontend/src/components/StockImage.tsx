@@ -1,6 +1,10 @@
+import { ImageOff } from 'lucide-react';
 import { useState } from 'react';
 
-import { Image, StyleSheet, Text, View, type RNStyle } from '@/primitives';
+import { Image, StyleSheet, View, type RNStyle } from '@/primitives';
+
+/** brand-600 — brand-50 대체 상자 위에서 4.8:1 이다. */
+const FALLBACK_ICON_COLOR = '#17847a';
 
 interface StockImageProps {
   uri: string;
@@ -38,7 +42,8 @@ export function StockImage({ uri, alt, style, contentFit = 'cover', borderRadius
           style={StyleSheet.absoluteFill}
           accessibilityLabel={alt}
         >
-          <Text className="text-2xl text-brand-600">🦷</Text>
+          {/* 🦷 이모지였다 (SYS-22). "사진이 없다" 를 말하는 자리라 치아보다 이쪽이 정확하다. */}
+          <ImageOff size={28} color={FALLBACK_ICON_COLOR} aria-hidden />
         </View>
       )}
 

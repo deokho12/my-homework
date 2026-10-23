@@ -144,7 +144,7 @@ describe('검색 화면 — 이름으로 전문의를 찾는 검색 (서버 q �
     renderSearch('/search');
 
     await userEvent.type(screen.getByPlaceholderText('시술, 병원, 원장님 이름을 검색해보세요'), '김민준');
-    await userEvent.click(screen.getByText('🔍'));
+    await userEvent.click(screen.getByRole('button', { name: '검색' }));
 
     // 목적지는 소속 병원이 아니라 **전문의 상세**다 — 추천 목록의 원장님 줄을 눌렀을 때와
     // 같은 곳이어야 한다(같은 글자가 경로에 따라 갈리지 않는다).
@@ -188,7 +188,7 @@ describe('검색 화면 — 이름으로 전문의를 찾는 검색 (서버 q �
     renderSearch('/search');
 
     await userEvent.type(screen.getByPlaceholderText('시술, 병원, 원장님 이름을 검색해보세요'), '존재하지않는검색어');
-    await userEvent.click(screen.getByText('🔍'));
+    await userEvent.click(screen.getByRole('button', { name: '검색' }));
 
     await waitFor(() => expect(screen.getByText(/검색 결과가 없어요/)).toBeInTheDocument());
   });
@@ -213,7 +213,7 @@ describe('검색 화면 — 병원명 검색 (서버 q 필터)', () => {
     renderSearch('/search');
 
     await userEvent.type(screen.getByPlaceholderText('시술, 병원, 원장님 이름을 검색해보세요'), '강남 스마일 치과');
-    await userEvent.click(screen.getByText('🔍'));
+    await userEvent.click(screen.getByRole('button', { name: '검색' }));
 
     await waitFor(() => expect(pushSpy).toHaveBeenCalledWith('/hospital/h1'));
     expect(fetchHospitalsSpy).toHaveBeenCalledWith(expect.objectContaining({ q: '강남 스마일 치과' }));
@@ -245,7 +245,7 @@ describe('검색 화면 — 제출 순서 보장(경쟁 조건)', () => {
     renderSearch('/search');
 
     const searchInput = screen.getByPlaceholderText('시술, 병원, 원장님 이름을 검색해보세요');
-    const searchButton = screen.getByText('🔍');
+    const searchButton = screen.getByRole('button', { name: '검색' });
 
     // 첫 번째 제출: "AAA" — 응답이 늦게 도착한다.
     await userEvent.type(searchInput, 'AAA');

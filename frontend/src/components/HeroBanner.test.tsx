@@ -125,4 +125,14 @@ describe('HeroBanner', () => {
     expect(indicator).toHaveAttribute('aria-hidden', 'true');
     expect(indicator).toHaveClass('pointer-events-none');
   });
+
+  /** 숫자 옆 점 인디케이터 (HOME-3) — 지금 장은 **길쭉한 점**이라 색만으로 구분하지 않는다. */
+  it('점 인디케이터가 장 수만큼 있고, 지금 장만 길쭉하다', () => {
+    const { container } = renderWithProviders(<HeroBanner />);
+
+    const dots = container.querySelectorAll('span.rounded-full.h-1\\.5');
+    expect(dots).toHaveLength(3);
+    expect(dots[0]).toHaveClass('w-4', 'bg-white');
+    expect(dots[1]).toHaveClass('w-1.5');
+  });
 });

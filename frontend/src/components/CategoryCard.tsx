@@ -11,8 +11,9 @@ interface CategoryCardProps {
   style?: StyleProp<ViewStyle>;
 }
 
-// Neutral-400 at rest, brand-600 (see tailwind.config.js `colors.brand[600]`) while pressed.
-const ICON_COLOR_REST = '#a3a3a3';
+// neutral-500 at rest, brand-600 (see tailwind.config.js `colors.brand[600]`) while pressed.
+// 쉬는 색을 neutral-400 → 500 으로 올렸다 (SYS-22) — 시안의 9칸 격자와 같은 색이다.
+const ICON_COLOR_REST = '#737373';
 const ICON_COLOR_PRESSED = '#17847a';
 
 /**
@@ -41,8 +42,10 @@ export function CategoryCard({ category, onPress, style }: CategoryCardProps) {
           <Icon size={26} color={pressed ? ICON_COLOR_PRESSED : ICON_COLOR_REST} />
           <Text className="mt-1.5 text-[13px] font-semibold text-neutral-800">{category.name}</Text>
           {/* 배지 자리를 항상 잡아 둔다 — 조건부로 넣으면 그 칸만 한 줄 높아져 격자 첫 줄이 틀어진다.
-              nbsp 는 줄 높이는 차지하되 스크린리더가 읽지 않는다. */}
-          <Text className="text-[10px] text-neutral-400">{comingSoon ? '준비중' : ' '}</Text>
+              nbsp 는 줄 높이는 차지하되 스크린리더가 읽지 않는다.
+              `준비중` 은 **회색 글자**다 (2026-10-23 시안 검토 결정 — amber 배지로 바꾸지 않는다).
+              읽어야 하는 글자라 neutral-500 이다. */}
+          <Text className="text-[10px] text-neutral-500">{comingSoon ? '준비중' : ' '}</Text>
         </>
       )}
     </Pressable>

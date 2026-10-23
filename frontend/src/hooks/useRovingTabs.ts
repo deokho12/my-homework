@@ -4,8 +4,8 @@ import { useRef, type KeyboardEvent } from 'react';
  * APG 탭 패턴의 키보드 처리 — **화살표는 순환하고, 이동과 동시에 그 탭이 열린다**
  * (automatic activation). `Home`/`End` 는 양 끝으로 간다.
  *
- * 관리자 화면 두 곳(문의·상담 예약)이 같은 탭 줄을 쓴다. 각자 복사해 두면 한쪽만 고쳐져
- * 같은 생김새의 탭이 다르게 움직인다 — 키 처리를 한 곳에 둔다.
+ * 관리자 화면 두 곳(문의·상담 예약)과 병원 상세의 섹션 탭이 같은 탭 줄을 쓴다. 각자 복사해
+ * 두면 한쪽만 고쳐져 같은 생김새의 탭이 다르게 움직인다 — 키 처리를 한 곳에 둔다.
  */
 export function useRovingTabs<K extends string>(keys: readonly K[], onSelect: (key: K) => void) {
   const refs = useRef<Partial<Record<K, HTMLButtonElement | null>>>({});

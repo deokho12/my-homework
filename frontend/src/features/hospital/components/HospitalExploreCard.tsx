@@ -1,7 +1,10 @@
+import { Zap } from 'lucide-react';
+
 import { router } from '@/navigation';
 import { Pressable, Text, View, type StyleProp, type ViewStyle } from '@/primitives';
 
 import { Badge } from '@/components/Badge';
+import { RecommendedBadge } from '@/components/RecommendedBadge';
 import { StockImage } from '@/components/StockImage';
 import { FavoriteHeartButton } from '@/features/favorite';
 import { procedureDisplayName } from '@/features/procedure';
@@ -63,18 +66,18 @@ export function HospitalExploreCard({ hospital, activeCategory, userPoint = null
             </Text>
             {/* 광고 표시는 알아볼 수 있으면 된다 — 브랜드색 알약으로 키우면 추천과 같은 무게가 된다. */}
             {hospital.sponsorship.isActive ? <Text className="text-[11px] text-neutral-500">광고</Text> : null}
-            {hospital.isRecommended ? <Badge label="🌟 추천" tone="brand" /> : null}
+            {hospital.isRecommended ? <RecommendedBadge /> : null}
           </View>
           <Text className="mb-1 text-[13px] font-semibold text-brand-700" numberOfLines={1}>
             {hospital.specialty}
           </Text>
           {/* 거리는 **이미 있는 줄의 끝**에 붙는다 — 나중에 도착해도 카드 높이가 변하지 않는다. */}
-          <Text className="mb-2 text-[13px] text-neutral-400" numberOfLines={1}>
+          <Text className="mb-2 text-[13px] text-neutral-500" numberOfLines={1}>
             {km === null ? hospital.region : `${hospital.region} · ${formatDistance(km)}`}
           </Text>
 
           <View className="mb-3 flex-row flex-wrap gap-1.5">
-            {hospital.isOneDay ? <Badge label="⚡ 원데이 가능" tone="brand" /> : null}
+            {hospital.isOneDay ? <Badge icon={Zap} label="원데이 가능" tone="brand" /> : null}
             {hospital.representativeSpecialty ? (
               <Badge
                 label={`${hospital.representativeSpecialty} 상주`}
@@ -104,7 +107,7 @@ export function HospitalExploreCard({ hospital, activeCategory, userPoint = null
               hospital.consultAvailable ? 'bg-brand-600 active:bg-brand-700' : 'bg-neutral-200'
             }`}
           >
-            <Text className={`text-sm font-semibold ${hospital.consultAvailable ? 'text-white' : 'text-neutral-400'}`}>
+            <Text className={`text-sm font-semibold ${hospital.consultAvailable ? 'text-white' : 'text-neutral-500'}`}>
               {hospital.consultAvailable ? '상담신청' : '상담 마감'}
             </Text>
           </Pressable>

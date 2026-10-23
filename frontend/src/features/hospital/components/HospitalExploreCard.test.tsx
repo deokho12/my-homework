@@ -145,9 +145,10 @@ describe('HospitalExploreCard', () => {
         />
       );
 
-      // Badge 는 View > Text 이므로 배지 줄은 라벨 글자의 할아버지 노드다.
-      const badgeRow = screen.getByText('⚡ 원데이 가능').parentElement?.parentElement;
-      expect(badgeRow?.textContent).toBe('⚡ 원데이 가능치과보철전문의 상주레진크라운');
+      // Badge 는 View > (아이콘) + Text 이므로 배지 줄은 라벨 글자의 할아버지 노드다.
+      // 라벨에서 이모지(⚡)가 빠지고 lucide 아이콘이 들어갔다 (SYS-22) — 글자는 라벨뿐이다.
+      const badgeRow = screen.getByText('원데이 가능').parentElement?.parentElement;
+      expect(badgeRow?.textContent).toBe('원데이 가능치과보철전문의 상주레진크라운');
     });
 
     it('광고·추천은 이름 줄에 있고, 원데이는 사진 위 오버레이가 아니라 배지 줄에 있다', () => {
@@ -162,11 +163,11 @@ describe('HospitalExploreCard', () => {
       );
 
       const nameRow = screen.getByText('강남 스마일 치과').parentElement;
-      // `광고` 는 맨 글자, `🌟 추천` 은 Badge — 둘 다 이름과 같은 줄에 있다.
+      // `광고` 는 맨 글자, `추천` 은 Badge — 둘 다 이름과 같은 줄에 있다.
       expect(screen.getByText('광고').parentElement).toBe(nameRow);
-      expect(screen.getByText('🌟 추천').parentElement?.parentElement).toBe(nameRow);
+      expect(screen.getByText('추천').parentElement?.parentElement).toBe(nameRow);
       // 원데이는 배지 줄(= 상주/시술 배지와 같은 줄)에 있다.
-      const badgeRow = screen.getByText('⚡ 원데이 가능').parentElement?.parentElement;
+      const badgeRow = screen.getByText('원데이 가능').parentElement?.parentElement;
       expect(badgeRow).not.toBe(nameRow);
       expect(badgeRow?.textContent).toContain('일반 임플란트');
     });

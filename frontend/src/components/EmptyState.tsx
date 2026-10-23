@@ -13,7 +13,7 @@ export interface EmptyStateProps {
   /**
    * 'block' (기본) — 화면 전체를 차지하는 자리.
    * 'inline' — 스크롤 페이지 중간의 한 줄. 이 코드베이스가 이미 쓰던
-   *   `text-sm text-neutral-400` 한 줄 표현을 그대로 재현한다. tailwind-merge 가 없어
+   *   한 줄짜리 회색 표현을 그대로 재현한다(글자색은 neutral-500 — SYS-22). tailwind-merge 가 없어
    *   `className` 으로 block 스타일을 덮을 수 없으므로 variant 로 분기한다.
    */
   variant?: 'block' | 'inline';
@@ -44,11 +44,11 @@ export function EmptyState({
     >
       {Icon ? <Icon size={40} className="text-neutral-300" aria-hidden="true" /> : null}
       <div className={isInline ? undefined : 'space-y-1'}>
-        <p className={isInline ? 'text-sm text-neutral-400' : 'text-base font-bold text-neutral-900'}>
+        <p className={isInline ? 'text-sm text-neutral-500' : 'text-base font-bold text-neutral-900'}>
           {title}
         </p>
         {description ? (
-          <p className={isInline ? 'text-xs text-neutral-400' : 'text-sm text-neutral-500'}>{description}</p>
+          <p className={isInline ? 'text-xs text-neutral-500' : 'text-sm text-neutral-500'}>{description}</p>
         ) : null}
       </div>
       {actionLabel && onAction ? (

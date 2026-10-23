@@ -2,6 +2,7 @@ import { router } from '@/navigation';
 import { Pressable, Text, View, type StyleProp, type ViewStyle } from '@/primitives';
 
 import { Badge } from '@/components/Badge';
+import { RecommendedBadge } from '@/components/RecommendedBadge';
 import { StockImage } from '@/components/StockImage';
 import { procedureDisplayName } from '@/features/procedure';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
@@ -44,7 +45,7 @@ export function DoctorCard({ doctor, hospital, style }: DoctorCardProps) {
             </Text>
           ) : null}
           {hospital ? (
-            <Text className="text-[13px] text-neutral-400" numberOfLines={1}>
+            <Text className="text-[13px] text-neutral-500" numberOfLines={1}>
               {hospital.name}
             </Text>
           ) : null}
@@ -52,7 +53,7 @@ export function DoctorCard({ doctor, hospital, style }: DoctorCardProps) {
       </View>
 
       <View className="mb-3 flex-row flex-wrap gap-1.5">
-        {doctor.isRecommended ? <Badge label="🌟 추천" tone="brand" /> : null}
+        {doctor.isRecommended ? <RecommendedBadge /> : null}
         {doctor.isVerifiedSpecialist ? <Badge label="전문의" tone="brand" /> : null}
         {doctor.procedureIds.slice(0, 3).map((procedureId) => {
           // 서버가 주는 id 가 곧 세부 시술 id 다(`resin` → "레진"). 모르는 id 는 배지를 건너뛴다.
@@ -81,7 +82,7 @@ export function DoctorCard({ doctor, hospital, style }: DoctorCardProps) {
         }`}
       >
         <Text
-          className={`text-sm font-semibold ${hospital?.consultAvailable ? 'text-white' : 'text-neutral-400'}`}
+          className={`text-sm font-semibold ${hospital?.consultAvailable ? 'text-white' : 'text-neutral-500'}`}
         >
           {hospital?.consultAvailable ? '상담신청' : '상담 마감'}
         </Text>
