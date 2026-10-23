@@ -4,6 +4,7 @@ import { router } from '@/navigation';
 import { Pressable, Text, View, type StyleProp, type ViewStyle } from '@/primitives';
 
 import { Badge } from '@/components/Badge';
+import { RatingStar } from '@/components/RatingStar';
 import { RecommendedBadge } from '@/components/RecommendedBadge';
 import { StockImage } from '@/components/StockImage';
 import { FavoriteHeartButton } from '@/features/favorite';
@@ -94,7 +95,9 @@ export function HospitalExploreCard({ hospital, activeCategory, userPoint = null
           <View className="mb-3 flex-row items-center gap-3">
             <Text className="text-xs text-neutral-500">후기 {hospital.reviewCount}</Text>
             <Text className="text-xs text-neutral-500">상담 {hospital.consultCount}</Text>
-            <Text className="text-xs text-neutral-500">★ {hospital.rating.toFixed(1)}</Text>
+            <Text className="text-xs text-neutral-500">
+              <RatingStar rating={hospital.rating} />
+            </Text>
           </View>
 
           <Pressable

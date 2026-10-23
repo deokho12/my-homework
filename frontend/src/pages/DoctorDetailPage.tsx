@@ -6,6 +6,7 @@ import { SafeAreaView } from '@/primitives';
 import { Badge } from '@/components/Badge';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { QueryState } from '@/components/QueryState';
+import { RatingStar } from '@/components/RatingStar';
 import { StockImage } from '@/components/StockImage';
 import { CONTAINER_PADDING } from '@/components/layout/Container';
 import { useDoctor } from '@/features/doctor';
@@ -174,7 +175,9 @@ export default function DoctorDetailPage() {
                       })}
                     </View>
                     <View className="flex-row items-center gap-3">
-                      <Text className="text-xs text-neutral-500">★ {hospital.rating.toFixed(1)}</Text>
+                      <Text className="text-xs text-neutral-500">
+                        <RatingStar rating={hospital.rating} />
+                      </Text>
                       <Text className="text-xs text-neutral-500">상담 {hospital.consultCount}</Text>
                     </View>
                   </View>

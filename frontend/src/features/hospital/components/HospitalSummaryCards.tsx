@@ -2,6 +2,7 @@ import { BadgeCheck, Clock, Coins, Star, type LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 import { Badge } from '@/components/Badge';
+import { RatingStar } from '@/components/RatingStar';
 import type { TodayHours } from '@/features/hospital/lib/businessHours';
 import { summarizeDoctors } from '@/features/hospital/lib/doctorsSummary';
 import type { Doctor, PriceRange } from '@/types/domain';
@@ -110,11 +111,8 @@ export function HospitalSummaryCards({
         ) : (
           <>
             <Value>
-              {/* 별점 ★ 은 amber 를 쓴다 (`docs/conventions/frontend.md` 의 예외). */}
-              <span className="text-amber-500" aria-hidden="true">
-                ★
-              </span>{' '}
-              {rating.toFixed(1)}
+              {/* 카드 제목이 이미 `평점` 이라 낭독용 안내는 끈다 — 켜면 두 번 읽힌다. */}
+              <RatingStar rating={rating} labelled={false} />
             </Value>
             <p className="mt-1 text-xs text-neutral-500">후기 {reviewCount}개</p>
           </>

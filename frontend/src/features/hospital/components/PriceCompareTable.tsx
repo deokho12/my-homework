@@ -1,6 +1,8 @@
 import { router } from '@/navigation';
 import { Pressable, Text, View } from '@/primitives';
 
+import { RatingStar } from '@/components/RatingStar';
+
 // 정적 마스터 데이터. features/procedure(또는 content) 가 생기면 그쪽으로 옮긴다 (Task 11).
 import { getPromotionByHospital } from '@/mocks/fixtures/promotions';
 import type { Hospital } from '@/types/domain';
@@ -44,7 +46,9 @@ export function PriceCompareTable({ hospitals }: PriceCompareTableProps) {
               <Text className="text-sm font-bold text-neutral-900">{formatWon(price)}</Text>
               {promotion ? <Text className="text-xs text-rose-500">할인가</Text> : null}
             </View>
-            <Text className="w-14 text-right text-sm text-neutral-600">★ {hospital.rating.toFixed(1)}</Text>
+            <Text className="w-14 text-right text-sm text-neutral-600">
+              <RatingStar rating={hospital.rating} />
+            </Text>
           </Pressable>
         );
       })}

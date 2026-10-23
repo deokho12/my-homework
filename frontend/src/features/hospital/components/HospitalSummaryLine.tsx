@@ -1,3 +1,4 @@
+import { RatingStar } from '@/components/RatingStar';
 import { closesAtLabel, type TodayHours } from '@/features/hospital/lib/businessHours';
 import type { PriceRange } from '@/types/domain';
 import { formatPriceRange } from '@/utils/format';
@@ -45,12 +46,7 @@ export function HospitalSummaryLine({ today, priceRange, rating, reviewCount }: 
       ) : null}
       {hasRating ? (
         <span className="ml-auto shrink-0 text-[13px] text-neutral-500">
-          {/* 별은 장식이라 숨기고, 숫자만 읽히지 않게 무엇의 숫자인지 낭독기에 알린다. */}
-          <span className="sr-only">평점 </span>
-          <span className="text-amber-500" aria-hidden="true">
-            ★
-          </span>{' '}
-          {rating.toFixed(1)}
+          <RatingStar rating={rating} />
         </span>
       ) : null}
     </div>

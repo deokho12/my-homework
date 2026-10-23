@@ -420,7 +420,8 @@ export function HospitalDetailView({ hospital }: { hospital: Hospital }) {
                             <Text className="text-sm font-semibold text-neutral-800">{review.authorName}</Text>
                             <Text className="text-xs text-neutral-500">{review.createdAt}</Text>
                           </View>
-                          {/* 별점 ★ 은 amber 를 쓴다 (`docs/conventions/frontend.md` 의 예외). */}
+                          {/* 후기 한 건은 별을 점수만큼 반복해 그린다 — 별 하나 + 숫자인
+                              `components/RatingStar` 와 모양이 달라 합치지 않았다 (색은 같은 amber). */}
                           <Text className="mb-1 text-xs text-amber-500">{'★'.repeat(review.rating)}</Text>
                           <Text className="mb-2 text-sm leading-5 text-neutral-600">{review.content}</Text>
                           {review.photos && review.photos.length > 0 ? (

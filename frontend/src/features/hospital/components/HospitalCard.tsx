@@ -5,6 +5,7 @@ import { Pressable, Text, View } from '@/primitives';
 
 import { Badge } from '@/components/Badge';
 import { PromoBadge } from '@/components/PromoBadge';
+import { RatingStar } from '@/components/RatingStar';
 import { RecommendedBadge } from '@/components/RecommendedBadge';
 import { StockImage } from '@/components/StockImage';
 import { FavoriteHeartButton } from '@/features/favorite';
@@ -76,7 +77,7 @@ export function HospitalCard({ hospital }: HospitalCardProps) {
               {formatPriceRange(hospital.priceRange.min, hospital.priceRange.max)}
             </Text>
             <Text className="text-sm text-neutral-500">
-              ★ {hospital.rating.toFixed(1)} ({hospital.reviewCount})
+              <RatingStar rating={hospital.rating} /> ({hospital.reviewCount})
             </Text>
           </View>
         </View>

@@ -63,13 +63,14 @@ describe('DoctorCard', () => {
   it('rating 이 null 이면(비로그인) 잠금 문구를 보여준다 — 0으로 덮지 않는다', () => {
     renderWithProviders(<DoctorCard doctor={baseDoctor({ rating: null })} />);
 
-    expect(screen.getByText('★ 비공개')).toBeInTheDocument();
+    expect(screen.getByText('비공개')).toBeInTheDocument();
+    expect(screen.queryByText('0.0')).not.toBeInTheDocument();
   });
 
   it('rating 이 숫자면 그 숫자를 보여준다', () => {
     renderWithProviders(<DoctorCard doctor={baseDoctor({ rating: 4.9 })} />);
 
-    expect(screen.getByText('★ 4.9')).toBeInTheDocument();
+    expect(screen.getByText('4.9')).toBeInTheDocument();
   });
 
   function baseDoctorCard(overrides: Partial<Doctor>) {

@@ -2,6 +2,7 @@ import { router } from '@/navigation';
 import { Pressable, Text, View, type StyleProp, type ViewStyle } from '@/primitives';
 
 import { Badge } from '@/components/Badge';
+import { RatingStar } from '@/components/RatingStar';
 import { RecommendedBadge } from '@/components/RecommendedBadge';
 import { StockImage } from '@/components/StockImage';
 import { procedureDisplayName } from '@/features/procedure';
@@ -66,7 +67,7 @@ export function DoctorCard({ doctor, hospital, style }: DoctorCardProps) {
         <Text className="text-xs text-neutral-500">후기 {doctor.reviewCount}</Text>
         <Text className="text-xs text-neutral-500">상담 {doctor.consultCount}</Text>
         <Text className="text-xs text-neutral-500">
-          ★ {doctor.rating === null ? '비공개' : doctor.rating.toFixed(1)}
+          <RatingStar rating={doctor.rating} />
         </Text>
       </View>
 
