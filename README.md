@@ -1,5 +1,15 @@
 # 숙제
 
+## 폴더 구조
+
+| 폴더 | 내용 |
+|---|---|
+| `frontend/` | React 기반 웹 프론트엔드 (Vite + React 19) |
+| `backend/` | NestJS 기반 API 서버 (Prisma + SQLite) — `backend/README.md` |
+| `chat/` | 채팅용 소켓 서버 (아직 코드 없음) — `chat/README.md` |
+| `mobile/` | 모바일 앱 자리 (아직 비어 있음) |
+| `docs/` | API 계약·DB 설계·기능 문서 |
+
 ## Frontend 실행
 
 Vite + React 19 웹 앱 (`frontend/`)

@@ -8,6 +8,7 @@ React Native / Expo 관련 코드는 모두 제거됐으니 그 전제로 작업
 - `frontend/` — 실제 앱. Vite + React 19 + React Router 7 + Tailwind 3 + Zustand
 - `backend/` — NestJS + Prisma + SQLite 서버. 인증·인가에 이어 병원·전문의 도메인 API(시술·병원·
   전문의·후기, 15개 오퍼레이션)가 구현되어 있다. 자세한 내용은 `backend/README.md` 참고
+- `chat/` — 채팅용 소켓 서버 자리. 아직 코드가 없다 (`chat/README.md` 에 역할과 시작할 때 정할 것)
 - `mobile/` — 아직 비어있는 자리표시자
 
 ## 비즈니스 로직은 최소한으로

@@ -1,5 +1,37 @@
 @AGENTS.md
 
+## 작업 전에 참조할 문서
+
+코드를 쓰거나 고치기 전에 아래 문서를 기준으로 삼는다. 세 문서는 아래 `@` 줄로 매 세션 자동으로 읽힌다.
+
+@docs/TODO_LIST.md
+@docs/TECH_STACK.md
+@docs/conventions/README.md
+
+- **TODO List** — `docs/TODO_LIST.md`. 남은 일 전체를 화면별로 모은 목록이고, **모든 에이전트는 이 목록을 보고
+  일한다.** 시작 전에 맡은 일이 어느 항목(ID)인지 찾고, 목록에 없으면 먼저 항목을 추가한다.
+  `qa-master` 가 "QA 통과" 를 확인한 항목은 줄을 긋는다 (`- [x] ~~**ID** …~~ — 완료 날짜 · 요청서`, 줄은 지우지 않는다).
+  ❓ 항목은 요청자 결정이 먼저다. 규칙 전문은 파일 맨 위 "에이전트 규칙"
+- **기술 스택** — `docs/TECH_STACK.md`. 쓰는 기술·버전·직접 만든 기반 코드. 새 라이브러리를 들이기 전에
+  이미 있는 것으로 되는지 먼저 확인한다. 의존성을 더하거나 빼면 이 문서를 같은 커밋에서 고친다
+- **코드 규칙** — `docs/conventions/` (Google 스타일 가이드 기준). 위 README 의 요약에 더해,
+  **작업 영역의 상세 문서를 작업 시작 전에 읽는다:**
+
+  | 작업 | 읽을 문서 |
+  |---|---|
+  | 모든 코드 | `docs/conventions/typescript.md` |
+  | 화면 (`frontend/`) | `docs/conventions/frontend.md` |
+  | 서버 (`backend/`) | `docs/conventions/backend.md` |
+  | API 계약 설계 | `docs/conventions/api-design.md` |
+  | 테스트 | `docs/conventions/testing.md` |
+  | 커밋·셀프 리뷰 | `docs/conventions/code-review.md` |
+  | 주석·문서 | `docs/conventions/documentation.md` |
+
+- 에이전트(`designer`·`frontend-engineer`·`backend-engineer`·`code-reviewer`·`qa-master` 등)에게 일을 맡길 때
+  **프롬프트에 해당 규칙 문서 경로와 맡은 TODO 항목 ID 를 적는다.** `code-reviewer` 는 규칙 위반을 리뷰 항목에 넣고,
+  `qa-master` 는 통과한 TODO 항목 ID 를 보고에 적는다
+- 규칙끼리 부딪히면 도구 설정 → 계약(`docs/api`·`docs/database`) → `AGENTS.md`·이 파일 → `docs/conventions/` 순으로 따른다
+
 ## 개발 워크플로 규칙
 
 1. 새 화면/컴포넌트가 필요하면 → designer 에이전트 먼저 사용
@@ -10,7 +42,8 @@
 4. 구현이 끝나면 → code-reviewer 로 명세 부합을 검토
 5. 그다음 → 반드시 qa-master 에이전트를 호출해서 실제 동작을 검증
 6. qa-master가 "QA 통과"라고 확인하기 전까지는 해당 기능을
-   완료된 것으로 간주하지 않는다
+   완료된 것으로 간주하지 않는다. 통과하면 `docs/TODO_LIST.md` 의 해당 항목에 줄을 긋고,
+   그 수정을 같은 커밋에 넣는다
 7. 특히 아래 항목은 QA에서 반드시 실제 동작까지 확인한다:
    - 로그인/로그아웃 (상태 변경 + 화면 반영 확인)
    - 상담신청, 찜하기 (데이터 저장 확인)
