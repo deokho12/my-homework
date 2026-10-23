@@ -163,9 +163,9 @@ describe('HospitalExploreCard', () => {
       );
 
       const nameRow = screen.getByText('강남 스마일 치과').parentElement;
-      // `광고` 는 맨 글자, `추천` 은 Badge — 둘 다 이름과 같은 줄에 있다.
+      // `광고` 는 맨 글자, `추천` 은 설명을 여는 배지 버튼 — 둘 다 이름과 같은 줄에 있다.
       expect(screen.getByText('광고').parentElement).toBe(nameRow);
-      expect(screen.getByText('추천').parentElement?.parentElement).toBe(nameRow);
+      expect(nameRow).toContainElement(screen.getByRole('button', { name: '추천' }));
       // 원데이는 배지 줄(= 상주/시술 배지와 같은 줄)에 있다.
       const badgeRow = screen.getByText('원데이 가능').parentElement?.parentElement;
       expect(badgeRow).not.toBe(nameRow);

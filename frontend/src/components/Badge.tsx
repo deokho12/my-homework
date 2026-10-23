@@ -16,6 +16,12 @@ interface BadgeProps {
    * **장식이다** — 뜻은 항상 라벨이 전하므로 낭독기에서는 숨긴다. 없으면 글자만 그린다.
    */
   icon?: LucideIcon;
+  /**
+   * 그릴 요소. 기본은 지금까지와 같은 `div`(`View`)다. **버튼 안에 들어가는 배지만 `span`**
+   * 으로 그린다 — `<button>` 이 담을 수 있는 것은 phrasing content 뿐이어서 div 를 넣으면
+   * 잘못된 HTML 이 된다 (`RecommendedBadge` 의 설명 버튼).
+   */
+  as?: 'div' | 'span';
 }
 
 const TONE_CLASSES: Record<BadgeTone, { box: string; text: string; icon: string }> = {
@@ -27,13 +33,25 @@ const TONE_CLASSES: Record<BadgeTone, { box: string; text: string; icon: string 
   danger: { box: 'bg-rose-50 border-rose-200', text: 'text-rose-700', icon: '#be123c' },
 };
 
-export function Badge({ label, tone = 'neutral', icon: Icon }: BadgeProps) {
+export function Badge({ label, tone = 'neutral', icon: Icon, as = 'div' }: BadgeProps) {
   const classes = TONE_CLASSES[tone];
+  const boxClasses = `items-center gap-1 rounded-full border px-2.5 py-1 ${classes.box}`;
+  const textClasses = `text-xs font-medium ${classes.text}`;
+  const iconElement = Icon ? <Icon size={14} color={classes.icon} aria-hidden /> : null;
+
+  if (as === 'span') {
+    return (
+      <span className={`inline-flex ${boxClasses}`}>
+        {iconElement}
+        <span className={textClasses}>{label}</span>
+      </span>
+    );
+  }
 
   return (
-    <View className={`flex-row items-center gap-1 rounded-full border px-2.5 py-1 ${classes.box}`}>
-      {Icon ? <Icon size={14} color={classes.icon} aria-hidden /> : null}
-      <Text className={`text-xs font-medium ${classes.text}`}>{label}</Text>
+    <View className={`flex-row ${boxClasses}`}>
+      {iconElement}
+      <Text className={textClasses}>{label}</Text>
     </View>
   );
 }

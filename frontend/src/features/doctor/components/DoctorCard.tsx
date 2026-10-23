@@ -54,7 +54,7 @@ export function DoctorCard({ doctor, hospital, style }: DoctorCardProps) {
       </View>
 
       <View className="mb-3 flex-row flex-wrap gap-1.5">
-        {doctor.isRecommended ? <RecommendedBadge /> : null}
+        {doctor.isRecommended ? <RecommendedBadge subject="doctor" /> : null}
         {doctor.isVerifiedSpecialist ? <Badge label="전문의" tone="brand" /> : null}
         {doctor.procedureIds.slice(0, 3).map((procedureId) => {
           // 서버가 주는 id 가 곧 세부 시술 id 다(`resin` → "레진"). 모르는 id 는 배지를 건너뛴다.
