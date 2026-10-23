@@ -22,3 +22,6 @@ yarn-error.*
 
 # typescript
 *.tsbuildinfo
+
+# Claude 가 만든 결과물 (요청자 개인 보관용, 커밋하지 않는다)
+Claude outputs/
