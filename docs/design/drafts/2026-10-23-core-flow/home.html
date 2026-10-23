@@ -1,0 +1,1145 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>몰라몰라 — 홈 시안 4개</title>
+<script src="https://cdn.tailwindcss.com/3.4.16"></script>
+<script>
+  tailwind.config = { theme: { extend: { colors: { brand: {50:'#eefcf9',100:'#d4f6ef',200:'#abecdf',300:'#79dccb',400:'#45c4b0',500:'#22a696',600:'#17847a',700:'#166863',800:'#16534f',900:'#154543'} }, fontFamily: { sans: ['-apple-system','BlinkMacSystemFont','"Segoe UI"','Roboto','"Apple SD Gothic Neo"','"Malgun Gothic"','sans-serif'] } } } }
+</script>
+<script src="https://unpkg.com/lucide@0.475.0/dist/umd/lucide.min.js"></script>
+<style>
+  /* 가로 스크롤 영역의 스크롤바를 숨긴다 — 실제 앱은 showsHorizontalScrollIndicator={false} 다 */
+  .noscroll::-webkit-scrollbar { display: none; }
+  .noscroll { scrollbar-width: none; -ms-overflow-style: none; }
+</style>
+</head>
+<body class="bg-neutral-50 font-sans text-neutral-900">
+
+<div class="mx-auto max-w-[1800px] px-8 py-10">
+  <h1 class="text-2xl font-extrabold text-neutral-900">홈 시안</h1>
+  <p class="mt-1 text-sm text-neutral-500">몰라몰라 홈 화면 `/` 의 방향이 다른 네 가지 안이에요. 모바일 375px 기준이고, 프레임 안은 실제로 스크롤돼요.</p>
+
+  <div class="mt-8 flex flex-wrap items-start gap-10">
+
+    <!-- ================================================================= -->
+    <!-- 시안 A · 정돈안                                                    -->
+    <!-- ================================================================= -->
+    <section class="w-[375px] shrink-0">
+      <div class="mb-4">
+        <h2 class="text-lg font-bold text-neutral-900">시안 A · 정돈안</h2>
+        <p class="mt-1 text-sm text-neutral-700">지금 구조와 순서를 그대로 두고, 규칙에서 벗어난 곳과 빈틈만 고쳐요.</p>
+        <p class="mt-3 text-[13px] font-semibold text-neutral-700">바뀐 점</p>
+        <ul class="mt-1 list-disc space-y-1 pl-5 text-[13px] leading-5 text-neutral-700">
+          <li>🔍 🔥 🌟 ⚡ 🏠 🦷 💬 👤 이모지를 전부 lucide 아이콘으로 바꿨어요</li>
+          <li>병원명·원가·`준비중` 의 neutral-400 을 neutral-500 으로 올렸어요 (400 은 검색창 placeholder 에만 남겨요)</li>
+          <li>배너 오른쪽 아래 `1/3` 옆에 점 인디케이터를 더해 몇 장인지 한눈에 보여요</li>
+          <li>빈 회색 QR 상자를 점선 자리 + `앱 출시 준비중이에요` 안내로 바꿔 고장처럼 보이지 않게 했어요</li>
+          <li>인기 검색어는 검색 화면을 거치지 않고 시술 카테고리로 바로 가요 — 뒤로 가기로 홈에 돌아와요</li>
+        </ul>
+        <p class="mt-3 text-[13px] font-semibold text-neutral-700">새 데이터 필요: 없어요 — QR 이미지 파일 하나만 등록하면 돼요</p>
+      </div>
+
+      <div class="h-[812px] w-[375px] overflow-hidden rounded-[32px] border border-neutral-200 bg-white">
+        <div class="noscroll flex h-full flex-col overflow-y-auto bg-neutral-50">
+
+          <!-- 검색 -->
+          <div class="px-4 pt-4">
+            <button class="flex w-full items-center gap-2 rounded-full border border-neutral-200 bg-white px-4 py-3.5 text-left">
+              <i data-lucide="search" class="h-[18px] w-[18px] shrink-0 text-neutral-500"></i>
+              <span class="min-w-0 truncate whitespace-nowrap text-[15px] text-neutral-400">임플란트, 교정 같은 시술을 검색해보세요</span>
+            </button>
+            <div class="noscroll -mx-4 mt-3 flex gap-2 overflow-x-auto px-4 pb-1">
+              <button class="shrink-0 rounded-full bg-neutral-100 px-3.5 py-2 text-[13px] font-medium text-neutral-700">임플란트</button>
+              <button class="shrink-0 rounded-full bg-neutral-100 px-3.5 py-2 text-[13px] font-medium text-neutral-700">강남 스마일 치과</button>
+              <button class="shrink-0 rounded-full bg-neutral-100 px-3.5 py-2 text-[13px] font-medium text-neutral-700">교정</button>
+              <button class="shrink-0 rounded-full bg-neutral-100 px-3.5 py-2 text-[13px] font-medium text-neutral-700">김민준 원장</button>
+              <button class="shrink-0 rounded-full bg-neutral-100 px-3.5 py-2 text-[13px] font-medium text-neutral-700">라미네이트</button>
+              <button class="shrink-0 rounded-full bg-neutral-100 px-3.5 py-2 text-[13px] font-medium text-neutral-700">더화이트 라미네이트클리닉</button>
+            </div>
+          </div>
+
+          <!-- 히어로 배너 -->
+          <div class="relative mx-4 mt-5 h-[152px] overflow-hidden rounded-[24px]">
+            <div class="noscroll flex h-full snap-x snap-mandatory overflow-x-auto">
+              <a href="#" class="relative flex h-full w-full shrink-0 snap-center flex-col justify-center overflow-hidden px-5 py-7">
+                <img src="https://images.unsplash.com/photo-1704455306251-b4634215d98f?q=80&w=800&auto=format&fit=crop" alt="밝고 신뢰감 있는 치과 진료실 사진" class="absolute inset-0 h-full w-full object-cover">
+                <span class="absolute inset-0 bg-brand-600/60"></span>
+                <span class="relative mb-1 text-lg font-bold leading-6 text-white">병원명 말고,<br>시술로 찾아보세요</span>
+                <span class="relative text-sm text-brand-50">임플란트, 교정, 라미네이트까지 한눈에 비교</span>
+              </a>
+              <a href="#" class="relative flex h-full w-full shrink-0 snap-center flex-col justify-center overflow-hidden px-5 py-7">
+                <img src="https://images.unsplash.com/photo-1659353888906-adb3e0041693?q=80&w=800&auto=format&fit=crop" alt="흰 가운을 입은 전문 의료진 사진" class="absolute inset-0 h-full w-full object-cover">
+                <span class="absolute inset-0 bg-brand-700/60"></span>
+                <span class="relative mb-1 text-lg font-bold leading-6 text-white">전문의가 검증된<br>병원만 모았어요</span>
+                <span class="relative text-sm text-brand-50">깐깐한 검증을 거친 의료진 정보만 확인하세요</span>
+              </a>
+              <a href="#" class="relative flex h-full w-full shrink-0 snap-center flex-col justify-center overflow-hidden px-5 py-7">
+                <img src="https://images.unsplash.com/photo-1667133295315-820bb6481730?q=80&w=800&auto=format&fit=crop" alt="치과의사가 스캐너로 진료하는 모습" class="absolute inset-0 h-full w-full object-cover">
+                <span class="absolute inset-0 bg-brand-500/60"></span>
+                <span class="relative mb-1 text-lg font-bold leading-6 text-white">궁금한 건<br>커뮤니티에 물어보세요</span>
+                <span class="relative text-sm text-brand-50">먼저 경험한 사람들의 솔직한 후기와 답변</span>
+              </a>
+            </div>
+            <div class="pointer-events-none absolute bottom-3 left-5 flex items-center gap-1.5">
+              <span class="h-1.5 w-4 rounded-full bg-white"></span>
+              <span class="h-1.5 w-1.5 rounded-full bg-white/60"></span>
+              <span class="h-1.5 w-1.5 rounded-full bg-white/60"></span>
+            </div>
+            <div class="pointer-events-none absolute bottom-3 right-4 rounded-full bg-black/40 px-2.5 py-1">
+              <span class="text-xs font-semibold text-white">1/3</span>
+            </div>
+          </div>
+
+          <!-- 지금 진행중인 이벤트 -->
+          <div class="mx-4 mt-6 rounded-2xl border border-neutral-100 bg-white p-4">
+            <div class="mb-3 flex items-center justify-between">
+              <h3 class="text-lg font-bold text-neutral-900">지금 진행중인 이벤트</h3>
+              <button class="text-sm font-medium text-neutral-500">전체보기</button>
+            </div>
+            <div class="noscroll -mx-4 flex gap-3 overflow-x-auto px-4 pb-1">
+              <!-- 프로모 카드 1 -->
+              <a href="#" class="w-[240px] shrink-0 overflow-hidden rounded-2xl border border-neutral-100 bg-white">
+                <div class="relative">
+                  <img src="https://images.unsplash.com/photo-1704455306251-b4634215d98f?q=80&w=600&auto=format&fit=crop" alt="강남 스마일 치과 병원 사진" class="h-[120px] w-full object-cover">
+                  <span class="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-rose-500 px-2.5 py-1 text-xs font-bold text-white">
+                    <i data-lucide="tag" class="h-3.5 w-3.5"></i>얼리버드
+                  </span>
+                </div>
+                <div class="p-3">
+                  <p class="mb-1 truncate text-sm font-bold text-neutral-900">임플란트 1개 진단+식립 패키지</p>
+                  <p class="mb-1.5 truncate text-xs text-neutral-500">강남 스마일 치과</p>
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-sm font-extrabold text-rose-500">28%</span>
+                    <span class="text-sm font-bold text-neutral-900">1,290,000원</span>
+                  </div>
+                  <p class="text-xs text-neutral-500 line-through">1,800,000원</p>
+                </div>
+              </a>
+              <!-- 프로모 카드 2 -->
+              <a href="#" class="w-[240px] shrink-0 overflow-hidden rounded-2xl border border-neutral-100 bg-white">
+                <div class="relative">
+                  <img src="https://images.unsplash.com/photo-1722586663955-2f96a4c1f255?q=80&w=600&auto=format&fit=crop" alt="연세 바른교정치과 병원 사진" class="h-[120px] w-full object-cover">
+                  <span class="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-rose-500 px-2.5 py-1 text-xs font-bold text-white">
+                    <i data-lucide="tag" class="h-3.5 w-3.5"></i>첫방문 할인
+                  </span>
+                </div>
+                <div class="p-3">
+                  <p class="mb-1 truncate text-sm font-bold text-neutral-900">투명교정 상담+구강스캔 패키지</p>
+                  <p class="mb-1.5 truncate text-xs text-neutral-500">연세 바른교정치과</p>
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-sm font-extrabold text-rose-500">20%</span>
+                    <span class="text-sm font-bold text-neutral-900">5,200,000원</span>
+                  </div>
+                  <p class="text-xs text-neutral-500 line-through">6,500,000원</p>
+                </div>
+              </a>
+              <!-- 프로모 카드 3 -->
+              <a href="#" class="w-[240px] shrink-0 overflow-hidden rounded-2xl border border-neutral-100 bg-white">
+                <div class="relative">
+                  <img src="https://images.unsplash.com/photo-1609840114035-3c981b782dfe?q=80&w=600&auto=format&fit=crop" alt="리본 수면치과 병원 사진" class="h-[120px] w-full object-cover">
+                  <span class="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-rose-500 px-2.5 py-1 text-xs font-bold text-white">
+                    <i data-lucide="tag" class="h-3.5 w-3.5"></i>여름 프로모션
+                  </span>
+                </div>
+                <div class="p-3">
+                  <p class="mb-1 truncate text-sm font-bold text-neutral-900">코골이장치 정밀진단 패키지</p>
+                  <p class="mb-1.5 truncate text-xs text-neutral-500">리본 수면치과</p>
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-sm font-extrabold text-rose-500">28%</span>
+                    <span class="text-sm font-bold text-neutral-900">650,000원</span>
+                  </div>
+                  <p class="text-xs text-neutral-500 line-through">900,000원</p>
+                </div>
+              </a>
+              <!-- 프로모 카드 4 -->
+              <a href="#" class="w-[240px] shrink-0 overflow-hidden rounded-2xl border border-neutral-100 bg-white">
+                <div class="relative">
+                  <img src="https://images.unsplash.com/photo-1670250492416-570b5b7343b1?q=80&w=600&auto=format&fit=crop" alt="더화이트 라미네이트클리닉 병원 사진" class="h-[120px] w-full object-cover">
+                  <span class="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-rose-500 px-2.5 py-1 text-xs font-bold text-white">
+                    <i data-lucide="tag" class="h-3.5 w-3.5"></i>인기
+                  </span>
+                </div>
+                <div class="p-3">
+                  <p class="mb-1 truncate text-sm font-bold text-neutral-900">라미네이트 6개 + 미백 세트</p>
+                  <p class="mb-1.5 truncate text-xs text-neutral-500">더화이트 라미네이트클리닉</p>
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-sm font-extrabold text-rose-500">19%</span>
+                    <span class="text-sm font-bold text-neutral-900">3,900,000원</span>
+                  </div>
+                  <p class="text-xs text-neutral-500 line-through">4,800,000원</p>
+                </div>
+              </a>
+            </div>
+          </div>
+
+          <!-- 시술로 찾기 -->
+          <div class="mx-4 mt-6 rounded-2xl border border-neutral-100 bg-white p-4">
+            <div class="mb-3 flex items-center justify-between">
+              <h3 class="text-lg font-bold text-neutral-900">시술로 찾기</h3>
+              <button class="text-sm font-medium text-neutral-500">전체보기</button>
+            </div>
+            <div class="grid grid-cols-3 gap-3">
+              <a href="#" class="flex flex-col items-center rounded-2xl border border-neutral-100 bg-white py-4">
+                <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="text-neutral-500"><path d="M7.4 2.9c1.5-.8 3.1-.4 4.6.3 1.5-.7 3.1-1.1 4.6-.3 1.6.9 2 3 1.3 4.6L17.2 9H6.8l-.7-1.5c-.7-1.6-.3-3.7 1.3-4.6z"/><path d="M10.2 9v2.4h3.6V9"/><path d="M9.4 11.4h5.2l-1.1 8.4a1.5 1.5 0 0 1-3 0z"/><path d="M9.8 14.4l4.5-.9M10.2 17.3l3.8-.8"/></svg>
+                <span class="mt-1.5 text-[13px] font-semibold text-neutral-800">임플란트</span>
+                <span class="text-[10px] text-neutral-500">&nbsp;</span>
+              </a>
+              <a href="#" class="flex flex-col items-center rounded-2xl border border-neutral-100 bg-white py-4">
+                <i data-lucide="droplets" class="h-[26px] w-[26px] text-neutral-500" stroke-width="1.75"></i>
+                <span class="mt-1.5 text-center text-[13px] font-semibold leading-4 text-neutral-800">스케일링<br>·예방</span>
+                <span class="text-[10px] text-neutral-500">준비중</span>
+              </a>
+              <a href="#" class="flex flex-col items-center rounded-2xl border border-neutral-100 bg-white py-4">
+                <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="text-neutral-500"><path d="M7 3c1.7-.6 3.3-.2 5 .5 1.7-.7 3.3-1.1 5-.5 2 .8 2.6 3 2.2 5.5-.5 3-1.2 5.2-1.7 8-.4 2.3-.9 4.5-2.1 4.5-1.4 0-1.6-2.6-2-4.3-.3-1.3-.8-2.2-1.4-2.2s-1.1.9-1.4 2.2c-.4 1.7-.6 4.3-2 4.3-1.2 0-1.7-2.2-2.1-4.5-.5-2.8-1.2-5-1.7-8C4.4 6 5 3.8 7 3z"/><rect x="10" y="7.5" width="4" height="4" rx=".8"/><path d="M1.5 9.5H10M14 9.5h8.5"/></svg>
+                <span class="mt-1.5 text-[13px] font-semibold text-neutral-800">교정</span>
+                <span class="text-[10px] text-neutral-500">&nbsp;</span>
+              </a>
+              <a href="#" class="flex flex-col items-center rounded-2xl border border-neutral-100 bg-white py-4">
+                <i data-lucide="shield-check" class="h-[26px] w-[26px] text-neutral-500" stroke-width="1.75"></i>
+                <span class="mt-1.5 text-[13px] font-semibold text-neutral-800">충치치료</span>
+                <span class="text-[10px] text-neutral-500">&nbsp;</span>
+              </a>
+              <a href="#" class="flex flex-col items-center rounded-2xl border border-neutral-100 bg-white py-4">
+                <i data-lucide="sparkles" class="h-[26px] w-[26px] text-neutral-500" stroke-width="1.75"></i>
+                <span class="mt-1.5 text-[13px] font-semibold text-neutral-800">심미</span>
+                <span class="text-[10px] text-neutral-500">&nbsp;</span>
+              </a>
+              <a href="#" class="flex flex-col items-center rounded-2xl border border-neutral-100 bg-white py-4">
+                <i data-lucide="heart-pulse" class="h-[26px] w-[26px] text-neutral-500" stroke-width="1.75"></i>
+                <span class="mt-1.5 text-[13px] font-semibold text-neutral-800">잇몸치료</span>
+                <span class="text-[10px] text-neutral-500">&nbsp;</span>
+              </a>
+              <a href="#" class="flex flex-col items-center rounded-2xl border border-neutral-100 bg-white py-4">
+                <i data-lucide="moon" class="h-[26px] w-[26px] text-neutral-500" stroke-width="1.75"></i>
+                <span class="mt-1.5 text-center text-[13px] font-semibold leading-4 text-neutral-800">턱관절<br>·스플린트</span>
+                <span class="text-[10px] text-neutral-500">&nbsp;</span>
+              </a>
+              <a href="#" class="flex flex-col items-center rounded-2xl border border-neutral-100 bg-white py-4">
+                <i data-lucide="syringe" class="h-[26px] w-[26px] text-neutral-500" stroke-width="1.75"></i>
+                <span class="mt-1.5 text-[13px] font-semibold text-neutral-800">보톡스</span>
+                <span class="text-[10px] text-neutral-500">&nbsp;</span>
+              </a>
+              <a href="#" class="flex flex-col items-center rounded-2xl border border-neutral-100 bg-white py-4">
+                <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="text-neutral-500"><path d="M12 1.5v5M9.5 4L12 1.5 14.5 4"/><path d="M8.3 9c1.2-.4 2.4-.1 3.7.4 1.3-.5 2.5-.8 3.7-.4 1.5.6 1.9 2.2 1.6 4-.4 2.2-.9 3.8-1.2 5.8-.3 1.7-.7 3.2-1.6 3.2-1 0-1.2-1.9-1.5-3.1-.2-.9-.6-1.6-1-1.6s-.8.7-1 1.6c-.3 1.2-.5 3.1-1.5 3.1-.9 0-1.3-1.5-1.6-3.2-.3-2-.8-3.6-1.2-5.8-.3-1.8.1-3.4 1.6-4z"/></svg>
+                <span class="mt-1.5 text-[13px] font-semibold text-neutral-800">사랑니·발치</span>
+                <span class="text-[10px] text-neutral-500">&nbsp;</span>
+              </a>
+            </div>
+          </div>
+
+          <!-- 꿀팁 -->
+          <div class="mx-4 mt-6 rounded-2xl border border-neutral-100 bg-white p-4">
+            <h3 class="mb-3 text-lg font-bold text-neutral-900">이런 꿀팁 어때요?</h3>
+            <div class="noscroll -mx-4 flex gap-3 overflow-x-auto px-4 pb-1">
+              <a href="#" class="w-[210px] shrink-0 overflow-hidden rounded-2xl border border-neutral-100 bg-white">
+                <img src="https://images.unsplash.com/photo-1667133295315-820bb6481730?q=80&w=600&auto=format&fit=crop" alt="임플란트 통증, 얼마나 아플까?" class="h-[112px] w-full object-cover">
+                <div class="p-3">
+                  <p class="mb-1 text-sm font-bold leading-5 text-neutral-900">임플란트 통증, 얼마나 아플까?</p>
+                  <p class="text-xs leading-4 text-neutral-500">시술 단계별로 통증이 언제, 얼마나 느껴지는지 정리했어요.</p>
+                </div>
+              </a>
+              <a href="#" class="w-[210px] shrink-0 overflow-hidden rounded-2xl border border-neutral-100 bg-white">
+                <img src="https://images.unsplash.com/photo-1598256989809-394fa4f6cd26?q=80&w=600&auto=format&fit=crop" alt="투명교정 vs 일반교정 차이점" class="h-[112px] w-full object-cover">
+                <div class="p-3">
+                  <p class="mb-1 text-sm font-bold leading-5 text-neutral-900">투명교정 vs 일반교정 차이점</p>
+                  <p class="text-xs leading-4 text-neutral-500">생활 패턴과 교정 난이도에 따른 선택 기준을 알려드려요.</p>
+                </div>
+              </a>
+              <a href="#" class="w-[210px] shrink-0 overflow-hidden rounded-2xl border border-neutral-100 bg-white">
+                <img src="https://images.unsplash.com/photo-1670250492416-570b5b7343b1?q=80&w=600&auto=format&fit=crop" alt="라미네이트 전 꼭 확인할 것" class="h-[112px] w-full object-cover">
+                <div class="p-3">
+                  <p class="mb-1 text-sm font-bold leading-5 text-neutral-900">라미네이트 전 꼭 확인할 것</p>
+                  <p class="text-xs leading-4 text-neutral-500">시술 전 삭제량과 사후 관리 팁을 정리했어요.</p>
+                </div>
+              </a>
+            </div>
+          </div>
+
+          <!-- 푸터 -->
+          <div class="mt-6 px-4 pb-6">
+            <div class="mb-4 flex items-center justify-between rounded-2xl border border-neutral-100 bg-white p-5">
+              <div class="flex-1 pr-4">
+                <p class="text-base font-bold text-neutral-900">더 많은 시술정보, 앱에서 보기</p>
+                <p class="mt-1 text-sm leading-5 text-neutral-500">앱 출시를 준비중이에요. 준비되면 여기에 QR이 생겨요</p>
+              </div>
+              <div class="flex h-[72px] w-[72px] shrink-0 items-center justify-center rounded-xl border border-dashed border-neutral-200 bg-neutral-50">
+                <i data-lucide="qr-code" class="h-7 w-7 text-neutral-400"></i>
+              </div>
+            </div>
+            <div class="rounded-2xl bg-neutral-100 p-5">
+              <p class="mb-2 text-base font-extrabold text-brand-700">몰라몰라</p>
+              <p class="text-xs leading-5 text-neutral-500">몰라몰라 주식회사 | 대표 홍길동 | 개인정보관리책임자 김보안</p>
+              <p class="text-xs leading-5 text-neutral-500">사업자등록번호 123-45-67890 | 통신판매업신고번호 2026-서울강남-01234</p>
+              <p class="text-xs leading-5 text-neutral-500">서울특별시 강남구 테헤란로 123, 4층 (역삼동)</p>
+              <p class="text-xs leading-5 text-neutral-500">help@molarmolar.example</p>
+              <p class="mt-3 text-[11px] leading-4 text-neutral-500">몰라몰라는 통신판매의 당사자가 아니므로, 의료기관이 등록한 시술 정보 및 상담 등에 대해 책임을 지지 않습니다.</p>
+              <div class="mt-4 flex flex-wrap items-center gap-2">
+                <a href="#" class="text-xs font-medium text-neutral-600">서비스 이용약관</a>
+                <span class="text-xs text-neutral-400">|</span>
+                <a href="#" class="text-xs font-medium text-neutral-600">개인정보 처리방침</a>
+                <span class="text-xs text-neutral-400">|</span>
+                <a href="#" class="text-xs font-medium text-neutral-600">위치기반 서비스 이용약관</a>
+              </div>
+              <div class="mt-4 flex gap-2">
+                <button class="rounded-xl border border-neutral-300 bg-white px-4 py-2.5 text-xs font-semibold text-neutral-700">몰라몰라 알아보기</button>
+                <button class="rounded-xl bg-brand-600 px-4 py-2.5 text-xs font-semibold text-white">병원 입점 문의</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 탭바 -->
+          <nav class="sticky bottom-0 mt-auto flex border-t border-neutral-200 bg-white">
+            <a href="#" class="flex flex-1 flex-col items-center gap-0.5 py-2 text-brand-600">
+              <i data-lucide="house" class="h-[22px] w-[22px]"></i><span class="text-[10px] font-semibold">홈</span>
+            </a>
+            <a href="#" class="flex flex-1 flex-col items-center gap-0.5 py-2 text-neutral-500">
+              <i data-lucide="building-2" class="h-[22px] w-[22px]"></i><span class="text-[10px] font-medium">병원</span>
+            </a>
+            <a href="#" class="flex flex-1 flex-col items-center gap-0.5 py-2 text-neutral-500">
+              <i data-lucide="message-circle" class="h-[22px] w-[22px]"></i><span class="text-[10px] font-medium">커뮤니티</span>
+            </a>
+            <a href="#" class="flex flex-1 flex-col items-center gap-0.5 py-2 text-neutral-500">
+              <i data-lucide="user" class="h-[22px] w-[22px]"></i><span class="text-[10px] font-medium">마이페이지</span>
+            </a>
+          </nav>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================================================= -->
+    <!-- 시안 B · 시술 우선                                                 -->
+    <!-- ================================================================= -->
+    <section class="w-[375px] shrink-0">
+      <div class="mb-4">
+        <h2 class="text-lg font-bold text-neutral-900">시안 B · 시술 우선</h2>
+        <p class="mt-1 text-sm text-neutral-700">첫 화면 안에서 시술 분야 9칸이 전부 보이고, 사진 배너는 한 줄짜리 띠 링크로 줄여요.</p>
+        <p class="mt-3 text-[13px] font-semibold text-neutral-700">바뀐 점</p>
+        <ul class="mt-1 list-disc space-y-1 pl-5 text-[13px] leading-5 text-neutral-700">
+          <li>검색창 바로 아래로 시술 분야 격자를 올려, 스크롤하지 않아도 9칸이 다 보여요</li>
+          <li>분야 아이콘을 brand-600 으로 칠하고 brand-50 원 안에 넣어 누를 곳을 또렷하게 했어요</li>
+          <li>히어로 배너 3장(152px)을 아이콘 + 한 줄 띠 링크 3개(각 52px)로 줄였어요</li>
+          <li>인기 검색어 알약은 `요즘 많이 찾아요` 라는 이름을 달아 검색 묶음 안으로 넣었어요</li>
+          <li>`준비중` 분야는 칸을 흐리게 두지 않고 amber 배지로 상태를 글자로 알려줘요</li>
+        </ul>
+        <p class="mt-3 text-[13px] font-semibold text-neutral-700">새 데이터 필요: 없어요</p>
+      </div>
+
+      <div class="h-[812px] w-[375px] overflow-hidden rounded-[32px] border border-neutral-200 bg-white">
+        <div class="noscroll flex h-full flex-col overflow-y-auto bg-neutral-50">
+
+          <div class="px-4 pt-4">
+            <button class="flex w-full items-center gap-2 rounded-full border border-neutral-200 bg-white px-4 py-3.5 text-left">
+              <i data-lucide="search" class="h-[18px] w-[18px] shrink-0 text-neutral-500"></i>
+              <span class="min-w-0 truncate whitespace-nowrap text-[15px] text-neutral-400">임플란트, 교정 같은 시술을 검색해보세요</span>
+            </button>
+            <p class="mb-2 mt-3 text-xs font-semibold text-neutral-700">요즘 많이 찾아요</p>
+            <div class="noscroll -mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
+              <button class="shrink-0 rounded-full bg-neutral-100 px-3.5 py-2 text-[13px] font-medium text-neutral-700">임플란트</button>
+              <button class="shrink-0 rounded-full bg-neutral-100 px-3.5 py-2 text-[13px] font-medium text-neutral-700">교정</button>
+              <button class="shrink-0 rounded-full bg-neutral-100 px-3.5 py-2 text-[13px] font-medium text-neutral-700">라미네이트</button>
+              <button class="shrink-0 rounded-full bg-neutral-100 px-3.5 py-2 text-[13px] font-medium text-neutral-700">잇몸치료</button>
+              <button class="shrink-0 rounded-full bg-neutral-100 px-3.5 py-2 text-[13px] font-medium text-neutral-700">사랑니</button>
+            </div>
+          </div>
+
+          <!-- 시술로 찾기 (첫 화면) -->
+          <div class="mx-4 mt-5 rounded-2xl border border-neutral-100 bg-white p-4">
+            <div class="mb-3 flex items-center justify-between">
+              <h3 class="text-lg font-bold text-neutral-900">시술로 찾기</h3>
+              <button class="text-sm font-medium text-neutral-500">전체보기</button>
+            </div>
+            <div class="grid grid-cols-3 gap-3">
+              <a href="#" class="flex flex-col items-center rounded-2xl border border-neutral-100 bg-white py-3">
+                <span class="flex h-12 w-12 items-center justify-center rounded-full bg-brand-50 text-brand-600">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M7.4 2.9c1.5-.8 3.1-.4 4.6.3 1.5-.7 3.1-1.1 4.6-.3 1.6.9 2 3 1.3 4.6L17.2 9H6.8l-.7-1.5c-.7-1.6-.3-3.7 1.3-4.6z"/><path d="M10.2 9v2.4h3.6V9"/><path d="M9.4 11.4h5.2l-1.1 8.4a1.5 1.5 0 0 1-3 0z"/><path d="M9.8 14.4l4.5-.9M10.2 17.3l3.8-.8"/></svg>
+                </span>
+                <span class="mt-1.5 text-[13px] font-semibold text-neutral-800">임플란트</span>
+              </a>
+              <a href="#" class="flex flex-col items-center rounded-2xl border border-neutral-100 bg-white py-3">
+                <span class="flex h-12 w-12 items-center justify-center rounded-full bg-brand-50 text-brand-600">
+                  <i data-lucide="droplets" class="h-[26px] w-[26px]" stroke-width="1.75"></i>
+                </span>
+                <span class="mt-1.5 text-center text-[13px] font-semibold leading-4 text-neutral-800">스케일링<br>·예방</span>
+                <span class="mt-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">준비중</span>
+              </a>
+              <a href="#" class="flex flex-col items-center rounded-2xl border border-neutral-100 bg-white py-3">
+                <span class="flex h-12 w-12 items-center justify-center rounded-full bg-brand-50 text-brand-600">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3c1.7-.6 3.3-.2 5 .5 1.7-.7 3.3-1.1 5-.5 2 .8 2.6 3 2.2 5.5-.5 3-1.2 5.2-1.7 8-.4 2.3-.9 4.5-2.1 4.5-1.4 0-1.6-2.6-2-4.3-.3-1.3-.8-2.2-1.4-2.2s-1.1.9-1.4 2.2c-.4 1.7-.6 4.3-2 4.3-1.2 0-1.7-2.2-2.1-4.5-.5-2.8-1.2-5-1.7-8C4.4 6 5 3.8 7 3z"/><rect x="10" y="7.5" width="4" height="4" rx=".8"/><path d="M1.5 9.5H10M14 9.5h8.5"/></svg>
+                </span>
+                <span class="mt-1.5 text-[13px] font-semibold text-neutral-800">교정</span>
+              </a>
+              <a href="#" class="flex flex-col items-center rounded-2xl border border-neutral-100 bg-white py-3">
+                <span class="flex h-12 w-12 items-center justify-center rounded-full bg-brand-50 text-brand-600">
+                  <i data-lucide="shield-check" class="h-[26px] w-[26px]" stroke-width="1.75"></i>
+                </span>
+                <span class="mt-1.5 text-[13px] font-semibold text-neutral-800">충치치료</span>
+              </a>
+              <a href="#" class="flex flex-col items-center rounded-2xl border border-neutral-100 bg-white py-3">
+                <span class="flex h-12 w-12 items-center justify-center rounded-full bg-brand-50 text-brand-600">
+                  <i data-lucide="sparkles" class="h-[26px] w-[26px]" stroke-width="1.75"></i>
+                </span>
+                <span class="mt-1.5 text-[13px] font-semibold text-neutral-800">심미</span>
+              </a>
+              <a href="#" class="flex flex-col items-center rounded-2xl border border-neutral-100 bg-white py-3">
+                <span class="flex h-12 w-12 items-center justify-center rounded-full bg-brand-50 text-brand-600">
+                  <i data-lucide="heart-pulse" class="h-[26px] w-[26px]" stroke-width="1.75"></i>
+                </span>
+                <span class="mt-1.5 text-[13px] font-semibold text-neutral-800">잇몸치료</span>
+              </a>
+              <a href="#" class="flex flex-col items-center rounded-2xl border border-neutral-100 bg-white py-3">
+                <span class="flex h-12 w-12 items-center justify-center rounded-full bg-brand-50 text-brand-600">
+                  <i data-lucide="moon" class="h-[26px] w-[26px]" stroke-width="1.75"></i>
+                </span>
+                <span class="mt-1.5 text-center text-[13px] font-semibold leading-4 text-neutral-800">턱관절<br>·스플린트</span>
+              </a>
+              <a href="#" class="flex flex-col items-center rounded-2xl border border-neutral-100 bg-white py-3">
+                <span class="flex h-12 w-12 items-center justify-center rounded-full bg-brand-50 text-brand-600">
+                  <i data-lucide="syringe" class="h-[26px] w-[26px]" stroke-width="1.75"></i>
+                </span>
+                <span class="mt-1.5 text-[13px] font-semibold text-neutral-800">보톡스</span>
+              </a>
+              <a href="#" class="flex flex-col items-center rounded-2xl border border-neutral-100 bg-white py-3">
+                <span class="flex h-12 w-12 items-center justify-center rounded-full bg-brand-50 text-brand-600">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1.5v5M9.5 4L12 1.5 14.5 4"/><path d="M8.3 9c1.2-.4 2.4-.1 3.7.4 1.3-.5 2.5-.8 3.7-.4 1.5.6 1.9 2.2 1.6 4-.4 2.2-.9 3.8-1.2 5.8-.3 1.7-.7 3.2-1.6 3.2-1 0-1.2-1.9-1.5-3.1-.2-.9-.6-1.6-1-1.6s-.8.7-1 1.6c-.3 1.2-.5 3.1-1.5 3.1-.9 0-1.3-1.5-1.6-3.2-.3-2-.8-3.6-1.2-5.8-.3-1.8.1-3.4 1.6-4z"/></svg>
+                </span>
+                <span class="mt-1.5 text-center text-[13px] font-semibold leading-4 text-neutral-800">사랑니<br>·발치</span>
+              </a>
+            </div>
+          </div>
+
+          <!-- 띠 링크 3개 (배너 대체) -->
+          <div class="mx-4 mt-6 overflow-hidden rounded-2xl border border-neutral-100 bg-white">
+            <a href="#" class="flex items-center gap-3 border-b border-neutral-100 px-4 py-3.5">
+              <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-600"><i data-lucide="badge-check" class="h-[18px] w-[18px]"></i></span>
+              <span class="flex-1 text-sm font-semibold text-neutral-900">전문의가 검증된 병원만 모았어요</span>
+              <i data-lucide="chevron-right" class="h-[18px] w-[18px] shrink-0 text-neutral-500"></i>
+            </a>
+            <a href="#" class="flex items-center gap-3 border-b border-neutral-100 px-4 py-3.5">
+              <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-600"><i data-lucide="map-pin" class="h-[18px] w-[18px]"></i></span>
+              <span class="flex-1 text-sm font-semibold text-neutral-900">내 주변 병원 지도로 보기</span>
+              <i data-lucide="chevron-right" class="h-[18px] w-[18px] shrink-0 text-neutral-500"></i>
+            </a>
+            <a href="#" class="flex items-center gap-3 px-4 py-3.5">
+              <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-600"><i data-lucide="message-circle-question" class="h-[18px] w-[18px]"></i></span>
+              <span class="flex-1 text-sm font-semibold text-neutral-900">궁금한 건 커뮤니티에 물어보세요</span>
+              <i data-lucide="chevron-right" class="h-[18px] w-[18px] shrink-0 text-neutral-500"></i>
+            </a>
+          </div>
+
+          <!-- 이벤트 -->
+          <div class="mx-4 mt-6 rounded-2xl border border-neutral-100 bg-white p-4">
+            <div class="mb-3 flex items-center justify-between">
+              <h3 class="text-lg font-bold text-neutral-900">지금 진행중인 이벤트</h3>
+              <button class="text-sm font-medium text-neutral-500">전체보기</button>
+            </div>
+            <div class="noscroll -mx-4 flex gap-3 overflow-x-auto px-4 pb-1">
+              <a href="#" class="w-[240px] shrink-0 overflow-hidden rounded-2xl border border-neutral-100 bg-white">
+                <div class="relative">
+                  <img src="https://images.unsplash.com/photo-1704455306251-b4634215d98f?q=80&w=600&auto=format&fit=crop" alt="강남 스마일 치과 병원 사진" class="h-[120px] w-full object-cover">
+                  <span class="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-rose-500 px-2.5 py-1 text-xs font-bold text-white"><i data-lucide="tag" class="h-3.5 w-3.5"></i>얼리버드</span>
+                </div>
+                <div class="p-3">
+                  <p class="mb-1 truncate text-sm font-bold text-neutral-900">임플란트 1개 진단+식립 패키지</p>
+                  <p class="mb-1.5 truncate text-xs text-neutral-500">강남 스마일 치과</p>
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-sm font-extrabold text-rose-500">28%</span>
+                    <span class="text-sm font-bold text-neutral-900">1,290,000원</span>
+                  </div>
+                  <p class="text-xs text-neutral-500 line-through">1,800,000원</p>
+                </div>
+              </a>
+              <a href="#" class="w-[240px] shrink-0 overflow-hidden rounded-2xl border border-neutral-100 bg-white">
+                <div class="relative">
+                  <img src="https://images.unsplash.com/photo-1722586663955-2f96a4c1f255?q=80&w=600&auto=format&fit=crop" alt="연세 바른교정치과 병원 사진" class="h-[120px] w-full object-cover">
+                  <span class="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-rose-500 px-2.5 py-1 text-xs font-bold text-white"><i data-lucide="tag" class="h-3.5 w-3.5"></i>첫방문 할인</span>
+                </div>
+                <div class="p-3">
+                  <p class="mb-1 truncate text-sm font-bold text-neutral-900">투명교정 상담+구강스캔 패키지</p>
+                  <p class="mb-1.5 truncate text-xs text-neutral-500">연세 바른교정치과</p>
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-sm font-extrabold text-rose-500">20%</span>
+                    <span class="text-sm font-bold text-neutral-900">5,200,000원</span>
+                  </div>
+                  <p class="text-xs text-neutral-500 line-through">6,500,000원</p>
+                </div>
+              </a>
+            </div>
+          </div>
+
+          <!-- 꿀팁 -->
+          <div class="mx-4 mt-6 rounded-2xl border border-neutral-100 bg-white p-4">
+            <h3 class="mb-3 text-lg font-bold text-neutral-900">이런 꿀팁 어때요?</h3>
+            <div class="noscroll -mx-4 flex gap-3 overflow-x-auto px-4 pb-1">
+              <a href="#" class="w-[210px] shrink-0 overflow-hidden rounded-2xl border border-neutral-100 bg-white">
+                <img src="https://images.unsplash.com/photo-1667133295315-820bb6481730?q=80&w=600&auto=format&fit=crop" alt="임플란트 통증, 얼마나 아플까?" class="h-[112px] w-full object-cover">
+                <div class="p-3">
+                  <p class="mb-1 text-sm font-bold leading-5 text-neutral-900">임플란트 통증, 얼마나 아플까?</p>
+                  <p class="text-xs leading-4 text-neutral-500">시술 단계별로 통증이 언제, 얼마나 느껴지는지 정리했어요.</p>
+                </div>
+              </a>
+              <a href="#" class="w-[210px] shrink-0 overflow-hidden rounded-2xl border border-neutral-100 bg-white">
+                <img src="https://images.unsplash.com/photo-1722586663955-2f96a4c1f255?q=80&w=600&auto=format&fit=crop" alt="스케일링 얼마나 자주 해야 할까?" class="h-[112px] w-full object-cover">
+                <div class="p-3">
+                  <p class="mb-1 text-sm font-bold leading-5 text-neutral-900">스케일링 얼마나 자주 해야 할까?</p>
+                  <p class="text-xs leading-4 text-neutral-500">적정 주기와 스케일링 후 관리 방법을 정리했어요.</p>
+                </div>
+              </a>
+            </div>
+          </div>
+
+          <!-- 푸터 -->
+          <div class="mt-6 px-4 pb-6">
+            <div class="mb-4 flex items-center justify-between rounded-2xl border border-neutral-100 bg-white p-5">
+              <div class="flex-1 pr-4">
+                <p class="text-base font-bold text-neutral-900">더 많은 시술정보, 앱에서 보기</p>
+                <p class="mt-1 text-sm leading-5 text-neutral-500">앱 출시를 준비중이에요. 준비되면 여기에 QR이 생겨요</p>
+              </div>
+              <div class="flex h-[72px] w-[72px] shrink-0 items-center justify-center rounded-xl border border-dashed border-neutral-200 bg-neutral-50">
+                <i data-lucide="qr-code" class="h-7 w-7 text-neutral-400"></i>
+              </div>
+            </div>
+            <div class="rounded-2xl bg-neutral-100 p-5">
+              <p class="mb-2 text-base font-extrabold text-brand-700">몰라몰라</p>
+              <p class="text-xs leading-5 text-neutral-500">몰라몰라 주식회사 | 대표 홍길동 | 개인정보관리책임자 김보안</p>
+              <p class="text-xs leading-5 text-neutral-500">사업자등록번호 123-45-67890 | 통신판매업신고번호 2026-서울강남-01234</p>
+              <p class="text-xs leading-5 text-neutral-500">서울특별시 강남구 테헤란로 123, 4층 (역삼동)</p>
+              <p class="mt-3 text-[11px] leading-4 text-neutral-500">몰라몰라는 통신판매의 당사자가 아니므로, 의료기관이 등록한 시술 정보 및 상담 등에 대해 책임을 지지 않습니다.</p>
+              <div class="mt-4 flex flex-wrap items-center gap-2">
+                <a href="#" class="text-xs font-medium text-neutral-600">서비스 이용약관</a>
+                <span class="text-xs text-neutral-400">|</span>
+                <a href="#" class="text-xs font-medium text-neutral-600">개인정보 처리방침</a>
+                <span class="text-xs text-neutral-400">|</span>
+                <a href="#" class="text-xs font-medium text-neutral-600">위치기반 서비스 이용약관</a>
+              </div>
+              <div class="mt-4 flex gap-2">
+                <button class="rounded-xl border border-neutral-300 bg-white px-4 py-2.5 text-xs font-semibold text-neutral-700">몰라몰라 알아보기</button>
+                <button class="rounded-xl bg-brand-600 px-4 py-2.5 text-xs font-semibold text-white">병원 입점 문의</button>
+              </div>
+            </div>
+          </div>
+
+          <nav class="sticky bottom-0 mt-auto flex border-t border-neutral-200 bg-white">
+            <a href="#" class="flex flex-1 flex-col items-center gap-0.5 py-2 text-brand-600">
+              <i data-lucide="house" class="h-[22px] w-[22px]"></i><span class="text-[10px] font-semibold">홈</span>
+            </a>
+            <a href="#" class="flex flex-1 flex-col items-center gap-0.5 py-2 text-neutral-500">
+              <i data-lucide="building-2" class="h-[22px] w-[22px]"></i><span class="text-[10px] font-medium">병원</span>
+            </a>
+            <a href="#" class="flex flex-1 flex-col items-center gap-0.5 py-2 text-neutral-500">
+              <i data-lucide="message-circle" class="h-[22px] w-[22px]"></i><span class="text-[10px] font-medium">커뮤니티</span>
+            </a>
+            <a href="#" class="flex flex-1 flex-col items-center gap-0.5 py-2 text-neutral-500">
+              <i data-lucide="user" class="h-[22px] w-[22px]"></i><span class="text-[10px] font-medium">마이페이지</span>
+            </a>
+          </nav>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================================================= -->
+    <!-- 시안 C · 가까운 병원                                               -->
+    <!-- ================================================================= -->
+    <section class="w-[375px] shrink-0">
+      <div class="mb-4">
+        <h2 class="text-lg font-bold text-neutral-900">시안 C · 가까운 병원</h2>
+        <p class="mt-1 text-sm text-neutral-700">첫 화면을 `지금 상담 가능한 가까운 병원` 으로 바꾸고, 빠른 조건 칩으로 바로 좁혀요.</p>
+        <p class="mt-3 text-[13px] font-semibold text-neutral-700">바뀐 점</p>
+        <ul class="mt-1 list-disc space-y-1 pl-5 text-[13px] leading-5 text-neutral-700">
+          <li>검색창 아래에 `원데이`·`전문의`·`야간상담` 빠른 조건 칩 줄을 뒀어요 (탐색 화면과 같은 칩)</li>
+          <li>거리순 병원 카드 2.5장을 첫 화면에 올렸어요 — 사진 140px, 찜 하트, `상담신청` 은 탐색 카드와 같은 모양이에요</li>
+          <li>히어로 배너는 병원 목록 아래 한 장으로 줄였고, 시술 격자는 3열 그대로 그 아래예요</li>
+          <li>위치를 허용하면 `내 위치에서 가까운 순` 줄이, 거부하면 안내 + `지역 고르기` 가 같은 자리에 나와요 (C-2)</li>
+          <li>카드 헤드라인을 `지금 상담 가능한 가까운 병원` 으로 적어, 왜 이 순서인지 글자로 설명해요</li>
+        </ul>
+        <p class="mt-3 text-[13px] font-semibold leading-5 text-neutral-700">새 데이터 필요: 홈에서 쓸 반경 질의(탐색의 `lat`·`lng`·`radius` 재사용)와 <strong>`야간상담` 목록 필터</strong> — 야간상담은 지금 병원 상세의 편의정보일 뿐 목록 조건이 아니에요</p>
+      </div>
+
+      <div class="h-[812px] w-[375px] overflow-hidden rounded-[32px] border border-neutral-200 bg-white">
+        <div class="noscroll flex h-full flex-col overflow-y-auto bg-neutral-50">
+
+          <div class="px-4 pt-4">
+            <button class="flex w-full items-center gap-2 rounded-full border border-neutral-200 bg-white px-4 py-3.5 text-left">
+              <i data-lucide="search" class="h-[18px] w-[18px] shrink-0 text-neutral-500"></i>
+              <span class="min-w-0 truncate whitespace-nowrap text-[15px] text-neutral-400">임플란트, 교정 같은 시술을 검색해보세요</span>
+            </button>
+            <div class="noscroll -mx-4 mt-3 flex gap-2 overflow-x-auto px-4 pb-1">
+              <button class="flex shrink-0 items-center gap-1.5 rounded-full border border-brand-600 bg-brand-600 px-3.5 py-2 text-sm font-medium text-white">
+                <i data-lucide="zap" class="h-[14px] w-[14px]"></i>원데이
+              </button>
+              <button class="flex shrink-0 items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">
+                <i data-lucide="badge-check" class="h-[14px] w-[14px]"></i>전문의
+              </button>
+              <button class="flex shrink-0 items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">
+                <i data-lucide="moon" class="h-[14px] w-[14px]"></i>야간상담
+              </button>
+              <button class="flex shrink-0 items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">
+                <i data-lucide="car" class="h-[14px] w-[14px]"></i>주차가능
+              </button>
+            </div>
+          </div>
+
+          <!-- 가까운 병원 -->
+          <div class="mt-5 px-4">
+            <div class="mb-1 flex items-center justify-between">
+              <h3 class="text-lg font-bold text-neutral-900">지금 상담 가능한 가까운 병원</h3>
+              <button class="text-sm font-medium text-neutral-500">전체보기</button>
+            </div>
+            <p class="mb-3 flex items-center gap-1 text-[13px] text-neutral-500">
+              <i data-lucide="map-pin" class="h-[14px] w-[14px]"></i>내 위치에서 가까운 순 · 원데이 조건이 켜져 있어요
+            </p>
+
+            <!-- 병원 카드 1 -->
+            <div class="relative mb-4">
+              <div class="overflow-hidden rounded-2xl border border-neutral-100 bg-white">
+                <img src="https://images.unsplash.com/photo-1704455306251-b4634215d98f?q=80&w=800&auto=format&fit=crop" alt="강남 스마일 치과 병원 사진" class="h-[140px] w-full object-cover">
+                <div class="p-4">
+                  <div class="flex items-center gap-1.5">
+                    <p class="flex-1 truncate text-base font-bold text-neutral-900">강남 스마일 치과</p>
+                    <span class="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">
+                      <i data-lucide="star" class="h-3 w-3"></i>추천
+                    </span>
+                  </div>
+                  <p class="mb-1 truncate text-[13px] font-semibold text-brand-700">임플란트 전문의원</p>
+                  <p class="mb-2 truncate text-[13px] text-neutral-500">서울 강남구 · 1.2km</p>
+                  <div class="mb-3 flex flex-wrap gap-1.5">
+                    <span class="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700"><i data-lucide="zap" class="h-3 w-3"></i>원데이 가능</span>
+                    <span class="rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">치과보철전문의 상주</span>
+                    <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">일반 임플란트</span>
+                  </div>
+                  <div class="mb-3 flex items-center gap-3 text-xs text-neutral-500">
+                    <span>후기 312</span><span>상담 128</span><span>★ 4.8</span>
+                  </div>
+                  <button class="w-full rounded-xl bg-brand-600 py-3 text-sm font-semibold text-white">상담신청</button>
+                </div>
+              </div>
+              <button class="absolute right-2 top-2 flex h-11 w-11 items-center justify-center" aria-label="강남 스마일 치과 찜하기">
+                <span class="flex h-9 w-9 items-center justify-center rounded-full bg-white/90">
+                  <i data-lucide="heart" class="h-5 w-5 text-neutral-600"></i>
+                </span>
+              </button>
+            </div>
+
+            <!-- 병원 카드 2 -->
+            <div class="relative mb-4">
+              <div class="overflow-hidden rounded-2xl border border-neutral-100 bg-white">
+                <img src="https://images.unsplash.com/photo-1722586663955-2f96a4c1f255?q=80&w=800&auto=format&fit=crop" alt="연세 바른교정치과 병원 사진" class="h-[140px] w-full object-cover">
+                <div class="p-4">
+                  <div class="flex items-center gap-1.5">
+                    <p class="flex-1 truncate text-base font-bold text-neutral-900">연세 바른교정치과</p>
+                    <span class="text-[11px] text-neutral-500">광고</span>
+                  </div>
+                  <p class="mb-1 truncate text-[13px] font-semibold text-brand-700">교정 전문치과</p>
+                  <p class="mb-2 truncate text-[13px] text-neutral-500">서울 서초구 · 2.4km</p>
+                  <div class="mb-3 flex flex-wrap gap-1.5">
+                    <span class="rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">치과교정전문의 상주</span>
+                    <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">일반(브라켓)교정</span>
+                  </div>
+                  <div class="mb-3 flex items-center gap-3 text-xs text-neutral-500">
+                    <span>후기 198</span><span>상담 95</span><span>★ 4.6</span>
+                  </div>
+                  <button class="w-full rounded-xl bg-brand-600 py-3 text-sm font-semibold text-white">상담신청</button>
+                </div>
+              </div>
+              <button class="absolute right-2 top-2 flex h-11 w-11 items-center justify-center" aria-label="연세 바른교정치과 찜 해제">
+                <span class="flex h-9 w-9 items-center justify-center rounded-full bg-white/90">
+                  <i data-lucide="heart" class="h-5 w-5 fill-rose-500 text-rose-500"></i>
+                </span>
+              </button>
+            </div>
+
+            <!-- 병원 카드 3 (상담 마감) -->
+            <div class="relative mb-2">
+              <div class="overflow-hidden rounded-2xl border border-neutral-100 bg-white">
+                <img src="https://images.unsplash.com/photo-1667133295315-820bb6481730?q=80&w=800&auto=format&fit=crop" alt="미소가득 치과의원 병원 사진" class="h-[140px] w-full object-cover">
+                <div class="p-4">
+                  <p class="truncate text-base font-bold text-neutral-900">미소가득 치과의원</p>
+                  <p class="mb-1 truncate text-[13px] font-semibold text-brand-700">가족치과 · 일반진료</p>
+                  <p class="mb-2 truncate text-[13px] text-neutral-500">경기 성남시 · 18.6km</p>
+                  <div class="mb-3 flex flex-wrap gap-1.5">
+                    <span class="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700"><i data-lucide="zap" class="h-3 w-3"></i>원데이 가능</span>
+                    <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">레진</span>
+                  </div>
+                  <div class="mb-3 flex items-center gap-3 text-xs text-neutral-500">
+                    <span>후기 421</span><span>상담 210</span><span>★ 4.5</span>
+                  </div>
+                  <button disabled class="w-full rounded-xl bg-neutral-200 py-3 text-sm font-semibold text-neutral-500">상담 마감</button>
+                </div>
+              </div>
+              <button class="absolute right-2 top-2 flex h-11 w-11 items-center justify-center" aria-label="미소가득 치과의원 찜하기">
+                <span class="flex h-9 w-9 items-center justify-center rounded-full bg-white/90">
+                  <i data-lucide="heart" class="h-5 w-5 text-neutral-600"></i>
+                </span>
+              </button>
+            </div>
+          </div>
+
+          <!-- 배너 1장 -->
+          <a href="#" class="relative mx-4 mt-4 flex h-[132px] flex-col justify-center overflow-hidden rounded-[24px] px-5 py-6">
+            <img src="https://images.unsplash.com/photo-1659353888906-adb3e0041693?q=80&w=800&auto=format&fit=crop" alt="흰 가운을 입은 전문 의료진 사진" class="absolute inset-0 h-full w-full object-cover">
+            <span class="absolute inset-0 bg-brand-700/60"></span>
+            <span class="relative mb-1 text-lg font-bold text-white">전문의가 검증된 병원만</span>
+            <span class="relative text-sm text-brand-50">깐깐한 검증을 거친 의료진 정보만 확인하세요</span>
+          </a>
+
+          <!-- 시술 격자 -->
+          <div class="mx-4 mt-6 rounded-2xl border border-neutral-100 bg-white p-4">
+            <div class="mb-3 flex items-center justify-between">
+              <h3 class="text-lg font-bold text-neutral-900">시술로 찾기</h3>
+              <button class="text-sm font-medium text-neutral-500">전체보기</button>
+            </div>
+            <div class="grid grid-cols-3 gap-3">
+              <a href="#" class="flex flex-col items-center rounded-2xl border border-neutral-100 bg-white py-4">
+                <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="text-neutral-500"><path d="M7.4 2.9c1.5-.8 3.1-.4 4.6.3 1.5-.7 3.1-1.1 4.6-.3 1.6.9 2 3 1.3 4.6L17.2 9H6.8l-.7-1.5c-.7-1.6-.3-3.7 1.3-4.6z"/><path d="M10.2 9v2.4h3.6V9"/><path d="M9.4 11.4h5.2l-1.1 8.4a1.5 1.5 0 0 1-3 0z"/><path d="M9.8 14.4l4.5-.9M10.2 17.3l3.8-.8"/></svg>
+                <span class="mt-1.5 text-[13px] font-semibold text-neutral-800">임플란트</span>
+              </a>
+              <a href="#" class="flex flex-col items-center rounded-2xl border border-neutral-100 bg-white py-4">
+                <i data-lucide="droplets" class="h-[26px] w-[26px] text-neutral-500" stroke-width="1.75"></i>
+                <span class="mt-1.5 text-center text-[13px] font-semibold leading-4 text-neutral-800">스케일링<br>·예방</span>
+              </a>
+              <a href="#" class="flex flex-col items-center rounded-2xl border border-neutral-100 bg-white py-4">
+                <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="text-neutral-500"><path d="M7 3c1.7-.6 3.3-.2 5 .5 1.7-.7 3.3-1.1 5-.5 2 .8 2.6 3 2.2 5.5-.5 3-1.2 5.2-1.7 8-.4 2.3-.9 4.5-2.1 4.5-1.4 0-1.6-2.6-2-4.3-.3-1.3-.8-2.2-1.4-2.2s-1.1.9-1.4 2.2c-.4 1.7-.6 4.3-2 4.3-1.2 0-1.7-2.2-2.1-4.5-.5-2.8-1.2-5-1.7-8C4.4 6 5 3.8 7 3z"/><rect x="10" y="7.5" width="4" height="4" rx=".8"/><path d="M1.5 9.5H10M14 9.5h8.5"/></svg>
+                <span class="mt-1.5 text-[13px] font-semibold text-neutral-800">교정</span>
+              </a>
+              <a href="#" class="flex flex-col items-center rounded-2xl border border-neutral-100 bg-white py-4">
+                <i data-lucide="shield-check" class="h-[26px] w-[26px] text-neutral-500" stroke-width="1.75"></i>
+                <span class="mt-1.5 text-[13px] font-semibold text-neutral-800">충치치료</span>
+              </a>
+              <a href="#" class="flex flex-col items-center rounded-2xl border border-neutral-100 bg-white py-4">
+                <i data-lucide="sparkles" class="h-[26px] w-[26px] text-neutral-500" stroke-width="1.75"></i>
+                <span class="mt-1.5 text-[13px] font-semibold text-neutral-800">심미</span>
+              </a>
+              <a href="#" class="flex flex-col items-center rounded-2xl border border-neutral-100 bg-white py-4">
+                <i data-lucide="heart-pulse" class="h-[26px] w-[26px] text-neutral-500" stroke-width="1.75"></i>
+                <span class="mt-1.5 text-[13px] font-semibold text-neutral-800">잇몸치료</span>
+              </a>
+            </div>
+            <button class="mt-3 w-full rounded-xl border border-brand-600 bg-white py-3 text-sm font-semibold text-brand-700">분야 9개 모두 보기</button>
+          </div>
+
+          <!-- 이벤트 -->
+          <div class="mx-4 mt-6 rounded-2xl border border-neutral-100 bg-white p-4">
+            <div class="mb-3 flex items-center justify-between">
+              <h3 class="text-lg font-bold text-neutral-900">지금 진행중인 이벤트</h3>
+              <button class="text-sm font-medium text-neutral-500">전체보기</button>
+            </div>
+            <div class="noscroll -mx-4 flex gap-3 overflow-x-auto px-4 pb-1">
+              <a href="#" class="w-[240px] shrink-0 overflow-hidden rounded-2xl border border-neutral-100 bg-white">
+                <div class="relative">
+                  <img src="https://images.unsplash.com/photo-1609840114035-3c981b782dfe?q=80&w=600&auto=format&fit=crop" alt="리본 수면치과 병원 사진" class="h-[120px] w-full object-cover">
+                  <span class="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-rose-500 px-2.5 py-1 text-xs font-bold text-white"><i data-lucide="tag" class="h-3.5 w-3.5"></i>여름 프로모션</span>
+                </div>
+                <div class="p-3">
+                  <p class="mb-1 truncate text-sm font-bold text-neutral-900">코골이장치 정밀진단 패키지</p>
+                  <p class="mb-1.5 truncate text-xs text-neutral-500">리본 수면치과</p>
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-sm font-extrabold text-rose-500">28%</span>
+                    <span class="text-sm font-bold text-neutral-900">650,000원</span>
+                  </div>
+                  <p class="text-xs text-neutral-500 line-through">900,000원</p>
+                </div>
+              </a>
+              <a href="#" class="w-[240px] shrink-0 overflow-hidden rounded-2xl border border-neutral-100 bg-white">
+                <div class="relative">
+                  <img src="https://images.unsplash.com/photo-1670250492416-570b5b7343b1?q=80&w=600&auto=format&fit=crop" alt="더화이트 라미네이트클리닉 병원 사진" class="h-[120px] w-full object-cover">
+                  <span class="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-rose-500 px-2.5 py-1 text-xs font-bold text-white"><i data-lucide="tag" class="h-3.5 w-3.5"></i>인기</span>
+                </div>
+                <div class="p-3">
+                  <p class="mb-1 truncate text-sm font-bold text-neutral-900">라미네이트 6개 + 미백 세트</p>
+                  <p class="mb-1.5 truncate text-xs text-neutral-500">더화이트 라미네이트클리닉</p>
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-sm font-extrabold text-rose-500">19%</span>
+                    <span class="text-sm font-bold text-neutral-900">3,900,000원</span>
+                  </div>
+                  <p class="text-xs text-neutral-500 line-through">4,800,000원</p>
+                </div>
+              </a>
+            </div>
+          </div>
+
+          <div class="mt-6 px-4 pb-6">
+            <div class="mb-4 flex items-center justify-between rounded-2xl border border-neutral-100 bg-white p-5">
+              <div class="flex-1 pr-4">
+                <p class="text-base font-bold text-neutral-900">더 많은 시술정보, 앱에서 보기</p>
+                <p class="mt-1 text-sm leading-5 text-neutral-500">앱 출시를 준비중이에요. 준비되면 여기에 QR이 생겨요</p>
+              </div>
+              <div class="flex h-[72px] w-[72px] shrink-0 items-center justify-center rounded-xl border border-dashed border-neutral-200 bg-neutral-50">
+                <i data-lucide="qr-code" class="h-7 w-7 text-neutral-400"></i>
+              </div>
+            </div>
+            <div class="rounded-2xl bg-neutral-100 p-5">
+              <p class="mb-2 text-base font-extrabold text-brand-700">몰라몰라</p>
+              <p class="text-xs leading-5 text-neutral-500">몰라몰라 주식회사 | 대표 홍길동 | 개인정보관리책임자 김보안</p>
+              <p class="text-xs leading-5 text-neutral-500">사업자등록번호 123-45-67890 | 통신판매업신고번호 2026-서울강남-01234</p>
+              <p class="text-xs leading-5 text-neutral-500">서울특별시 강남구 테헤란로 123, 4층 (역삼동)</p>
+              <p class="mt-3 text-[11px] leading-4 text-neutral-500">몰라몰라는 통신판매의 당사자가 아니므로, 의료기관이 등록한 시술 정보 및 상담 등에 대해 책임을 지지 않습니다.</p>
+              <div class="mt-4 flex flex-wrap items-center gap-2">
+                <a href="#" class="text-xs font-medium text-neutral-600">서비스 이용약관</a>
+                <span class="text-xs text-neutral-400">|</span>
+                <a href="#" class="text-xs font-medium text-neutral-600">개인정보 처리방침</a>
+                <span class="text-xs text-neutral-400">|</span>
+                <a href="#" class="text-xs font-medium text-neutral-600">위치기반 서비스 이용약관</a>
+              </div>
+              <div class="mt-4 flex gap-2">
+                <button class="rounded-xl border border-neutral-300 bg-white px-4 py-2.5 text-xs font-semibold text-neutral-700">몰라몰라 알아보기</button>
+                <button class="rounded-xl bg-brand-600 px-4 py-2.5 text-xs font-semibold text-white">병원 입점 문의</button>
+              </div>
+            </div>
+          </div>
+
+          <nav class="sticky bottom-0 mt-auto flex border-t border-neutral-200 bg-white">
+            <a href="#" class="flex flex-1 flex-col items-center gap-0.5 py-2 text-brand-600">
+              <i data-lucide="house" class="h-[22px] w-[22px]"></i><span class="text-[10px] font-semibold">홈</span>
+            </a>
+            <a href="#" class="flex flex-1 flex-col items-center gap-0.5 py-2 text-neutral-500">
+              <i data-lucide="building-2" class="h-[22px] w-[22px]"></i><span class="text-[10px] font-medium">병원</span>
+            </a>
+            <a href="#" class="flex flex-1 flex-col items-center gap-0.5 py-2 text-neutral-500">
+              <i data-lucide="message-circle" class="h-[22px] w-[22px]"></i><span class="text-[10px] font-medium">커뮤니티</span>
+            </a>
+            <a href="#" class="flex flex-1 flex-col items-center gap-0.5 py-2 text-neutral-500">
+              <i data-lucide="user" class="h-[22px] w-[22px]"></i><span class="text-[10px] font-medium">마이페이지</span>
+            </a>
+          </nav>
+
+        </div>
+      </div>
+
+      <!-- C-2 · 위치 거부 -->
+      <div class="mb-4 mt-8">
+        <h3 class="text-base font-bold text-neutral-900">시안 C-2 · 위치 거부</h3>
+        <p class="mt-1 text-[13px] leading-5 text-neutral-700">위치 권한이 없으면 거리를 <strong>아예 쓰지 않아요</strong> (탐색 화면과 같은 규칙). 같은 자리에 기존 문구와 `지역 고르기` 가 들어가고, 정렬은 `추천순` 으로 바뀌어요.</p>
+      </div>
+      <div class="h-[812px] w-[375px] overflow-hidden rounded-[32px] border border-neutral-200 bg-white">
+        <div class="noscroll flex h-full flex-col overflow-y-auto bg-neutral-50">
+          <div class="px-4 pt-4">
+            <button class="flex w-full items-center gap-2 rounded-full border border-neutral-200 bg-white px-4 py-3.5 text-left">
+              <i data-lucide="search" class="h-[18px] w-[18px] shrink-0 text-neutral-500"></i>
+              <span class="min-w-0 truncate whitespace-nowrap text-[15px] text-neutral-400">임플란트, 교정 같은 시술을 검색해보세요</span>
+            </button>
+            <div class="noscroll -mx-4 mt-3 flex gap-2 overflow-x-auto px-4 pb-1">
+              <button class="flex shrink-0 items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700"><i data-lucide="zap" class="h-[14px] w-[14px]"></i>원데이</button>
+              <button class="flex shrink-0 items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700"><i data-lucide="badge-check" class="h-[14px] w-[14px]"></i>전문의</button>
+              <button class="flex shrink-0 items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700"><i data-lucide="moon" class="h-[14px] w-[14px]"></i>야간상담</button>
+            </div>
+          </div>
+
+          <div class="mt-5 px-4">
+            <div class="mb-3 flex items-center justify-between">
+              <h3 class="text-lg font-bold text-neutral-900">지금 상담 가능한 병원</h3>
+              <button class="text-sm font-medium text-neutral-500">전체보기</button>
+            </div>
+            <div class="mb-4 rounded-2xl border border-neutral-200 bg-white p-4">
+              <div class="flex items-start gap-2">
+                <i data-lucide="map-pin-off" class="mt-0.5 h-[18px] w-[18px] shrink-0 text-neutral-500"></i>
+                <div class="flex-1">
+                  <p class="text-sm font-semibold leading-5 text-neutral-900">위치 권한을 확인할 수 없어 서울시청을 기준으로 보여드려요</p>
+                  <p class="mt-1 text-[13px] leading-5 text-neutral-500">거리는 표시하지 않고 추천순으로 보여드려요. 지역을 직접 고르면 더 정확해요.</p>
+                </div>
+              </div>
+              <div class="mt-3 flex gap-2">
+                <button class="flex-1 rounded-xl border border-brand-600 bg-white py-3 text-sm font-semibold text-brand-700">지역 고르기</button>
+                <button class="flex-1 rounded-xl bg-brand-600 py-3 text-sm font-semibold text-white">위치 다시 확인</button>
+              </div>
+            </div>
+
+            <div class="relative mb-4">
+              <div class="overflow-hidden rounded-2xl border border-neutral-100 bg-white">
+                <img src="https://images.unsplash.com/photo-1704455306251-b4634215d98f?q=80&w=800&auto=format&fit=crop" alt="강남 스마일 치과 병원 사진" class="h-[140px] w-full object-cover">
+                <div class="p-4">
+                  <div class="flex items-center gap-1.5">
+                    <p class="flex-1 truncate text-base font-bold text-neutral-900">강남 스마일 치과</p>
+                    <span class="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700"><i data-lucide="star" class="h-3 w-3"></i>추천</span>
+                  </div>
+                  <p class="mb-1 truncate text-[13px] font-semibold text-brand-700">임플란트 전문의원</p>
+                  <p class="mb-2 truncate text-[13px] text-neutral-500">서울 강남구</p>
+                  <div class="mb-3 flex flex-wrap gap-1.5">
+                    <span class="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700"><i data-lucide="zap" class="h-3 w-3"></i>원데이 가능</span>
+                    <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">일반 임플란트</span>
+                  </div>
+                  <div class="mb-3 flex items-center gap-3 text-xs text-neutral-500"><span>후기 312</span><span>상담 128</span><span>★ 4.8</span></div>
+                  <button class="w-full rounded-xl bg-brand-600 py-3 text-sm font-semibold text-white">상담신청</button>
+                </div>
+              </div>
+              <button class="absolute right-2 top-2 flex h-11 w-11 items-center justify-center" aria-label="강남 스마일 치과 찜하기">
+                <span class="flex h-9 w-9 items-center justify-center rounded-full bg-white/90"><i data-lucide="heart" class="h-5 w-5 text-neutral-600"></i></span>
+              </button>
+            </div>
+
+            <div class="relative mb-4">
+              <div class="overflow-hidden rounded-2xl border border-neutral-100 bg-white">
+                <img src="https://images.unsplash.com/photo-1722586663955-2f96a4c1f255?q=80&w=800&auto=format&fit=crop" alt="연세 바른교정치과 병원 사진" class="h-[140px] w-full object-cover">
+                <div class="p-4">
+                  <p class="truncate text-base font-bold text-neutral-900">연세 바른교정치과</p>
+                  <p class="mb-1 truncate text-[13px] font-semibold text-brand-700">교정 전문치과</p>
+                  <p class="mb-2 truncate text-[13px] text-neutral-500">서울 서초구</p>
+                  <div class="mb-3 flex flex-wrap gap-1.5">
+                    <span class="rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">치과교정전문의 상주</span>
+                  </div>
+                  <div class="mb-3 flex items-center gap-3 text-xs text-neutral-500"><span>후기 198</span><span>상담 95</span><span>★ 4.6</span></div>
+                  <button class="w-full rounded-xl bg-brand-600 py-3 text-sm font-semibold text-white">상담신청</button>
+                </div>
+              </div>
+              <button class="absolute right-2 top-2 flex h-11 w-11 items-center justify-center" aria-label="연세 바른교정치과 찜하기">
+                <span class="flex h-9 w-9 items-center justify-center rounded-full bg-white/90"><i data-lucide="heart" class="h-5 w-5 text-neutral-600"></i></span>
+              </button>
+            </div>
+          </div>
+
+          <div class="flex-1"></div>
+          <nav class="sticky bottom-0 flex border-t border-neutral-200 bg-white">
+            <a href="#" class="flex flex-1 flex-col items-center gap-0.5 py-2 text-brand-600">
+              <i data-lucide="house" class="h-[22px] w-[22px]"></i><span class="text-[10px] font-semibold">홈</span>
+            </a>
+            <a href="#" class="flex flex-1 flex-col items-center gap-0.5 py-2 text-neutral-500">
+              <i data-lucide="building-2" class="h-[22px] w-[22px]"></i><span class="text-[10px] font-medium">병원</span>
+            </a>
+            <a href="#" class="flex flex-1 flex-col items-center gap-0.5 py-2 text-neutral-500">
+              <i data-lucide="message-circle" class="h-[22px] w-[22px]"></i><span class="text-[10px] font-medium">커뮤니티</span>
+            </a>
+            <a href="#" class="flex flex-1 flex-col items-center gap-0.5 py-2 text-neutral-500">
+              <i data-lucide="user" class="h-[22px] w-[22px]"></i><span class="text-[10px] font-medium">마이페이지</span>
+            </a>
+          </nav>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================================================= -->
+    <!-- 시안 D · 콘텐츠                                                    -->
+    <!-- ================================================================= -->
+    <section class="w-[375px] shrink-0">
+      <div class="mb-4">
+        <h2 class="text-lg font-bold text-neutral-900">시안 D · 콘텐츠</h2>
+        <p class="mt-1 text-sm text-neutral-700">이벤트와 꿀팁을 크게 읽히는 매거진형으로 바꾸고, 시술 격자는 한 줄 알약으로 압축해요.</p>
+        <p class="mt-3 text-[13px] font-semibold text-neutral-700">바뀐 점</p>
+        <ul class="mt-1 list-disc space-y-1 pl-5 text-[13px] leading-5 text-neutral-700">
+          <li>히어로 배너를 없애고, 그 자리를 이벤트 1건의 전체폭 큰 카드(사진 180px)가 대신해요</li>
+          <li>나머지 이벤트 3건은 사진 없는 한 줄 목록으로 묶어 할인율·가격만 비교하게 했어요</li>
+          <li>꿀팁을 가로 스크롤에서 세로 매거진 목록(사진 88px + 제목 + 2줄 요약)으로 바꿨어요</li>
+          <li>꿀팁마다 시술 분야 배지(brand)를 붙여 어떤 분야 글인지 먼저 보여요</li>
+          <li>시술 분야 9칸은 아이콘 + 이름 알약 한 줄 가로 스크롤로 압축해 아래로 내렸어요</li>
+        </ul>
+        <p class="mt-3 text-[13px] font-semibold leading-5 text-neutral-700">새 데이터 필요: 이벤트 <strong>종료일</strong>(`D-5` 같은 남은 기간) — 지금 이벤트 데이터에 기간 필드가 없어요. 꿀팁 날짜·작성자는 이미 있어요</p>
+      </div>
+
+      <div class="h-[812px] w-[375px] overflow-hidden rounded-[32px] border border-neutral-200 bg-white">
+        <div class="noscroll flex h-full flex-col overflow-y-auto bg-neutral-50">
+
+          <div class="px-4 pt-4">
+            <button class="flex w-full items-center gap-2 rounded-full border border-neutral-200 bg-white px-4 py-3.5 text-left">
+              <i data-lucide="search" class="h-[18px] w-[18px] shrink-0 text-neutral-500"></i>
+              <span class="min-w-0 truncate whitespace-nowrap text-[15px] text-neutral-400">임플란트, 교정 같은 시술을 검색해보세요</span>
+            </button>
+          </div>
+
+          <!-- 이벤트 큰 카드 -->
+          <div class="mt-5 px-4">
+            <div class="mb-3 flex items-center justify-between">
+              <h3 class="text-lg font-bold text-neutral-900">지금 진행중인 이벤트</h3>
+              <button class="text-sm font-medium text-neutral-500">전체보기</button>
+            </div>
+            <div class="overflow-hidden rounded-2xl border border-neutral-100 bg-white">
+              <div class="relative">
+                <img src="https://images.unsplash.com/photo-1704455306251-b4634215d98f?q=80&w=800&auto=format&fit=crop" alt="강남 스마일 치과 병원 사진" class="h-[180px] w-full object-cover">
+                <span class="absolute left-4 top-4 inline-flex items-center gap-1 rounded-full bg-rose-500 px-2.5 py-1 text-xs font-bold text-white"><i data-lucide="tag" class="h-3.5 w-3.5"></i>얼리버드</span>
+                <span class="absolute right-4 top-4 inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700"><i data-lucide="clock" class="h-3 w-3"></i>5일 남음</span>
+              </div>
+              <div class="p-4">
+                <p class="text-base font-bold leading-6 text-neutral-900">임플란트 1개 진단+식립 패키지</p>
+                <p class="mt-1 text-[13px] text-neutral-500">강남 스마일 치과 · 서울 강남구</p>
+                <div class="mt-2 flex items-baseline gap-2">
+                  <span class="text-lg font-extrabold text-rose-500">28%</span>
+                  <span class="text-lg font-extrabold text-neutral-900">1,290,000원</span>
+                  <span class="text-[13px] text-neutral-500 line-through">1,800,000원</span>
+                </div>
+                <button class="mt-3 w-full rounded-xl bg-brand-600 py-3.5 text-base font-semibold text-white">병원 보고 상담신청</button>
+              </div>
+            </div>
+
+            <!-- 나머지 이벤트 목록 -->
+            <div class="mt-3 overflow-hidden rounded-2xl border border-neutral-100 bg-white">
+              <a href="#" class="flex items-center gap-3 border-b border-neutral-100 px-4 py-3">
+                <div class="min-w-0 flex-1">
+                  <p class="truncate text-[15px] font-semibold text-neutral-900">투명교정 상담+구강스캔 패키지</p>
+                  <p class="truncate text-[13px] text-neutral-500">연세 바른교정치과 · 첫방문 할인</p>
+                </div>
+                <div class="shrink-0 text-right">
+                  <p class="text-sm font-extrabold text-rose-500">20%</p>
+                  <p class="text-[13px] font-bold text-neutral-900">5,200,000원</p>
+                </div>
+              </a>
+              <a href="#" class="flex items-center gap-3 border-b border-neutral-100 px-4 py-3">
+                <div class="min-w-0 flex-1">
+                  <p class="truncate text-[15px] font-semibold text-neutral-900">코골이장치 정밀진단 패키지</p>
+                  <p class="truncate text-[13px] text-neutral-500">리본 수면치과 · 여름 프로모션</p>
+                </div>
+                <div class="shrink-0 text-right">
+                  <p class="text-sm font-extrabold text-rose-500">28%</p>
+                  <p class="text-[13px] font-bold text-neutral-900">650,000원</p>
+                </div>
+              </a>
+              <a href="#" class="flex items-center gap-3 px-4 py-3">
+                <div class="min-w-0 flex-1">
+                  <p class="truncate text-[15px] font-semibold text-neutral-900">라미네이트 6개 + 미백 세트</p>
+                  <p class="truncate text-[13px] text-neutral-500">더화이트 라미네이트클리닉 · 인기</p>
+                </div>
+                <div class="shrink-0 text-right">
+                  <p class="text-sm font-extrabold text-rose-500">19%</p>
+                  <p class="text-[13px] font-bold text-neutral-900">3,900,000원</p>
+                </div>
+              </a>
+            </div>
+          </div>
+
+          <!-- 꿀팁 매거진 -->
+          <div class="mt-7 px-4">
+            <div class="mb-3 flex items-center justify-between">
+              <h3 class="text-lg font-bold text-neutral-900">이런 꿀팁 어때요?</h3>
+              <button class="text-sm font-medium text-neutral-500">전체보기</button>
+            </div>
+            <div class="overflow-hidden rounded-2xl border border-neutral-100 bg-white">
+              <a href="#" class="flex gap-3 border-b border-neutral-100 p-4">
+                <img src="https://images.unsplash.com/photo-1667133295315-820bb6481730?q=80&w=400&auto=format&fit=crop" alt="임플란트 통증, 얼마나 아플까?" class="h-[88px] w-[88px] shrink-0 rounded-xl object-cover">
+                <div class="min-w-0 flex-1">
+                  <span class="inline-block rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">임플란트</span>
+                  <p class="mt-1.5 text-[15px] font-bold leading-5 text-neutral-900">임플란트 통증, 얼마나 아플까?</p>
+                  <p class="mt-1 text-[13px] leading-4 text-neutral-500">시술 단계별로 통증이 언제, 얼마나 느껴지는지 정리했어요.</p>
+                </div>
+              </a>
+              <a href="#" class="flex gap-3 border-b border-neutral-100 p-4">
+                <img src="https://images.unsplash.com/photo-1598256989809-394fa4f6cd26?q=80&w=400&auto=format&fit=crop" alt="투명교정 vs 일반교정 차이점" class="h-[88px] w-[88px] shrink-0 rounded-xl object-cover">
+                <div class="min-w-0 flex-1">
+                  <span class="inline-block rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">교정</span>
+                  <p class="mt-1.5 text-[15px] font-bold leading-5 text-neutral-900">투명교정 vs 일반교정 차이점</p>
+                  <p class="mt-1 text-[13px] leading-4 text-neutral-500">생활 패턴과 교정 난이도에 따른 선택 기준을 알려드려요.</p>
+                </div>
+              </a>
+              <a href="#" class="flex gap-3 border-b border-neutral-100 p-4">
+                <img src="https://images.unsplash.com/photo-1670250492416-570b5b7343b1?q=80&w=400&auto=format&fit=crop" alt="라미네이트 전 꼭 확인할 것" class="h-[88px] w-[88px] shrink-0 rounded-xl object-cover">
+                <div class="min-w-0 flex-1">
+                  <span class="inline-block rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">심미</span>
+                  <p class="mt-1.5 text-[15px] font-bold leading-5 text-neutral-900">라미네이트 전 꼭 확인할 것</p>
+                  <p class="mt-1 text-[13px] leading-4 text-neutral-500">시술 전 삭제량과 사후 관리 팁을 정리했어요.</p>
+                </div>
+              </a>
+              <a href="#" class="flex gap-3 p-4">
+                <img src="https://images.unsplash.com/photo-1722586663955-2f96a4c1f255?q=80&w=400&auto=format&fit=crop" alt="스케일링 얼마나 자주 해야 할까?" class="h-[88px] w-[88px] shrink-0 rounded-xl object-cover">
+                <div class="min-w-0 flex-1">
+                  <span class="inline-block rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">잇몸치료</span>
+                  <p class="mt-1.5 text-[15px] font-bold leading-5 text-neutral-900">스케일링 얼마나 자주 해야 할까?</p>
+                  <p class="mt-1 text-[13px] leading-4 text-neutral-500">적정 주기와 스케일링 후 관리 방법을 정리했어요.</p>
+                </div>
+              </a>
+            </div>
+          </div>
+
+          <!-- 시술 알약 한 줄 -->
+          <div class="mt-7 px-4">
+            <div class="mb-3 flex items-center justify-between">
+              <h3 class="text-lg font-bold text-neutral-900">시술로 찾기</h3>
+              <button class="text-sm font-medium text-neutral-500">전체보기</button>
+            </div>
+            <div class="noscroll -mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
+              <a href="#" class="flex shrink-0 items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="text-brand-600"><path d="M7.4 2.9c1.5-.8 3.1-.4 4.6.3 1.5-.7 3.1-1.1 4.6-.3 1.6.9 2 3 1.3 4.6L17.2 9H6.8l-.7-1.5c-.7-1.6-.3-3.7 1.3-4.6z"/><path d="M10.2 9v2.4h3.6V9"/><path d="M9.4 11.4h5.2l-1.1 8.4a1.5 1.5 0 0 1-3 0z"/><path d="M9.8 14.4l4.5-.9M10.2 17.3l3.8-.8"/></svg>
+                임플란트
+              </a>
+              <a href="#" class="flex shrink-0 items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="text-brand-600"><path d="M7 3c1.7-.6 3.3-.2 5 .5 1.7-.7 3.3-1.1 5-.5 2 .8 2.6 3 2.2 5.5-.5 3-1.2 5.2-1.7 8-.4 2.3-.9 4.5-2.1 4.5-1.4 0-1.6-2.6-2-4.3-.3-1.3-.8-2.2-1.4-2.2s-1.1.9-1.4 2.2c-.4 1.7-.6 4.3-2 4.3-1.2 0-1.7-2.2-2.1-4.5-.5-2.8-1.2-5-1.7-8C4.4 6 5 3.8 7 3z"/><rect x="10" y="7.5" width="4" height="4" rx=".8"/><path d="M1.5 9.5H10M14 9.5h8.5"/></svg>
+                교정
+              </a>
+              <a href="#" class="flex shrink-0 items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">
+                <i data-lucide="shield-check" class="h-[18px] w-[18px] text-brand-600" stroke-width="1.75"></i>충치치료
+              </a>
+              <a href="#" class="flex shrink-0 items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">
+                <i data-lucide="sparkles" class="h-[18px] w-[18px] text-brand-600" stroke-width="1.75"></i>심미
+              </a>
+              <a href="#" class="flex shrink-0 items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">
+                <i data-lucide="heart-pulse" class="h-[18px] w-[18px] text-brand-600" stroke-width="1.75"></i>잇몸치료
+              </a>
+              <a href="#" class="flex shrink-0 items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">
+                <i data-lucide="moon" class="h-[18px] w-[18px] text-brand-600" stroke-width="1.75"></i>턱관절·스플린트
+              </a>
+              <a href="#" class="flex shrink-0 items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">
+                <i data-lucide="syringe" class="h-[18px] w-[18px] text-brand-600" stroke-width="1.75"></i>보톡스
+              </a>
+              <a href="#" class="flex shrink-0 items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="text-brand-600"><path d="M12 1.5v5M9.5 4L12 1.5 14.5 4"/><path d="M8.3 9c1.2-.4 2.4-.1 3.7.4 1.3-.5 2.5-.8 3.7-.4 1.5.6 1.9 2.2 1.6 4-.4 2.2-.9 3.8-1.2 5.8-.3 1.7-.7 3.2-1.6 3.2-1 0-1.2-1.9-1.5-3.1-.2-.9-.6-1.6-1-1.6s-.8.7-1 1.6c-.3 1.2-.5 3.1-1.5 3.1-.9 0-1.3-1.5-1.6-3.2-.3-2-.8-3.6-1.2-5.8-.3-1.8.1-3.4 1.6-4z"/></svg>
+                사랑니·발치
+              </a>
+              <a href="#" class="flex shrink-0 items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">
+                <i data-lucide="droplets" class="h-[18px] w-[18px] text-brand-600" stroke-width="1.75"></i>스케일링·예방
+                <span class="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">준비중</span>
+              </a>
+            </div>
+          </div>
+
+          <!-- 커뮤니티 한 줄 -->
+          <a href="#" class="mx-4 mt-6 flex items-center gap-3 rounded-2xl border border-neutral-100 bg-white px-4 py-4">
+            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-600"><i data-lucide="message-circle-question" class="h-5 w-5"></i></span>
+            <span class="min-w-0 flex-1">
+              <span class="block text-[15px] font-semibold text-neutral-900">궁금한 건 커뮤니티에 물어보세요</span>
+              <span class="block text-[13px] text-neutral-500">먼저 경험한 사람들의 솔직한 후기와 답변</span>
+            </span>
+            <i data-lucide="chevron-right" class="h-[18px] w-[18px] shrink-0 text-neutral-500"></i>
+          </a>
+
+          <div class="mt-6 px-4 pb-6">
+            <div class="mb-4 flex items-center justify-between rounded-2xl border border-neutral-100 bg-white p-5">
+              <div class="flex-1 pr-4">
+                <p class="text-base font-bold text-neutral-900">더 많은 시술정보, 앱에서 보기</p>
+                <p class="mt-1 text-sm leading-5 text-neutral-500">앱 출시를 준비중이에요. 준비되면 여기에 QR이 생겨요</p>
+              </div>
+              <div class="flex h-[72px] w-[72px] shrink-0 items-center justify-center rounded-xl border border-dashed border-neutral-200 bg-neutral-50">
+                <i data-lucide="qr-code" class="h-7 w-7 text-neutral-400"></i>
+              </div>
+            </div>
+            <div class="rounded-2xl bg-neutral-100 p-5">
+              <p class="mb-2 text-base font-extrabold text-brand-700">몰라몰라</p>
+              <p class="text-xs leading-5 text-neutral-500">몰라몰라 주식회사 | 대표 홍길동 | 개인정보관리책임자 김보안</p>
+              <p class="text-xs leading-5 text-neutral-500">사업자등록번호 123-45-67890 | 통신판매업신고번호 2026-서울강남-01234</p>
+              <p class="text-xs leading-5 text-neutral-500">서울특별시 강남구 테헤란로 123, 4층 (역삼동)</p>
+              <p class="mt-3 text-[11px] leading-4 text-neutral-500">몰라몰라는 통신판매의 당사자가 아니므로, 의료기관이 등록한 시술 정보 및 상담 등에 대해 책임을 지지 않습니다.</p>
+              <div class="mt-4 flex flex-wrap items-center gap-2">
+                <a href="#" class="text-xs font-medium text-neutral-600">서비스 이용약관</a>
+                <span class="text-xs text-neutral-400">|</span>
+                <a href="#" class="text-xs font-medium text-neutral-600">개인정보 처리방침</a>
+                <span class="text-xs text-neutral-400">|</span>
+                <a href="#" class="text-xs font-medium text-neutral-600">위치기반 서비스 이용약관</a>
+              </div>
+              <div class="mt-4 flex gap-2">
+                <button class="rounded-xl border border-neutral-300 bg-white px-4 py-2.5 text-xs font-semibold text-neutral-700">몰라몰라 알아보기</button>
+                <button class="rounded-xl bg-brand-600 px-4 py-2.5 text-xs font-semibold text-white">병원 입점 문의</button>
+              </div>
+            </div>
+          </div>
+
+          <nav class="sticky bottom-0 mt-auto flex border-t border-neutral-200 bg-white">
+            <a href="#" class="flex flex-1 flex-col items-center gap-0.5 py-2 text-brand-600">
+              <i data-lucide="house" class="h-[22px] w-[22px]"></i><span class="text-[10px] font-semibold">홈</span>
+            </a>
+            <a href="#" class="flex flex-1 flex-col items-center gap-0.5 py-2 text-neutral-500">
+              <i data-lucide="building-2" class="h-[22px] w-[22px]"></i><span class="text-[10px] font-medium">병원</span>
+            </a>
+            <a href="#" class="flex flex-1 flex-col items-center gap-0.5 py-2 text-neutral-500">
+              <i data-lucide="message-circle" class="h-[22px] w-[22px]"></i><span class="text-[10px] font-medium">커뮤니티</span>
+            </a>
+            <a href="#" class="flex flex-1 flex-col items-center gap-0.5 py-2 text-neutral-500">
+              <i data-lucide="user" class="h-[22px] w-[22px]"></i><span class="text-[10px] font-medium">마이페이지</span>
+            </a>
+          </nav>
+
+        </div>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<script>lucide.createIcons();</script>
+</body>
+</html>

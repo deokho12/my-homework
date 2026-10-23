@@ -1,0 +1,863 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>상담 신청 시안 · 몰라몰라</title>
+    <script src="https://cdn.tailwindcss.com/3.4.16"></script>
+    <script>
+      tailwind.config = { theme: { extend: { colors: { brand: {50:'#eefcf9',100:'#d4f6ef',200:'#abecdf',300:'#79dccb',400:'#45c4b0',500:'#22a696',600:'#17847a',700:'#166863',800:'#16534f',900:'#154543'} }, fontFamily: { sans: ['-apple-system','BlinkMacSystemFont','"Segoe UI"','Roboto','"Apple SD Gothic Neo"','"Malgun Gothic"','sans-serif'] } } } }
+    </script>
+    <script src="https://unpkg.com/lucide@0.475.0/dist/umd/lucide.min.js"></script>
+    <style>
+      body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+      /* 시안 안의 입력은 눌러볼 수 없는 정적 그림이다 — 캐럿이 깜빡이면 진짜 폼처럼 보인다 */
+      .frame input, .frame textarea { pointer-events: none; }
+    </style>
+  </head>
+  <body class="bg-neutral-50 text-neutral-900">
+    <div class="mx-auto max-w-[1700px] px-8 py-10">
+      <h1 class="text-2xl font-extrabold text-neutral-900">상담 신청 시안</h1>
+      <p class="mt-2 max-w-3xl text-sm leading-relaxed text-neutral-700 break-keep">
+        병원 상세에서 들어오는 <code class="rounded bg-white px-1.5 py-0.5 text-[13px] text-neutral-700">/consult/:hospitalId</code> 화면의 네 가지 방향이에요.
+        모두 375px 모바일 기준이고, 샘플 병원은 <b>서울바른치과</b>, 로그인한 사람은 <b>김민지</b>예요.
+        칩의 선택·비선택, 제출 버튼의 활성·비활성, 오류와 완료 화면이 모두 실제 문구로 들어 있어요.
+      </p>
+
+      <div class="mt-10 flex flex-wrap items-start gap-10">
+        <!-- =========================================================
+             시안 A · 정돈 한 페이지
+        ========================================================== -->
+        <section class="flex w-[375px] flex-col gap-8">
+          <div class="w-[375px]">
+            <h2 class="text-[18px] font-bold text-neutral-900">시안 A · 정돈 한 페이지</h2>
+            <p class="mt-1 text-sm leading-relaxed text-neutral-700 break-keep">
+              지금의 필드와 순서를 그대로 두고, 흩어져 있던 칸을 세 개의 섹션 카드로 묶었어요. 제출은 하단 고정 바에서 해요.
+            </p>
+            <ul class="mt-3 space-y-1.5 text-[13px] leading-relaxed text-neutral-700">
+              <li class="flex gap-2"><span class="text-brand-600">•</span><span class="break-keep">폼을 <b>상담 내용 / 연락받을 정보 / 동의</b> 세 섹션 카드로 묶었어요. 무엇을 몇 개 답해야 하는지가 한눈에 보여요</span></li>
+              <li class="flex gap-2"><span class="text-brand-600">•</span><span class="break-keep"><b>제출 버튼을 하단 고정 바</b>로 옮겼어요. 긴 폼에서 끝까지 스크롤하지 않아도 보여요. 비활성 안내 문구는 버튼 위로 올라와요</span></li>
+              <li class="flex gap-2"><span class="text-brand-600">•</span><span class="break-keep">힌트·안내 글자색을 <b>neutral-400 → neutral-500</b>으로 올렸어요 (흰 바탕 대비 2.5:1은 읽기 어려워요)</span></li>
+              <li class="flex gap-2"><span class="text-brand-600">•</span><span class="break-keep">동의 체크박스를 <b>20px</b>로 키우고 카드 전체를 rounded-2xl로 맞췄어요</span></li>
+              <li class="flex gap-2"><span class="text-brand-600">•</span><span class="break-keep">제출 실패를 <b>브라우저 알림창 대신 화면 안 배너</b>로 (A-3). 알림창은 문구가 잘리고 다시 시도 버튼을 둘 수 없어요</span></li>
+            </ul>
+            <p class="mt-3 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs leading-relaxed text-neutral-700 break-keep">
+              새 데이터 필요: 없음 — 지금 화면이 쓰는 값(병원, 시술 목록, 계정 이름, 지난 신청 연락처)만 써요.
+            </p>
+          </div>
+
+          <!-- 프레임 A -->
+          <div class="frame w-[375px] h-[812px] overflow-hidden rounded-[32px] border border-neutral-200 bg-white">
+            <div class="h-full overflow-y-auto">
+              <div class="flex min-h-full flex-col">
+                <!-- AppHeader -->
+                <header class="sticky top-0 z-10 flex h-14 items-center gap-1 border-b border-neutral-100 bg-white px-2">
+                  <button class="flex h-10 w-10 items-center justify-center rounded-full" aria-label="뒤로">
+                    <i data-lucide="chevron-left" class="h-6 w-6 text-neutral-900"></i>
+                  </button>
+                  <h1 class="text-[17px] font-semibold text-neutral-900">상담 신청</h1>
+                </header>
+
+                <main class="flex-1 space-y-6 px-4 py-4">
+                  <!-- 병원 요약 -->
+                  <div class="rounded-2xl border border-neutral-100 bg-neutral-50 px-4 py-3">
+                    <p class="text-base font-bold text-neutral-900">서울바른치과</p>
+                    <p class="mt-0.5 truncate text-sm text-neutral-500">강남구 · 서울 강남구 테헤란로 123</p>
+                  </div>
+
+                  <!-- 1. 상담 내용 -->
+                  <section class="rounded-2xl border border-neutral-100 bg-white p-4">
+                    <h2 class="text-base font-bold text-neutral-900">상담 내용</h2>
+
+                    <p class="mt-3 text-sm font-semibold text-neutral-700">어떤 시술을 상담받고 싶으세요?</p>
+                    <div class="mt-2 flex flex-wrap gap-2">
+                      <span class="rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">임플란트 · 일반 임플란트</span>
+                      <span class="rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">임플란트 · 뼈이식</span>
+                      <span class="rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">충치치료 · 레진</span>
+                      <span class="rounded-full border border-brand-600 bg-brand-600 px-3.5 py-2 text-sm font-medium text-white">충치치료 · 크라운</span>
+                      <span class="rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">충치치료 · 신경치료</span>
+                      <span class="rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">교정 · 투명교정</span>
+                      <span class="rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">사랑니·발치 · 사랑니 발치</span>
+                      <span class="rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">잘 모르겠어요</span>
+                    </div>
+
+                    <div class="mt-4 border-t border-neutral-100 pt-4">
+                      <p class="text-sm font-semibold text-neutral-700">언제 연락받기 편하세요?</p>
+                      <div class="mt-2 grid grid-cols-2 gap-2">
+                        <span class="rounded-xl border border-neutral-200 bg-white px-4 py-3 text-center text-sm font-medium text-neutral-700">평일 오전</span>
+                        <span class="rounded-xl border border-brand-600 bg-brand-600 px-4 py-3 text-center text-sm font-medium text-white">평일 오후</span>
+                        <span class="rounded-xl border border-neutral-200 bg-white px-4 py-3 text-center text-sm font-medium text-neutral-700">평일 저녁</span>
+                        <span class="rounded-xl border border-neutral-200 bg-white px-4 py-3 text-center text-sm font-medium text-neutral-700">주말</span>
+                      </div>
+                    </div>
+                  </section>
+
+                  <!-- 2. 연락받을 정보 -->
+                  <section class="rounded-2xl border border-neutral-100 bg-white p-4">
+                    <h2 class="text-base font-bold text-neutral-900">연락받을 정보</h2>
+
+                    <div class="mt-3">
+                      <label class="block text-sm font-semibold text-neutral-700">이름</label>
+                      <input class="mt-2 w-full rounded-xl border border-neutral-200 px-4 py-3 text-[15px] text-neutral-900 outline-none" value="김민지" readonly />
+                      <p class="mt-1.5 text-xs text-neutral-500">계정 정보에서 자동으로 채웠어요</p>
+                    </div>
+
+                    <div class="mt-4">
+                      <label class="block text-sm font-semibold text-neutral-700">연락처</label>
+                      <input class="mt-2 w-full rounded-xl border border-neutral-200 px-4 py-3 text-[15px] text-neutral-900 outline-none" value="010-2345-6789" readonly />
+                      <p class="mt-1.5 text-xs text-neutral-500">지난 상담 신청에 쓴 번호예요</p>
+                    </div>
+
+                    <div class="mt-4">
+                      <label class="block text-sm font-semibold text-neutral-700">남기고 싶은 말 (선택)</label>
+                      <textarea rows="3" class="mt-2 min-h-[96px] w-full resize-none rounded-xl border border-neutral-200 px-4 py-3 text-[15px] text-neutral-900 placeholder:text-neutral-400 outline-none" placeholder="궁금한 점이나 요청사항을 적어주세요" readonly></textarea>
+                      <p class="mt-1.5 text-xs text-neutral-500">0 / 2000</p>
+                    </div>
+                  </section>
+
+                  <!-- 3. 동의 -->
+                  <section class="rounded-2xl border border-neutral-100 bg-white p-4">
+                    <div class="flex items-start gap-3">
+                      <input type="checkbox" class="mt-0.5 h-5 w-5 shrink-0 accent-brand-600" />
+                      <div class="min-w-0 flex-1">
+                        <p class="text-sm font-bold text-neutral-900">[필수] 개인정보 제3자 제공 동의</p>
+                        <p class="mt-1 text-sm leading-relaxed text-neutral-500 break-keep">상담 연락을 위해 이름과 연락처를 서울바른치과에 제공해요.</p>
+                        <button class="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-brand-700 underline">
+                          자세히 <i data-lucide="chevron-right" class="h-3.5 w-3.5"></i>
+                        </button>
+                      </div>
+                    </div>
+                  </section>
+                </main>
+
+                <!-- 하단 고정 바 -->
+                <div class="sticky bottom-0 border-t border-neutral-100 bg-white px-4 pb-4 pt-3">
+                  <p class="mb-2 text-center text-xs text-neutral-500">이름 · 연락처 · 동의를 모두 채우면 신청할 수 있어요</p>
+                  <button class="w-full rounded-xl bg-brand-600 py-3.5 text-base font-semibold text-white opacity-40">상담 신청하기</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 프레임 A-2 -->
+          <div>
+            <p class="mb-2 text-[13px] font-semibold text-neutral-700">시안 A-2 · 완료 화면 (같은 주소에서 폼을 대신해요)</p>
+            <div class="frame w-[375px] h-[812px] overflow-hidden rounded-[32px] border border-neutral-200 bg-white">
+              <div class="h-full overflow-y-auto">
+                <div class="flex min-h-full flex-col">
+                  <header class="sticky top-0 z-10 flex h-14 items-center gap-1 border-b border-neutral-100 bg-white px-2">
+                    <button class="flex h-10 w-10 items-center justify-center rounded-full" aria-label="뒤로">
+                      <i data-lucide="chevron-left" class="h-6 w-6 text-neutral-900"></i>
+                    </button>
+                    <h1 class="text-[17px] font-semibold text-neutral-900">상담 신청</h1>
+                  </header>
+
+                  <main class="flex-1 px-4 pb-6 pt-8">
+                    <div class="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-brand-50">
+                      <i data-lucide="check" class="h-10 w-10 text-brand-600"></i>
+                    </div>
+                    <h2 class="text-center text-xl font-extrabold text-neutral-900">상담 신청이 접수되었어요</h2>
+                    <p class="mt-2 text-center text-sm leading-relaxed text-neutral-500 break-keep">
+                      서울바른치과에서 확인 후 평일 오후에 연락드릴 예정이에요.
+                    </p>
+                    <p class="mt-1 text-center text-sm leading-relaxed text-neutral-500 break-keep">
+                      병원이 상태를 바꾸면 알림으로 알려드릴게요.
+                    </p>
+
+                    <dl class="mt-6 rounded-2xl border border-neutral-100 bg-neutral-50 px-4 py-1">
+                      <div class="flex items-start justify-between gap-4 border-b border-neutral-100 py-3">
+                        <dt class="shrink-0 text-sm text-neutral-500">병원</dt>
+                        <dd class="min-w-0 flex-1 text-right text-sm font-semibold text-neutral-900">서울바른치과</dd>
+                      </div>
+                      <div class="flex items-start justify-between gap-4 border-b border-neutral-100 py-3">
+                        <dt class="shrink-0 text-sm text-neutral-500">시술</dt>
+                        <dd class="min-w-0 flex-1 text-right text-sm font-semibold text-neutral-900">충치치료 · 크라운</dd>
+                      </div>
+                      <div class="flex items-start justify-between gap-4 border-b border-neutral-100 py-3">
+                        <dt class="shrink-0 text-sm text-neutral-500">연락 시간</dt>
+                        <dd class="min-w-0 flex-1 text-right text-sm font-semibold text-neutral-900">평일 오후</dd>
+                      </div>
+                      <div class="flex items-center justify-between gap-4 py-3">
+                        <dt class="shrink-0 text-sm text-neutral-500">상태</dt>
+                        <dd class="flex min-w-0 flex-1 justify-end">
+                          <span class="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700">신규</span>
+                        </dd>
+                      </div>
+                    </dl>
+
+                    <div class="mt-5 flex items-start gap-2 rounded-2xl border border-neutral-100 bg-white px-4 py-3">
+                      <i data-lucide="clock" class="mt-0.5 h-[18px] w-[18px] shrink-0 text-neutral-500"></i>
+                      <p class="text-[13px] leading-relaxed text-neutral-500 break-keep">
+                        연락이 오지 않으면 상담 내역에서 병원 번호로 직접 전화할 수 있어요.
+                      </p>
+                    </div>
+                  </main>
+
+                  <div class="sticky bottom-0 space-y-2 border-t border-neutral-100 bg-white px-4 pb-4 pt-3">
+                    <button class="w-full rounded-xl bg-brand-600 py-3.5 text-base font-semibold text-white">내 상담 내역 보기</button>
+                    <button class="w-full rounded-xl border border-brand-600 py-3.5 text-base font-semibold text-brand-700">병원 상세로 돌아가기</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 프레임 A-3 -->
+          <div>
+            <p class="mb-2 text-[13px] font-semibold text-neutral-700">시안 A-3 · 오류 (연락처 형식 + 제출 실패)</p>
+            <div class="frame w-[375px] h-[812px] overflow-hidden rounded-[32px] border border-neutral-200 bg-white">
+              <div class="h-full overflow-y-auto">
+                <div class="flex min-h-full flex-col">
+                  <header class="sticky top-0 z-10 flex h-14 items-center gap-1 border-b border-neutral-100 bg-white px-2">
+                    <button class="flex h-10 w-10 items-center justify-center rounded-full" aria-label="뒤로">
+                      <i data-lucide="chevron-left" class="h-6 w-6 text-neutral-900"></i>
+                    </button>
+                    <h1 class="text-[17px] font-semibold text-neutral-900">상담 신청</h1>
+                  </header>
+
+                  <main class="flex-1 space-y-6 px-4 py-4">
+                    <!-- 제출 실패 배너 -->
+                    <div class="rounded-2xl border border-rose-400 bg-white p-4" role="alert">
+                      <div class="flex items-start gap-2">
+                        <i data-lucide="alert-circle" class="mt-0.5 h-[18px] w-[18px] shrink-0 text-rose-500"></i>
+                        <div class="min-w-0 flex-1">
+                          <p class="text-sm font-bold text-neutral-900">상담 신청을 접수하지 못했어요</p>
+                          <p class="mt-1 text-[13px] leading-relaxed text-neutral-700 break-keep">잠시 후 다시 시도해주세요. 계속 안 되면 병원에 직접 전화해도 괜찮아요.</p>
+                          <button class="mt-2.5 rounded-xl border border-brand-600 px-3.5 py-2 text-sm font-semibold text-brand-700">다시 시도</button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="rounded-2xl border border-neutral-100 bg-neutral-50 px-4 py-3">
+                      <p class="text-base font-bold text-neutral-900">서울바른치과</p>
+                      <p class="mt-0.5 truncate text-sm text-neutral-500">강남구 · 서울 강남구 테헤란로 123</p>
+                    </div>
+
+                    <section class="rounded-2xl border border-neutral-100 bg-white p-4">
+                      <h2 class="text-base font-bold text-neutral-900">상담 내용</h2>
+                      <p class="mt-3 text-sm font-semibold text-neutral-700">어떤 시술을 상담받고 싶으세요?</p>
+                      <div class="mt-2 flex flex-wrap gap-2">
+                        <span class="rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">임플란트 · 일반 임플란트</span>
+                        <span class="rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">충치치료 · 레진</span>
+                        <span class="rounded-full border border-brand-600 bg-brand-600 px-3.5 py-2 text-sm font-medium text-white">잘 모르겠어요</span>
+                      </div>
+                    </section>
+
+                    <section class="rounded-2xl border border-neutral-100 bg-white p-4">
+                      <h2 class="text-base font-bold text-neutral-900">연락받을 정보</h2>
+
+                      <div class="mt-3">
+                        <label class="block text-sm font-semibold text-neutral-700">이름</label>
+                        <input class="mt-2 w-full rounded-xl border border-rose-400 px-4 py-3 text-[15px] placeholder:text-neutral-400 outline-none" placeholder="이름을 입력해주세요" />
+                        <p class="mt-1.5 flex items-center gap-1 text-xs text-rose-500">
+                          <i data-lucide="alert-circle" class="h-3.5 w-3.5"></i> 이름을 입력해주세요
+                        </p>
+                      </div>
+
+                      <div class="mt-4">
+                        <label class="block text-sm font-semibold text-neutral-700">연락처</label>
+                        <input class="mt-2 w-full rounded-xl border border-rose-400 px-4 py-3 text-[15px] text-neutral-900 outline-none" value="010-234" readonly />
+                        <p class="mt-1.5 flex items-start gap-1 text-xs leading-relaxed text-rose-500 break-keep">
+                          <i data-lucide="alert-circle" class="mt-0.5 h-3.5 w-3.5 shrink-0"></i>
+                          <span>휴대폰 번호 형식이 아니에요. 010-1234-5678 처럼 입력해주세요</span>
+                        </p>
+                      </div>
+                    </section>
+
+                    <section class="rounded-2xl border border-neutral-100 bg-white p-4">
+                      <div class="flex items-start gap-3">
+                        <input type="checkbox" class="mt-0.5 h-5 w-5 shrink-0 accent-brand-600" checked />
+                        <div class="min-w-0 flex-1">
+                          <p class="text-sm font-bold text-neutral-900">[필수] 개인정보 제3자 제공 동의</p>
+                          <p class="mt-1 text-sm leading-relaxed text-neutral-500 break-keep">상담 연락을 위해 이름과 연락처를 서울바른치과에 제공해요.</p>
+                          <button class="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-brand-700 underline">
+                            자세히 <i data-lucide="chevron-right" class="h-3.5 w-3.5"></i>
+                          </button>
+                        </div>
+                      </div>
+                    </section>
+                  </main>
+
+                  <div class="sticky bottom-0 border-t border-neutral-100 bg-white px-4 pb-4 pt-3">
+                    <p class="mb-2 text-center text-xs text-neutral-500">이름 · 연락처 · 동의를 모두 채우면 신청할 수 있어요</p>
+                    <button class="w-full rounded-xl bg-brand-600 py-3.5 text-base font-semibold text-white opacity-40">상담 신청하기</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- =========================================================
+             시안 B · 단계형
+        ========================================================== -->
+        <section class="flex w-[375px] flex-col gap-8">
+          <div class="w-[375px]">
+            <h2 class="text-[18px] font-bold text-neutral-900">시안 B · 세 걸음</h2>
+            <p class="mt-1 text-sm leading-relaxed text-neutral-700 break-keep">
+              한 화면에 질문 하나만 둬요. 1 시술 → 2 연락 시간 → 3 연락처·동의 순서로 넘어가고, 마지막에 요약을 보고 신청해요.
+            </p>
+            <ul class="mt-3 space-y-1.5 text-[13px] leading-relaxed text-neutral-700">
+              <li class="flex gap-2"><span class="text-brand-600">•</span><span class="break-keep">헤더 아래 <b>3칸 진행 바</b>와 <code class="text-[12px]">1 / 3</code>. 남은 걸음이 보여서 긴 폼의 부담이 줄어요</span></li>
+              <li class="flex gap-2"><span class="text-brand-600">•</span><span class="break-keep">시술을 칩 대신 <b>대분류로 묶은 목록 행</b>으로 — 병원이 시술을 10개 넘게 등록하면 칩 밭은 읽기 어려워요. 터치 영역도 48px로 커져요</span></li>
+              <li class="flex gap-2"><span class="text-brand-600">•</span><span class="break-keep">마지막 걸음에 <b>앞 단계 요약 + 수정</b> 줄이 있어서 되돌아가기 쉬워요</span></li>
+              <li class="flex gap-2"><span class="text-brand-600">•</span><span class="break-keep">하단 고정 바에 <b>이전 / 다음</b>. 3단계에서만 <b>상담 신청하기</b>가 돼요</span></li>
+              <li class="flex gap-2"><span class="text-brand-600">•</span><span class="break-keep">완료 화면은 A-2와 같아요 (따로 그리지 않았어요)</span></li>
+            </ul>
+            <p class="mt-3 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs leading-relaxed text-neutral-700 break-keep">
+              새 데이터 필요: 없음 — 시술 목록을 대분류로 묶는 일은 지금도 화면이 하고 있어요(groupProcedureIdsByCategory).
+            </p>
+          </div>
+
+          <!-- 프레임 B (1단계) -->
+          <div class="frame w-[375px] h-[812px] overflow-hidden rounded-[32px] border border-neutral-200 bg-white">
+            <div class="h-full overflow-y-auto">
+              <div class="flex min-h-full flex-col">
+                <header class="sticky top-0 z-10 border-b border-neutral-100 bg-white">
+                  <div class="flex h-14 items-center gap-1 px-2">
+                    <button class="flex h-10 w-10 items-center justify-center rounded-full" aria-label="뒤로">
+                      <i data-lucide="chevron-left" class="h-6 w-6 text-neutral-900"></i>
+                    </button>
+                    <h1 class="text-[17px] font-semibold text-neutral-900">상담 신청</h1>
+                    <span class="ml-auto pr-4 text-[13px] font-medium text-neutral-500">1 / 3</span>
+                  </div>
+                  <div class="flex gap-1.5 px-4 pb-3">
+                    <span class="h-1 flex-1 rounded-full bg-brand-600"></span>
+                    <span class="h-1 flex-1 rounded-full bg-neutral-100"></span>
+                    <span class="h-1 flex-1 rounded-full bg-neutral-100"></span>
+                  </div>
+                </header>
+
+                <main class="flex-1 px-4 pb-6 pt-5">
+                  <p class="text-[13px] font-semibold text-brand-700">서울바른치과</p>
+                  <h2 class="mt-1 text-xl font-extrabold text-neutral-900">어떤 시술을 상담받고 싶으세요?</h2>
+                  <p class="mt-2 text-sm leading-relaxed text-neutral-500 break-keep">고르지 않아도 신청할 수 있어요. 병원에서 상담하며 정해도 괜찮아요.</p>
+
+                  <p class="mt-6 text-[13px] font-semibold text-neutral-500">임플란트</p>
+                  <div class="mt-2 space-y-2">
+                    <div class="flex items-center justify-between rounded-xl border border-neutral-200 bg-white px-4 py-3.5">
+                      <span class="text-[15px] text-neutral-900">일반 임플란트</span>
+                    </div>
+                    <div class="flex items-center justify-between rounded-xl border border-neutral-200 bg-white px-4 py-3.5">
+                      <span class="text-[15px] text-neutral-900">뼈이식</span>
+                    </div>
+                  </div>
+
+                  <p class="mt-5 text-[13px] font-semibold text-neutral-500">충치치료</p>
+                  <div class="mt-2 space-y-2">
+                    <div class="flex items-center justify-between rounded-xl border border-neutral-200 bg-white px-4 py-3.5">
+                      <span class="text-[15px] text-neutral-900">레진</span>
+                    </div>
+                    <div class="flex items-center justify-between rounded-xl border border-brand-600 bg-brand-50 px-4 py-3.5">
+                      <span class="text-[15px] font-semibold text-brand-700">크라운</span>
+                      <i data-lucide="check" class="h-[18px] w-[18px] text-brand-600"></i>
+                    </div>
+                    <div class="flex items-center justify-between rounded-xl border border-neutral-200 bg-white px-4 py-3.5">
+                      <span class="text-[15px] text-neutral-900">신경치료</span>
+                    </div>
+                  </div>
+
+                  <p class="mt-5 text-[13px] font-semibold text-neutral-500">교정</p>
+                  <div class="mt-2 space-y-2">
+                    <div class="flex items-center justify-between rounded-xl border border-neutral-200 bg-white px-4 py-3.5">
+                      <span class="text-[15px] text-neutral-900">투명교정</span>
+                    </div>
+                  </div>
+
+                  <p class="mt-5 text-[13px] font-semibold text-neutral-500">사랑니·발치</p>
+                  <div class="mt-2 space-y-2">
+                    <div class="flex items-center justify-between rounded-xl border border-neutral-200 bg-white px-4 py-3.5">
+                      <span class="text-[15px] text-neutral-900">사랑니 발치</span>
+                    </div>
+                  </div>
+
+                  <div class="mt-5 flex items-center justify-between rounded-xl border border-neutral-200 bg-white px-4 py-3.5">
+                    <span class="text-[15px] text-neutral-900">잘 모르겠어요</span>
+                  </div>
+                </main>
+
+                <div class="sticky bottom-0 flex gap-2 border-t border-neutral-100 bg-white px-4 pb-4 pt-3">
+                  <button class="flex-1 rounded-xl border border-brand-600 py-3.5 text-base font-semibold text-brand-700 opacity-40">이전</button>
+                  <button class="flex-[2] rounded-xl bg-brand-600 py-3.5 text-base font-semibold text-white">다음</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 프레임 B-2 (3단계) -->
+          <div>
+            <p class="mb-2 text-[13px] font-semibold text-neutral-700">시안 B-2 · 3단계 (연락처 · 동의 · 요약)</p>
+            <div class="frame w-[375px] h-[812px] overflow-hidden rounded-[32px] border border-neutral-200 bg-white">
+              <div class="h-full overflow-y-auto">
+                <div class="flex min-h-full flex-col">
+                  <header class="sticky top-0 z-10 border-b border-neutral-100 bg-white">
+                    <div class="flex h-14 items-center gap-1 px-2">
+                      <button class="flex h-10 w-10 items-center justify-center rounded-full" aria-label="뒤로">
+                        <i data-lucide="chevron-left" class="h-6 w-6 text-neutral-900"></i>
+                      </button>
+                      <h1 class="text-[17px] font-semibold text-neutral-900">상담 신청</h1>
+                      <span class="ml-auto pr-4 text-[13px] font-medium text-neutral-500">3 / 3</span>
+                    </div>
+                    <div class="flex gap-1.5 px-4 pb-3">
+                      <span class="h-1 flex-1 rounded-full bg-brand-600"></span>
+                      <span class="h-1 flex-1 rounded-full bg-brand-600"></span>
+                      <span class="h-1 flex-1 rounded-full bg-brand-600"></span>
+                    </div>
+                  </header>
+
+                  <main class="flex-1 px-4 pb-6 pt-5">
+                    <h2 class="text-xl font-extrabold text-neutral-900">어디로 연락드릴까요?</h2>
+                    <p class="mt-2 text-sm leading-relaxed text-neutral-500 break-keep">병원이 이 번호로만 연락해요. 다른 곳에는 쓰지 않아요.</p>
+
+                    <div class="mt-5">
+                      <label class="block text-sm font-semibold text-neutral-700">이름</label>
+                      <input class="mt-2 w-full rounded-xl border border-neutral-200 px-4 py-3 text-[15px] text-neutral-900 outline-none" value="김민지" readonly />
+                      <p class="mt-1.5 text-xs text-neutral-500">계정 정보에서 자동으로 채웠어요</p>
+                    </div>
+
+                    <div class="mt-4">
+                      <label class="block text-sm font-semibold text-neutral-700">연락처</label>
+                      <input class="mt-2 w-full rounded-xl border-2 border-brand-600 px-4 py-3 text-[15px] text-neutral-900 outline-none" value="010-2345-6789" readonly />
+                      <p class="mt-1.5 text-xs text-neutral-500">지난 상담 신청에 쓴 번호예요</p>
+                    </div>
+
+                    <div class="mt-4">
+                      <label class="block text-sm font-semibold text-neutral-700">남기고 싶은 말 (선택)</label>
+                      <textarea rows="3" class="mt-2 min-h-[96px] w-full resize-none rounded-xl border border-neutral-200 px-4 py-3 text-[15px] placeholder:text-neutral-400 outline-none" placeholder="궁금한 점이나 요청사항을 적어주세요" readonly></textarea>
+                    </div>
+
+                    <div class="mt-6 rounded-2xl border border-neutral-100 bg-neutral-50 px-4 py-1">
+                      <div class="flex items-center justify-between gap-3 border-b border-neutral-100 py-3">
+                        <span class="shrink-0 text-sm text-neutral-500">병원</span>
+                        <span class="truncate text-sm font-semibold text-neutral-900">서울바른치과</span>
+                      </div>
+                      <div class="flex items-center justify-between gap-3 border-b border-neutral-100 py-3">
+                        <span class="shrink-0 text-sm text-neutral-500">시술</span>
+                        <span class="flex min-w-0 items-center gap-2">
+                          <span class="truncate text-sm font-semibold text-neutral-900">충치치료 · 크라운</span>
+                          <button class="shrink-0 text-xs font-semibold text-brand-700 underline">수정</button>
+                        </span>
+                      </div>
+                      <div class="flex items-center justify-between gap-3 py-3">
+                        <span class="shrink-0 text-sm text-neutral-500">연락 시간</span>
+                        <span class="flex min-w-0 items-center gap-2">
+                          <span class="truncate text-sm font-semibold text-neutral-900">평일 오후</span>
+                          <button class="shrink-0 text-xs font-semibold text-brand-700 underline">수정</button>
+                        </span>
+                      </div>
+                    </div>
+
+                    <div class="mt-4 rounded-2xl border border-neutral-100 bg-white p-4">
+                      <div class="flex items-start gap-3">
+                        <input type="checkbox" class="mt-0.5 h-5 w-5 shrink-0 accent-brand-600" checked />
+                        <div class="min-w-0 flex-1">
+                          <p class="text-sm font-bold text-neutral-900">[필수] 개인정보 제3자 제공 동의</p>
+                          <p class="mt-1 text-sm leading-relaxed text-neutral-500 break-keep">상담 연락을 위해 이름과 연락처를 서울바른치과에 제공해요.</p>
+                          <button class="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-brand-700 underline">
+                            자세히 <i data-lucide="chevron-right" class="h-3.5 w-3.5"></i>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </main>
+
+                  <div class="sticky bottom-0 flex gap-2 border-t border-neutral-100 bg-white px-4 pb-4 pt-3">
+                    <button class="flex-1 rounded-xl border border-brand-600 py-3.5 text-base font-semibold text-brand-700">이전</button>
+                    <button class="flex-[2] rounded-xl bg-brand-600 py-3.5 text-base font-semibold text-white">상담 신청하기</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- =========================================================
+             시안 C · 바텀시트
+        ========================================================== -->
+        <section class="flex w-[375px] flex-col gap-8">
+          <div class="w-[375px]">
+            <h2 class="text-[18px] font-bold text-neutral-900">시안 C · 병원 위에서 바로</h2>
+            <p class="mt-1 text-sm leading-relaxed text-neutral-700 break-keep">
+              화면을 떠나지 않아요. 병원 상세에서 <b>상담 신청</b>을 누르면 그 자리에 시트가 올라오고, 뒤로 병원이 계속 보여요.
+            </p>
+            <ul class="mt-3 space-y-1.5 text-[13px] leading-relaxed text-neutral-700">
+              <li class="flex gap-2"><span class="text-brand-600">•</span><span class="break-keep">전용 페이지 대신 <b>바텀시트</b>. 닫으면 보던 자리로 그대로 돌아와요 — 병원을 비교하다 신청하는 흐름이 끊기지 않아요</span></li>
+              <li class="flex gap-2"><span class="text-brand-600">•</span><span class="break-keep">뒤에 병원 이름이 보이니 <b>병원 요약 카드를 뺐어요</b>. 시트 머리줄에 병원 이름을 적어요</span></li>
+              <li class="flex gap-2"><span class="text-brand-600">•</span><span class="break-keep">남기고 싶은 말은 <b>접어 뒀어요</b>. 필요한 사람만 펼쳐요 (선택 항목이 시트 높이를 먹지 않게)</span></li>
+              <li class="flex gap-2"><span class="text-brand-600">•</span><span class="break-keep">연락 시간을 2열 버튼 대신 <b>칩 한 줄</b>로 줄였어요</span></li>
+              <li class="flex gap-2"><span class="text-brand-600">•</span><span class="break-keep">완료도 시트 안에서 (C-2). 닫으면 병원 상세로 돌아가요</span></li>
+            </ul>
+            <p class="mt-3 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs leading-relaxed text-neutral-700 break-keep">
+              새 데이터 필요: 없음 — 뒤에 깔리는 병원 상세는 이미 있는 화면이에요. 다만 라우팅은 <code class="text-[12px]">/consult/:hospitalId</code> 대신 병원 상세 위 상태가 돼요 (주소 공유·뒤로가기 동작을 프론트에서 다시 정해야 해요).
+            </p>
+          </div>
+
+          <!-- 프레임 C -->
+          <div class="frame relative w-[375px] h-[812px] overflow-hidden rounded-[32px] border border-neutral-200 bg-white">
+            <!-- 뒤에 깔린 병원 상세 -->
+            <div class="absolute inset-0 overflow-hidden">
+              <div class="relative h-[200px] w-full">
+                <img src="https://images.unsplash.com/photo-1704455306251-b4634215d98f?q=80&w=750&auto=format&fit=crop" alt="서울바른치과 내부" class="h-full w-full object-cover" />
+              </div>
+              <div class="px-4 pt-4">
+                <div class="flex flex-wrap gap-2">
+                  <span class="rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">보철 전문의 상주</span>
+                  <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">야간 진료</span>
+                </div>
+                <h2 class="mt-2 text-xl font-extrabold text-neutral-900">서울바른치과</h2>
+                <p class="mt-1 text-sm text-neutral-500">강남구 · 서울 강남구 테헤란로 123</p>
+                <p class="mt-1 text-[13px] text-neutral-500">평일 09:00 - 19:00 · 토 09:00 - 14:00</p>
+                <div class="mt-4 flex gap-6 border-b border-neutral-100 pb-3 text-sm">
+                  <span class="font-bold text-brand-700">병원 정보</span>
+                  <span class="text-neutral-500">전문의</span>
+                  <span class="text-neutral-500">후기 24</span>
+                </div>
+                <p class="mt-4 text-sm leading-relaxed text-neutral-700 break-keep">보철과 임플란트를 중심으로 진료하는 치과예요. 디지털 구강 스캐너로...</p>
+              </div>
+            </div>
+
+            <!-- 스크림 -->
+            <div class="absolute inset-0 bg-black/40"></div>
+
+            <!-- 시트 -->
+            <div class="absolute inset-x-0 bottom-0 max-h-[85%] overflow-hidden rounded-t-2xl bg-white">
+              <div class="max-h-[690px] overflow-y-auto">
+                <div class="flex min-h-full flex-col">
+                  <div class="sticky top-0 z-10 bg-white">
+                    <div class="flex justify-center pb-1 pt-2.5">
+                      <span class="h-1 w-10 rounded-full bg-neutral-200"></span>
+                    </div>
+                    <div class="flex items-center gap-2 border-b border-neutral-100 px-4 pb-3 pt-1">
+                      <div class="min-w-0 flex-1">
+                        <h2 class="text-[17px] font-semibold text-neutral-900">상담 신청</h2>
+                        <p class="truncate text-[13px] text-neutral-500">서울바른치과</p>
+                      </div>
+                      <button class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full" aria-label="닫기">
+                        <i data-lucide="x" class="h-5 w-5 text-neutral-700"></i>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="flex-1 px-4 pb-4 pt-4">
+                    <p class="text-sm font-semibold text-neutral-700">어떤 시술을 상담받고 싶으세요?</p>
+                    <div class="mt-2 flex flex-wrap gap-2">
+                      <span class="rounded-full border border-brand-600 bg-brand-600 px-3.5 py-2 text-sm font-medium text-white">임플란트 · 일반 임플란트</span>
+                      <span class="rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">임플란트 · 뼈이식</span>
+                      <span class="rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">충치치료 · 크라운</span>
+                      <span class="rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">교정 · 투명교정</span>
+                      <span class="rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">잘 모르겠어요</span>
+                    </div>
+
+                    <p class="mt-5 text-sm font-semibold text-neutral-700">언제 연락받기 편하세요?</p>
+                    <div class="mt-2 flex flex-wrap gap-2">
+                      <span class="rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">평일 오전</span>
+                      <span class="rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">평일 오후</span>
+                      <span class="rounded-full border border-brand-600 bg-brand-600 px-3.5 py-2 text-sm font-medium text-white">평일 저녁</span>
+                      <span class="rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">주말</span>
+                    </div>
+
+                    <div class="mt-5">
+                      <label class="block text-sm font-semibold text-neutral-700">이름</label>
+                      <input class="mt-2 w-full rounded-xl border border-neutral-200 px-4 py-3 text-[15px] text-neutral-900 outline-none" value="김민지" readonly />
+                    </div>
+                    <div class="mt-3">
+                      <label class="block text-sm font-semibold text-neutral-700">연락처</label>
+                      <input class="mt-2 w-full rounded-xl border border-neutral-200 px-4 py-3 text-[15px] text-neutral-900 outline-none" value="010-2345-6789" readonly />
+                      <p class="mt-1.5 text-xs text-neutral-500">계정 정보와 지난 상담 신청에서 채웠어요. 다르면 고쳐주세요</p>
+                    </div>
+
+                    <button class="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl border border-neutral-200 py-3 text-sm font-semibold text-neutral-700">
+                      <i data-lucide="plus" class="h-[18px] w-[18px] text-neutral-700"></i> 남기고 싶은 말 추가 (선택)
+                    </button>
+
+                    <div class="mt-4 rounded-2xl border border-neutral-100 p-4">
+                      <div class="flex items-start gap-3">
+                        <input type="checkbox" class="mt-0.5 h-5 w-5 shrink-0 accent-brand-600" checked />
+                        <div class="min-w-0 flex-1">
+                          <p class="text-sm font-bold text-neutral-900">[필수] 개인정보 제3자 제공 동의</p>
+                          <p class="mt-1 text-sm leading-relaxed text-neutral-500 break-keep">상담 연락을 위해 이름과 연락처를 서울바른치과에 제공해요.</p>
+                          <button class="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-brand-700 underline">
+                            자세히 <i data-lucide="chevron-right" class="h-3.5 w-3.5"></i>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="sticky bottom-0 border-t border-neutral-100 bg-white px-4 pb-4 pt-3">
+                    <button class="w-full rounded-xl bg-brand-600 py-3.5 text-base font-semibold text-white">상담 신청하기</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 프레임 C-2 -->
+          <div>
+            <p class="mb-2 text-[13px] font-semibold text-neutral-700">시안 C-2 · 완료 (시트 안에서)</p>
+            <div class="frame relative w-[375px] h-[812px] overflow-hidden rounded-[32px] border border-neutral-200 bg-white">
+              <div class="absolute inset-0 overflow-hidden">
+                <div class="relative h-[200px] w-full">
+                  <img src="https://images.unsplash.com/photo-1704455306251-b4634215d98f?q=80&w=750&auto=format&fit=crop" alt="서울바른치과 내부" class="h-full w-full object-cover" />
+                </div>
+                <div class="px-4 pt-4">
+                  <div class="flex flex-wrap gap-2">
+                    <span class="rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">보철 전문의 상주</span>
+                    <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">야간 진료</span>
+                  </div>
+                  <h2 class="mt-2 text-xl font-extrabold text-neutral-900">서울바른치과</h2>
+                  <p class="mt-1 text-sm text-neutral-500">강남구 · 서울 강남구 테헤란로 123</p>
+                  <p class="mt-1 text-[13px] text-neutral-500">평일 09:00 - 19:00 · 토 09:00 - 14:00</p>
+                </div>
+              </div>
+
+              <div class="absolute inset-0 bg-black/40"></div>
+
+              <div class="absolute inset-x-0 bottom-0 overflow-hidden rounded-t-2xl bg-white">
+                <div class="flex justify-center pb-1 pt-2.5">
+                  <span class="h-1 w-10 rounded-full bg-neutral-200"></span>
+                </div>
+                <div class="px-4 pb-4 pt-4">
+                  <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-brand-50">
+                    <i data-lucide="check" class="h-10 w-10 text-brand-600"></i>
+                  </div>
+                  <h2 class="text-center text-xl font-extrabold text-neutral-900">상담 신청이 접수되었어요</h2>
+                  <p class="mt-2 text-center text-sm leading-relaxed text-neutral-500 break-keep">
+                    서울바른치과에서 확인 후 평일 저녁에 연락드릴 예정이에요.
+                  </p>
+                  <p class="mt-1 text-center text-sm leading-relaxed text-neutral-500 break-keep">병원이 상태를 바꾸면 알림으로 알려드릴게요.</p>
+
+                  <dl class="mt-5 rounded-2xl border border-neutral-100 bg-neutral-50 px-4 py-1">
+                    <div class="flex items-center justify-between gap-3 border-b border-neutral-100 py-3">
+                      <dt class="shrink-0 text-sm text-neutral-500">시술</dt>
+                      <dd class="truncate text-sm font-semibold text-neutral-900">임플란트 · 일반 임플란트</dd>
+                    </div>
+                    <div class="flex items-center justify-between gap-3 border-b border-neutral-100 py-3">
+                      <dt class="shrink-0 text-sm text-neutral-500">연락 시간</dt>
+                      <dd class="truncate text-sm font-semibold text-neutral-900">평일 저녁</dd>
+                    </div>
+                    <div class="flex items-center justify-between gap-3 py-3">
+                      <dt class="shrink-0 text-sm text-neutral-500">상태</dt>
+                      <dd class="flex justify-end">
+                        <span class="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700">신규</span>
+                      </dd>
+                    </div>
+                  </dl>
+
+                  <div class="mt-5 space-y-2">
+                    <button class="w-full rounded-xl bg-brand-600 py-3.5 text-base font-semibold text-white">내 상담 내역 보기</button>
+                    <button class="w-full rounded-xl border border-brand-600 py-3.5 text-base font-semibold text-brand-700">닫고 병원 계속 보기</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- =========================================================
+             시안 D · 확인 우선 빠른 신청
+        ========================================================== -->
+        <section class="flex w-[375px] flex-col gap-8">
+          <div class="w-[375px]">
+            <h2 class="text-[18px] font-bold text-neutral-900">시안 D · 확인하고 바로 신청</h2>
+            <p class="mt-1 text-sm leading-relaxed text-neutral-700 break-keep">
+              이미 아는 이름·연락처는 입력칸이 아니라 <b>확인 카드</b>로 보여줘요. 고칠 게 없으면 시술과 시간만 고르고 바로 신청해요.
+            </p>
+            <ul class="mt-3 space-y-1.5 text-[13px] leading-relaxed text-neutral-700">
+              <li class="flex gap-2"><span class="text-brand-600">•</span><span class="break-keep">이름·연락처가 <b>읽는 카드</b>로 바뀌었어요. <b>수정</b>을 눌러야 입력칸이 열려요 (D-2). 빈 칸 두 개가 사라져 화면이 짧아져요</span></li>
+              <li class="flex gap-2"><span class="text-brand-600">•</span><span class="break-keep">자동 채움이 없는 계정(첫 신청)은 처음부터 <b>D-2 모양</b>으로 열려요</span></li>
+              <li class="flex gap-2"><span class="text-brand-600">•</span><span class="break-keep">동의를 <b>체크박스 한 줄</b>로 줄이고, 어떤 정보가 넘어가는지는 확인 카드가 이미 보여줘요</span></li>
+              <li class="flex gap-2"><span class="text-brand-600">•</span><span class="break-keep">남기고 싶은 말은 접어 뒀어요. 하단 버튼은 <b>활성 상태</b>로 시작해요 (동의만 남아요)</span></li>
+              <li class="flex gap-2"><span class="text-brand-600">•</span><span class="break-keep">하단 바에 <b>제출하면 이름·연락처가 서울바른치과에 전달돼요</b>를 적어 되돌릴 수 없는 행동을 알려요</span></li>
+            </ul>
+            <p class="mt-3 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs leading-relaxed text-neutral-700 break-keep">
+              새 데이터 필요: 없음 — 자동 채움 출처는 지금과 같아요 (계정 이름, 내 지난 신청 1건의 연락처).
+            </p>
+          </div>
+
+          <!-- 프레임 D -->
+          <div class="frame w-[375px] h-[812px] overflow-hidden rounded-[32px] border border-neutral-200 bg-white">
+            <div class="h-full overflow-y-auto">
+              <div class="flex min-h-full flex-col">
+                <header class="sticky top-0 z-10 flex h-14 items-center gap-1 border-b border-neutral-100 bg-white px-2">
+                  <button class="flex h-10 w-10 items-center justify-center rounded-full" aria-label="뒤로">
+                    <i data-lucide="chevron-left" class="h-6 w-6 text-neutral-900"></i>
+                  </button>
+                  <h1 class="text-[17px] font-semibold text-neutral-900">상담 신청</h1>
+                </header>
+
+                <main class="flex-1 px-4 pb-6 pt-4">
+                  <div class="rounded-2xl border border-neutral-100 bg-neutral-50 px-4 py-3">
+                    <p class="text-base font-bold text-neutral-900">서울바른치과</p>
+                    <p class="mt-0.5 truncate text-sm text-neutral-500">강남구 · 서울 강남구 테헤란로 123</p>
+                  </div>
+
+                  <!-- 확인 카드 -->
+                  <div class="mt-6 rounded-2xl border border-neutral-100 bg-white p-4">
+                    <div class="flex items-start justify-between gap-3">
+                      <h2 class="text-base font-bold text-neutral-900">이 정보로 연락받아요</h2>
+                      <button class="flex shrink-0 items-center gap-1 rounded-xl px-2 py-1.5 text-sm font-semibold text-brand-700">
+                        <i data-lucide="pencil" class="h-[18px] w-[18px]"></i> 수정
+                      </button>
+                    </div>
+                    <dl class="mt-2">
+                      <div class="flex items-center justify-between gap-3 border-b border-neutral-100 py-2.5">
+                        <dt class="shrink-0 text-sm text-neutral-500">이름</dt>
+                        <dd class="truncate text-[15px] font-semibold text-neutral-900">김민지</dd>
+                      </div>
+                      <div class="flex items-center justify-between gap-3 py-2.5">
+                        <dt class="shrink-0 text-sm text-neutral-500">연락처</dt>
+                        <dd class="truncate text-[15px] font-semibold text-neutral-900">010-2345-6789</dd>
+                      </div>
+                    </dl>
+                    <p class="mt-1 text-xs leading-relaxed text-neutral-500 break-keep">
+                      계정 이름과 지난 상담 신청에 쓴 번호예요. 다르면 수정해주세요
+                    </p>
+                  </div>
+
+                  <!-- 시술 -->
+                  <div class="mt-6">
+                    <p class="text-sm font-semibold text-neutral-700">어떤 시술을 상담받고 싶으세요?</p>
+                    <div class="mt-2 flex flex-wrap gap-2">
+                      <span class="rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">임플란트 · 일반 임플란트</span>
+                      <span class="rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">임플란트 · 뼈이식</span>
+                      <span class="rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">충치치료 · 레진</span>
+                      <span class="rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">충치치료 · 크라운</span>
+                      <span class="rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">교정 · 투명교정</span>
+                      <span class="rounded-full border border-brand-600 bg-brand-600 px-3.5 py-2 text-sm font-medium text-white">잘 모르겠어요</span>
+                    </div>
+                  </div>
+
+                  <!-- 연락 시간 -->
+                  <div class="mt-6">
+                    <p class="text-sm font-semibold text-neutral-700">언제 연락받기 편하세요?</p>
+                    <div class="mt-2 grid grid-cols-2 gap-2">
+                      <span class="rounded-xl border border-brand-600 bg-brand-600 px-4 py-3 text-center text-sm font-medium text-white">평일 오전</span>
+                      <span class="rounded-xl border border-neutral-200 bg-white px-4 py-3 text-center text-sm font-medium text-neutral-700">평일 오후</span>
+                      <span class="rounded-xl border border-neutral-200 bg-white px-4 py-3 text-center text-sm font-medium text-neutral-700">평일 저녁</span>
+                      <span class="rounded-xl border border-neutral-200 bg-white px-4 py-3 text-center text-sm font-medium text-neutral-700">주말</span>
+                    </div>
+                  </div>
+
+                  <button class="mt-6 flex w-full items-center justify-center gap-1.5 rounded-xl border border-neutral-200 py-3 text-sm font-semibold text-neutral-700">
+                    <i data-lucide="plus" class="h-[18px] w-[18px] text-neutral-700"></i> 남기고 싶은 말 추가 (선택)
+                  </button>
+
+                  <div class="mt-6 flex items-start gap-3 rounded-2xl border border-neutral-100 px-4 py-3">
+                    <input type="checkbox" class="mt-0.5 h-5 w-5 shrink-0 accent-brand-600" checked />
+                    <div class="min-w-0 flex-1">
+                      <p class="text-sm font-bold text-neutral-900">[필수] 개인정보 제3자 제공 동의</p>
+                      <button class="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-brand-700 underline">
+                        자세히 <i data-lucide="chevron-right" class="h-3.5 w-3.5"></i>
+                      </button>
+                    </div>
+                  </div>
+                </main>
+
+                <div class="sticky bottom-0 border-t border-neutral-100 bg-white px-4 pb-4 pt-3">
+                  <p class="mb-2 text-center text-xs leading-relaxed text-neutral-500 break-keep">제출하면 이름과 연락처가 서울바른치과에 전달돼요</p>
+                  <button class="w-full rounded-xl bg-brand-600 py-3.5 text-base font-semibold text-white">상담 신청하기</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 프레임 D-2 -->
+          <div>
+            <p class="mb-2 text-[13px] font-semibold text-neutral-700">시안 D-2 · 수정 모드 (자동 채움이 없을 때도 이 모양)</p>
+            <div class="frame w-[375px] h-[812px] overflow-hidden rounded-[32px] border border-neutral-200 bg-white">
+              <div class="h-full overflow-y-auto">
+                <div class="flex min-h-full flex-col">
+                  <header class="sticky top-0 z-10 flex h-14 items-center gap-1 border-b border-neutral-100 bg-white px-2">
+                    <button class="flex h-10 w-10 items-center justify-center rounded-full" aria-label="뒤로">
+                      <i data-lucide="chevron-left" class="h-6 w-6 text-neutral-900"></i>
+                    </button>
+                    <h1 class="text-[17px] font-semibold text-neutral-900">상담 신청</h1>
+                  </header>
+
+                  <main class="flex-1 px-4 pb-6 pt-4">
+                    <div class="rounded-2xl border border-neutral-100 bg-neutral-50 px-4 py-3">
+                      <p class="text-base font-bold text-neutral-900">서울바른치과</p>
+                      <p class="mt-0.5 truncate text-sm text-neutral-500">강남구 · 서울 강남구 테헤란로 123</p>
+                    </div>
+
+                    <div class="mt-6 rounded-2xl border border-brand-600 bg-white p-4">
+                      <h2 class="text-base font-bold text-neutral-900">연락받을 정보를 고쳐요</h2>
+
+                      <div class="mt-3">
+                        <label class="block text-sm font-semibold text-neutral-700">이름</label>
+                        <input class="mt-2 w-full rounded-xl border border-neutral-200 px-4 py-3 text-[15px] text-neutral-900 outline-none" value="김민지" readonly />
+                      </div>
+
+                      <div class="mt-4">
+                        <label class="block text-sm font-semibold text-neutral-700">연락처</label>
+                        <input class="mt-2 w-full rounded-xl border-2 border-brand-600 px-4 py-3 text-[15px] placeholder:text-neutral-400 outline-none" placeholder="010-0000-0000" />
+                        <p class="mt-1.5 text-xs text-neutral-500">병원이 이 번호로 연락해요</p>
+                      </div>
+
+                      <div class="mt-4 flex gap-2">
+                        <button class="flex-1 rounded-xl border border-neutral-200 py-3 text-sm font-semibold text-neutral-700">취소</button>
+                        <button class="flex-1 rounded-xl border border-brand-600 py-3 text-sm font-semibold text-brand-700">저장</button>
+                      </div>
+                    </div>
+
+                    <div class="mt-6">
+                      <p class="text-sm font-semibold text-neutral-700">어떤 시술을 상담받고 싶으세요?</p>
+                      <div class="mt-2 flex flex-wrap gap-2">
+                        <span class="rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">임플란트 · 일반 임플란트</span>
+                        <span class="rounded-full border border-brand-600 bg-brand-600 px-3.5 py-2 text-sm font-medium text-white">충치치료 · 레진</span>
+                        <span class="rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">충치치료 · 크라운</span>
+                        <span class="rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">잘 모르겠어요</span>
+                      </div>
+                    </div>
+
+                    <div class="mt-6">
+                      <p class="text-sm font-semibold text-neutral-700">언제 연락받기 편하세요?</p>
+                      <div class="mt-2 grid grid-cols-2 gap-2">
+                        <span class="rounded-xl border border-brand-600 bg-brand-600 px-4 py-3 text-center text-sm font-medium text-white">평일 오전</span>
+                        <span class="rounded-xl border border-neutral-200 bg-white px-4 py-3 text-center text-sm font-medium text-neutral-700">평일 오후</span>
+                        <span class="rounded-xl border border-neutral-200 bg-white px-4 py-3 text-center text-sm font-medium text-neutral-700">평일 저녁</span>
+                        <span class="rounded-xl border border-neutral-200 bg-white px-4 py-3 text-center text-sm font-medium text-neutral-700">주말</span>
+                      </div>
+                    </div>
+
+                    <div class="mt-6 flex items-start gap-3 rounded-2xl border border-neutral-100 px-4 py-3">
+                      <input type="checkbox" class="mt-0.5 h-5 w-5 shrink-0 accent-brand-600" />
+                      <div class="min-w-0 flex-1">
+                        <p class="text-sm font-bold text-neutral-900">[필수] 개인정보 제3자 제공 동의</p>
+                        <button class="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-brand-700 underline">
+                          자세히 <i data-lucide="chevron-right" class="h-3.5 w-3.5"></i>
+                        </button>
+                      </div>
+                    </div>
+                  </main>
+
+                  <div class="sticky bottom-0 border-t border-neutral-100 bg-white px-4 pb-4 pt-3">
+                    <p class="mb-2 text-center text-xs text-neutral-500">이름 · 연락처 · 동의를 모두 채우면 신청할 수 있어요</p>
+                    <button class="w-full rounded-xl bg-brand-600 py-3.5 text-base font-semibold text-white opacity-40">상담 신청하기</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- 공통 메모 -->
+      <section class="mt-14 max-w-3xl rounded-2xl border border-neutral-100 bg-white p-6">
+        <h2 class="text-[18px] font-bold text-neutral-900">네 시안에 공통으로 들어간 것</h2>
+        <ul class="mt-3 space-y-2 text-sm leading-relaxed text-neutral-700">
+          <li class="flex gap-2"><span class="text-brand-600">•</span><span class="break-keep">힌트·보조 문구는 모두 <b>neutral-500</b>이에요. 지금 앱의 <code class="text-[13px]">이름 · 연락처 · 동의를 모두 채우면…</code> 안내가 neutral-400(대비 2.5:1)이라 읽기 어려웠어요.</span></li>
+          <li class="flex gap-2"><span class="text-brand-600">•</span><span class="break-keep">동의 체크박스는 <b>20px</b>, 터치 영역은 라벨까지 포함해 44px 이상이에요.</span></li>
+          <li class="flex gap-2"><span class="text-brand-600">•</span><span class="break-keep">동의 안내문 시트(<b>자세히</b>)는 네 시안 모두 지금 그대로예요. <b>보유·이용 기간</b>의 <code class="text-[13px]">[확정 필요]</code> 표기도 그대로 보여요 — 법무 확정 전까지 숨기지 않아요.</span></li>
+          <li class="flex gap-2"><span class="text-brand-600">•</span><span class="break-keep">오류는 색만으로 말하지 않아요. rose-400 테두리 + rose-500 글자 + alert-circle 아이콘을 함께 써요.</span></li>
+          <li class="flex gap-2"><span class="text-brand-600">•</span><span class="break-keep">상담 마감 병원(서버가 <code class="text-[13px]">지금은 상담 신청을 받지 않는 병원이에요</code>로 거절)도 A-3의 배너 자리에 같은 모양으로 보여요.</span></li>
+        </ul>
+      </section>
+    </div>
+
+    <script>
+      lucide.createIcons();
+    </script>
+  </body>
+</html>

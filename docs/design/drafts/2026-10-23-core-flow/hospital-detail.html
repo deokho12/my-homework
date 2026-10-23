@@ -1,0 +1,1185 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>병원 상세 시안 · 몰라몰라</title>
+<script src="https://cdn.tailwindcss.com/3.4.16"></script>
+<script>
+  tailwind.config = { theme: { extend: { colors: { brand: {50:'#eefcf9',100:'#d4f6ef',200:'#abecdf',300:'#79dccb',400:'#45c4b0',500:'#22a696',600:'#17847a',700:'#166863',800:'#16534f',900:'#154543'} }, fontFamily: { sans: ['-apple-system','BlinkMacSystemFont','"Segoe UI"','Roboto','"Apple SD Gothic Neo"','"Malgun Gothic"','sans-serif'] } } } }
+</script>
+<script src="https://unpkg.com/lucide@0.475.0/dist/umd/lucide.min.js"></script>
+<style>
+  .noscroll::-webkit-scrollbar { display: none; }
+  .noscroll { scrollbar-width: none; }
+</style>
+</head>
+<body class="bg-neutral-50 font-sans text-neutral-900">
+
+<main class="mx-auto max-w-[1700px] px-8 py-10">
+
+  <header class="mb-8">
+    <h1 class="text-2xl font-extrabold text-neutral-900">병원 상세 시안</h1>
+    <p class="mt-2 text-sm text-neutral-700">
+      <code class="rounded bg-neutral-100 px-1">/hospital/:id</code> 화면의 방향이 다른 네 가지 안이에요. 모바일 375px 기준이고, 프레임 안을 세로로 스크롤해서 보세요.
+      내용은 지금 앱의 구조·문구를 그대로 쓰고 병원·의사 이름만 지어낸 샘플이에요.
+    </p>
+  </header>
+
+  <div class="flex flex-wrap items-start gap-10">
+
+    <!-- ================================================================= -->
+    <!-- 시안 A · 정돈안                                                    -->
+    <!-- ================================================================= -->
+    <section class="w-[375px] shrink-0">
+      <div class="mb-4">
+        <h2 class="text-lg font-bold text-neutral-900">시안 A · 정돈안</h2>
+        <p class="mt-1 text-sm text-neutral-700">지금 구조·순서를 그대로 두고 규칙 위반과 빈틈만 고쳤어요.</p>
+        <p class="mt-3 text-[13px] font-semibold text-neutral-700">바뀐 점</p>
+        <ul class="mt-1 list-disc space-y-1 pl-5 text-[13px] text-neutral-700">
+          <li>목차에 <b>현재 보고 있는 섹션 표시</b>(brand-600 밑줄 2px·brand-700 글자)를 넣고 높이를 44px로 맞췄어요</li>
+          <li>🌟🔥⚡🎁 이모지 배지를 lucide 아이콘(Sparkles·Flame·Zap·Gift)으로 바꿨어요</li>
+          <li>후기 별점 색을 amber-500 → neutral-900 으로(노란색을 새로 들이지 않아요)</li>
+          <li>빈 상태·보조 문구의 neutral-400 을 neutral-500 으로 올려 대비 4.5:1 을 맞췄어요</li>
+          <li>하단 바를 2줄로 나눠 버튼 두 개가 서로 눌려 글자가 잘리던 것을 없앴어요</li>
+        </ul>
+        <p class="mt-2 text-[13px] text-neutral-500">새 데이터 필요: 없어요 (지금 서버·화면 데이터만 씁니다)</p>
+      </div>
+
+      <div class="h-[812px] w-[375px] overflow-hidden rounded-[32px] border border-neutral-200 bg-white">
+        <div class="noscroll h-full overflow-y-auto">
+
+          <!-- AppHeader -->
+          <header class="sticky top-0 z-20 flex h-14 items-center gap-1 border-b border-neutral-100 bg-white px-2">
+            <button type="button" class="flex h-10 w-10 items-center justify-center rounded-full" aria-label="뒤로">
+              <i data-lucide="chevron-left" class="h-6 w-6 text-neutral-900"></i>
+            </button>
+            <span class="truncate text-[17px] font-semibold text-neutral-900">서울바른치과</span>
+          </header>
+
+          <!-- 사진 캐러셀 -->
+          <div class="noscroll flex snap-x snap-mandatory overflow-x-auto">
+            <img src="https://images.unsplash.com/photo-1704455306251-b4634215d98f?q=80&w=750&auto=format&fit=crop" alt="서울바른치과 병원 사진" class="h-[240px] w-[375px] shrink-0 snap-start object-cover" />
+            <img src="https://images.unsplash.com/photo-1722586663955-2f96a4c1f255?q=80&w=750&auto=format&fit=crop" alt="서울바른치과 병원 사진" class="h-[240px] w-[375px] shrink-0 snap-start object-cover" />
+            <img src="https://images.unsplash.com/photo-1667133295315-820bb6481730?q=80&w=750&auto=format&fit=crop" alt="서울바른치과 병원 사진" class="h-[240px] w-[375px] shrink-0 snap-start object-cover" />
+          </div>
+
+          <div class="px-4 pt-4">
+            <div class="mb-1 flex items-start justify-between gap-2">
+              <h1 class="flex-1 text-xl font-extrabold text-neutral-900">서울바른치과</h1>
+              <span class="shrink-0 pt-1 text-[13px] text-neutral-500"><span class="text-neutral-900">★</span> 4.8 <span>(312)</span></span>
+            </div>
+            <p class="mb-3 text-sm text-neutral-500">서울 강남구 테헤란로 123</p>
+
+            <div class="mb-1.5 flex flex-wrap gap-1.5">
+              <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">야간진료</span>
+              <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">주차가능</span>
+              <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">임플란트</span>
+            </div>
+            <div class="mb-4 flex flex-wrap gap-1.5">
+              <span class="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700"><i data-lucide="sparkles" class="h-3.5 w-3.5"></i>추천 병원</span>
+              <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">광고</span>
+            </div>
+
+            <!-- 할인 배너 -->
+            <div class="mb-4 rounded-2xl border border-rose-200 bg-rose-50 p-4">
+              <div class="mb-1.5 flex items-center gap-1.5">
+                <span class="inline-flex items-center gap-1 rounded-full bg-rose-500 px-2.5 py-1 text-xs font-medium text-white"><i data-lucide="flame" class="h-3.5 w-3.5"></i>얼리버드</span>
+                <span class="flex-1 truncate text-sm font-semibold text-neutral-700">임플란트 1개 진단+식립</span>
+              </div>
+              <div class="flex items-baseline gap-2">
+                <span class="text-lg font-extrabold text-rose-500">28%</span>
+                <span class="text-lg font-extrabold text-neutral-900">1,290,000원</span>
+                <span class="text-sm text-neutral-500 line-through">1,800,000원</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 목차 (활성 표시 추가) -->
+          <nav aria-label="병원 정보 목차" class="sticky top-14 z-10 flex border-b border-neutral-200 bg-white px-1">
+            <button type="button" class="h-11 flex-1 border-b-2 border-brand-600 text-[13px] font-semibold text-brand-700" aria-current="true">정보</button>
+            <button type="button" class="h-11 flex-1 border-b-2 border-transparent text-[13px] font-medium text-neutral-600">시술·가격</button>
+            <button type="button" class="h-11 flex-1 border-b-2 border-transparent text-[13px] font-medium text-neutral-600">의료진</button>
+            <button type="button" class="h-11 flex-1 border-b-2 border-transparent text-[13px] font-medium text-neutral-600">후기</button>
+            <button type="button" class="h-11 flex-1 border-b-2 border-transparent text-[13px] font-medium text-neutral-600">문의</button>
+          </nav>
+
+          <div class="px-4">
+            <!-- 정보 -->
+            <section class="mt-6">
+              <h2 class="mb-3 text-lg font-bold text-neutral-900">정보</h2>
+
+              <h3 class="mb-2 text-base font-bold text-neutral-900">진료시간</h3>
+              <div class="mb-4 rounded-2xl border border-neutral-100 p-4">
+                <button type="button" class="flex w-full items-center justify-between gap-2">
+                  <span class="flex items-center gap-2">
+                    <span class="rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">오늘</span>
+                    <span class="text-sm text-neutral-700">금요일</span>
+                    <span class="text-sm font-semibold text-neutral-900">10:00 - 21:00</span>
+                  </span>
+                  <i data-lucide="chevron-down" class="h-[18px] w-[18px] text-neutral-500"></i>
+                </button>
+              </div>
+
+              <h3 class="mb-2 text-base font-bold text-neutral-900">위치</h3>
+              <div class="mb-4 rounded-2xl border border-neutral-100 p-4">
+                <p class="mb-3 text-sm leading-5 text-neutral-700">서울 강남구 테헤란로 123</p>
+                <div class="flex gap-2">
+                  <button type="button" class="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-neutral-200 py-2.5">
+                    <i data-lucide="copy" class="h-[15px] w-[15px] text-neutral-600"></i>
+                    <span class="text-sm font-semibold text-neutral-700">주소복사</span>
+                  </button>
+                  <button type="button" class="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-brand-50 py-2.5">
+                    <i data-lucide="map-pin" class="h-[15px] w-[15px] text-brand-700"></i>
+                    <span class="text-sm font-semibold text-brand-700">지도보기</span>
+                  </button>
+                </div>
+              </div>
+
+              <h3 class="mb-2 text-base font-bold text-neutral-900">찾아오시는 길</h3>
+              <p class="mb-4 text-sm leading-5 text-neutral-700">2호선 강남역 11번 출구에서 도보 3분이에요. 건물 지하 주차장을 2시간 무료로 쓸 수 있어요.</p>
+
+              <h3 class="mb-2 text-base font-bold text-neutral-900">병원 소개</h3>
+              <p class="mb-4 text-sm leading-5 text-neutral-700">2008년 개원 이후 한자리에서 진료해 왔어요. 보철·교정 전문의가 상주하고, 진단부터 보철까지 한 건물에서 끝낼 수 있어요.</p>
+
+              <h3 class="mb-2 text-base font-bold text-neutral-900">병원 특징</h3>
+              <div class="mb-2 flex flex-wrap gap-1.5">
+                <span class="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700"><i data-lucide="zap" class="h-3.5 w-3.5"></i>원데이가능</span>
+                <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">전담코디네이터</span>
+                <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">무통마취</span>
+                <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">디지털진료</span>
+                <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">주차가능</span>
+                <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">야간상담</span>
+                <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">CCTV설치</span>
+              </div>
+            </section>
+
+            <!-- 시술·가격 -->
+            <section class="mt-6 border-t border-neutral-100 pt-5">
+              <h2 class="mb-3 text-lg font-bold text-neutral-900">시술 · 가격</h2>
+              <p class="mb-3 text-[13px] text-neutral-500">할인 배너가 가격을 이미 말하고 있어 가격대를 두 번 적지 않아요.</p>
+
+              <h3 class="mb-2 text-base font-bold text-neutral-900">대표 시술</h3>
+              <div class="mb-4">
+                <p class="mb-1.5 text-xs font-semibold text-neutral-500">임플란트</p>
+                <div class="mb-2.5 flex flex-wrap gap-1.5">
+                  <span class="rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">임플란트</span>
+                  <span class="rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">뼈이식</span>
+                </div>
+                <p class="mb-1.5 text-xs font-semibold text-neutral-500">충치치료</p>
+                <div class="mb-2.5 flex flex-wrap gap-1.5">
+                  <span class="rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">레진</span>
+                  <span class="rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">크라운</span>
+                  <span class="rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">인레이</span>
+                </div>
+                <p class="mb-1.5 text-xs font-semibold text-neutral-500">교정</p>
+                <div class="flex flex-wrap gap-1.5">
+                  <span class="rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">투명교정</span>
+                  <span class="rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">설측교정</span>
+                </div>
+              </div>
+
+              <h3 class="mb-2 text-base font-bold text-neutral-900">진행중인 이벤트</h3>
+              <ul class="mb-2 space-y-1.5">
+                <li class="flex items-start gap-1.5 text-sm text-brand-700"><i data-lucide="gift" class="mt-0.5 h-[18px] w-[18px] shrink-0"></i><span>첫 방문 파노라마 촬영 무료</span></li>
+                <li class="flex items-start gap-1.5 text-sm text-brand-700"><i data-lucide="gift" class="mt-0.5 h-[18px] w-[18px] shrink-0"></i><span>임플란트 2개 이상 10% 할인</span></li>
+              </ul>
+            </section>
+
+            <!-- 의료진 -->
+            <section class="mt-6 border-t border-neutral-100 pt-5">
+              <h2 class="mb-3 text-lg font-bold text-neutral-900">의료진</h2>
+              <h3 class="mb-2 text-base font-bold text-neutral-900">전문의 소개</h3>
+
+              <button type="button" class="mb-2 flex w-full items-center gap-3 rounded-xl border border-neutral-100 p-3 text-left">
+                <img src="https://images.unsplash.com/photo-1659353888906-adb3e0041693?q=80&w=160&auto=format&fit=crop" alt="김하늘 대표원장 프로필 사진" class="h-14 w-14 shrink-0 rounded-full object-cover" />
+                <span class="min-w-0 flex-1">
+                  <span class="flex items-center gap-1.5">
+                    <span class="truncate text-sm font-bold text-neutral-900">김하늘 대표원장</span>
+                    <span class="shrink-0 rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">전문의</span>
+                  </span>
+                  <span class="mt-0.5 block text-xs text-neutral-500">치과보철과전문의</span>
+                </span>
+                <i data-lucide="chevron-right" class="h-[18px] w-[18px] shrink-0 text-neutral-500"></i>
+              </button>
+
+              <button type="button" class="mb-2 flex w-full items-center gap-3 rounded-xl border border-neutral-100 p-3 text-left">
+                <img src="https://images.unsplash.com/photo-1645066928295-2506defde470?q=80&w=160&auto=format&fit=crop" alt="박서준 원장 프로필 사진" class="h-14 w-14 shrink-0 rounded-full object-cover" />
+                <span class="min-w-0 flex-1">
+                  <span class="flex items-center gap-1.5">
+                    <span class="truncate text-sm font-bold text-neutral-900">박서준 원장</span>
+                    <span class="shrink-0 rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">전문의</span>
+                  </span>
+                  <span class="mt-0.5 block text-xs text-neutral-500">치과교정과전문의</span>
+                </span>
+                <i data-lucide="chevron-right" class="h-[18px] w-[18px] shrink-0 text-neutral-500"></i>
+              </button>
+
+              <button type="button" class="mb-4 flex w-full items-center gap-3 rounded-xl border border-neutral-100 p-3 text-left">
+                <img src="https://images.unsplash.com/photo-1594824476967-48c8b964273f?q=80&w=160&auto=format&fit=crop" alt="이지민 원장 프로필 사진" class="h-14 w-14 shrink-0 rounded-full object-cover" />
+                <span class="min-w-0 flex-1">
+                  <span class="block truncate text-sm font-bold text-neutral-900">이지민 원장</span>
+                  <span class="mt-0.5 block text-xs text-neutral-500">일반의</span>
+                </span>
+                <i data-lucide="chevron-right" class="h-[18px] w-[18px] shrink-0 text-neutral-500"></i>
+              </button>
+            </section>
+
+            <!-- 후기 -->
+            <section class="mt-6 border-t border-neutral-100 pt-5">
+              <h2 class="mb-3 text-lg font-bold text-neutral-900">후기</h2>
+              <h3 class="mb-2 text-base font-bold text-neutral-900">방문자 후기 (312)</h3>
+
+              <article class="mb-3 rounded-xl border border-neutral-100 p-3">
+                <div class="mb-1 flex items-center justify-between">
+                  <span class="text-sm font-semibold text-neutral-800">김**</span>
+                  <span class="text-xs text-neutral-500">2026-06-02</span>
+                </div>
+                <p class="mb-1 text-xs"><span class="text-neutral-900">★★★★★</span> <span class="text-neutral-500">5.0</span></p>
+                <p class="mb-2 text-sm leading-5 text-neutral-700">임플란트 상담을 세 군데 받아봤는데 여기가 제일 자세히 설명해 주셨어요. 당일에 바로 식립까지 했고 통증도 거의 없었어요.</p>
+                <div class="noscroll flex gap-2 overflow-x-auto">
+                  <img src="https://images.unsplash.com/photo-1670250492416-570b5b7343b1?q=80&w=200&auto=format&fit=crop" alt="후기 사진" class="h-[88px] w-[88px] shrink-0 rounded-xl object-cover" />
+                  <img src="https://images.unsplash.com/photo-1667133295315-820bb6481730?q=80&w=200&auto=format&fit=crop" alt="후기 사진" class="h-[88px] w-[88px] shrink-0 rounded-xl object-cover" />
+                </div>
+              </article>
+
+              <article class="mb-3 rounded-xl border border-neutral-100 p-3">
+                <div class="mb-1 flex items-center justify-between">
+                  <span class="text-sm font-semibold text-neutral-800">이**</span>
+                  <span class="text-xs text-neutral-500">2026-05-28</span>
+                </div>
+                <p class="mb-1 text-xs"><span class="text-neutral-900">★★★★</span><span class="text-neutral-200">★</span> <span class="text-neutral-500">4.0</span></p>
+                <p class="text-sm leading-5 text-neutral-700">교정 상담을 받았어요. 비용을 처음에 전부 알려줘서 좋았고, 대기 시간은 조금 길었어요.</p>
+              </article>
+
+              <article class="mb-4 rounded-xl border border-neutral-100 p-3">
+                <div class="mb-1 flex items-center justify-between">
+                  <span class="text-sm font-semibold text-neutral-800">박**</span>
+                  <span class="text-xs text-neutral-500">2026-05-11</span>
+                </div>
+                <p class="mb-1 text-xs"><span class="text-neutral-900">★★★★★</span> <span class="text-neutral-500">5.0</span></p>
+                <p class="mb-2 text-sm leading-5 text-neutral-700">야간 진료가 있어서 퇴근하고 다녔어요. 스케일링도 꼼꼼하게 해주셨어요.</p>
+                <img src="https://images.unsplash.com/photo-1598256989809-394fa4f6cd26?q=80&w=200&auto=format&fit=crop" alt="후기 사진" class="h-[88px] w-[88px] rounded-xl object-cover" />
+              </article>
+            </section>
+
+            <!-- 문의 -->
+            <section class="mt-6 border-t border-neutral-100 pt-5">
+              <div class="mb-3 flex items-center justify-between gap-2">
+                <h2 class="text-lg font-bold text-neutral-900">문의 <span class="text-[13px] font-medium text-neutral-500">5건 · 답변 3</span></h2>
+                <button type="button" class="rounded-xl border border-brand-600 px-3 py-2 text-[13px] font-bold text-brand-700">문의하기</button>
+              </div>
+
+              <div class="mb-4">
+                <p class="mb-1.5 text-sm leading-relaxed text-neutral-900"><span class="font-bold text-brand-700">Q </span>임플란트 상담은 예약 없이 가도 되나요?</p>
+                <div class="rounded-xl bg-brand-50 px-3 py-2.5">
+                  <p class="text-sm leading-relaxed text-neutral-700"><span class="font-bold text-brand-700">A </span>평일 오전은 대기 없이 바로 상담이 가능해요. 저녁 시간대는 예약을 권해드려요.</p>
+                </div>
+                <p class="mt-1 text-right text-[11px] text-neutral-500">10/5 답변</p>
+              </div>
+              <div class="mb-4">
+                <p class="mb-1.5 text-sm leading-relaxed text-neutral-900"><span class="font-bold text-brand-700">Q </span>보험이 적용되는 임플란트인지 궁금해요.</p>
+                <div class="rounded-xl bg-brand-50 px-3 py-2.5">
+                  <p class="text-sm leading-relaxed text-neutral-700"><span class="font-bold text-brand-700">A </span>만 65세 이상이면 평생 2개까지 건강보험이 적용돼요. 상담 때 자격 조회를 도와드려요.</p>
+                </div>
+                <p class="mt-1 text-right text-[11px] text-neutral-500">10/2 답변</p>
+              </div>
+              <div class="mb-3">
+                <p class="mb-1.5 text-sm leading-relaxed text-neutral-900"><span class="font-bold text-brand-700">Q </span>주차는 몇 시간까지 되나요?</p>
+                <div class="rounded-xl bg-brand-50 px-3 py-2.5">
+                  <p class="text-sm leading-relaxed text-neutral-700"><span class="font-bold text-brand-700">A </span>지하 주차장 2시간 무료이고, 진료가 길어지면 추가로 등록해 드려요.</p>
+                </div>
+                <p class="mt-1 text-right text-[11px] text-neutral-500">9/28 답변</p>
+              </div>
+              <button type="button" class="mb-6 text-sm font-semibold text-brand-700">문의 더보기 (2)</button>
+            </section>
+          </div>
+
+          <!-- 하단 고정 바 (2줄) -->
+          <div class="sticky bottom-0 border-t border-neutral-100 bg-white px-4 pb-4 pt-3">
+            <button type="button" class="mb-2 w-full rounded-xl border border-brand-600 bg-white py-3.5 text-base font-semibold text-brand-700">전문의 상담신청</button>
+            <div class="flex items-center gap-2">
+              <button type="button" class="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-neutral-200" aria-label="찜하기">
+                <i data-lucide="heart" class="h-6 w-6 text-neutral-600"></i>
+              </button>
+              <button type="button" class="flex-1 rounded-xl bg-brand-600 py-3.5 text-base font-semibold text-white">병원 상담신청</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================================================= -->
+    <!-- 시안 B · 한눈에 요약                                               -->
+    <!-- ================================================================= -->
+    <section class="w-[375px] shrink-0">
+      <div class="mb-4">
+        <h2 class="text-lg font-bold text-neutral-900">시안 B · 한눈에 요약</h2>
+        <p class="mt-1 text-sm text-neutral-700">사진 아래 요약 카드로 "지금 문 열었나·얼마나 드나"를 먼저 답하고, 나머지는 탭으로 한 번에 하나만 보여줘요.</p>
+        <p class="mt-3 text-[13px] font-semibold text-neutral-700">바뀐 점</p>
+        <ul class="mt-1 list-disc space-y-1 pl-5 text-[13px] text-neutral-700">
+          <li>사진 아래 <b>요약 카드 4칸</b>(오늘 진료시간·가격대·전문의 수·평점) — 전부 이미 있는 데이터예요</li>
+          <li>목차(점프 바) → <b>탭 4개</b>로 바꿔 한 번에 한 섹션만 보여줘요. 스크롤 길이가 1/4로 줄어요</li>
+          <li><code>진료중</code>/<code>진료 종료</code>를 진료시간 데이터로 계산해 배지로 보여줘요 (색 + 글자)</li>
+          <li>후기·문의를 한 탭에 묶어 "다른 사람 이야기"를 한자리에서 읽게 했어요</li>
+          <li>이모지 배지 → lucide, 별점 → neutral-900 (A 와 동일)</li>
+        </ul>
+        <p class="mt-2 text-[13px] text-neutral-500">새 데이터 필요: 없어요 (<code>businessHours</code>·<code>priceRange</code>·전문의 목록·<code>rating</code> 으로 계산)</p>
+      </div>
+
+      <!-- B-1 정보 탭 -->
+      <p class="mb-2 text-[13px] font-semibold text-neutral-700">시안 B-1 · 정보 탭 (처음 화면)</p>
+      <div class="mb-6 h-[812px] w-[375px] overflow-hidden rounded-[32px] border border-neutral-200 bg-white">
+        <div class="noscroll h-full overflow-y-auto">
+          <header class="sticky top-0 z-20 flex h-14 items-center gap-1 border-b border-neutral-100 bg-white px-2">
+            <button type="button" class="flex h-10 w-10 items-center justify-center rounded-full" aria-label="뒤로"><i data-lucide="chevron-left" class="h-6 w-6 text-neutral-900"></i></button>
+            <span class="truncate text-[17px] font-semibold text-neutral-900">서울바른치과</span>
+          </header>
+
+          <div class="noscroll flex snap-x snap-mandatory overflow-x-auto">
+            <img src="https://images.unsplash.com/photo-1704455306251-b4634215d98f?q=80&w=750&auto=format&fit=crop" alt="서울바른치과 병원 사진" class="h-[200px] w-[375px] shrink-0 snap-start object-cover" />
+            <img src="https://images.unsplash.com/photo-1722586663955-2f96a4c1f255?q=80&w=750&auto=format&fit=crop" alt="서울바른치과 병원 사진" class="h-[200px] w-[375px] shrink-0 snap-start object-cover" />
+          </div>
+
+          <div class="px-4 pt-4">
+            <div class="mb-1 flex items-start justify-between gap-2">
+              <h1 class="flex-1 text-xl font-extrabold text-neutral-900">서울바른치과</h1>
+              <span class="inline-flex shrink-0 items-center gap-1 rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700"><i data-lucide="sparkles" class="h-3.5 w-3.5"></i>추천 병원</span>
+            </div>
+            <p class="mb-3 text-sm text-neutral-500">서울 강남구 테헤란로 123 · 강남역 3분</p>
+
+            <!-- 요약 카드 -->
+            <div class="mb-4 grid grid-cols-2 gap-3">
+              <div class="rounded-2xl border border-neutral-100 p-4">
+                <p class="mb-1 flex items-center gap-1.5 text-xs font-semibold text-neutral-500"><i data-lucide="clock" class="h-[14px] w-[14px]"></i>오늘 (금)</p>
+                <p class="text-[15px] font-bold text-neutral-900">10:00 - 21:00</p>
+                <span class="mt-1.5 inline-block rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">진료중</span>
+              </div>
+              <div class="rounded-2xl border border-neutral-100 p-4">
+                <p class="mb-1 flex items-center gap-1.5 text-xs font-semibold text-neutral-500"><i data-lucide="coins" class="h-[14px] w-[14px]"></i>가격대</p>
+                <p class="text-[15px] font-bold text-neutral-900">129만 ~ 240만원</p>
+                <span class="mt-1.5 inline-block rounded-full bg-rose-500 px-2.5 py-1 text-xs font-medium text-white">할인 28%</span>
+              </div>
+              <div class="rounded-2xl border border-neutral-100 p-4">
+                <p class="mb-1 flex items-center gap-1.5 text-xs font-semibold text-neutral-500"><i data-lucide="badge-check" class="h-[14px] w-[14px]"></i>의료진</p>
+                <p class="text-[15px] font-bold text-neutral-900">전문의 2명</p>
+                <p class="mt-1 text-xs text-neutral-500">보철 · 교정</p>
+              </div>
+              <div class="rounded-2xl border border-neutral-100 p-4">
+                <p class="mb-1 flex items-center gap-1.5 text-xs font-semibold text-neutral-500"><i data-lucide="star" class="h-[14px] w-[14px]"></i>평점</p>
+                <p class="text-[15px] font-bold text-neutral-900"><span class="text-neutral-900">★</span> 4.8</p>
+                <p class="mt-1 text-xs text-neutral-500">후기 312개</p>
+              </div>
+            </div>
+
+            <!-- 할인 배너 -->
+            <div class="mb-1 rounded-2xl border border-rose-200 bg-rose-50 p-4">
+              <div class="mb-1.5 flex items-center gap-1.5">
+                <span class="inline-flex items-center gap-1 rounded-full bg-rose-500 px-2.5 py-1 text-xs font-medium text-white"><i data-lucide="flame" class="h-3.5 w-3.5"></i>얼리버드</span>
+                <span class="flex-1 truncate text-sm font-semibold text-neutral-700">임플란트 1개 진단+식립</span>
+              </div>
+              <div class="flex items-baseline gap-2">
+                <span class="text-lg font-extrabold text-rose-500">28%</span>
+                <span class="text-lg font-extrabold text-neutral-900">1,290,000원</span>
+                <span class="text-sm text-neutral-500 line-through">1,800,000원</span>
+              </div>
+            </div>
+          </div>
+
+          <nav aria-label="섹션 탭" class="sticky top-14 z-10 mt-3 flex border-b border-neutral-200 bg-white px-1">
+            <button type="button" class="h-11 flex-1 border-b-2 border-brand-600 text-sm font-semibold text-brand-700" aria-current="true">정보</button>
+            <button type="button" class="h-11 flex-1 border-b-2 border-transparent text-sm font-medium text-neutral-600">시술·가격</button>
+            <button type="button" class="h-11 flex-1 border-b-2 border-transparent text-sm font-medium text-neutral-600">의료진</button>
+            <button type="button" class="h-11 flex-1 border-b-2 border-transparent text-sm font-medium text-neutral-600">후기·문의</button>
+          </nav>
+
+          <div class="px-4 pt-5">
+            <h3 class="mb-2 text-base font-bold text-neutral-900">진료시간</h3>
+            <div class="mb-4 rounded-2xl border border-neutral-100 p-4">
+              <div class="mb-1.5 flex items-center justify-between"><span class="text-sm text-neutral-700">월요일</span><span class="text-sm text-neutral-700">10:00 - 19:00</span></div>
+              <div class="mb-1.5 flex items-center justify-between"><span class="text-sm text-neutral-700">화요일</span><span class="text-sm text-neutral-700">10:00 - 19:00</span></div>
+              <div class="mb-1.5 flex items-center justify-between"><span class="text-sm text-neutral-700">수요일</span><span class="text-sm text-neutral-700">10:00 - 19:00</span></div>
+              <div class="mb-1.5 flex items-center justify-between"><span class="text-sm text-neutral-700">목요일</span><span class="text-sm text-neutral-700">10:00 - 19:00</span></div>
+              <div class="mb-1.5 flex items-center justify-between rounded-lg bg-brand-50 px-2 py-1"><span class="text-sm font-bold text-brand-700">금요일 (오늘)</span><span class="text-sm font-bold text-brand-700">10:00 - 21:00</span></div>
+              <div class="mb-1.5 flex items-center justify-between"><span class="text-sm text-neutral-700">토요일</span><span class="text-sm text-neutral-700">09:00 - 14:00</span></div>
+              <div class="flex items-center justify-between"><span class="text-sm text-neutral-700">일요일</span><span class="text-sm text-neutral-700">휴무</span></div>
+            </div>
+
+            <h3 class="mb-2 text-base font-bold text-neutral-900">위치</h3>
+            <div class="mb-4 overflow-hidden rounded-2xl border border-neutral-100">
+              <div class="flex h-[140px] items-center justify-center gap-2 bg-neutral-100">
+                <i data-lucide="map-pin" class="h-10 w-10 text-neutral-500"></i>
+                <span class="text-sm text-neutral-500">지도 자리</span>
+              </div>
+              <div class="p-4">
+                <p class="mb-3 text-sm leading-5 text-neutral-700">서울 강남구 테헤란로 123</p>
+                <div class="flex gap-2">
+                  <button type="button" class="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-neutral-200 py-2.5"><i data-lucide="copy" class="h-[15px] w-[15px] text-neutral-600"></i><span class="text-sm font-semibold text-neutral-700">주소복사</span></button>
+                  <button type="button" class="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-brand-50 py-2.5"><i data-lucide="map-pin" class="h-[15px] w-[15px] text-brand-700"></i><span class="text-sm font-semibold text-brand-700">지도보기</span></button>
+                </div>
+              </div>
+            </div>
+
+            <h3 class="mb-2 text-base font-bold text-neutral-900">찾아오시는 길</h3>
+            <p class="mb-4 text-sm leading-5 text-neutral-700">2호선 강남역 11번 출구에서 도보 3분이에요. 건물 지하 주차장을 2시간 무료로 쓸 수 있어요.</p>
+
+            <h3 class="mb-2 text-base font-bold text-neutral-900">병원 소개</h3>
+            <p class="mb-4 text-sm leading-5 text-neutral-700">2008년 개원 이후 한자리에서 진료해 왔어요. 보철·교정 전문의가 상주하고, 진단부터 보철까지 한 건물에서 끝낼 수 있어요.</p>
+
+            <h3 class="mb-2 text-base font-bold text-neutral-900">병원 특징</h3>
+            <div class="mb-6 flex flex-wrap gap-1.5">
+              <span class="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700"><i data-lucide="zap" class="h-3.5 w-3.5"></i>원데이가능</span>
+              <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">전담코디네이터</span>
+              <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">무통마취</span>
+              <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">디지털진료</span>
+              <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">주차가능</span>
+              <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">야간상담</span>
+              <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">CCTV설치</span>
+            </div>
+          </div>
+
+          <div class="sticky bottom-0 border-t border-neutral-100 bg-white px-4 pb-4 pt-3">
+            <div class="flex items-center gap-2">
+              <button type="button" class="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-neutral-200" aria-label="찜하기"><i data-lucide="heart" class="h-6 w-6 text-neutral-600"></i></button>
+              <button type="button" class="flex-1 rounded-xl bg-brand-600 py-3.5 text-base font-semibold text-white">병원 상담신청</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- B-2 시술·가격 탭 -->
+      <p class="mb-2 text-[13px] font-semibold text-neutral-700">시안 B-2 · 시술·가격 탭 (요약 카드는 접혀 한 줄로)</p>
+      <div class="mb-6 h-[812px] w-[375px] overflow-hidden rounded-[32px] border border-neutral-200 bg-white">
+        <div class="noscroll h-full overflow-y-auto">
+          <header class="sticky top-0 z-20 flex h-14 items-center gap-1 border-b border-neutral-100 bg-white px-2">
+            <button type="button" class="flex h-10 w-10 items-center justify-center rounded-full" aria-label="뒤로"><i data-lucide="chevron-left" class="h-6 w-6 text-neutral-900"></i></button>
+            <span class="truncate text-[17px] font-semibold text-neutral-900">서울바른치과</span>
+          </header>
+
+          <!-- 스크롤되어 접힌 요약 줄 -->
+          <div class="flex items-center gap-2 border-b border-neutral-100 bg-white px-4 py-2.5">
+            <span class="text-[13px] font-semibold text-neutral-700">진료중 · 21시까지</span>
+            <span class="text-[13px] text-neutral-500">·</span>
+            <span class="text-[13px] text-neutral-500">129만 ~ 240만원</span>
+            <span class="ml-auto text-[13px] text-neutral-500"><span class="text-neutral-900">★</span> 4.8</span>
+          </div>
+
+          <nav aria-label="섹션 탭" class="sticky top-14 z-10 flex border-b border-neutral-200 bg-white px-1">
+            <button type="button" class="h-11 flex-1 border-b-2 border-transparent text-sm font-medium text-neutral-600">정보</button>
+            <button type="button" class="h-11 flex-1 border-b-2 border-brand-600 text-sm font-semibold text-brand-700" aria-current="true">시술·가격</button>
+            <button type="button" class="h-11 flex-1 border-b-2 border-transparent text-sm font-medium text-neutral-600">의료진</button>
+            <button type="button" class="h-11 flex-1 border-b-2 border-transparent text-sm font-medium text-neutral-600">후기·문의</button>
+          </nav>
+
+          <div class="px-4 pt-5">
+            <div class="mb-4 rounded-2xl border border-neutral-100 bg-neutral-50 p-4">
+              <p class="mb-1 text-sm font-semibold text-neutral-500">가격대</p>
+              <p class="text-base font-bold text-neutral-900">1,290,000원 ~ 2,400,000원</p>
+            </div>
+
+            <h3 class="mb-2 text-base font-bold text-neutral-900">대표 시술</h3>
+            <div class="mb-5">
+              <p class="mb-1.5 text-xs font-semibold text-neutral-500">임플란트</p>
+              <div class="mb-2.5 flex flex-wrap gap-1.5">
+                <span class="rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">임플란트</span>
+                <span class="rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">뼈이식</span>
+              </div>
+              <p class="mb-1.5 text-xs font-semibold text-neutral-500">충치치료</p>
+              <div class="mb-2.5 flex flex-wrap gap-1.5">
+                <span class="rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">레진</span>
+                <span class="rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">크라운</span>
+                <span class="rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">인레이</span>
+              </div>
+              <p class="mb-1.5 text-xs font-semibold text-neutral-500">교정</p>
+              <div class="flex flex-wrap gap-1.5">
+                <span class="rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">투명교정</span>
+                <span class="rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">설측교정</span>
+              </div>
+            </div>
+
+            <h3 class="mb-2 text-base font-bold text-neutral-900">진행중인 이벤트</h3>
+            <div class="mb-3 rounded-2xl border border-rose-200 bg-rose-50 p-4">
+              <div class="mb-1.5 flex items-center gap-1.5">
+                <span class="inline-flex items-center gap-1 rounded-full bg-rose-500 px-2.5 py-1 text-xs font-medium text-white"><i data-lucide="flame" class="h-3.5 w-3.5"></i>얼리버드</span>
+                <span class="flex-1 truncate text-sm font-semibold text-neutral-700">임플란트 1개 진단+식립</span>
+              </div>
+              <div class="flex items-baseline gap-2">
+                <span class="text-lg font-extrabold text-rose-500">28%</span>
+                <span class="text-lg font-extrabold text-neutral-900">1,290,000원</span>
+                <span class="text-sm text-neutral-500 line-through">1,800,000원</span>
+              </div>
+            </div>
+            <ul class="mb-6 space-y-1.5">
+              <li class="flex items-start gap-1.5 text-sm text-brand-700"><i data-lucide="gift" class="mt-0.5 h-[18px] w-[18px] shrink-0"></i><span>첫 방문 파노라마 촬영 무료</span></li>
+              <li class="flex items-start gap-1.5 text-sm text-brand-700"><i data-lucide="gift" class="mt-0.5 h-[18px] w-[18px] shrink-0"></i><span>임플란트 2개 이상 10% 할인</span></li>
+            </ul>
+          </div>
+
+          <div class="sticky bottom-0 border-t border-neutral-100 bg-white px-4 pb-4 pt-3">
+            <div class="flex items-center gap-2">
+              <button type="button" class="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-neutral-200" aria-label="찜하기"><i data-lucide="heart" class="h-6 w-6 text-neutral-600"></i></button>
+              <button type="button" class="flex-1 rounded-xl bg-brand-600 py-3.5 text-base font-semibold text-white">병원 상담신청</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- B-3 의료진 탭 -->
+      <p class="mb-2 text-[13px] font-semibold text-neutral-700">시안 B-3 · 의료진 탭</p>
+      <div class="mb-6 h-[812px] w-[375px] overflow-hidden rounded-[32px] border border-neutral-200 bg-white">
+        <div class="noscroll h-full overflow-y-auto">
+          <header class="sticky top-0 z-20 flex h-14 items-center gap-1 border-b border-neutral-100 bg-white px-2">
+            <button type="button" class="flex h-10 w-10 items-center justify-center rounded-full" aria-label="뒤로"><i data-lucide="chevron-left" class="h-6 w-6 text-neutral-900"></i></button>
+            <span class="truncate text-[17px] font-semibold text-neutral-900">서울바른치과</span>
+          </header>
+          <div class="flex items-center gap-2 border-b border-neutral-100 bg-white px-4 py-2.5">
+            <span class="text-[13px] font-semibold text-neutral-700">진료중 · 21시까지</span>
+            <span class="text-[13px] text-neutral-500">·</span>
+            <span class="text-[13px] text-neutral-500">129만 ~ 240만원</span>
+            <span class="ml-auto text-[13px] text-neutral-500"><span class="text-neutral-900">★</span> 4.8</span>
+          </div>
+          <nav aria-label="섹션 탭" class="sticky top-14 z-10 flex border-b border-neutral-200 bg-white px-1">
+            <button type="button" class="h-11 flex-1 border-b-2 border-transparent text-sm font-medium text-neutral-600">정보</button>
+            <button type="button" class="h-11 flex-1 border-b-2 border-transparent text-sm font-medium text-neutral-600">시술·가격</button>
+            <button type="button" class="h-11 flex-1 border-b-2 border-brand-600 text-sm font-semibold text-brand-700" aria-current="true">의료진</button>
+            <button type="button" class="h-11 flex-1 border-b-2 border-transparent text-sm font-medium text-neutral-600">후기·문의</button>
+          </nav>
+
+          <div class="px-4 pt-5">
+            <h3 class="mb-3 text-base font-bold text-neutral-900">전문의 소개</h3>
+            <button type="button" class="mb-2 flex w-full items-center gap-3 rounded-2xl border border-neutral-100 p-4 text-left">
+              <img src="https://images.unsplash.com/photo-1659353888906-adb3e0041693?q=80&w=160&auto=format&fit=crop" alt="김하늘 대표원장 프로필 사진" class="h-14 w-14 shrink-0 rounded-full object-cover" />
+              <span class="min-w-0 flex-1">
+                <span class="flex items-center gap-1.5">
+                  <span class="truncate text-base font-bold text-neutral-900">김하늘 대표원장</span>
+                  <span class="shrink-0 rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">전문의</span>
+                </span>
+                <span class="mt-0.5 block text-[13px] text-neutral-500">치과보철과전문의 · 경력 15년</span>
+              </span>
+              <i data-lucide="chevron-right" class="h-[18px] w-[18px] shrink-0 text-neutral-500"></i>
+            </button>
+            <button type="button" class="mb-2 flex w-full items-center gap-3 rounded-2xl border border-neutral-100 p-4 text-left">
+              <img src="https://images.unsplash.com/photo-1645066928295-2506defde470?q=80&w=160&auto=format&fit=crop" alt="박서준 원장 프로필 사진" class="h-14 w-14 shrink-0 rounded-full object-cover" />
+              <span class="min-w-0 flex-1">
+                <span class="flex items-center gap-1.5">
+                  <span class="truncate text-base font-bold text-neutral-900">박서준 원장</span>
+                  <span class="shrink-0 rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">전문의</span>
+                </span>
+                <span class="mt-0.5 block text-[13px] text-neutral-500">치과교정과전문의 · 경력 11년</span>
+              </span>
+              <i data-lucide="chevron-right" class="h-[18px] w-[18px] shrink-0 text-neutral-500"></i>
+            </button>
+            <button type="button" class="mb-6 flex w-full items-center gap-3 rounded-2xl border border-neutral-100 p-4 text-left">
+              <img src="https://images.unsplash.com/photo-1594824476967-48c8b964273f?q=80&w=160&auto=format&fit=crop" alt="이지민 원장 프로필 사진" class="h-14 w-14 shrink-0 rounded-full object-cover" />
+              <span class="min-w-0 flex-1">
+                <span class="block truncate text-base font-bold text-neutral-900">이지민 원장</span>
+                <span class="mt-0.5 block text-[13px] text-neutral-500">일반의 · 경력 7년</span>
+              </span>
+              <i data-lucide="chevron-right" class="h-[18px] w-[18px] shrink-0 text-neutral-500"></i>
+            </button>
+          </div>
+
+          <div class="sticky bottom-0 border-t border-neutral-100 bg-white px-4 pb-4 pt-3">
+            <div class="flex items-center gap-2">
+              <button type="button" class="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-neutral-200" aria-label="찜하기"><i data-lucide="heart" class="h-6 w-6 text-neutral-600"></i></button>
+              <button type="button" class="flex-1 rounded-xl bg-brand-600 py-3.5 text-base font-semibold text-white">병원 상담신청</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- B-4 후기·문의 탭 -->
+      <p class="mb-2 text-[13px] font-semibold text-neutral-700">시안 B-4 · 후기·문의 탭</p>
+      <div class="h-[812px] w-[375px] overflow-hidden rounded-[32px] border border-neutral-200 bg-white">
+        <div class="noscroll h-full overflow-y-auto">
+          <header class="sticky top-0 z-20 flex h-14 items-center gap-1 border-b border-neutral-100 bg-white px-2">
+            <button type="button" class="flex h-10 w-10 items-center justify-center rounded-full" aria-label="뒤로"><i data-lucide="chevron-left" class="h-6 w-6 text-neutral-900"></i></button>
+            <span class="truncate text-[17px] font-semibold text-neutral-900">서울바른치과</span>
+          </header>
+          <div class="flex items-center gap-2 border-b border-neutral-100 bg-white px-4 py-2.5">
+            <span class="text-[13px] font-semibold text-neutral-700">진료중 · 21시까지</span>
+            <span class="text-[13px] text-neutral-500">·</span>
+            <span class="text-[13px] text-neutral-500">129만 ~ 240만원</span>
+            <span class="ml-auto text-[13px] text-neutral-500"><span class="text-neutral-900">★</span> 4.8</span>
+          </div>
+          <nav aria-label="섹션 탭" class="sticky top-14 z-10 flex border-b border-neutral-200 bg-white px-1">
+            <button type="button" class="h-11 flex-1 border-b-2 border-transparent text-sm font-medium text-neutral-600">정보</button>
+            <button type="button" class="h-11 flex-1 border-b-2 border-transparent text-sm font-medium text-neutral-600">시술·가격</button>
+            <button type="button" class="h-11 flex-1 border-b-2 border-transparent text-sm font-medium text-neutral-600">의료진</button>
+            <button type="button" class="h-11 flex-1 border-b-2 border-brand-600 text-sm font-semibold text-brand-700" aria-current="true">후기·문의</button>
+          </nav>
+
+          <div class="px-4 pt-5">
+            <h3 class="mb-2 text-base font-bold text-neutral-900">방문자 후기 (312)</h3>
+            <article class="mb-3 rounded-xl border border-neutral-100 p-3">
+              <div class="mb-1 flex items-center justify-between"><span class="text-sm font-semibold text-neutral-800">김**</span><span class="text-xs text-neutral-500">2026-06-02</span></div>
+              <p class="mb-1 text-xs"><span class="text-neutral-900">★★★★★</span> <span class="text-neutral-500">5.0</span></p>
+              <p class="mb-2 text-sm leading-5 text-neutral-700">임플란트 상담을 세 군데 받아봤는데 여기가 제일 자세히 설명해 주셨어요. 당일에 바로 식립까지 했고 통증도 거의 없었어요.</p>
+              <div class="noscroll flex gap-2 overflow-x-auto">
+                <img src="https://images.unsplash.com/photo-1670250492416-570b5b7343b1?q=80&w=200&auto=format&fit=crop" alt="후기 사진" class="h-[88px] w-[88px] shrink-0 rounded-xl object-cover" />
+                <img src="https://images.unsplash.com/photo-1667133295315-820bb6481730?q=80&w=200&auto=format&fit=crop" alt="후기 사진" class="h-[88px] w-[88px] shrink-0 rounded-xl object-cover" />
+              </div>
+            </article>
+            <article class="mb-3 rounded-xl border border-neutral-100 p-3">
+              <div class="mb-1 flex items-center justify-between"><span class="text-sm font-semibold text-neutral-800">이**</span><span class="text-xs text-neutral-500">2026-05-28</span></div>
+              <p class="mb-1 text-xs"><span class="text-neutral-900">★★★★</span><span class="text-neutral-200">★</span> <span class="text-neutral-500">4.0</span></p>
+              <p class="text-sm leading-5 text-neutral-700">교정 상담을 받았어요. 비용을 처음에 전부 알려줘서 좋았고, 대기 시간은 조금 길었어요.</p>
+            </article>
+            <article class="mb-5 rounded-xl border border-neutral-100 p-3">
+              <div class="mb-1 flex items-center justify-between"><span class="text-sm font-semibold text-neutral-800">박**</span><span class="text-xs text-neutral-500">2026-05-11</span></div>
+              <p class="mb-1 text-xs"><span class="text-neutral-900">★★★★★</span> <span class="text-neutral-500">5.0</span></p>
+              <p class="text-sm leading-5 text-neutral-700">야간 진료가 있어서 퇴근하고 다녔어요. 스케일링도 꼼꼼하게 해주셨어요.</p>
+            </article>
+
+            <div class="mb-3 flex items-center justify-between gap-2 border-t border-neutral-100 pt-5">
+              <h3 class="text-base font-bold text-neutral-900">문의 <span class="text-[13px] font-medium text-neutral-500">5건 · 답변 3</span></h3>
+              <button type="button" class="rounded-xl border border-brand-600 px-3 py-2 text-[13px] font-bold text-brand-700">문의하기</button>
+            </div>
+            <div class="mb-4">
+              <p class="mb-1.5 text-sm leading-relaxed text-neutral-900"><span class="font-bold text-brand-700">Q </span>임플란트 상담은 예약 없이 가도 되나요?</p>
+              <div class="rounded-xl bg-brand-50 px-3 py-2.5"><p class="text-sm leading-relaxed text-neutral-700"><span class="font-bold text-brand-700">A </span>평일 오전은 대기 없이 바로 상담이 가능해요. 저녁 시간대는 예약을 권해드려요.</p></div>
+              <p class="mt-1 text-right text-[11px] text-neutral-500">10/5 답변</p>
+            </div>
+            <div class="mb-4">
+              <p class="mb-1.5 text-sm leading-relaxed text-neutral-900"><span class="font-bold text-brand-700">Q </span>보험이 적용되는 임플란트인지 궁금해요.</p>
+              <div class="rounded-xl bg-brand-50 px-3 py-2.5"><p class="text-sm leading-relaxed text-neutral-700"><span class="font-bold text-brand-700">A </span>만 65세 이상이면 평생 2개까지 건강보험이 적용돼요. 상담 때 자격 조회를 도와드려요.</p></div>
+              <p class="mt-1 text-right text-[11px] text-neutral-500">10/2 답변</p>
+            </div>
+            <button type="button" class="mb-6 text-sm font-semibold text-brand-700">문의 더보기 (2)</button>
+          </div>
+
+          <div class="sticky bottom-0 border-t border-neutral-100 bg-white px-4 pb-4 pt-3">
+            <div class="flex items-center gap-2">
+              <button type="button" class="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-neutral-200" aria-label="찜하기"><i data-lucide="heart" class="h-6 w-6 text-neutral-600"></i></button>
+              <button type="button" class="flex-1 rounded-xl bg-brand-600 py-3.5 text-base font-semibold text-white">병원 상담신청</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================================================= -->
+    <!-- 시안 C · 의료진 우선                                               -->
+    <!-- ================================================================= -->
+    <section class="w-[375px] shrink-0">
+      <div class="mb-4">
+        <h2 class="text-lg font-bold text-neutral-900">시안 C · 의료진 우선</h2>
+        <p class="mt-1 text-sm text-neutral-700">"누가 봐주나"를 가장 먼저 답해요. 전문의 인증·전공·경력을 위로 올리고 상담 진입을 전문의별로 나눠요.</p>
+        <p class="mt-3 text-[13px] font-semibold text-neutral-700">바뀐 점</p>
+        <ul class="mt-1 list-disc space-y-1 pl-5 text-[13px] text-neutral-700">
+          <li>섹션 순서를 <b>의료진 → 후기 → 시술·가격 → 정보 → 문의</b> 로 바꿨어요 (목차도 같은 순서)</li>
+          <li>전문의 카드를 크게: 전공·경력·후기 수·대표 시술 칩 + <b>카드마다 <code>상담신청</code> 버튼</b></li>
+          <li><code>전문의</code> 배지에 ShieldCheck 아이콘을 붙여 "검수를 통과한 전공"임을 글자+아이콘으로 말해요</li>
+          <li>하단 바를 <b>하트 + 병원 상담신청 하나</b>로 줄였어요 (전문의 지정은 카드에서)</li>
+          <li>사진 캐러셀을 200px 로 줄여 전문의가 첫 화면에 들어오게 했어요</li>
+        </ul>
+        <p class="mt-2 text-[13px] text-rose-500">새 데이터 필요: 상담 신청에 <b>전문의 지정(doctorId)</b> — 지금 상담 신청은 병원 단위라 "누구에게" 가 저장되지 않아요. <code>Consult</code> 계약에 <code>doctorId</code> 추가가 필요해요</p>
+      </div>
+
+      <div class="h-[812px] w-[375px] overflow-hidden rounded-[32px] border border-neutral-200 bg-white">
+        <div class="noscroll h-full overflow-y-auto">
+          <header class="sticky top-0 z-20 flex h-14 items-center gap-1 border-b border-neutral-100 bg-white px-2">
+            <button type="button" class="flex h-10 w-10 items-center justify-center rounded-full" aria-label="뒤로"><i data-lucide="chevron-left" class="h-6 w-6 text-neutral-900"></i></button>
+            <span class="truncate text-[17px] font-semibold text-neutral-900">서울바른치과</span>
+          </header>
+
+          <div class="noscroll flex snap-x snap-mandatory overflow-x-auto">
+            <img src="https://images.unsplash.com/photo-1704455306251-b4634215d98f?q=80&w=750&auto=format&fit=crop" alt="서울바른치과 병원 사진" class="h-[200px] w-[375px] shrink-0 snap-start object-cover" />
+            <img src="https://images.unsplash.com/photo-1722586663955-2f96a4c1f255?q=80&w=750&auto=format&fit=crop" alt="서울바른치과 병원 사진" class="h-[200px] w-[375px] shrink-0 snap-start object-cover" />
+          </div>
+
+          <div class="px-4 pt-4">
+            <div class="mb-1 flex items-start justify-between gap-2">
+              <h1 class="flex-1 text-xl font-extrabold text-neutral-900">서울바른치과</h1>
+              <span class="shrink-0 pt-1 text-[13px] text-neutral-500"><span class="text-neutral-900">★</span> 4.8 (312)</span>
+            </div>
+            <p class="mb-3 text-sm text-neutral-500">서울 강남구 테헤란로 123</p>
+            <div class="mb-4 flex flex-wrap gap-1.5">
+              <span class="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700"><i data-lucide="shield-check" class="h-3.5 w-3.5"></i>전문의 2명 상주</span>
+              <span class="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700"><i data-lucide="sparkles" class="h-3.5 w-3.5"></i>추천 병원</span>
+              <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">광고</span>
+            </div>
+          </div>
+
+          <nav aria-label="병원 정보 목차" class="sticky top-14 z-10 flex border-b border-neutral-200 bg-white px-1">
+            <button type="button" class="h-11 flex-1 border-b-2 border-brand-600 text-[13px] font-semibold text-brand-700" aria-current="true">의료진</button>
+            <button type="button" class="h-11 flex-1 border-b-2 border-transparent text-[13px] font-medium text-neutral-600">후기</button>
+            <button type="button" class="h-11 flex-1 border-b-2 border-transparent text-[13px] font-medium text-neutral-600">시술·가격</button>
+            <button type="button" class="h-11 flex-1 border-b-2 border-transparent text-[13px] font-medium text-neutral-600">정보</button>
+            <button type="button" class="h-11 flex-1 border-b-2 border-transparent text-[13px] font-medium text-neutral-600">문의</button>
+          </nav>
+
+          <div class="px-4">
+            <!-- 의료진 -->
+            <section class="mt-5">
+              <h2 class="mb-1 text-lg font-bold text-neutral-900">의료진</h2>
+              <p class="mb-3 text-[13px] text-neutral-500">원하는 전문의를 골라 상담을 신청할 수 있어요.</p>
+
+              <article class="mb-3 rounded-2xl border border-neutral-100 p-4">
+                <div class="mb-3 flex items-start gap-3">
+                  <img src="https://images.unsplash.com/photo-1659353888906-adb3e0041693?q=80&w=200&auto=format&fit=crop" alt="김하늘 대표원장 프로필 사진" class="h-[72px] w-[72px] shrink-0 rounded-full object-cover" />
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-center gap-1.5">
+                      <span class="truncate text-base font-bold text-neutral-900">김하늘 대표원장</span>
+                      <span class="inline-flex shrink-0 items-center gap-1 rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700"><i data-lucide="shield-check" class="h-3.5 w-3.5"></i>전문의</span>
+                    </div>
+                    <p class="mt-0.5 text-sm font-semibold text-brand-700">치과보철과전문의</p>
+                    <p class="mt-0.5 text-[13px] text-neutral-500">경력 15년 · 후기 180 · 상담 90</p>
+                  </div>
+                </div>
+                <div class="mb-3 flex flex-wrap gap-1.5">
+                  <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">임플란트</span>
+                  <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">크라운</span>
+                  <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">뼈이식</span>
+                </div>
+                <div class="flex gap-2">
+                  <button type="button" class="flex-1 rounded-xl border border-neutral-200 py-2.5 text-sm font-semibold text-neutral-700">프로필 보기</button>
+                  <button type="button" class="flex-1 rounded-xl bg-brand-600 py-2.5 text-sm font-semibold text-white">상담신청</button>
+                </div>
+              </article>
+
+              <article class="mb-3 rounded-2xl border border-neutral-100 p-4">
+                <div class="mb-3 flex items-start gap-3">
+                  <img src="https://images.unsplash.com/photo-1645066928295-2506defde470?q=80&w=200&auto=format&fit=crop" alt="박서준 원장 프로필 사진" class="h-[72px] w-[72px] shrink-0 rounded-full object-cover" />
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-center gap-1.5">
+                      <span class="truncate text-base font-bold text-neutral-900">박서준 원장</span>
+                      <span class="inline-flex shrink-0 items-center gap-1 rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700"><i data-lucide="shield-check" class="h-3.5 w-3.5"></i>전문의</span>
+                    </div>
+                    <p class="mt-0.5 text-sm font-semibold text-brand-700">치과교정과전문의</p>
+                    <p class="mt-0.5 text-[13px] text-neutral-500">경력 11년 · 후기 96 · 상담 54</p>
+                  </div>
+                </div>
+                <div class="mb-3 flex flex-wrap gap-1.5">
+                  <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">투명교정</span>
+                  <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">설측교정</span>
+                </div>
+                <div class="flex gap-2">
+                  <button type="button" class="flex-1 rounded-xl border border-neutral-200 py-2.5 text-sm font-semibold text-neutral-700">프로필 보기</button>
+                  <button type="button" class="flex-1 rounded-xl bg-brand-600 py-2.5 text-sm font-semibold text-white">상담신청</button>
+                </div>
+              </article>
+
+              <article class="mb-4 rounded-2xl border border-neutral-100 p-4">
+                <div class="mb-3 flex items-start gap-3">
+                  <img src="https://images.unsplash.com/photo-1594824476967-48c8b964273f?q=80&w=200&auto=format&fit=crop" alt="이지민 원장 프로필 사진" class="h-[72px] w-[72px] shrink-0 rounded-full object-cover" />
+                  <div class="min-w-0 flex-1">
+                    <span class="block truncate text-base font-bold text-neutral-900">이지민 원장</span>
+                    <p class="mt-0.5 text-sm font-semibold text-neutral-700">일반의</p>
+                    <p class="mt-0.5 text-[13px] text-neutral-500">경력 7년 · 후기 42 · 상담 31</p>
+                  </div>
+                </div>
+                <div class="mb-3 flex flex-wrap gap-1.5">
+                  <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">레진</span>
+                  <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">인레이</span>
+                </div>
+                <div class="flex gap-2">
+                  <button type="button" class="flex-1 rounded-xl border border-neutral-200 py-2.5 text-sm font-semibold text-neutral-700">프로필 보기</button>
+                  <button type="button" class="flex-1 rounded-xl bg-brand-600 py-2.5 text-sm font-semibold text-white">상담신청</button>
+                </div>
+              </article>
+            </section>
+
+            <!-- 후기 -->
+            <section class="mt-6 border-t border-neutral-100 pt-5">
+              <h2 class="mb-3 text-lg font-bold text-neutral-900">후기 <span class="text-[13px] font-medium text-neutral-500">312개</span></h2>
+              <article class="mb-3 rounded-xl border border-neutral-100 p-3">
+                <div class="mb-1 flex items-center justify-between"><span class="text-sm font-semibold text-neutral-800">김**</span><span class="text-xs text-neutral-500">2026-06-02</span></div>
+                <p class="mb-1 text-xs"><span class="text-neutral-900">★★★★★</span> <span class="text-neutral-500">5.0 · 임플란트</span></p>
+                <p class="mb-2 text-sm leading-5 text-neutral-700">임플란트 상담을 세 군데 받아봤는데 여기가 제일 자세히 설명해 주셨어요. 당일에 바로 식립까지 했고 통증도 거의 없었어요.</p>
+                <div class="noscroll flex gap-2 overflow-x-auto">
+                  <img src="https://images.unsplash.com/photo-1670250492416-570b5b7343b1?q=80&w=200&auto=format&fit=crop" alt="후기 사진" class="h-[88px] w-[88px] shrink-0 rounded-xl object-cover" />
+                  <img src="https://images.unsplash.com/photo-1667133295315-820bb6481730?q=80&w=200&auto=format&fit=crop" alt="후기 사진" class="h-[88px] w-[88px] shrink-0 rounded-xl object-cover" />
+                </div>
+              </article>
+              <article class="mb-3 rounded-xl border border-neutral-100 p-3">
+                <div class="mb-1 flex items-center justify-between"><span class="text-sm font-semibold text-neutral-800">이**</span><span class="text-xs text-neutral-500">2026-05-28</span></div>
+                <p class="mb-1 text-xs"><span class="text-neutral-900">★★★★</span><span class="text-neutral-200">★</span> <span class="text-neutral-500">4.0 · 투명교정</span></p>
+                <p class="text-sm leading-5 text-neutral-700">교정 상담을 받았어요. 비용을 처음에 전부 알려줘서 좋았고, 대기 시간은 조금 길었어요.</p>
+              </article>
+              <article class="mb-3 rounded-xl border border-neutral-100 p-3">
+                <div class="mb-1 flex items-center justify-between"><span class="text-sm font-semibold text-neutral-800">박**</span><span class="text-xs text-neutral-500">2026-05-11</span></div>
+                <p class="mb-1 text-xs"><span class="text-neutral-900">★★★★★</span> <span class="text-neutral-500">5.0 · 스케일링</span></p>
+                <p class="text-sm leading-5 text-neutral-700">야간 진료가 있어서 퇴근하고 다녔어요. 스케일링도 꼼꼼하게 해주셨어요.</p>
+              </article>
+            </section>
+
+            <!-- 시술·가격 -->
+            <section class="mt-6 border-t border-neutral-100 pt-5">
+              <h2 class="mb-3 text-lg font-bold text-neutral-900">시술 · 가격</h2>
+              <div class="mb-4 rounded-2xl border border-rose-200 bg-rose-50 p-4">
+                <div class="mb-1.5 flex items-center gap-1.5">
+                  <span class="inline-flex items-center gap-1 rounded-full bg-rose-500 px-2.5 py-1 text-xs font-medium text-white"><i data-lucide="flame" class="h-3.5 w-3.5"></i>얼리버드</span>
+                  <span class="flex-1 truncate text-sm font-semibold text-neutral-700">임플란트 1개 진단+식립</span>
+                </div>
+                <div class="flex items-baseline gap-2">
+                  <span class="text-lg font-extrabold text-rose-500">28%</span>
+                  <span class="text-lg font-extrabold text-neutral-900">1,290,000원</span>
+                  <span class="text-sm text-neutral-500 line-through">1,800,000원</span>
+                </div>
+              </div>
+              <h3 class="mb-2 text-base font-bold text-neutral-900">대표 시술</h3>
+              <div class="mb-4">
+                <p class="mb-1.5 text-xs font-semibold text-neutral-500">임플란트</p>
+                <div class="mb-2.5 flex flex-wrap gap-1.5">
+                  <span class="rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">임플란트</span>
+                  <span class="rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">뼈이식</span>
+                </div>
+                <p class="mb-1.5 text-xs font-semibold text-neutral-500">충치치료</p>
+                <div class="mb-2.5 flex flex-wrap gap-1.5">
+                  <span class="rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">레진</span>
+                  <span class="rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">크라운</span>
+                  <span class="rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">인레이</span>
+                </div>
+                <p class="mb-1.5 text-xs font-semibold text-neutral-500">교정</p>
+                <div class="flex flex-wrap gap-1.5">
+                  <span class="rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">투명교정</span>
+                  <span class="rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">설측교정</span>
+                </div>
+              </div>
+              <h3 class="mb-2 text-base font-bold text-neutral-900">진행중인 이벤트</h3>
+              <ul class="space-y-1.5">
+                <li class="flex items-start gap-1.5 text-sm text-brand-700"><i data-lucide="gift" class="mt-0.5 h-[18px] w-[18px] shrink-0"></i><span>첫 방문 파노라마 촬영 무료</span></li>
+                <li class="flex items-start gap-1.5 text-sm text-brand-700"><i data-lucide="gift" class="mt-0.5 h-[18px] w-[18px] shrink-0"></i><span>임플란트 2개 이상 10% 할인</span></li>
+              </ul>
+            </section>
+
+            <!-- 정보 -->
+            <section class="mt-6 border-t border-neutral-100 pt-5">
+              <h2 class="mb-3 text-lg font-bold text-neutral-900">정보</h2>
+              <h3 class="mb-2 text-base font-bold text-neutral-900">진료시간</h3>
+              <div class="mb-4 rounded-2xl border border-neutral-100 p-4">
+                <button type="button" class="flex w-full items-center justify-between gap-2">
+                  <span class="flex items-center gap-2">
+                    <span class="rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">오늘</span>
+                    <span class="text-sm text-neutral-700">금요일</span>
+                    <span class="text-sm font-semibold text-neutral-900">10:00 - 21:00</span>
+                  </span>
+                  <i data-lucide="chevron-down" class="h-[18px] w-[18px] text-neutral-500"></i>
+                </button>
+              </div>
+              <h3 class="mb-2 text-base font-bold text-neutral-900">위치</h3>
+              <div class="mb-4 rounded-2xl border border-neutral-100 p-4">
+                <p class="mb-3 text-sm leading-5 text-neutral-700">서울 강남구 테헤란로 123</p>
+                <div class="flex gap-2">
+                  <button type="button" class="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-neutral-200 py-2.5"><i data-lucide="copy" class="h-[15px] w-[15px] text-neutral-600"></i><span class="text-sm font-semibold text-neutral-700">주소복사</span></button>
+                  <button type="button" class="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-brand-50 py-2.5"><i data-lucide="map-pin" class="h-[15px] w-[15px] text-brand-700"></i><span class="text-sm font-semibold text-brand-700">지도보기</span></button>
+                </div>
+              </div>
+              <h3 class="mb-2 text-base font-bold text-neutral-900">찾아오시는 길</h3>
+              <p class="mb-4 text-sm leading-5 text-neutral-700">2호선 강남역 11번 출구에서 도보 3분이에요. 건물 지하 주차장을 2시간 무료로 쓸 수 있어요.</p>
+              <h3 class="mb-2 text-base font-bold text-neutral-900">병원 소개</h3>
+              <p class="mb-4 text-sm leading-5 text-neutral-700">2008년 개원 이후 한자리에서 진료해 왔어요. 보철·교정 전문의가 상주하고, 진단부터 보철까지 한 건물에서 끝낼 수 있어요.</p>
+              <h3 class="mb-2 text-base font-bold text-neutral-900">병원 특징</h3>
+              <div class="flex flex-wrap gap-1.5">
+                <span class="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700"><i data-lucide="zap" class="h-3.5 w-3.5"></i>원데이가능</span>
+                <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">전담코디네이터</span>
+                <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">무통마취</span>
+                <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">디지털진료</span>
+                <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">주차가능</span>
+                <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">야간상담</span>
+                <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">CCTV설치</span>
+              </div>
+            </section>
+
+            <!-- 문의 -->
+            <section class="mt-6 border-t border-neutral-100 pt-5">
+              <div class="mb-3 flex items-center justify-between gap-2">
+                <h2 class="text-lg font-bold text-neutral-900">문의 <span class="text-[13px] font-medium text-neutral-500">5건 · 답변 3</span></h2>
+                <button type="button" class="rounded-xl border border-brand-600 px-3 py-2 text-[13px] font-bold text-brand-700">문의하기</button>
+              </div>
+              <div class="mb-4">
+                <p class="mb-1.5 text-sm leading-relaxed text-neutral-900"><span class="font-bold text-brand-700">Q </span>임플란트 상담은 예약 없이 가도 되나요?</p>
+                <div class="rounded-xl bg-brand-50 px-3 py-2.5"><p class="text-sm leading-relaxed text-neutral-700"><span class="font-bold text-brand-700">A </span>평일 오전은 대기 없이 바로 상담이 가능해요. 저녁 시간대는 예약을 권해드려요.</p></div>
+                <p class="mt-1 text-right text-[11px] text-neutral-500">10/5 답변</p>
+              </div>
+              <div class="mb-3">
+                <p class="mb-1.5 text-sm leading-relaxed text-neutral-900"><span class="font-bold text-brand-700">Q </span>주차는 몇 시간까지 되나요?</p>
+                <div class="rounded-xl bg-brand-50 px-3 py-2.5"><p class="text-sm leading-relaxed text-neutral-700"><span class="font-bold text-brand-700">A </span>지하 주차장 2시간 무료이고, 진료가 길어지면 추가로 등록해 드려요.</p></div>
+                <p class="mt-1 text-right text-[11px] text-neutral-500">9/28 답변</p>
+              </div>
+              <button type="button" class="mb-6 text-sm font-semibold text-brand-700">문의 더보기 (1)</button>
+            </section>
+          </div>
+
+          <div class="sticky bottom-0 border-t border-neutral-100 bg-white px-4 pb-4 pt-3">
+            <div class="flex items-center gap-2">
+              <button type="button" class="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-neutral-200" aria-label="찜하기"><i data-lucide="heart" class="h-6 w-6 text-neutral-600"></i></button>
+              <button type="button" class="flex-1 rounded-xl bg-brand-600 py-3.5 text-base font-semibold text-white">병원 상담신청</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================================================= -->
+    <!-- 시안 D · 시술·가격 우선                                            -->
+    <!-- ================================================================= -->
+    <section class="w-[375px] shrink-0">
+      <div class="mb-4">
+        <h2 class="text-lg font-bold text-neutral-900">시안 D · 시술·가격 우선</h2>
+        <p class="mt-1 text-sm text-neutral-700">"얼마고 다른 사람은 어땠나"를 먼저 보여줘요. 가격·이벤트·후기 하이라이트가 접힘선 위에 오고 CTA 는 하나예요.</p>
+        <p class="mt-3 text-[13px] font-semibold text-neutral-700">바뀐 점</p>
+        <ul class="mt-1 list-disc space-y-1 pl-5 text-[13px] text-neutral-700">
+          <li>섹션 순서를 <b>가격 → 후기 → 의료진 → 정보 → 문의</b> 로 바꿨어요</li>
+          <li>시술 알약 대신 <b>시술별 가격표</b>(시술명 · 금액 · 준비중 표시)를 그려요</li>
+          <li>후기 하이라이트: 평점 4.8 과 최근 후기 2건을 위로 올리고 <code>후기 전체보기</code> 로 접었어요</li>
+          <li>하단 바 CTA 를 <b><code>병원 상담신청</code> 하나</b>로 — 전문의 지정은 의료진 카드에서만</li>
+          <li>이모지 배지 → lucide, 별점 → neutral-900, 취소선 원가 neutral-400 → neutral-500 (A 와 동일)</li>
+        </ul>
+        <p class="mt-2 text-[13px] text-rose-500">새 데이터 필요: <b>시술별 가격</b>(<code>Hospital.procedures[]</code> = procedureId + 금액 + 준비중) — 계약에 제안 상태로만 있고 아직 구현되지 않았어요. 값이 하나도 없는 병원은 지금처럼 전체 가격대 한 줄로 떨어져요</p>
+      </div>
+
+      <div class="h-[812px] w-[375px] overflow-hidden rounded-[32px] border border-neutral-200 bg-white">
+        <div class="noscroll h-full overflow-y-auto">
+          <header class="sticky top-0 z-20 flex h-14 items-center gap-1 border-b border-neutral-100 bg-white px-2">
+            <button type="button" class="flex h-10 w-10 items-center justify-center rounded-full" aria-label="뒤로"><i data-lucide="chevron-left" class="h-6 w-6 text-neutral-900"></i></button>
+            <span class="truncate text-[17px] font-semibold text-neutral-900">서울바른치과</span>
+          </header>
+
+          <div class="noscroll flex snap-x snap-mandatory overflow-x-auto">
+            <img src="https://images.unsplash.com/photo-1704455306251-b4634215d98f?q=80&w=750&auto=format&fit=crop" alt="서울바른치과 병원 사진" class="h-[180px] w-[375px] shrink-0 snap-start object-cover" />
+            <img src="https://images.unsplash.com/photo-1722586663955-2f96a4c1f255?q=80&w=750&auto=format&fit=crop" alt="서울바른치과 병원 사진" class="h-[180px] w-[375px] shrink-0 snap-start object-cover" />
+          </div>
+
+          <div class="px-4 pt-4">
+            <div class="mb-1 flex items-start justify-between gap-2">
+              <h1 class="flex-1 text-xl font-extrabold text-neutral-900">서울바른치과</h1>
+              <span class="shrink-0 pt-1 text-[13px] text-neutral-500"><span class="text-neutral-900">★</span> 4.8 (312)</span>
+            </div>
+            <p class="mb-3 text-sm text-neutral-500">서울 강남구 테헤란로 123 · 금요일 21:00까지</p>
+            <div class="mb-4 flex flex-wrap gap-1.5">
+              <span class="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700"><i data-lucide="zap" class="h-3.5 w-3.5"></i>원데이가능</span>
+              <span class="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700"><i data-lucide="sparkles" class="h-3.5 w-3.5"></i>추천 병원</span>
+              <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">광고</span>
+            </div>
+          </div>
+
+          <nav aria-label="병원 정보 목차" class="sticky top-14 z-10 flex border-b border-neutral-200 bg-white px-1">
+            <button type="button" class="h-11 flex-1 border-b-2 border-brand-600 text-[13px] font-semibold text-brand-700" aria-current="true">가격</button>
+            <button type="button" class="h-11 flex-1 border-b-2 border-transparent text-[13px] font-medium text-neutral-600">후기</button>
+            <button type="button" class="h-11 flex-1 border-b-2 border-transparent text-[13px] font-medium text-neutral-600">의료진</button>
+            <button type="button" class="h-11 flex-1 border-b-2 border-transparent text-[13px] font-medium text-neutral-600">정보</button>
+            <button type="button" class="h-11 flex-1 border-b-2 border-transparent text-[13px] font-medium text-neutral-600">문의</button>
+          </nav>
+
+          <div class="px-4">
+            <!-- 가격 -->
+            <section class="mt-5">
+              <h2 class="mb-3 text-lg font-bold text-neutral-900">시술 · 가격</h2>
+
+              <div class="mb-4 rounded-2xl border border-rose-200 bg-rose-50 p-4">
+                <div class="mb-1.5 flex items-center gap-1.5">
+                  <span class="inline-flex items-center gap-1 rounded-full bg-rose-500 px-2.5 py-1 text-xs font-medium text-white"><i data-lucide="flame" class="h-3.5 w-3.5"></i>얼리버드</span>
+                  <span class="flex-1 truncate text-sm font-semibold text-neutral-700">임플란트 1개 진단+식립</span>
+                </div>
+                <div class="flex items-baseline gap-2">
+                  <span class="text-lg font-extrabold text-rose-500">28%</span>
+                  <span class="text-lg font-extrabold text-neutral-900">1,290,000원</span>
+                  <span class="text-sm text-neutral-500 line-through">1,800,000원</span>
+                </div>
+              </div>
+
+              <h3 class="mb-2 text-base font-bold text-neutral-900">시술별 가격</h3>
+              <div class="mb-2 overflow-hidden rounded-2xl border border-neutral-100">
+                <p class="border-b border-neutral-100 bg-neutral-50 px-4 py-2 text-xs font-semibold text-neutral-500">임플란트</p>
+                <div class="flex items-center justify-between gap-2 border-b border-neutral-100 px-4 py-3">
+                  <span class="text-[15px] text-neutral-900">임플란트</span>
+                  <span class="text-[15px] font-bold text-neutral-900">1,290,000원 ~</span>
+                </div>
+                <div class="flex items-center justify-between gap-2 px-4 py-3">
+                  <span class="text-[15px] text-neutral-900">뼈이식</span>
+                  <span class="text-[15px] font-bold text-neutral-900">400,000원 ~</span>
+                </div>
+              </div>
+              <div class="mb-2 overflow-hidden rounded-2xl border border-neutral-100">
+                <p class="border-b border-neutral-100 bg-neutral-50 px-4 py-2 text-xs font-semibold text-neutral-500">충치치료</p>
+                <div class="flex items-center justify-between gap-2 border-b border-neutral-100 px-4 py-3">
+                  <span class="text-[15px] text-neutral-900">크라운 (지르코니아)</span>
+                  <span class="text-[15px] font-bold text-neutral-900">450,000원 ~</span>
+                </div>
+                <div class="flex items-center justify-between gap-2 border-b border-neutral-100 px-4 py-3">
+                  <span class="text-[15px] text-neutral-900">레진</span>
+                  <span class="text-[15px] font-bold text-neutral-900">100,000원 ~</span>
+                </div>
+                <div class="flex items-center justify-between gap-2 px-4 py-3">
+                  <span class="text-[15px] text-neutral-900">인레이</span>
+                  <span class="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">준비중</span>
+                </div>
+              </div>
+              <div class="mb-3 overflow-hidden rounded-2xl border border-neutral-100">
+                <p class="border-b border-neutral-100 bg-neutral-50 px-4 py-2 text-xs font-semibold text-neutral-500">교정</p>
+                <div class="flex items-center justify-between gap-2 border-b border-neutral-100 px-4 py-3">
+                  <span class="text-[15px] text-neutral-900">투명교정</span>
+                  <span class="text-[15px] font-bold text-neutral-900">3,800,000원 ~</span>
+                </div>
+                <div class="flex items-center justify-between gap-2 px-4 py-3">
+                  <span class="text-[15px] text-neutral-900">설측교정</span>
+                  <span class="text-[15px] font-bold text-neutral-900">4,500,000원 ~</span>
+                </div>
+              </div>
+              <p class="mb-4 text-xs text-neutral-500">표시 금액은 병원이 등록한 기준가예요. 실제 비용은 상담 후 달라질 수 있어요.</p>
+
+              <h3 class="mb-2 text-base font-bold text-neutral-900">진행중인 이벤트</h3>
+              <ul class="space-y-1.5">
+                <li class="flex items-start gap-1.5 text-sm text-brand-700"><i data-lucide="gift" class="mt-0.5 h-[18px] w-[18px] shrink-0"></i><span>첫 방문 파노라마 촬영 무료</span></li>
+                <li class="flex items-start gap-1.5 text-sm text-brand-700"><i data-lucide="gift" class="mt-0.5 h-[18px] w-[18px] shrink-0"></i><span>임플란트 2개 이상 10% 할인</span></li>
+              </ul>
+            </section>
+
+            <!-- 후기 하이라이트 -->
+            <section class="mt-6 border-t border-neutral-100 pt-5">
+              <h2 class="mb-3 text-lg font-bold text-neutral-900">후기</h2>
+              <div class="mb-3 flex items-center gap-4 rounded-2xl border border-neutral-100 p-4">
+                <div class="shrink-0 text-center">
+                  <p class="text-2xl font-extrabold text-neutral-900">4.8</p>
+                  <p class="text-xs text-neutral-900">★★★★★</p>
+                </div>
+                <div class="min-w-0 flex-1 border-l border-neutral-100 pl-4">
+                  <p class="text-sm text-neutral-700">후기 312개</p>
+                  <p class="mt-1 text-[13px] text-neutral-500">임플란트 148 · 교정 92 · 충치치료 72</p>
+                </div>
+              </div>
+              <article class="mb-3 rounded-xl border border-neutral-100 p-3">
+                <div class="mb-1 flex items-center justify-between"><span class="text-sm font-semibold text-neutral-800">김**</span><span class="text-xs text-neutral-500">2026-06-02</span></div>
+                <p class="mb-1 text-xs"><span class="text-neutral-900">★★★★★</span> <span class="text-neutral-500">5.0 · 임플란트</span></p>
+                <p class="mb-2 text-sm leading-5 text-neutral-700">임플란트 상담을 세 군데 받아봤는데 여기가 제일 자세히 설명해 주셨어요. 당일에 바로 식립까지 했고 통증도 거의 없었어요.</p>
+                <div class="noscroll flex gap-2 overflow-x-auto">
+                  <img src="https://images.unsplash.com/photo-1670250492416-570b5b7343b1?q=80&w=200&auto=format&fit=crop" alt="후기 사진" class="h-[88px] w-[88px] shrink-0 rounded-xl object-cover" />
+                  <img src="https://images.unsplash.com/photo-1598256989809-394fa4f6cd26?q=80&w=200&auto=format&fit=crop" alt="후기 사진" class="h-[88px] w-[88px] shrink-0 rounded-xl object-cover" />
+                </div>
+              </article>
+              <article class="mb-3 rounded-xl border border-neutral-100 p-3">
+                <div class="mb-1 flex items-center justify-between"><span class="text-sm font-semibold text-neutral-800">이**</span><span class="text-xs text-neutral-500">2026-05-28</span></div>
+                <p class="mb-1 text-xs"><span class="text-neutral-900">★★★★</span><span class="text-neutral-200">★</span> <span class="text-neutral-500">4.0 · 투명교정</span></p>
+                <p class="text-sm leading-5 text-neutral-700">교정 상담을 받았어요. 비용을 처음에 전부 알려줘서 좋았고, 대기 시간은 조금 길었어요.</p>
+              </article>
+              <button type="button" class="w-full rounded-xl border border-neutral-200 py-3 text-sm font-semibold text-neutral-700">후기 전체보기 (312)</button>
+            </section>
+
+            <!-- 의료진 -->
+            <section class="mt-6 border-t border-neutral-100 pt-5">
+              <h2 class="mb-3 text-lg font-bold text-neutral-900">의료진</h2>
+              <button type="button" class="mb-2 flex w-full items-center gap-3 rounded-xl border border-neutral-100 p-3 text-left">
+                <img src="https://images.unsplash.com/photo-1659353888906-adb3e0041693?q=80&w=160&auto=format&fit=crop" alt="김하늘 대표원장 프로필 사진" class="h-14 w-14 shrink-0 rounded-full object-cover" />
+                <span class="min-w-0 flex-1">
+                  <span class="flex items-center gap-1.5">
+                    <span class="truncate text-sm font-bold text-neutral-900">김하늘 대표원장</span>
+                    <span class="shrink-0 rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">전문의</span>
+                  </span>
+                  <span class="mt-0.5 block text-xs text-neutral-500">치과보철과전문의 · 임플란트</span>
+                </span>
+                <i data-lucide="chevron-right" class="h-[18px] w-[18px] shrink-0 text-neutral-500"></i>
+              </button>
+              <button type="button" class="mb-2 flex w-full items-center gap-3 rounded-xl border border-neutral-100 p-3 text-left">
+                <img src="https://images.unsplash.com/photo-1645066928295-2506defde470?q=80&w=160&auto=format&fit=crop" alt="박서준 원장 프로필 사진" class="h-14 w-14 shrink-0 rounded-full object-cover" />
+                <span class="min-w-0 flex-1">
+                  <span class="flex items-center gap-1.5">
+                    <span class="truncate text-sm font-bold text-neutral-900">박서준 원장</span>
+                    <span class="shrink-0 rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">전문의</span>
+                  </span>
+                  <span class="mt-0.5 block text-xs text-neutral-500">치과교정과전문의 · 투명교정</span>
+                </span>
+                <i data-lucide="chevron-right" class="h-[18px] w-[18px] shrink-0 text-neutral-500"></i>
+              </button>
+              <button type="button" class="flex w-full items-center gap-3 rounded-xl border border-neutral-100 p-3 text-left">
+                <img src="https://images.unsplash.com/photo-1594824476967-48c8b964273f?q=80&w=160&auto=format&fit=crop" alt="이지민 원장 프로필 사진" class="h-14 w-14 shrink-0 rounded-full object-cover" />
+                <span class="min-w-0 flex-1">
+                  <span class="block truncate text-sm font-bold text-neutral-900">이지민 원장</span>
+                  <span class="mt-0.5 block text-xs text-neutral-500">일반의 · 레진</span>
+                </span>
+                <i data-lucide="chevron-right" class="h-[18px] w-[18px] shrink-0 text-neutral-500"></i>
+              </button>
+            </section>
+
+            <!-- 정보 -->
+            <section class="mt-6 border-t border-neutral-100 pt-5">
+              <h2 class="mb-3 text-lg font-bold text-neutral-900">정보</h2>
+              <h3 class="mb-2 text-base font-bold text-neutral-900">진료시간</h3>
+              <div class="mb-4 rounded-2xl border border-neutral-100 p-4">
+                <button type="button" class="flex w-full items-center justify-between gap-2">
+                  <span class="flex items-center gap-2">
+                    <span class="rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">오늘</span>
+                    <span class="text-sm text-neutral-700">금요일</span>
+                    <span class="text-sm font-semibold text-neutral-900">10:00 - 21:00</span>
+                  </span>
+                  <i data-lucide="chevron-down" class="h-[18px] w-[18px] text-neutral-500"></i>
+                </button>
+              </div>
+              <h3 class="mb-2 text-base font-bold text-neutral-900">위치</h3>
+              <div class="mb-4 rounded-2xl border border-neutral-100 p-4">
+                <p class="mb-3 text-sm leading-5 text-neutral-700">서울 강남구 테헤란로 123</p>
+                <div class="flex gap-2">
+                  <button type="button" class="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-neutral-200 py-2.5"><i data-lucide="copy" class="h-[15px] w-[15px] text-neutral-600"></i><span class="text-sm font-semibold text-neutral-700">주소복사</span></button>
+                  <button type="button" class="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-brand-50 py-2.5"><i data-lucide="map-pin" class="h-[15px] w-[15px] text-brand-700"></i><span class="text-sm font-semibold text-brand-700">지도보기</span></button>
+                </div>
+              </div>
+              <h3 class="mb-2 text-base font-bold text-neutral-900">찾아오시는 길</h3>
+              <p class="mb-4 text-sm leading-5 text-neutral-700">2호선 강남역 11번 출구에서 도보 3분이에요. 건물 지하 주차장을 2시간 무료로 쓸 수 있어요.</p>
+              <h3 class="mb-2 text-base font-bold text-neutral-900">병원 소개</h3>
+              <p class="mb-4 text-sm leading-5 text-neutral-700">2008년 개원 이후 한자리에서 진료해 왔어요. 보철·교정 전문의가 상주하고, 진단부터 보철까지 한 건물에서 끝낼 수 있어요.</p>
+              <h3 class="mb-2 text-base font-bold text-neutral-900">병원 특징</h3>
+              <div class="flex flex-wrap gap-1.5">
+                <span class="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700"><i data-lucide="zap" class="h-3.5 w-3.5"></i>원데이가능</span>
+                <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">전담코디네이터</span>
+                <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">무통마취</span>
+                <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">디지털진료</span>
+                <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">주차가능</span>
+                <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">야간상담</span>
+                <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">CCTV설치</span>
+              </div>
+            </section>
+
+            <!-- 문의 -->
+            <section class="mt-6 border-t border-neutral-100 pt-5">
+              <div class="mb-3 flex items-center justify-between gap-2">
+                <h2 class="text-lg font-bold text-neutral-900">문의 <span class="text-[13px] font-medium text-neutral-500">5건 · 답변 3</span></h2>
+                <button type="button" class="rounded-xl border border-brand-600 px-3 py-2 text-[13px] font-bold text-brand-700">문의하기</button>
+              </div>
+              <div class="mb-4">
+                <p class="mb-1.5 text-sm leading-relaxed text-neutral-900"><span class="font-bold text-brand-700">Q </span>보험이 적용되는 임플란트인지 궁금해요.</p>
+                <div class="rounded-xl bg-brand-50 px-3 py-2.5"><p class="text-sm leading-relaxed text-neutral-700"><span class="font-bold text-brand-700">A </span>만 65세 이상이면 평생 2개까지 건강보험이 적용돼요. 상담 때 자격 조회를 도와드려요.</p></div>
+                <p class="mt-1 text-right text-[11px] text-neutral-500">10/2 답변</p>
+              </div>
+              <div class="mb-3">
+                <p class="mb-1.5 text-sm leading-relaxed text-neutral-900"><span class="font-bold text-brand-700">Q </span>표시된 가격에 뼈이식 비용도 들어 있나요?</p>
+                <div class="rounded-xl bg-brand-50 px-3 py-2.5"><p class="text-sm leading-relaxed text-neutral-700"><span class="font-bold text-brand-700">A </span>식립 비용만 들어 있어요. 뼈이식이 필요하면 촬영 후 따로 안내해 드려요.</p></div>
+                <p class="mt-1 text-right text-[11px] text-neutral-500">9/30 답변</p>
+              </div>
+              <button type="button" class="mb-6 text-sm font-semibold text-brand-700">문의 더보기 (1)</button>
+            </section>
+          </div>
+
+          <div class="sticky bottom-0 border-t border-neutral-100 bg-white px-4 pb-4 pt-3">
+            <div class="flex items-center gap-2">
+              <button type="button" class="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-neutral-200" aria-label="찜 해제">
+                <i data-lucide="heart" class="h-6 w-6 fill-rose-500 text-rose-500"></i>
+              </button>
+              <button type="button" class="flex-1 rounded-xl bg-brand-600 py-3.5 text-base font-semibold text-white">병원 상담신청</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- 공통 메모 -->
+  <section class="mt-12 max-w-[760px] rounded-2xl border border-neutral-100 bg-white p-4">
+    <h2 class="mb-2 text-lg font-bold text-neutral-900">네 시안에 공통으로 적용한 것</h2>
+    <ul class="list-disc space-y-1 pl-5 text-sm text-neutral-700">
+      <li><b>목차에 현재 위치 표시</b> — 지금은 어디를 보고 있는지 알 수 없어요. brand-600 밑줄 2px + brand-700 글자 + <code>aria-current</code></li>
+      <li><b>이모지 → lucide</b> — 🌟 Sparkles · 🔥 Flame · ⚡ Zap · 🎁 Gift. 아이콘과 이모지가 섞이던 자리를 하나로 맞췄어요</li>
+      <li><b>별점 색</b> — 지금 코드는 후기 별을 amber-500 으로 칠해요. 노란색을 새로 들이지 않기로 해 neutral-900 으로 바꾸고, 숫자(<code>5.0</code>)를 함께 적어 색만으로 뜻을 전하지 않게 했어요</li>
+      <li><b>neutral-400 → neutral-500</b> — 빈 상태 문구·취소선 원가·답변 날짜가 흰 바탕에서 2.5:1 이었어요. 읽어야 하는 글자는 500 이상으로 올렸어요</li>
+      <li><b>전화 버튼은 넣지 않았어요</b> — 병원 전화번호 데이터가 아직 없어요(<code>Hospital.phone</code> 은 계약에 제안 상태). 넣으면 네 시안 모두 새 데이터가 필요해져요</li>
+      <li><b>지도</b> — 키가 없을 때를 가정해 B 의 위치 카드에 회색 자리 그림을 그렸어요</li>
+    </ul>
+  </section>
+
+</main>
+
+<script>lucide.createIcons();</script>
+</body>
+</html>

@@ -1,0 +1,1254 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>몰라몰라 · 병원 탐색 시안</title>
+    <script src="https://cdn.tailwindcss.com/3.4.16"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              brand: {
+                50: '#eefcf9',
+                100: '#d4f6ef',
+                200: '#abecdf',
+                300: '#79dccb',
+                400: '#45c4b0',
+                500: '#22a696',
+                600: '#17847a',
+                700: '#166863',
+                800: '#16534f',
+                900: '#154543',
+              },
+            },
+            fontFamily: {
+              sans: [
+                '-apple-system',
+                'BlinkMacSystemFont',
+                '"Segoe UI"',
+                'Roboto',
+                '"Apple SD Gothic Neo"',
+                '"Malgun Gothic"',
+                'sans-serif',
+              ],
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      /* 가로 스크롤 줄(시술 탭·칩 줄)에서 스크롤바를 감춘다 — 실제 앱의 ScrollView 와 같은 모습 */
+      .no-sb::-webkit-scrollbar {
+        display: none;
+      }
+      .no-sb {
+        scrollbar-width: none;
+      }
+    </style>
+  </head>
+  <body class="bg-neutral-50 font-sans text-neutral-900">
+    <header class="px-8 pb-6 pt-10">
+      <h1 class="text-2xl font-extrabold text-neutral-900">병원 탐색 시안</h1>
+      <p class="mt-1 max-w-[760px] text-sm text-neutral-700">
+        같은 데이터·같은 디자인 규칙(brand 청록 · 그림자 없음 · lucide 아이콘)으로 그린 <code>/explore</code> 시안
+        4개예요. 모바일 375px 기준이고, 가로로 놓고 비교해 보세요. 사진은 개발용 스톡 이미지, 병원·의사 이름은
+        샘플이에요.
+      </p>
+    </header>
+
+    <main class="flex flex-wrap items-start gap-10 px-8 pb-20">
+      <!-- ===================================================================
+           시안 A · 정돈안
+      ==================================================================== -->
+      <section class="w-[375px] flex-none">
+        <div class="mb-4">
+          <h2 class="text-[18px] font-bold text-neutral-900">시안 A · 정돈안</h2>
+          <p class="mt-1 text-sm text-neutral-700">
+            지금 구조(모드·시술·정렬·조건 4줄)를 그대로 두고, 규칙에서 벗어난 곳만 고쳐요.
+          </p>
+          <ul class="mt-2 list-disc space-y-1 pl-4 text-[13px] text-neutral-700">
+            <li>배지·탭바의 이모지(🌟 ⚡ 🦷 💬)를 lucide 아이콘으로 바꿨어요</li>
+            <li><b>인기순 → 평점순</b>, <b>진료시간 → 야간상담</b> 으로 이름을 실제 동작에 맞췄어요</li>
+            <li>지역·거리·진행 문구의 neutral-400 을 neutral-500 로 올려 대비를 맞췄어요</li>
+            <li><b>리스트/지도</b> 토글의 검정 알약을 brand 칩 규칙으로 바꿨어요</li>
+            <li>시술 탭 아이콘을 16px·선 굵기 1.75 로 키워 뭉개짐을 없앴어요</li>
+          </ul>
+          <p class="mt-2 text-[13px] text-neutral-500">
+            <b class="text-neutral-700">새 데이터 필요:</b> 없어요 — 지금 화면이 쓰는 값 그대로예요
+          </p>
+        </div>
+
+        <div class="flex h-[812px] w-[375px] flex-col overflow-hidden rounded-[32px] border border-neutral-200 bg-white">
+          <div class="flex-1 overflow-y-auto">
+            <!-- 헤더 -->
+            <div class="sticky top-0 z-10 border-b border-neutral-100 bg-white px-4 pb-3 pt-4">
+              <h3 class="mb-3 text-2xl font-extrabold text-neutral-900">병원 탐색</h3>
+              <div class="flex rounded-full bg-neutral-100 p-1">
+                <button class="flex-1 rounded-full py-2 text-sm font-bold text-neutral-500">의사</button>
+                <button class="flex-1 rounded-full bg-white py-2 text-sm font-bold text-brand-700">병원</button>
+              </div>
+              <div class="mt-3 flex gap-2">
+                <button
+                  class="rounded-full border border-brand-600 bg-brand-600 px-3.5 py-2 text-sm font-medium text-white"
+                >
+                  <span class="inline-flex items-center gap-1.5"><i data-lucide="list" class="h-3.5 w-3.5"></i>리스트 보기</span>
+                </button>
+                <button
+                  class="rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700"
+                >
+                  <span class="inline-flex items-center gap-1.5"><i data-lucide="map" class="h-3.5 w-3.5"></i>지도 보기</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- 시술 탭 -->
+            <div class="border-b border-neutral-100 bg-white py-3">
+              <div class="no-sb flex gap-2 overflow-x-auto px-4">
+                <button
+                  class="flex flex-none items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700"
+                >
+                  <i data-lucide="star" class="h-4 w-4"></i>추천
+                </button>
+                <button
+                  class="flex flex-none items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4">
+                    <path d="M7.4 2.9c1.5-.8 3.1-.4 4.6.3 1.5-.7 3.1-1.1 4.6-.3 1.6.9 2 3 1.3 4.6L17.2 9H6.8l-.7-1.5c-.7-1.6-.3-3.7 1.3-4.6z" />
+                    <path d="M10.2 9v2.4h3.6V9" />
+                    <path d="M9.4 11.4h5.2l-1.1 8.4a1.5 1.5 0 0 1-3 0z" />
+                    <path d="M9.8 14.4l4.5-.9M10.2 17.3l3.8-.8" />
+                  </svg>
+                  임플란트
+                </button>
+                <button
+                  class="flex flex-none items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700"
+                >
+                  <i data-lucide="droplets" class="h-4 w-4"></i>스케일링·예방 · 준비중
+                </button>
+                <button
+                  class="flex flex-none items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4">
+                    <path d="M7 3c1.7-.6 3.3-.2 5 .5 1.7-.7 3.3-1.1 5-.5 2 .8 2.6 3 2.2 5.5-.5 3-1.2 5.2-1.7 8-.4 2.3-.9 4.5-2.1 4.5-1.4 0-1.6-2.6-2-4.3-.3-1.3-.8-2.2-1.4-2.2s-1.1.9-1.4 2.2c-.4 1.7-.6 4.3-2 4.3-1.2 0-1.7-2.2-2.1-4.5-.5-2.8-1.2-5-1.7-8C4.4 6 5 3.8 7 3z" />
+                    <rect x="10" y="7.5" width="4" height="4" rx=".8" />
+                    <path d="M1.5 9.5H10M14 9.5h8.5" />
+                  </svg>
+                  교정
+                </button>
+                <button
+                  class="flex flex-none items-center gap-1.5 rounded-full border border-brand-600 bg-brand-600 px-3.5 py-2 text-sm font-medium text-white"
+                >
+                  <i data-lucide="shield-check" class="h-4 w-4"></i>충치치료
+                </button>
+                <button
+                  class="flex flex-none items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700"
+                >
+                  <i data-lucide="sparkles" class="h-4 w-4"></i>심미
+                </button>
+                <button
+                  class="flex flex-none items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700"
+                >
+                  <i data-lucide="heart-pulse" class="h-4 w-4"></i>잇몸치료
+                </button>
+              </div>
+            </div>
+
+            <!-- 정렬 -->
+            <div class="border-b border-neutral-100 bg-white py-3">
+              <div class="no-sb flex gap-2 overflow-x-auto px-4">
+                <button class="flex-none rounded-full border border-brand-600 bg-brand-600 px-3.5 py-2 text-sm font-medium text-white">
+                  평점순
+                </button>
+                <button class="flex-none rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">
+                  후기순
+                </button>
+                <button class="flex-none rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">
+                  상담많은순
+                </button>
+              </div>
+            </div>
+
+            <!-- 조건 -->
+            <div class="border-b border-neutral-100 bg-white py-3">
+              <div class="no-sb flex gap-2 overflow-x-auto px-4">
+                <button class="flex-none rounded-full border border-brand-600 bg-brand-600 px-3.5 py-2 text-sm font-medium text-white">
+                  상담가능
+                </button>
+                <button class="flex-none rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">
+                  원데이
+                </button>
+                <button class="flex-none rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">
+                  전문의
+                </button>
+                <button class="flex-none rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">
+                  야간상담
+                </button>
+                <button class="flex-none rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">
+                  경력
+                </button>
+              </div>
+            </div>
+
+            <!-- 결과 -->
+            <div class="px-4 pb-8 pt-4">
+              <h4 class="mb-2 text-base font-bold text-neutral-900">&ldquo;충치치료&rdquo; 병원</h4>
+              <div class="mb-3 flex items-center justify-between">
+                <p class="text-sm text-neutral-500">총 57곳</p>
+                <button class="text-sm font-semibold text-brand-700">가격 비교표 보기</button>
+              </div>
+
+              <!-- 카드 1 · 광고 + 추천 + 찜됨 -->
+              <article class="relative mb-4">
+                <div class="overflow-hidden rounded-2xl border border-neutral-100 bg-white">
+                  <img
+                    src="https://images.unsplash.com/photo-1704455306251-b4634215d98f?q=80&w=600&auto=format&fit=crop"
+                    alt="서울바른치과 병원 사진"
+                    class="h-[140px] w-full object-cover"
+                  />
+                  <div class="p-4">
+                    <div class="flex items-center gap-1.5">
+                      <h5 class="min-w-0 flex-1 truncate text-base font-bold text-neutral-900">서울바른치과</h5>
+                      <span class="text-[11px] text-neutral-500">광고</span>
+                      <span class="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">
+                        <i data-lucide="star" class="h-3.5 w-3.5"></i>추천
+                      </span>
+                    </div>
+                    <p class="mb-1 truncate text-[13px] font-semibold text-brand-700">보철과</p>
+                    <p class="mb-2 truncate text-[13px] text-neutral-500">강남구 · 0.4km</p>
+                    <div class="mb-3 flex flex-wrap gap-1.5">
+                      <span class="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">
+                        <i data-lucide="zap" class="h-3.5 w-3.5"></i>원데이 가능
+                      </span>
+                      <span class="rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">보철과 전문의 상주</span>
+                      <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">레진</span>
+                      <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">인레이</span>
+                      <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">크라운</span>
+                    </div>
+                    <div class="mb-3 flex items-center gap-3 text-xs text-neutral-500">
+                      <span>후기 128</span><span>상담 54</span>
+                      <span class="inline-flex items-center gap-1"><i data-lucide="star" class="h-3.5 w-3.5"></i>4.8</span>
+                    </div>
+                    <button class="w-full rounded-xl bg-brand-600 py-3 text-sm font-semibold text-white">상담신청</button>
+                  </div>
+                </div>
+                <button class="absolute right-1 top-1 flex h-11 w-11 items-center justify-center" aria-label="찜 해제">
+                  <span class="flex h-9 w-9 items-center justify-center rounded-full bg-white/90">
+                    <i data-lucide="heart" class="h-5 w-5 fill-rose-500 text-rose-500"></i>
+                  </span>
+                </button>
+              </article>
+
+              <!-- 카드 2 -->
+              <article class="relative mb-4">
+                <div class="overflow-hidden rounded-2xl border border-neutral-100 bg-white">
+                  <img
+                    src="https://images.unsplash.com/photo-1722586663955-2f96a4c1f255?q=80&w=600&auto=format&fit=crop"
+                    alt="연세미소치과 병원 사진"
+                    class="h-[140px] w-full object-cover"
+                  />
+                  <div class="p-4">
+                    <div class="flex items-center gap-1.5">
+                      <h5 class="min-w-0 flex-1 truncate text-base font-bold text-neutral-900">연세미소치과</h5>
+                    </div>
+                    <p class="mb-1 truncate text-[13px] font-semibold text-brand-700">통합치의학과</p>
+                    <p class="mb-2 truncate text-[13px] text-neutral-500">서초구 · 1.2km</p>
+                    <div class="mb-3 flex flex-wrap gap-1.5">
+                      <span class="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">
+                        <i data-lucide="zap" class="h-3.5 w-3.5"></i>원데이 가능
+                      </span>
+                      <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">통합치의학과 전문의 상주</span>
+                      <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">신경치료</span>
+                    </div>
+                    <div class="mb-3 flex items-center gap-3 text-xs text-neutral-500">
+                      <span>후기 86</span><span>상담 31</span>
+                      <span class="inline-flex items-center gap-1"><i data-lucide="star" class="h-3.5 w-3.5"></i>4.6</span>
+                    </div>
+                    <button class="w-full rounded-xl bg-brand-600 py-3 text-sm font-semibold text-white">상담신청</button>
+                  </div>
+                </div>
+                <button class="absolute right-1 top-1 flex h-11 w-11 items-center justify-center" aria-label="찜하기">
+                  <span class="flex h-9 w-9 items-center justify-center rounded-full bg-white/90">
+                    <i data-lucide="heart" class="h-5 w-5 text-neutral-600"></i>
+                  </span>
+                </button>
+              </article>
+
+              <!-- 카드 3 · 상담 마감 -->
+              <article class="relative mb-4">
+                <div class="overflow-hidden rounded-2xl border border-neutral-100 bg-white">
+                  <img
+                    src="https://images.unsplash.com/photo-1667133295315-820bb6481730?q=80&w=600&auto=format&fit=crop"
+                    alt="하얀샘치과 병원 사진"
+                    class="h-[140px] w-full object-cover"
+                  />
+                  <div class="p-4">
+                    <div class="flex items-center gap-1.5">
+                      <h5 class="min-w-0 flex-1 truncate text-base font-bold text-neutral-900">하얀샘치과</h5>
+                    </div>
+                    <p class="mb-1 truncate text-[13px] font-semibold text-brand-700">보존과</p>
+                    <p class="mb-2 truncate text-[13px] text-neutral-500">송파구 · 2.1km</p>
+                    <div class="mb-3 flex flex-wrap gap-1.5">
+                      <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">보존과 전문의 상주</span>
+                      <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">레진</span>
+                      <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">온레이</span>
+                    </div>
+                    <div class="mb-3 flex items-center gap-3 text-xs text-neutral-500">
+                      <span>후기 42</span><span>상담 12</span>
+                      <span class="inline-flex items-center gap-1"><i data-lucide="star" class="h-3.5 w-3.5"></i>4.4</span>
+                    </div>
+                    <button class="w-full rounded-xl bg-neutral-200 py-3 text-sm font-semibold text-neutral-500" disabled>상담 마감</button>
+                  </div>
+                </div>
+                <button class="absolute right-1 top-1 flex h-11 w-11 items-center justify-center" aria-label="찜하기">
+                  <span class="flex h-9 w-9 items-center justify-center rounded-full bg-white/90">
+                    <i data-lucide="heart" class="h-5 w-5 text-neutral-600"></i>
+                  </span>
+                </button>
+              </article>
+
+              <div class="mt-2 flex flex-col items-center gap-2">
+                <p class="text-xs text-neutral-500">57곳 중 20곳 보는 중</p>
+                <button class="w-full rounded-xl border border-brand-600 bg-white px-5 py-3 text-sm font-semibold text-brand-700">
+                  병원 20곳 더 보기
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 탭바 -->
+          <nav class="flex flex-none border-t border-neutral-200 bg-white">
+            <button class="flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-neutral-500">
+              <i data-lucide="home" class="h-5 w-5"></i><span class="text-[10px]">홈</span>
+            </button>
+            <button class="flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-brand-600">
+              <i data-lucide="hospital" class="h-5 w-5"></i><span class="text-[10px] font-semibold">병원</span>
+            </button>
+            <button class="flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-neutral-500">
+              <i data-lucide="message-circle" class="h-5 w-5"></i><span class="text-[10px]">커뮤니티</span>
+            </button>
+            <button class="flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-neutral-500">
+              <i data-lucide="user" class="h-5 w-5"></i><span class="text-[10px]">마이페이지</span>
+            </button>
+          </nav>
+        </div>
+      </section>
+
+      <!-- ===================================================================
+           시안 B · 필터 시트
+      ==================================================================== -->
+      <section class="w-[375px] flex-none">
+        <div class="mb-4">
+          <h2 class="text-[18px] font-bold text-neutral-900">시안 B · 필터 시트</h2>
+          <p class="mt-1 text-sm text-neutral-700">
+            필터 네 줄을 <b>시술 탭 한 줄 + 필터 버튼</b> 으로 접어, 첫 화면에서 카드부터 보이게 해요.
+          </p>
+          <ul class="mt-2 list-disc space-y-1 pl-4 text-[13px] text-neutral-700">
+            <li>정렬·조건을 <b>필터</b> 버튼(고른 수 배지) 하나로 접어 카드가 1장 더 보여요</li>
+            <li>고른 조건은 머리줄에 알약으로 남고 ✕ 로 바로 풀 수 있어요</li>
+            <li>시트에서 조건마다 한 줄 설명을 붙여 <b>야간상담</b> 의 뜻을 적었어요</li>
+            <li>시트 아래 버튼이 적용 결과 수(38곳)를 미리 알려줘요</li>
+            <li>지도 보기는 머리줄 오른쪽 아이콘 버튼으로 옮겼어요</li>
+          </ul>
+          <p class="mt-2 text-[13px] text-neutral-500">
+            <b class="text-neutral-700">새 데이터 필요:</b> 시트 버튼의 <b>병원 38곳 보기</b> 미리보기 건수 —
+            조건을 적용하기 전에 개수만 세는 질의가 지금 계약에 없어요 (없으면 <code>결과 보기</code> 로 적어요)
+          </p>
+        </div>
+
+        <div class="flex h-[812px] w-[375px] flex-col overflow-hidden rounded-[32px] border border-neutral-200 bg-white">
+          <div class="flex-1 overflow-y-auto">
+            <div class="sticky top-0 z-10 border-b border-neutral-100 bg-white px-4 pb-3 pt-4">
+              <h3 class="mb-3 text-2xl font-extrabold text-neutral-900">병원 탐색</h3>
+              <div class="flex rounded-full bg-neutral-100 p-1">
+                <button class="flex-1 rounded-full py-2 text-sm font-bold text-neutral-500">의사</button>
+                <button class="flex-1 rounded-full bg-white py-2 text-sm font-bold text-brand-700">병원</button>
+              </div>
+            </div>
+
+            <!-- 시술 탭 -->
+            <div class="border-b border-neutral-100 bg-white py-3">
+              <div class="no-sb flex gap-2 overflow-x-auto px-4">
+                <button class="flex flex-none items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">
+                  <i data-lucide="star" class="h-4 w-4"></i>추천
+                </button>
+                <button class="flex flex-none items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4">
+                    <path d="M7.4 2.9c1.5-.8 3.1-.4 4.6.3 1.5-.7 3.1-1.1 4.6-.3 1.6.9 2 3 1.3 4.6L17.2 9H6.8l-.7-1.5c-.7-1.6-.3-3.7 1.3-4.6z" />
+                    <path d="M10.2 9v2.4h3.6V9" />
+                    <path d="M9.4 11.4h5.2l-1.1 8.4a1.5 1.5 0 0 1-3 0z" />
+                    <path d="M9.8 14.4l4.5-.9M10.2 17.3l3.8-.8" />
+                  </svg>
+                  임플란트
+                </button>
+                <button class="flex flex-none items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">
+                  <i data-lucide="droplets" class="h-4 w-4"></i>스케일링·예방 · 준비중
+                </button>
+                <button class="flex flex-none items-center gap-1.5 rounded-full border border-brand-600 bg-brand-600 px-3.5 py-2 text-sm font-medium text-white">
+                  <i data-lucide="shield-check" class="h-4 w-4"></i>충치치료
+                </button>
+                <button class="flex flex-none items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">
+                  <i data-lucide="sparkles" class="h-4 w-4"></i>심미
+                </button>
+              </div>
+            </div>
+
+            <!-- 필터 줄 -->
+            <div class="border-b border-neutral-100 bg-white px-4 py-2.5">
+              <div class="flex items-center gap-2">
+                <button class="flex h-11 items-center gap-1.5 rounded-xl bg-brand-600 px-3.5 text-sm font-semibold text-white">
+                  <i data-lucide="sliders-horizontal" class="h-4 w-4"></i>필터
+                  <span class="ml-0.5 rounded-full bg-white px-1.5 py-0.5 text-[11px] font-bold text-brand-700">2</span>
+                </button>
+                <button class="flex h-11 items-center gap-1 rounded-xl border border-neutral-200 bg-white px-3.5 text-sm font-medium text-neutral-700">
+                  평점순<i data-lucide="chevron-down" class="h-4 w-4"></i>
+                </button>
+                <span class="flex-1"></span>
+                <button class="flex h-11 w-11 items-center justify-center rounded-xl border border-neutral-200 bg-white text-neutral-700" aria-label="지도 보기">
+                  <i data-lucide="map" class="h-5 w-5"></i>
+                </button>
+              </div>
+              <div class="no-sb mt-2 flex gap-2 overflow-x-auto">
+                <button class="flex flex-none items-center gap-1 rounded-full border border-brand-600 bg-brand-600 px-3 py-1.5 text-xs font-medium text-white">
+                  상담가능<i data-lucide="x" class="h-3.5 w-3.5"></i>
+                </button>
+                <button class="flex flex-none items-center gap-1 rounded-full border border-brand-600 bg-brand-600 px-3 py-1.5 text-xs font-medium text-white">
+                  야간상담<i data-lucide="x" class="h-3.5 w-3.5"></i>
+                </button>
+                <button class="flex-none rounded-full px-2 py-1.5 text-xs font-semibold text-brand-700">조건 지우기</button>
+              </div>
+            </div>
+
+            <div class="px-4 pb-8 pt-4">
+              <div class="mb-3 flex items-center justify-between">
+                <h4 class="text-base font-bold text-neutral-900">&ldquo;충치치료&rdquo; 병원 38곳</h4>
+                <button class="text-sm font-semibold text-brand-700">가격 비교표</button>
+              </div>
+
+              <article class="relative mb-4">
+                <div class="overflow-hidden rounded-2xl border border-neutral-100 bg-white">
+                  <img
+                    src="https://images.unsplash.com/photo-1704455306251-b4634215d98f?q=80&w=600&auto=format&fit=crop"
+                    alt="서울바른치과 병원 사진"
+                    class="h-[140px] w-full object-cover"
+                  />
+                  <div class="p-4">
+                    <div class="flex items-center gap-1.5">
+                      <h5 class="min-w-0 flex-1 truncate text-base font-bold text-neutral-900">서울바른치과</h5>
+                      <span class="text-[11px] text-neutral-500">광고</span>
+                      <span class="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">
+                        <i data-lucide="star" class="h-3.5 w-3.5"></i>추천
+                      </span>
+                    </div>
+                    <p class="mb-1 truncate text-[13px] font-semibold text-brand-700">보철과</p>
+                    <p class="mb-2 truncate text-[13px] text-neutral-500">강남구 · 0.4km</p>
+                    <div class="mb-3 flex flex-wrap gap-1.5">
+                      <span class="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">
+                        <i data-lucide="moon" class="h-3.5 w-3.5"></i>야간상담 가능
+                      </span>
+                      <span class="rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">보철과 전문의 상주</span>
+                      <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">레진</span>
+                    </div>
+                    <div class="mb-3 flex items-center gap-3 text-xs text-neutral-500">
+                      <span>후기 128</span><span>상담 54</span>
+                      <span class="inline-flex items-center gap-1"><i data-lucide="star" class="h-3.5 w-3.5"></i>4.8</span>
+                    </div>
+                    <button class="w-full rounded-xl bg-brand-600 py-3 text-sm font-semibold text-white">상담신청</button>
+                  </div>
+                </div>
+                <button class="absolute right-1 top-1 flex h-11 w-11 items-center justify-center" aria-label="찜 해제">
+                  <span class="flex h-9 w-9 items-center justify-center rounded-full bg-white/90">
+                    <i data-lucide="heart" class="h-5 w-5 fill-rose-500 text-rose-500"></i>
+                  </span>
+                </button>
+              </article>
+
+              <article class="relative mb-4">
+                <div class="overflow-hidden rounded-2xl border border-neutral-100 bg-white">
+                  <img
+                    src="https://images.unsplash.com/photo-1670250492416-570b5b7343b1?q=80&w=600&auto=format&fit=crop"
+                    alt="미래로치과 병원 사진"
+                    class="h-[140px] w-full object-cover"
+                  />
+                  <div class="p-4">
+                    <div class="flex items-center gap-1.5">
+                      <h5 class="min-w-0 flex-1 truncate text-base font-bold text-neutral-900">미래로치과의원</h5>
+                    </div>
+                    <p class="mb-1 truncate text-[13px] font-semibold text-brand-700">보존과</p>
+                    <p class="mb-2 truncate text-[13px] text-neutral-500">마포구 · 3.4km</p>
+                    <div class="mb-3 flex flex-wrap gap-1.5">
+                      <span class="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">
+                        <i data-lucide="moon" class="h-3.5 w-3.5"></i>야간상담 가능
+                      </span>
+                      <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">크라운</span>
+                      <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">신경치료</span>
+                    </div>
+                    <div class="mb-3 flex items-center gap-3 text-xs text-neutral-500">
+                      <span>후기 73</span><span>상담 28</span>
+                      <span class="inline-flex items-center gap-1"><i data-lucide="star" class="h-3.5 w-3.5"></i>4.7</span>
+                    </div>
+                    <button class="w-full rounded-xl bg-brand-600 py-3 text-sm font-semibold text-white">상담신청</button>
+                  </div>
+                </div>
+                <button class="absolute right-1 top-1 flex h-11 w-11 items-center justify-center" aria-label="찜하기">
+                  <span class="flex h-9 w-9 items-center justify-center rounded-full bg-white/90">
+                    <i data-lucide="heart" class="h-5 w-5 text-neutral-600"></i>
+                  </span>
+                </button>
+              </article>
+
+              <div class="mt-2 flex flex-col items-center gap-2">
+                <p class="text-xs text-neutral-500">38곳 중 20곳 보는 중</p>
+                <button class="w-full rounded-xl border border-brand-600 bg-white px-5 py-3 text-sm font-semibold text-brand-700">
+                  병원 18곳 더 보기
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <nav class="flex flex-none border-t border-neutral-200 bg-white">
+            <button class="flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-neutral-500">
+              <i data-lucide="home" class="h-5 w-5"></i><span class="text-[10px]">홈</span>
+            </button>
+            <button class="flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-brand-600">
+              <i data-lucide="hospital" class="h-5 w-5"></i><span class="text-[10px] font-semibold">병원</span>
+            </button>
+            <button class="flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-neutral-500">
+              <i data-lucide="message-circle" class="h-5 w-5"></i><span class="text-[10px]">커뮤니티</span>
+            </button>
+            <button class="flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-neutral-500">
+              <i data-lucide="user" class="h-5 w-5"></i><span class="text-[10px]">마이페이지</span>
+            </button>
+          </nav>
+        </div>
+
+        <!-- 시안 B-2 -->
+        <h3 class="mb-3 mt-8 text-[15px] font-bold text-neutral-900">시안 B-2 · 필터 시트 열림</h3>
+        <div class="relative flex h-[812px] w-[375px] flex-col overflow-hidden rounded-[32px] border border-neutral-200 bg-white">
+          <div class="flex-1 overflow-hidden">
+            <div class="border-b border-neutral-100 bg-white px-4 pb-3 pt-4">
+              <h4 class="mb-3 text-2xl font-extrabold text-neutral-900">병원 탐색</h4>
+              <div class="flex rounded-full bg-neutral-100 p-1">
+                <button class="flex-1 rounded-full py-2 text-sm font-bold text-neutral-500">의사</button>
+                <button class="flex-1 rounded-full bg-white py-2 text-sm font-bold text-brand-700">병원</button>
+              </div>
+            </div>
+            <div class="border-b border-neutral-100 bg-white py-3">
+              <div class="no-sb flex gap-2 overflow-x-auto px-4">
+                <button class="flex flex-none items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">
+                  <i data-lucide="star" class="h-4 w-4"></i>추천
+                </button>
+                <button class="flex flex-none items-center gap-1.5 rounded-full border border-brand-600 bg-brand-600 px-3.5 py-2 text-sm font-medium text-white">
+                  <i data-lucide="shield-check" class="h-4 w-4"></i>충치치료
+                </button>
+                <button class="flex flex-none items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">
+                  <i data-lucide="sparkles" class="h-4 w-4"></i>심미
+                </button>
+              </div>
+            </div>
+            <div class="px-4 pt-4">
+              <div class="mb-3 h-5 w-40 rounded bg-neutral-100"></div>
+              <div class="mb-4 h-[300px] rounded-2xl border border-neutral-100 bg-neutral-50"></div>
+            </div>
+          </div>
+
+          <nav class="flex flex-none border-t border-neutral-200 bg-white">
+            <button class="flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-neutral-500">
+              <i data-lucide="home" class="h-5 w-5"></i><span class="text-[10px]">홈</span>
+            </button>
+            <button class="flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-brand-600">
+              <i data-lucide="hospital" class="h-5 w-5"></i><span class="text-[10px] font-semibold">병원</span>
+            </button>
+            <button class="flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-neutral-500">
+              <i data-lucide="message-circle" class="h-5 w-5"></i><span class="text-[10px]">커뮤니티</span>
+            </button>
+            <button class="flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-neutral-500">
+              <i data-lucide="user" class="h-5 w-5"></i><span class="text-[10px]">마이페이지</span>
+            </button>
+          </nav>
+
+          <!-- 스크림 + 시트 -->
+          <div class="absolute inset-0 bg-black/40"></div>
+          <div class="absolute inset-x-0 bottom-0 flex max-h-[82%] flex-col rounded-t-2xl bg-white">
+            <div class="flex justify-center pb-1 pt-2">
+              <span class="h-1 w-9 rounded-full bg-neutral-200"></span>
+            </div>
+            <div class="flex items-center justify-between border-b border-neutral-100 px-4 pb-3 pt-1">
+              <h5 class="text-[17px] font-semibold text-neutral-900">필터</h5>
+              <button class="flex h-11 w-11 items-center justify-center text-neutral-700" aria-label="닫기">
+                <i data-lucide="x" class="h-5 w-5"></i>
+              </button>
+            </div>
+
+            <div class="flex-1 overflow-y-auto px-4 pb-4 pt-4">
+              <h6 class="mb-2 text-[13px] font-semibold text-neutral-700">정렬</h6>
+              <div class="mb-6 overflow-hidden rounded-2xl border border-neutral-100">
+                <button class="flex w-full items-center justify-between bg-brand-50 px-4 py-3 text-left">
+                  <span class="text-[15px] font-semibold text-brand-700">평점순</span>
+                  <i data-lucide="check" class="h-5 w-5 text-brand-700"></i>
+                </button>
+                <button class="flex w-full items-center justify-between border-t border-neutral-100 px-4 py-3 text-left">
+                  <span class="text-[15px] text-neutral-700">후기순</span>
+                </button>
+                <button class="flex w-full items-center justify-between border-t border-neutral-100 px-4 py-3 text-left">
+                  <span class="text-[15px] text-neutral-700">상담많은순</span>
+                </button>
+              </div>
+
+              <h6 class="mb-2 text-[13px] font-semibold text-neutral-700">조건</h6>
+              <div class="overflow-hidden rounded-2xl border border-neutral-100">
+                <button class="flex w-full items-center gap-3 bg-brand-50 px-4 py-3 text-left">
+                  <span class="min-w-0 flex-1">
+                    <span class="block text-[15px] font-semibold text-brand-700">상담가능</span>
+                    <span class="block text-xs text-neutral-500">지금 상담신청을 받는 병원만 봐요</span>
+                  </span>
+                  <i data-lucide="check" class="h-5 w-5 flex-none text-brand-700"></i>
+                </button>
+                <button class="flex w-full items-center gap-3 border-t border-neutral-100 px-4 py-3 text-left">
+                  <span class="min-w-0 flex-1">
+                    <span class="block text-[15px] text-neutral-900">원데이</span>
+                    <span class="block text-xs text-neutral-500">하루 안에 치료를 끝낼 수 있어요</span>
+                  </span>
+                </button>
+                <button class="flex w-full items-center gap-3 border-t border-neutral-100 px-4 py-3 text-left">
+                  <span class="min-w-0 flex-1">
+                    <span class="block text-[15px] text-neutral-900">전문의</span>
+                    <span class="block text-xs text-neutral-500">해당 분야 전문의가 상주해요</span>
+                  </span>
+                </button>
+                <button class="flex w-full items-center gap-3 border-t border-neutral-100 bg-brand-50 px-4 py-3 text-left">
+                  <span class="min-w-0 flex-1">
+                    <span class="block text-[15px] font-semibold text-brand-700">야간상담</span>
+                    <span class="block text-xs text-neutral-500">저녁 늦게도 상담을 받을 수 있어요</span>
+                  </span>
+                  <i data-lucide="check" class="h-5 w-5 flex-none text-brand-700"></i>
+                </button>
+                <button class="flex w-full items-center gap-3 border-t border-neutral-100 px-4 py-3 text-left">
+                  <span class="min-w-0 flex-1">
+                    <span class="block text-[15px] text-neutral-900">경력 10년 이상</span>
+                    <span class="block text-xs text-neutral-500">10년 넘게 진료한 의사가 있어요</span>
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            <div class="flex gap-2 border-t border-neutral-100 bg-white px-4 pb-5 pt-3">
+              <button class="w-[112px] rounded-xl border border-brand-600 bg-white py-3.5 text-base font-semibold text-brand-700">
+                초기화
+              </button>
+              <button class="flex-1 rounded-xl bg-brand-600 py-3.5 text-base font-semibold text-white">병원 38곳 보기</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================================================================
+           시안 C · 컴팩트 리스트
+      ==================================================================== -->
+      <section class="w-[375px] flex-none">
+        <div class="mb-4">
+          <h2 class="text-[18px] font-bold text-neutral-900">시안 C · 컴팩트 리스트</h2>
+          <p class="mt-1 text-sm text-neutral-700">
+            가로형 카드(썸네일 88px)로 한 화면에 병원을 4~5곳 보여주고, 비교를 빠르게 해요.
+          </p>
+          <ul class="mt-2 list-disc space-y-1 pl-4 text-[13px] text-neutral-700">
+            <li>세로 카드(사진 140px)를 가로형으로 바꿔 한 화면에 4곳 넘게 보여요</li>
+            <li>모드 스위치를 <b>밑줄 탭</b>(병원/의사)으로 올려 헤더 한 줄을 줄였어요</li>
+            <li>정렬·조건을 한 줄로 합쳤어요 (정렬은 드롭다운 칩, 조건은 토글 칩)</li>
+            <li>상담신청은 카드 안 작은 버튼, 하트는 글 쪽 44×44 버튼으로 옮겼어요</li>
+            <li>배지는 두 개까지만 — 세부 시술은 상세에서 봐요</li>
+          </ul>
+          <p class="mt-2 text-[13px] text-neutral-500">
+            <b class="text-neutral-700">새 데이터 필요:</b> 없어요 — 지금 카드가 쓰는 값만 자리만 바꿨어요
+          </p>
+        </div>
+
+        <div class="flex h-[812px] w-[375px] flex-col overflow-hidden rounded-[32px] border border-neutral-200 bg-white">
+          <div class="flex-1 overflow-y-auto">
+            <div class="sticky top-0 z-10 bg-white">
+              <div class="flex h-12 items-center justify-between border-b border-neutral-100 px-4">
+                <h3 class="text-[17px] font-semibold text-neutral-900">병원 탐색</h3>
+                <button class="flex h-11 w-11 items-center justify-center text-neutral-700" aria-label="검색">
+                  <i data-lucide="search" class="h-5 w-5"></i>
+                </button>
+              </div>
+              <div class="flex border-b border-neutral-200">
+                <button class="h-11 flex-1 border-b-2 border-brand-600 text-sm font-bold text-brand-700">병원</button>
+                <button class="h-11 flex-1 border-b-2 border-transparent text-sm font-bold text-neutral-500">의사</button>
+              </div>
+            </div>
+
+            <div class="border-b border-neutral-100 bg-white py-2.5">
+              <div class="no-sb flex gap-2 overflow-x-auto px-4">
+                <button class="flex flex-none items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">
+                  <i data-lucide="star" class="h-4 w-4"></i>추천
+                </button>
+                <button class="flex flex-none items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4">
+                    <path d="M7.4 2.9c1.5-.8 3.1-.4 4.6.3 1.5-.7 3.1-1.1 4.6-.3 1.6.9 2 3 1.3 4.6L17.2 9H6.8l-.7-1.5c-.7-1.6-.3-3.7 1.3-4.6z" />
+                    <path d="M10.2 9v2.4h3.6V9" />
+                    <path d="M9.4 11.4h5.2l-1.1 8.4a1.5 1.5 0 0 1-3 0z" />
+                    <path d="M9.8 14.4l4.5-.9M10.2 17.3l3.8-.8" />
+                  </svg>
+                  임플란트
+                </button>
+                <button class="flex flex-none items-center gap-1.5 rounded-full border border-brand-600 bg-brand-600 px-3.5 py-2 text-sm font-medium text-white">
+                  <i data-lucide="shield-check" class="h-4 w-4"></i>충치치료
+                </button>
+                <button class="flex flex-none items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">
+                  <i data-lucide="droplets" class="h-4 w-4"></i>스케일링·예방 · 준비중
+                </button>
+              </div>
+            </div>
+
+            <div class="border-b border-neutral-100 bg-white py-2.5">
+              <div class="no-sb flex items-center gap-2 overflow-x-auto px-4">
+                <button class="flex flex-none items-center gap-1 rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-semibold text-neutral-900">
+                  평점순<i data-lucide="chevron-down" class="h-4 w-4 text-neutral-700"></i>
+                </button>
+                <span class="h-5 w-px flex-none bg-neutral-200"></span>
+                <button class="flex-none rounded-full border border-brand-600 bg-brand-600 px-3.5 py-2 text-sm font-medium text-white">상담가능</button>
+                <button class="flex-none rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">원데이</button>
+                <button class="flex-none rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">전문의</button>
+                <button class="flex-none rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">야간상담</button>
+                <button class="flex-none rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">경력</button>
+              </div>
+            </div>
+
+            <div class="px-4 pb-8 pt-3">
+              <div class="mb-2 flex items-center justify-between">
+                <p class="text-[13px] text-neutral-500"><b class="font-semibold text-neutral-900">&ldquo;충치치료&rdquo;</b> 총 57곳</p>
+                <button class="text-[13px] font-semibold text-brand-700">가격 비교표</button>
+              </div>
+
+              <ul class="space-y-2.5">
+                <!-- 1 · 광고 + 찜됨 -->
+                <li class="relative flex gap-3 rounded-2xl border border-neutral-100 bg-white p-3">
+                  <img
+                    src="https://images.unsplash.com/photo-1704455306251-b4634215d98f?q=80&w=300&auto=format&fit=crop"
+                    alt="서울바른치과 병원 사진"
+                    class="h-[88px] w-[88px] flex-none rounded-xl object-cover"
+                  />
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-center gap-1.5 pr-10">
+                      <h5 class="min-w-0 truncate text-[15px] font-bold text-neutral-900">서울바른치과</h5>
+                      <span class="flex-none text-[11px] text-neutral-500">광고</span>
+                    </div>
+                    <p class="truncate text-[13px] text-neutral-500">보철과 · 강남구 · 0.4km</p>
+                    <div class="mt-1 flex flex-wrap gap-1">
+                      <span class="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-brand-50 px-2 py-0.5 text-[11px] font-medium text-brand-700">
+                        <i data-lucide="zap" class="h-3 w-3"></i>원데이
+                      </span>
+                      <span class="rounded-full border border-brand-200 bg-brand-50 px-2 py-0.5 text-[11px] font-medium text-brand-700">보철과 전문의</span>
+                    </div>
+                    <div class="mt-2 flex items-center justify-between gap-2">
+                      <span class="inline-flex min-w-0 items-center gap-1 truncate text-xs text-neutral-500">
+                        <i data-lucide="star" class="h-3.5 w-3.5 flex-none"></i>4.8 · 후기 128
+                      </span>
+                      <button class="flex-none rounded-xl bg-brand-600 px-3 py-2 text-sm font-semibold text-white">상담신청</button>
+                    </div>
+                  </div>
+                  <button class="absolute right-1 top-1 flex h-11 w-11 items-center justify-center" aria-label="찜 해제">
+                    <i data-lucide="heart" class="h-5 w-5 fill-rose-500 text-rose-500"></i>
+                  </button>
+                </li>
+
+                <!-- 2 -->
+                <li class="relative flex gap-3 rounded-2xl border border-neutral-100 bg-white p-3">
+                  <img
+                    src="https://images.unsplash.com/photo-1722586663955-2f96a4c1f255?q=80&w=300&auto=format&fit=crop"
+                    alt="연세미소치과 병원 사진"
+                    class="h-[88px] w-[88px] flex-none rounded-xl object-cover"
+                  />
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-center gap-1.5 pr-10">
+                      <h5 class="min-w-0 truncate text-[15px] font-bold text-neutral-900">연세미소치과</h5>
+                    </div>
+                    <p class="truncate text-[13px] text-neutral-500">통합치의학과 · 서초구 · 1.2km</p>
+                    <div class="mt-1 flex flex-wrap gap-1">
+                      <span class="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-brand-50 px-2 py-0.5 text-[11px] font-medium text-brand-700">
+                        <i data-lucide="zap" class="h-3 w-3"></i>원데이
+                      </span>
+                      <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2 py-0.5 text-[11px] font-medium text-neutral-600">신경치료</span>
+                    </div>
+                    <div class="mt-2 flex items-center justify-between gap-2">
+                      <span class="inline-flex min-w-0 items-center gap-1 truncate text-xs text-neutral-500">
+                        <i data-lucide="star" class="h-3.5 w-3.5 flex-none"></i>4.6 · 후기 86
+                      </span>
+                      <button class="flex-none rounded-xl bg-brand-600 px-3 py-2 text-sm font-semibold text-white">상담신청</button>
+                    </div>
+                  </div>
+                  <button class="absolute right-1 top-1 flex h-11 w-11 items-center justify-center" aria-label="찜하기">
+                    <i data-lucide="heart" class="h-5 w-5 text-neutral-600"></i>
+                  </button>
+                </li>
+
+                <!-- 3 · 상담 마감 -->
+                <li class="relative flex gap-3 rounded-2xl border border-neutral-100 bg-white p-3">
+                  <img
+                    src="https://images.unsplash.com/photo-1667133295315-820bb6481730?q=80&w=300&auto=format&fit=crop"
+                    alt="하얀샘치과 병원 사진"
+                    class="h-[88px] w-[88px] flex-none rounded-xl object-cover"
+                  />
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-center gap-1.5 pr-10">
+                      <h5 class="min-w-0 truncate text-[15px] font-bold text-neutral-900">하얀샘치과</h5>
+                    </div>
+                    <p class="truncate text-[13px] text-neutral-500">보존과 · 송파구 · 2.1km</p>
+                    <div class="mt-1 flex flex-wrap gap-1">
+                      <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2 py-0.5 text-[11px] font-medium text-neutral-600">보존과 전문의</span>
+                      <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2 py-0.5 text-[11px] font-medium text-neutral-600">온레이</span>
+                    </div>
+                    <div class="mt-2 flex items-center justify-between gap-2">
+                      <span class="inline-flex min-w-0 items-center gap-1 truncate text-xs text-neutral-500">
+                        <i data-lucide="star" class="h-3.5 w-3.5 flex-none"></i>4.4 · 후기 42
+                      </span>
+                      <button class="flex-none rounded-xl bg-neutral-200 px-3 py-2 text-sm font-semibold text-neutral-500" disabled>상담 마감</button>
+                    </div>
+                  </div>
+                  <button class="absolute right-1 top-1 flex h-11 w-11 items-center justify-center" aria-label="찜하기">
+                    <i data-lucide="heart" class="h-5 w-5 text-neutral-600"></i>
+                  </button>
+                </li>
+
+                <!-- 4 -->
+                <li class="relative flex gap-3 rounded-2xl border border-neutral-100 bg-white p-3">
+                  <img
+                    src="https://images.unsplash.com/photo-1670250492416-570b5b7343b1?q=80&w=300&auto=format&fit=crop"
+                    alt="미래로치과의원 병원 사진"
+                    class="h-[88px] w-[88px] flex-none rounded-xl object-cover"
+                  />
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-center gap-1.5 pr-10">
+                      <h5 class="min-w-0 truncate text-[15px] font-bold text-neutral-900">미래로치과의원</h5>
+                    </div>
+                    <p class="truncate text-[13px] text-neutral-500">보존과 · 마포구 · 3.4km</p>
+                    <div class="mt-1 flex flex-wrap gap-1">
+                      <span class="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-brand-50 px-2 py-0.5 text-[11px] font-medium text-brand-700">
+                        <i data-lucide="moon" class="h-3 w-3"></i>야간상담
+                      </span>
+                      <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2 py-0.5 text-[11px] font-medium text-neutral-600">크라운</span>
+                    </div>
+                    <div class="mt-2 flex items-center justify-between gap-2">
+                      <span class="inline-flex min-w-0 items-center gap-1 truncate text-xs text-neutral-500">
+                        <i data-lucide="star" class="h-3.5 w-3.5 flex-none"></i>4.7 · 후기 73
+                      </span>
+                      <button class="flex-none rounded-xl bg-brand-600 px-3 py-2 text-sm font-semibold text-white">상담신청</button>
+                    </div>
+                  </div>
+                  <button class="absolute right-1 top-1 flex h-11 w-11 items-center justify-center" aria-label="찜하기">
+                    <i data-lucide="heart" class="h-5 w-5 text-neutral-600"></i>
+                  </button>
+                </li>
+
+                <!-- 5 -->
+                <li class="relative flex gap-3 rounded-2xl border border-neutral-100 bg-white p-3">
+                  <img
+                    src="https://images.unsplash.com/photo-1598256989809-394fa4f6cd26?q=80&w=300&auto=format&fit=crop"
+                    alt="참편한치과 병원 사진"
+                    class="h-[88px] w-[88px] flex-none rounded-xl object-cover"
+                  />
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-center gap-1.5 pr-10">
+                      <h5 class="min-w-0 truncate text-[15px] font-bold text-neutral-900">참편한치과</h5>
+                    </div>
+                    <p class="truncate text-[13px] text-neutral-500">통합치의학과 · 용산구 · 4.0km</p>
+                    <div class="mt-1 flex flex-wrap gap-1">
+                      <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2 py-0.5 text-[11px] font-medium text-neutral-600">레진</span>
+                      <span class="rounded-full border border-neutral-200 bg-neutral-100 px-2 py-0.5 text-[11px] font-medium text-neutral-600">인레이</span>
+                    </div>
+                    <div class="mt-2 flex items-center justify-between gap-2">
+                      <span class="inline-flex min-w-0 items-center gap-1 truncate text-xs text-neutral-500">
+                        <i data-lucide="star" class="h-3.5 w-3.5 flex-none"></i>4.3 · 후기 31
+                      </span>
+                      <button class="flex-none rounded-xl bg-brand-600 px-3 py-2 text-sm font-semibold text-white">상담신청</button>
+                    </div>
+                  </div>
+                  <button class="absolute right-1 top-1 flex h-11 w-11 items-center justify-center" aria-label="찜하기">
+                    <i data-lucide="heart" class="h-5 w-5 text-neutral-600"></i>
+                  </button>
+                </li>
+              </ul>
+
+              <div class="mt-4 flex flex-col items-center gap-2">
+                <p class="text-xs text-neutral-500">57곳 중 20곳 보는 중</p>
+                <button class="w-full rounded-xl border border-brand-600 bg-white px-5 py-3 text-sm font-semibold text-brand-700">
+                  병원 20곳 더 보기
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <nav class="flex flex-none border-t border-neutral-200 bg-white">
+            <button class="flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-neutral-500">
+              <i data-lucide="home" class="h-5 w-5"></i><span class="text-[10px]">홈</span>
+            </button>
+            <button class="flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-brand-600">
+              <i data-lucide="hospital" class="h-5 w-5"></i><span class="text-[10px] font-semibold">병원</span>
+            </button>
+            <button class="flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-neutral-500">
+              <i data-lucide="message-circle" class="h-5 w-5"></i><span class="text-[10px]">커뮤니티</span>
+            </button>
+            <button class="flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-neutral-500">
+              <i data-lucide="user" class="h-5 w-5"></i><span class="text-[10px]">마이페이지</span>
+            </button>
+          </nav>
+        </div>
+      </section>
+
+      <!-- ===================================================================
+           시안 D · 지도 분할
+      ==================================================================== -->
+      <section class="w-[375px] flex-none">
+        <div class="mb-4">
+          <h2 class="text-[18px] font-bold text-neutral-900">시안 D · 지도 분할</h2>
+          <p class="mt-1 text-sm text-neutral-700">
+            지도와 목록을 한 화면에 두고, 아래 시트를 끌어올려 목록으로 넘어가요. (지도는 키가 없어 자리 그림이에요)
+          </p>
+          <ul class="mt-2 list-disc space-y-1 pl-4 text-[13px] text-neutral-700">
+            <li>리스트/지도 토글을 없애고 <b>지도 + 끌어올리는 목록 시트</b> 한 화면으로 합쳤어요</li>
+            <li>지도를 움직이면 <b>이 지역에서 다시 찾기</b> 로 다시 검색해요</li>
+            <li>마커를 고르면 시트 첫 줄이 그 병원이 되고 brand-50 로 표시돼요</li>
+            <li>반경 칩이 지도 위에 떠 있어 0곳일 때도 손이 닿아요</li>
+            <li>시트를 끝까지 올리면 목록만 보는 화면이 돼요 (D-2)</li>
+          </ul>
+          <p class="mt-2 text-[13px] text-neutral-500">
+            <b class="text-neutral-700">새 데이터 필요:</b> 없어요 — 지금 지도 보기가 쓰는 좌표·반경 질의 그대로예요
+          </p>
+        </div>
+
+        <div class="flex h-[812px] w-[375px] flex-col overflow-hidden rounded-[32px] border border-neutral-200 bg-white">
+          <!-- 지도 -->
+          <div class="relative h-[400px] flex-none bg-neutral-100">
+            <svg viewBox="0 0 375 400" class="h-full w-full" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+              <rect width="375" height="400" fill="#f5f5f5" />
+              <g stroke="#ffffff" stroke-width="16" stroke-linecap="round">
+                <path d="M-10 110 H385" />
+                <path d="M-10 240 H385" />
+                <path d="M-10 350 H385" />
+                <path d="M80 -10 V410" />
+                <path d="M210 -10 V410" />
+                <path d="M310 -10 V410" />
+                <path d="M0 400 L200 110" />
+              </g>
+              <g fill="#ffffff" opacity="0.65">
+                <rect x="100" y="130" width="90" height="60" rx="4" />
+                <rect x="230" y="130" width="60" height="60" rx="4" />
+                <rect x="100" y="265" width="90" height="55" rx="4" />
+                <rect x="230" y="265" width="60" height="55" rx="4" />
+                <rect x="10" y="130" width="50" height="60" rx="4" />
+              </g>
+              <circle cx="188" cy="236" r="104" fill="#17847a" fill-opacity="0.06" stroke="#45c4b0" stroke-width="1.5" stroke-dasharray="5 5" />
+            </svg>
+
+            <!-- 반경 칩 -->
+            <div class="no-sb absolute inset-x-0 top-3 flex gap-2 overflow-x-auto px-4">
+              <button class="flex-none rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">500m</button>
+              <button class="flex-none rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">1km</button>
+              <button class="flex-none rounded-full border border-brand-600 bg-brand-600 px-3.5 py-2 text-sm font-medium text-white">3km</button>
+              <button class="flex-none rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">5km</button>
+            </div>
+
+            <!-- 재검색 -->
+            <div class="absolute inset-x-0 top-[60px] flex justify-center">
+              <button class="flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-semibold text-brand-700">
+                <i data-lucide="rotate-ccw" class="h-4 w-4"></i>이 지역에서 다시 찾기
+              </button>
+            </div>
+
+            <!-- 마커 -->
+            <div class="absolute left-[150px] top-[150px] flex -translate-x-1/2 flex-col items-center">
+              <span class="rounded-full border border-brand-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-brand-700">서울바른치과 · 25만</span>
+              <span class="-mt-0.5 h-3 w-3 rotate-45 rounded-[2px] border-b border-r border-brand-200 bg-white"></span>
+            </div>
+            <button class="absolute left-[72px] top-[228px] flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-brand-600 text-white" aria-label="연세미소치과">
+              <i data-lucide="map-pin" class="h-4 w-4"></i>
+            </button>
+            <button class="absolute left-[252px] top-[196px] flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-brand-600 text-white" aria-label="하얀샘치과">
+              <i data-lucide="map-pin" class="h-4 w-4"></i>
+            </button>
+            <button class="absolute left-[196px] top-[298px] flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-brand-600 text-white" aria-label="미래로치과의원">
+              <i data-lucide="map-pin" class="h-4 w-4"></i>
+            </button>
+            <span class="absolute left-[188px] top-[236px] h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-brand-500"></span>
+
+            <!-- 내 위치 -->
+            <button class="absolute bottom-6 right-4 flex h-11 w-11 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-700" aria-label="내 위치로">
+              <i data-lucide="locate-fixed" class="h-5 w-5"></i>
+            </button>
+          </div>
+
+          <!-- 목록 시트 -->
+          <div class="-mt-4 flex flex-1 flex-col overflow-hidden rounded-t-2xl border-t border-neutral-200 bg-white">
+            <div class="flex-none">
+              <button class="flex w-full justify-center py-2" aria-label="목록 펼치기">
+                <span class="h-1 w-9 rounded-full bg-neutral-200"></span>
+              </button>
+              <div class="flex items-center justify-between px-4 pb-2">
+                <p class="text-[13px] text-neutral-500">반경 3km · <b class="font-semibold text-neutral-900">병원 24곳</b></p>
+                <button class="flex items-center gap-1 text-[13px] font-semibold text-neutral-900">
+                  평점순<i data-lucide="chevron-down" class="h-4 w-4 text-neutral-700"></i>
+                </button>
+              </div>
+            </div>
+
+            <ul class="flex-1 overflow-y-auto px-4 pb-4">
+              <!-- 선택된 병원 -->
+              <li class="relative mb-2 flex gap-3 rounded-2xl border border-brand-200 bg-brand-50 p-3">
+                <img
+                  src="https://images.unsplash.com/photo-1704455306251-b4634215d98f?q=80&w=300&auto=format&fit=crop"
+                  alt="서울바른치과 병원 사진"
+                  class="h-[72px] w-[72px] flex-none rounded-xl object-cover"
+                />
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-center gap-1.5 pr-10">
+                    <h5 class="min-w-0 truncate text-[15px] font-bold text-neutral-900">서울바른치과</h5>
+                    <span class="flex-none text-[11px] text-neutral-500">광고</span>
+                  </div>
+                  <p class="truncate text-[13px] text-neutral-500">보철과 · 강남구 · 0.4km</p>
+                  <div class="mt-1.5 flex items-center justify-between gap-2">
+                    <span class="inline-flex min-w-0 items-center gap-1 truncate text-xs text-neutral-500">
+                      <i data-lucide="star" class="h-3.5 w-3.5 flex-none"></i>4.8 · 최저 25만원
+                    </span>
+                    <button class="flex-none rounded-xl bg-brand-600 px-3 py-2 text-sm font-semibold text-white">상담신청</button>
+                  </div>
+                </div>
+                <button class="absolute right-1 top-1 flex h-11 w-11 items-center justify-center" aria-label="찜 해제">
+                  <i data-lucide="heart" class="h-5 w-5 fill-rose-500 text-rose-500"></i>
+                </button>
+              </li>
+
+              <li class="relative mb-2 flex gap-3 rounded-2xl border border-neutral-100 bg-white p-3">
+                <img
+                  src="https://images.unsplash.com/photo-1722586663955-2f96a4c1f255?q=80&w=300&auto=format&fit=crop"
+                  alt="연세미소치과 병원 사진"
+                  class="h-[72px] w-[72px] flex-none rounded-xl object-cover"
+                />
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-center gap-1.5 pr-10">
+                    <h5 class="min-w-0 truncate text-[15px] font-bold text-neutral-900">연세미소치과</h5>
+                  </div>
+                  <p class="truncate text-[13px] text-neutral-500">통합치의학과 · 서초구 · 1.2km</p>
+                  <div class="mt-1.5 flex items-center justify-between gap-2">
+                    <span class="inline-flex min-w-0 items-center gap-1 truncate text-xs text-neutral-500">
+                      <i data-lucide="star" class="h-3.5 w-3.5 flex-none"></i>4.6 · 최저 28만원
+                    </span>
+                    <button class="flex-none rounded-xl bg-brand-600 px-3 py-2 text-sm font-semibold text-white">상담신청</button>
+                  </div>
+                </div>
+                <button class="absolute right-1 top-1 flex h-11 w-11 items-center justify-center" aria-label="찜하기">
+                  <i data-lucide="heart" class="h-5 w-5 text-neutral-600"></i>
+                </button>
+              </li>
+
+              <li class="relative mb-2 flex gap-3 rounded-2xl border border-neutral-100 bg-white p-3">
+                <img
+                  src="https://images.unsplash.com/photo-1667133295315-820bb6481730?q=80&w=300&auto=format&fit=crop"
+                  alt="하얀샘치과 병원 사진"
+                  class="h-[72px] w-[72px] flex-none rounded-xl object-cover"
+                />
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-center gap-1.5 pr-10">
+                    <h5 class="min-w-0 truncate text-[15px] font-bold text-neutral-900">하얀샘치과</h5>
+                  </div>
+                  <p class="truncate text-[13px] text-neutral-500">보존과 · 송파구 · 2.1km</p>
+                  <div class="mt-1.5 flex items-center justify-between gap-2">
+                    <span class="inline-flex min-w-0 items-center gap-1 truncate text-xs text-neutral-500">
+                      <i data-lucide="star" class="h-3.5 w-3.5 flex-none"></i>4.4 · 최저 22만원
+                    </span>
+                    <button class="flex-none rounded-xl bg-neutral-200 px-3 py-2 text-sm font-semibold text-neutral-500" disabled>상담 마감</button>
+                  </div>
+                </div>
+                <button class="absolute right-1 top-1 flex h-11 w-11 items-center justify-center" aria-label="찜하기">
+                  <i data-lucide="heart" class="h-5 w-5 text-neutral-600"></i>
+                </button>
+              </li>
+            </ul>
+          </div>
+
+          <nav class="flex flex-none border-t border-neutral-200 bg-white">
+            <button class="flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-neutral-500">
+              <i data-lucide="home" class="h-5 w-5"></i><span class="text-[10px]">홈</span>
+            </button>
+            <button class="flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-brand-600">
+              <i data-lucide="hospital" class="h-5 w-5"></i><span class="text-[10px] font-semibold">병원</span>
+            </button>
+            <button class="flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-neutral-500">
+              <i data-lucide="message-circle" class="h-5 w-5"></i><span class="text-[10px]">커뮤니티</span>
+            </button>
+            <button class="flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-neutral-500">
+              <i data-lucide="user" class="h-5 w-5"></i><span class="text-[10px]">마이페이지</span>
+            </button>
+          </nav>
+        </div>
+
+        <!-- 시안 D-2 -->
+        <h3 class="mb-3 mt-8 text-[15px] font-bold text-neutral-900">시안 D-2 · 시트를 끝까지 올린 상태</h3>
+        <div class="flex h-[812px] w-[375px] flex-col overflow-hidden rounded-[32px] border border-neutral-200 bg-white">
+          <div class="relative h-[120px] flex-none bg-neutral-100">
+            <svg viewBox="0 0 375 120" class="h-full w-full" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+              <rect width="375" height="120" fill="#f5f5f5" />
+              <g stroke="#ffffff" stroke-width="16" stroke-linecap="round">
+                <path d="M-10 40 H385" />
+                <path d="M80 -10 V130" />
+                <path d="M210 -10 V130" />
+                <path d="M310 -10 V130" />
+              </g>
+            </svg>
+            <div class="no-sb absolute inset-x-0 top-3 flex gap-2 overflow-x-auto px-4">
+              <button class="flex-none rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">500m</button>
+              <button class="flex-none rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">1km</button>
+              <button class="flex-none rounded-full border border-brand-600 bg-brand-600 px-3.5 py-2 text-sm font-medium text-white">3km</button>
+              <button class="flex-none rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">5km</button>
+            </div>
+          </div>
+
+          <div class="-mt-4 flex flex-1 flex-col overflow-hidden rounded-t-2xl border-t border-neutral-200 bg-white">
+            <div class="flex-none border-b border-neutral-100">
+              <button class="flex w-full items-center justify-center gap-1 py-2 text-xs font-semibold text-brand-700">
+                <i data-lucide="chevron-down" class="h-4 w-4"></i>지도 다시 보기
+              </button>
+              <div class="flex items-center justify-between px-4 pb-2">
+                <p class="text-[13px] text-neutral-500">반경 3km · <b class="font-semibold text-neutral-900">병원 24곳</b></p>
+                <button class="flex items-center gap-1 text-[13px] font-semibold text-neutral-900">
+                  평점순<i data-lucide="chevron-down" class="h-4 w-4 text-neutral-700"></i>
+                </button>
+              </div>
+              <div class="no-sb flex gap-2 overflow-x-auto px-4 pb-2.5">
+                <button class="flex-none rounded-full border border-brand-600 bg-brand-600 px-3.5 py-2 text-sm font-medium text-white">상담가능</button>
+                <button class="flex-none rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">원데이</button>
+                <button class="flex-none rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">전문의</button>
+                <button class="flex-none rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700">야간상담</button>
+              </div>
+            </div>
+
+            <ul class="flex-1 overflow-y-auto px-4 pb-4 pt-3">
+              <li class="relative mb-2 flex gap-3 rounded-2xl border border-brand-200 bg-brand-50 p-3">
+                <img
+                  src="https://images.unsplash.com/photo-1704455306251-b4634215d98f?q=80&w=300&auto=format&fit=crop"
+                  alt="서울바른치과 병원 사진"
+                  class="h-[72px] w-[72px] flex-none rounded-xl object-cover"
+                />
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-center gap-1.5 pr-10">
+                    <h5 class="min-w-0 truncate text-[15px] font-bold text-neutral-900">서울바른치과</h5>
+                    <span class="flex-none text-[11px] text-neutral-500">광고</span>
+                  </div>
+                  <p class="truncate text-[13px] text-neutral-500">보철과 · 강남구 · 0.4km</p>
+                  <div class="mt-1.5 flex items-center justify-between gap-2">
+                    <span class="inline-flex min-w-0 items-center gap-1 truncate text-xs text-neutral-500">
+                      <i data-lucide="star" class="h-3.5 w-3.5 flex-none"></i>4.8 · 최저 25만원
+                    </span>
+                    <button class="flex-none rounded-xl bg-brand-600 px-3 py-2 text-sm font-semibold text-white">상담신청</button>
+                  </div>
+                </div>
+                <button class="absolute right-1 top-1 flex h-11 w-11 items-center justify-center" aria-label="찜 해제">
+                  <i data-lucide="heart" class="h-5 w-5 fill-rose-500 text-rose-500"></i>
+                </button>
+              </li>
+
+              <li class="relative mb-2 flex gap-3 rounded-2xl border border-neutral-100 bg-white p-3">
+                <img
+                  src="https://images.unsplash.com/photo-1722586663955-2f96a4c1f255?q=80&w=300&auto=format&fit=crop"
+                  alt="연세미소치과 병원 사진"
+                  class="h-[72px] w-[72px] flex-none rounded-xl object-cover"
+                />
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-center gap-1.5 pr-10">
+                    <h5 class="min-w-0 truncate text-[15px] font-bold text-neutral-900">연세미소치과</h5>
+                  </div>
+                  <p class="truncate text-[13px] text-neutral-500">통합치의학과 · 서초구 · 1.2km</p>
+                  <div class="mt-1.5 flex items-center justify-between gap-2">
+                    <span class="inline-flex min-w-0 items-center gap-1 truncate text-xs text-neutral-500">
+                      <i data-lucide="star" class="h-3.5 w-3.5 flex-none"></i>4.6 · 최저 28만원
+                    </span>
+                    <button class="flex-none rounded-xl bg-brand-600 px-3 py-2 text-sm font-semibold text-white">상담신청</button>
+                  </div>
+                </div>
+                <button class="absolute right-1 top-1 flex h-11 w-11 items-center justify-center" aria-label="찜하기">
+                  <i data-lucide="heart" class="h-5 w-5 text-neutral-600"></i>
+                </button>
+              </li>
+
+              <li class="relative mb-2 flex gap-3 rounded-2xl border border-neutral-100 bg-white p-3">
+                <img
+                  src="https://images.unsplash.com/photo-1667133295315-820bb6481730?q=80&w=300&auto=format&fit=crop"
+                  alt="하얀샘치과 병원 사진"
+                  class="h-[72px] w-[72px] flex-none rounded-xl object-cover"
+                />
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-center gap-1.5 pr-10">
+                    <h5 class="min-w-0 truncate text-[15px] font-bold text-neutral-900">하얀샘치과</h5>
+                  </div>
+                  <p class="truncate text-[13px] text-neutral-500">보존과 · 송파구 · 2.1km</p>
+                  <div class="mt-1.5 flex items-center justify-between gap-2">
+                    <span class="inline-flex min-w-0 items-center gap-1 truncate text-xs text-neutral-500">
+                      <i data-lucide="star" class="h-3.5 w-3.5 flex-none"></i>4.4 · 최저 22만원
+                    </span>
+                    <button class="flex-none rounded-xl bg-neutral-200 px-3 py-2 text-sm font-semibold text-neutral-500" disabled>상담 마감</button>
+                  </div>
+                </div>
+                <button class="absolute right-1 top-1 flex h-11 w-11 items-center justify-center" aria-label="찜하기">
+                  <i data-lucide="heart" class="h-5 w-5 text-neutral-600"></i>
+                </button>
+              </li>
+
+              <li class="relative mb-2 flex gap-3 rounded-2xl border border-neutral-100 bg-white p-3">
+                <img
+                  src="https://images.unsplash.com/photo-1670250492416-570b5b7343b1?q=80&w=300&auto=format&fit=crop"
+                  alt="미래로치과의원 병원 사진"
+                  class="h-[72px] w-[72px] flex-none rounded-xl object-cover"
+                />
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-center gap-1.5 pr-10">
+                    <h5 class="min-w-0 truncate text-[15px] font-bold text-neutral-900">미래로치과의원</h5>
+                  </div>
+                  <p class="truncate text-[13px] text-neutral-500">보존과 · 마포구 · 3.4km</p>
+                  <div class="mt-1.5 flex items-center justify-between gap-2">
+                    <span class="inline-flex min-w-0 items-center gap-1 truncate text-xs text-neutral-500">
+                      <i data-lucide="star" class="h-3.5 w-3.5 flex-none"></i>4.7 · 최저 31만원
+                    </span>
+                    <button class="flex-none rounded-xl bg-brand-600 px-3 py-2 text-sm font-semibold text-white">상담신청</button>
+                  </div>
+                </div>
+                <button class="absolute right-1 top-1 flex h-11 w-11 items-center justify-center" aria-label="찜하기">
+                  <i data-lucide="heart" class="h-5 w-5 text-neutral-600"></i>
+                </button>
+              </li>
+
+              <li class="mt-3 flex flex-col items-center gap-2">
+                <p class="text-xs text-neutral-500">반경 3km 안 24곳을 모두 봤어요</p>
+              </li>
+            </ul>
+          </div>
+
+          <nav class="flex flex-none border-t border-neutral-200 bg-white">
+            <button class="flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-neutral-500">
+              <i data-lucide="home" class="h-5 w-5"></i><span class="text-[10px]">홈</span>
+            </button>
+            <button class="flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-brand-600">
+              <i data-lucide="hospital" class="h-5 w-5"></i><span class="text-[10px] font-semibold">병원</span>
+            </button>
+            <button class="flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-neutral-500">
+              <i data-lucide="message-circle" class="h-5 w-5"></i><span class="text-[10px]">커뮤니티</span>
+            </button>
+            <button class="flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-neutral-500">
+              <i data-lucide="user" class="h-5 w-5"></i><span class="text-[10px]">마이페이지</span>
+            </button>
+          </nav>
+        </div>
+      </section>
+    </main>
+
+    <script src="https://unpkg.com/lucide@0.475.0/dist/umd/lucide.min.js"></script>
+    <script>
+      lucide.createIcons();
+      // 이름이 없는 아이콘은 `<i>` 가 그대로 남는다 — 빈 자리를 두지 않게 한 번 더 바꿔 그린다.
+      document.querySelectorAll('i[data-lucide]').forEach((el) => {
+        el.setAttribute('data-lucide', 'stethoscope');
+      });
+      lucide.createIcons();
+    </script>
+  </body>
+</html>

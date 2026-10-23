@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>핵심 흐름 화면 시안</title>
+<script src="https://cdn.tailwindcss.com/3.4.16"></script>
+<script>
+  tailwind.config = { theme: { extend: {
+    colors: { brand: {50:'#eefcf9',100:'#d4f6ef',200:'#abecdf',300:'#79dccb',400:'#45c4b0',500:'#22a696',600:'#17847a',700:'#166863',800:'#16534f',900:'#154543'} },
+    fontFamily: { sans: ['-apple-system','BlinkMacSystemFont','"Segoe UI"','Roboto','"Apple SD Gothic Neo"','"Malgun Gothic"','sans-serif'] }
+  } } }
+</script>
+</head>
+<body class="bg-neutral-50 text-neutral-900 font-sans">
+<main class="mx-auto max-w-3xl px-4 py-10 md:px-6">
+  <h1 class="text-2xl font-extrabold">핵심 흐름 화면 시안</h1>
+  <p class="mt-2 text-sm text-neutral-500">2026-10-23 · 홈 · 병원 탐색 · 병원 상세 · 상담 신청, 화면마다 시안 4개 · 모바일 375px</p>
+  <p class="mt-4 text-[15px] leading-relaxed text-neutral-700">
+    네 화면 모두 <a class="font-semibold text-brand-700 underline" href="#rules">디자인 규칙</a>을 지키며 방향이 다른 시안 A~D 를 그렸어요.
+    <b>시안 A 는 항상 "지금 구조를 지키고 규칙 위반과 알려진 빈틈만 고친 정돈안"</b>이고, B~D 는 구조를 바꾼 안이에요.
+    각 페이지에서 시안이 가로로 나란히 놓이고, 휴대폰 프레임 안을 세로로 스크롤해서 끝까지 볼 수 있어요.
+  </p>
+
+  <section class="mt-8 rounded-2xl border border-brand-200 bg-brand-50 p-4">
+    <h2 class="text-lg font-bold">검토 결과 (2026-10-23)</h2>
+    <p class="mt-1 text-sm text-neutral-700">요청자가 고른 시안이에요. 섞는 부분은 없고, 모든 시안에 공통으로 적용한 것(lucide 아이콘, <code>neutral-500</code>, <code>평점순</code>·<code>야간상담</code> 라벨)은 그대로 가져가요. 구현은 <code>docs/TODO_LIST.md</code> 의 SYS-22 · HOME-3 · EXPLORE-4 · HOSP-9 · CONSULT-3 이에요.</p>
+    <ul class="mt-3 list-disc space-y-1 pl-5 text-sm text-neutral-700">
+      <li><b>홈</b>: A · 정돈안</li>
+      <li><b>병원 탐색</b>: A · 정돈안</li>
+      <li><b>병원 상세</b>: B · 한눈에 요약 — 단 주소 줄의 <code>· 강남역 3분</code> 은 서버에 없는 데이터라 빼고 주소만 보여줘요</li>
+      <li><b>상담 신청</b>: A · 정돈 한 페이지 (A-2 완료 화면, A-3 오류 상태 포함)</li>
+    </ul>
+    <h3 class="mt-4 text-base font-bold">결정</h3>
+    <ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-neutral-700">
+      <li><b>별점 색</b>: 지금처럼 amber 별을 유지해요. 시안의 <code>neutral-900</code> 별은 따르지 않아요. 규칙 <code>docs/conventions/frontend.md</code> 에 예외로 적었어요</li>
+      <li><b><code>준비중</code> 표시</b>: 지금 앱처럼 회색 글자로 통일해요. amber 배지는 쓰지 않아요</li>
+      <li><b>상담 신청 실패 안내</b>: 시안 A-3 의 rose 배너 대신 <b>neutral 바탕 + rose 아이콘</b>으로 해요. <code>rose-400</code> 테두리는 입력 오류 전용으로 남겨요</li>
+      <li><b>배지 아이콘 한 벌로</b> (구현 중 코드 리뷰에서 정함): 할인(프로모) 알약은 어디서나 <code>Tag</code>, 추천 배지는 어디서나 <code>Star</code>. 병원 상세 시안의 <code>Flame</code>·<code>Sparkles</code> 는 따르지 않아요 — 원래 같은 이모지(🔥·🌟)였던 표시가 화면마다 다른 그림이 되지 않게, 그리고 <code>Sparkles</code> 가 시술 분야 <code>심미</code> 아이콘과 겹치지 않게</li>
+    </ul>
+    <p class="mt-3 text-xs text-neutral-500">아래 "결정이 필요한 것" 은 검토 전의 기록이에요. 위 결정이 우선해요.</p>
+  </section>
+
+  <!-- 홈 -->
+  <section class="mt-10">
+    <div class="flex items-baseline justify-between gap-4">
+      <h2 class="text-lg font-bold">홈 <code class="text-sm font-normal text-neutral-500">/</code></h2>
+      <a class="text-sm font-semibold text-brand-700 underline" href="home.html">home.html 열기</a>
+    </div>
+    <div class="mt-3 overflow-hidden rounded-2xl border border-neutral-100 bg-white">
+      <table class="w-full text-left text-sm">
+        <thead class="bg-neutral-50 text-neutral-700"><tr><th class="px-4 py-2.5 font-semibold">시안</th><th class="px-4 py-2.5 font-semibold">방향</th><th class="px-4 py-2.5 font-semibold">새 데이터</th></tr></thead>
+        <tbody class="divide-y divide-neutral-100">
+          <tr><td class="whitespace-nowrap px-4 py-3 font-semibold">A · 정돈안</td><td class="px-4 py-3">지금 순서 유지, 이모지 → lucide, 배너 점 인디케이터, QR 점선 자리 + <code>앱 출시를 준비중이에요</code>. 인기 검색어는 검색 화면을 거치지 않고 카테고리로 바로 가서 뒤로 가기 문제를 없앰</td><td class="px-4 py-3">없음</td></tr>
+          <tr><td class="whitespace-nowrap px-4 py-3 font-semibold">B · 시술 우선</td><td class="px-4 py-3">검색창 바로 아래 시술 9칸 격자를 첫 화면에, 사진 배너 3장은 아이콘 + 한 줄 띠 링크 3개로 줄임</td><td class="px-4 py-3">없음</td></tr>
+          <tr><td class="whitespace-nowrap px-4 py-3 font-semibold">C · 가까운 병원</td><td class="px-4 py-3">첫 화면에 <code>지금 상담 가능한 가까운 병원</code> 카드 3장 + <code>원데이</code>·<code>전문의</code>·<code>야간상담</code>·<code>주차가능</code> 칩 (C-2 위치 거부)</td><td class="px-4 py-3 text-rose-500">있음 · 홈용 반경 질의, <code>야간상담</code>·<code>주차가능</code> 목록 필터</td></tr>
+          <tr><td class="whitespace-nowrap px-4 py-3 font-semibold">D · 콘텐츠</td><td class="px-4 py-3">배너 대신 이벤트 1건 큰 카드 + 3건 목록, 꿀팁은 세로 매거진 목록, 시술 9칸은 알약 한 줄로 압축</td><td class="px-4 py-3 text-rose-500">있음 · 이벤트 종료일(<code>5일 남음</code>)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 병원 탐색 -->
+  <section class="mt-10">
+    <div class="flex items-baseline justify-between gap-4">
+      <h2 class="text-lg font-bold">병원 탐색 <code class="text-sm font-normal text-neutral-500">/explore</code></h2>
+      <a class="text-sm font-semibold text-brand-700 underline" href="explore.html">explore.html 열기</a>
+    </div>
+    <div class="mt-3 overflow-hidden rounded-2xl border border-neutral-100 bg-white">
+      <table class="w-full text-left text-sm">
+        <thead class="bg-neutral-50 text-neutral-700"><tr><th class="px-4 py-2.5 font-semibold">시안</th><th class="px-4 py-2.5 font-semibold">방향</th><th class="px-4 py-2.5 font-semibold">새 데이터</th></tr></thead>
+        <tbody class="divide-y divide-neutral-100">
+          <tr><td class="whitespace-nowrap px-4 py-3 font-semibold">A · 정돈안</td><td class="px-4 py-3">지금 4줄(모드·시술·정렬·조건) 구조 유지, 이모지 → lucide, 라벨 정정(<code>인기순</code> → <code>평점순</code>, <code>진료시간</code> → <code>야간상담</code>)</td><td class="px-4 py-3">없음</td></tr>
+          <tr><td class="whitespace-nowrap px-4 py-3 font-semibold">B · 필터 시트</td><td class="px-4 py-3">시술 탭만 남기고 정렬·조건은 <code>필터 2</code> 버튼 + 바텀시트. 고른 조건은 머리줄에 지울 수 있는 알약으로 남음 (B-2 시트 열림)</td><td class="px-4 py-3 text-rose-500">있음 · 시트 버튼의 <code>병원 38곳 보기</code> 미리보기 건수. 없으면 <code>결과 보기</code></td></tr>
+          <tr><td class="whitespace-nowrap px-4 py-3 font-semibold">C · 컴팩트 리스트</td><td class="px-4 py-3">썸네일 88px 가로형 카드로 한 화면에 4~5곳, 정렬+조건 한 줄, 카드 안 작은 <code>상담신청</code></td><td class="px-4 py-3">없음</td></tr>
+          <tr><td class="whitespace-nowrap px-4 py-3 font-semibold">D · 지도 분할</td><td class="px-4 py-3">위 지도(반경 칩·<code>이 지역에서 다시 찾기</code>) + 아래 끌어올리는 목록 시트 (D-2 시트 끝까지 올림). 지도 키가 없어 자리 그림</td><td class="px-4 py-3">없음</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 병원 상세 -->
+  <section class="mt-10">
+    <div class="flex items-baseline justify-between gap-4">
+      <h2 class="text-lg font-bold">병원 상세 <code class="text-sm font-normal text-neutral-500">/hospital/:id</code></h2>
+      <a class="text-sm font-semibold text-brand-700 underline" href="hospital-detail.html">hospital-detail.html 열기</a>
+    </div>
+    <div class="mt-3 overflow-hidden rounded-2xl border border-neutral-100 bg-white">
+      <table class="w-full text-left text-sm">
+        <thead class="bg-neutral-50 text-neutral-700"><tr><th class="px-4 py-2.5 font-semibold">시안</th><th class="px-4 py-2.5 font-semibold">방향</th><th class="px-4 py-2.5 font-semibold">새 데이터</th></tr></thead>
+        <tbody class="divide-y divide-neutral-100">
+          <tr><td class="whitespace-nowrap px-4 py-3 font-semibold">A · 정돈안</td><td class="px-4 py-3">지금 순서 유지, 목차에 현재 위치 표시, 이모지 → lucide, 하단 바를 두 줄로 나눠 글자 잘림 해결</td><td class="px-4 py-3">없음</td></tr>
+          <tr><td class="whitespace-nowrap px-4 py-3 font-semibold">B · 한눈에 요약</td><td class="px-4 py-3">사진 아래 요약 카드 4칸(오늘 진료시간·가격대·전문의 수·평점) + <code>진료중</code> 배지, 목차를 탭 4개로 바꿔 한 번에 한 섹션 (B-1~B-4)</td><td class="px-4 py-3">없음 · 이미 있는 값으로 계산</td></tr>
+          <tr><td class="whitespace-nowrap px-4 py-3 font-semibold">C · 의료진 우선</td><td class="px-4 py-3">의료진 → 후기 → 시술·가격 → 정보 → 문의 순, 전문의 카드마다 <code>상담신청</code></td><td class="px-4 py-3 text-rose-500">있음 · 상담 신청에 전문의 지정(<code>doctorId</code>)</td></tr>
+          <tr><td class="whitespace-nowrap px-4 py-3 font-semibold">D · 시술·가격 우선</td><td class="px-4 py-3">가격 → 후기 → 의료진 순, 시술 알약 대신 시술별 가격표, 후기 하이라이트, 하단 CTA 하나</td><td class="px-4 py-3 text-rose-500">있음 · 시술별 금액(<code>Hospital.procedures[]</code>, 계약에 제안 상태로만 있음). 없으면 지금처럼 가격대 한 줄</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 상담 신청 -->
+  <section class="mt-10">
+    <div class="flex items-baseline justify-between gap-4">
+      <h2 class="text-lg font-bold">상담 신청 <code class="text-sm font-normal text-neutral-500">/consult/:hospitalId</code></h2>
+      <a class="text-sm font-semibold text-brand-700 underline" href="consult-request.html">consult-request.html 열기</a>
+    </div>
+    <div class="mt-3 overflow-hidden rounded-2xl border border-neutral-100 bg-white">
+      <table class="w-full text-left text-sm">
+        <thead class="bg-neutral-50 text-neutral-700"><tr><th class="px-4 py-2.5 font-semibold">시안</th><th class="px-4 py-2.5 font-semibold">방향</th><th class="px-4 py-2.5 font-semibold">새 데이터</th></tr></thead>
+        <tbody class="divide-y divide-neutral-100">
+          <tr><td class="whitespace-nowrap px-4 py-3 font-semibold">A · 정돈 한 페이지</td><td class="px-4 py-3">지금 필드·순서 유지, <code>상담 내용 / 연락받을 정보 / 동의</code> 세 카드로 묶고 제출은 하단 고정. 실패는 알림창 대신 화면 안 배너 (A-2 완료, A-3 오류)</td><td class="px-4 py-3">없음</td></tr>
+          <tr><td class="whitespace-nowrap px-4 py-3 font-semibold">B · 세 걸음</td><td class="px-4 py-3">시술 → 연락 시간 → 연락처·동의 3단계, 진행 바 + <code>이전 / 다음</code>, 마지막에 앞 단계 요약 (B-2 3단계)</td><td class="px-4 py-3">없음</td></tr>
+          <tr><td class="whitespace-nowrap px-4 py-3 font-semibold">C · 병원 위에서 바로</td><td class="px-4 py-3">병원 상세 위로 바텀시트가 올라와 그 자리에서 신청, 완료도 시트 안에서 (C-2)</td><td class="px-4 py-3">없음 · 다만 전용 주소의 공유·뒤로 가기 동작을 다시 정해야 함</td></tr>
+          <tr><td class="whitespace-nowrap px-4 py-3 font-semibold">D · 확인하고 바로 신청</td><td class="px-4 py-3">자동 채운 이름·연락처를 확인 카드로 보여주고 <code>수정</code> 을 눌러야 편집. 시술·시간만 고르면 신청 (D-2 수정 모드)</td><td class="px-4 py-3">없음</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="rules" class="mt-12">
+    <h2 class="text-lg font-bold">모든 시안이 지킨 규칙과 공통으로 고친 것</h2>
+    <ul class="mt-3 list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-neutral-700">
+      <li>색은 brand 청록 + neutral, 오류·찜·할인은 rose, amber/sky 는 상태 배지에서만. 새 색 없음</li>
+      <li>면은 그림자 대신 neutral-100 테두리, 모서리는 버튼·입력 12px · 카드 16px · 칩·배지 원형</li>
+      <li>이모지 아이콘(🏠🦷💬👤🔥🌟⚡)을 전부 lucide 로 바꿈</li>
+      <li>읽어야 하는 글자의 neutral-400(대비 약 2.5:1)을 neutral-500 으로 올림</li>
+      <li>이름이 실제 동작과 다르던 <code>인기순</code> → <code>평점순</code>, <code>진료시간</code> → <code>야간상담</code></li>
+      <li>뒤로 가기 버튼은 화면마다 하나, 병원 상세 목차에 현재 위치 표시</li>
+    </ul>
+  </section>
+
+  <section id="decisions" class="mt-12">
+    <h2 class="text-lg font-bold">결정이 필요한 것</h2>
+    <p class="mt-1 text-sm text-neutral-500">시안을 그리며 규칙과 지금 코드가 부딪힌 곳이에요. 고른 시안을 구현하기 전에 정해야 해요.</p>
+    <ol class="mt-3 list-decimal space-y-2 pl-5 text-sm leading-relaxed text-neutral-700">
+      <li><b>별점 색</b> — 지금 코드는 후기 별을 amber-500 으로 칠하지만 규칙은 amber 를 배지에서만 써요. 시안은 neutral-900 별 + 숫자로 그렸어요. 별만 예외로 amber 를 허용할지 정해 주세요</li>
+      <li><b>화면 안 오류 배너</b> — 토스트가 없어서 상담 신청 실패를 rose 배너(rose-400 테두리)로 그렸어요. rose-400 은 원래 입력 오류 테두리 전용이에요</li>
+      <li><b><code>준비중</code> 표시</b> — 지금 앱은 11px 회색 글자인데 홈 B·D 와 병원 상세 D 는 amber 배지로 그렸어요. 회색 글자와 amber 배지 중 하나로 통일해 주세요</li>
+      <li><b>새 패턴</b> — 병원 탐색 B 의 "설명 달린 선택 행"(시트 안 조건마다 한 줄 설명), 가로형 카드·목록 행의 15px 제목(규칙의 작은 카드는 14px), 흰 카드 위에서 흰 원 없이 그린 하트</li>
+      <li><b>새 데이터가 필요한 시안</b> — 홈 C(반경 질의, 야간상담·주차 목록 필터), 홈 D(이벤트 종료일), 병원 상세 C(<code>doctorId</code>), 병원 상세 D(시술별 금액), 병원 탐색 B(미리보기 건수). 고르면 db-master → interface-master 순서로 계약부터 정해야 해요</li>
+      <li><b>상담 신청 C 의 주소</b> — 시트로 바꾸면 <code>/consult/:hospitalId</code> 를 직접 열거나 공유했을 때의 동작을 다시 정해야 해요</li>
+    </ol>
+  </section>
+</main>
+</body>
+</html>
